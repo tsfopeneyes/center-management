@@ -5,6 +5,8 @@ import { userApi } from '../api/userApi';
 export const useProfile = (initialUser) => {
     const [user, setUser] = useState(initialUser);
     const [totalHours, setTotalHours] = useState(0);
+    const [visitCount, setVisitCount] = useState(0);
+    const [programCount, setProgramCount] = useState(0);
     const [loading, setLoading] = useState(false);
 
     const fetchStats = useCallback(async (userId) => {
@@ -12,6 +14,14 @@ export const useProfile = (initialUser) => {
         try {
             const logs = await userApi.fetchLogs(userId);
 
+            // 1. Visit Count (Unique Days)
+            const checkinDates = logs
+                ?.filter(l => l.type === 'CHECKIN')
+                .map(l => new Date(l.created_at).toLocaleDateString()) || [];
+            const uniqueDays = new Set(checkinDates);
+            setVisitCount(uniqueDays.size);
+
+            // 2. Total Hours
             let totalMs = 0;
             let lastCheckInTime = null;
             logs?.forEach(log => {
@@ -23,6 +33,17 @@ export const useProfile = (initialUser) => {
                 }
             });
             setTotalHours((totalMs / (1000 * 60 * 60)).toFixed(1));
+
+            // 3. Program Count & History
+            const { data: responses } = await supabase
+                .from('notice_responses')
+                .select('notices(title)')
+                .eq('user_id', userId)
+                .eq('is_attended', true);
+
+            setProgramCount(responses?.length || 0);
+            return { attendedPrograms: responses?.map(r => r.notices?.title).filter(Boolean) || [] };
+
         } catch (err) {
             console.error('Error fetching stats:', err);
         }
@@ -68,6 +89,8 @@ export const useProfile = (initialUser) => {
         user,
         setUser,
         totalHours,
+        visitCount,
+        programCount,
         loading,
         fetchStats,
         updateProfile

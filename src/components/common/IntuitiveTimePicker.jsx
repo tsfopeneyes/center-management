@@ -46,51 +46,44 @@ const IntuitiveTimePicker = ({ value, onChange }) => {
     };
 
     return (
-        <div className="flex bg-gray-50 rounded-2xl p-2 border border-gray-100 items-center justify-center gap-1 shadow-inner">
-            {/* Period */}
-            <div className="flex flex-col gap-1">
+        <div className="flex bg-white rounded-xl p-1 border border-gray-200 items-center justify-between gap-1 shadow-sm h-[46px] min-w-[140px]">
+            {/* Period Selection */}
+            <div className="flex bg-gray-100 rounded-lg p-0.5 ml-0.5">
                 {['오전', '오후'].map(p => (
                     <button
                         key={p}
                         type="button"
                         onClick={() => handlePeriodChange(p)}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${period === p ? 'bg-blue-600 text-white shadow-md scale-105' : 'text-gray-400 hover:bg-gray-200'}`}
+                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${period === p ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                     >
                         {p}
                     </button>
                 ))}
             </div>
 
-            <div className="w-[1px] h-10 bg-gray-200 mx-1"></div>
-
-            {/* Hour */}
-            <div className="flex items-center gap-1">
+            {/* Time Selectors */}
+            <div className="flex items-center gap-1 px-2 flex-1 justify-center">
                 <select
                     value={hour}
                     onChange={(e) => handleHourChange(e.target.value)}
-                    className="bg-transparent text-lg font-bold text-gray-800 outline-none scrollbar-hide appearance-none px-2 py-1 rounded-lg hover:bg-gray-200"
+                    className="bg-transparent text-base font-extrabold text-gray-800 outline-none scrollbar-hide appearance-none cursor-pointer hover:text-blue-600 transition-colors w-6 text-center"
                 >
                     {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
                         <option key={h} value={h}>{h}</option>
                     ))}
                 </select>
-                <span className="text-gray-400 font-bold">시</span>
-            </div>
 
-            <div className="text-gray-300 font-bold">:</div>
+                <span className="text-gray-300 font-bold">:</span>
 
-            {/* Minute */}
-            <div className="flex items-center gap-1">
                 <select
                     value={minute}
                     onChange={(e) => handleMinuteChange(e.target.value)}
-                    className="bg-transparent text-lg font-bold text-gray-800 outline-none scrollbar-hide appearance-none px-2 py-1 rounded-lg hover:bg-gray-200 text-right"
+                    className="bg-transparent text-base font-extrabold text-gray-800 outline-none scrollbar-hide appearance-none cursor-pointer hover:text-blue-600 transition-colors w-7 text-center"
                 >
                     {Array.from({ length: 60 }, (_, i) => i).map(m => (
                         <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
                     ))}
                 </select>
-                <span className="text-gray-400 font-bold">분</span>
             </div>
         </div>
     );

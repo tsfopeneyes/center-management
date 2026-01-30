@@ -75,7 +75,8 @@ const StudentChat = ({ currentUser, onRefreshUnread }) => {
             const { data, error } = await supabase
                 .from('users')
                 .select('id, name, user_group')
-                .eq('user_group', 'STAFF');
+                .eq('user_group', 'STAFF')
+                .neq('name', 'admin');
             if (error) throw error;
             setStaffList(data || []);
         } catch (err) {

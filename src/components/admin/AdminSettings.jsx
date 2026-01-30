@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
+import { format } from 'date-fns';
 import { supabase } from '../../supabaseClient';
 import { Settings, User, Camera, Save, Edit2, Trash2, Plus, ZoomIn, RotateCw, ExternalLink, Share2, Database, FileText } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '../../utils/imageUtils';
-import { backupLogsToGoogleSheets, uploadSummaryToNotion } from '../../utils/integrationUtils';
+import { backupLogsToGoogleSheets, uploadSummaryToNotion, syncToGoogleSheets, bulkSyncToGoogleSheets } from '../../utils/integrationUtils';
 import { processAnalyticsData } from '../../utils/analyticsUtils';
 
-const AdminSettings = ({ currentAdmin, locations, fetchData, users, allLogs }) => {
+const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, allLogs, responses = [] }) => {
     // Profile State
     const [profileImage, setProfileImage] = useState(null);
     const [profilePreview, setProfilePreview] = useState(null);
@@ -20,6 +21,7 @@ const AdminSettings = ({ currentAdmin, locations, fetchData, users, allLogs }) =
     const [notionDbId, setNotionDbId] = useState(localStorage.getItem('notion_db_id') || '');
     const [isBackingUp, setIsBackingUp] = useState(false);
     const [isUploadingNotion, setIsUploadingNotion] = useState(false);
+    const [syncProgress, setSyncProgress] = useState('');
 
     // Location State
     const [tempLocationName, setTempLocationName] = useState('');
@@ -132,16 +134,93 @@ const AdminSettings = ({ currentAdmin, locations, fetchData, users, allLogs }) =
 
     const handleGoogleSheetsBackup = async () => {
         if (!gsWebhookUrl) return alert('구글 시트 웹훅 URL을 입력해주세요.');
-        if (!allLogs || allLogs.length === 0) return alert('백업할 로그가 없습니다.');
 
         setIsBackingUp(true);
+        setSyncProgress('Supabase에서 최신 데이터를 불러오는 중...');
         try {
-            await backupLogsToGoogleSheets(gsWebhookUrl, allLogs, users, locations);
-            alert('구글 시트 백업이 완료되었습니다.');
+            console.log('--- Starting Google Sheets Sync ---');
+
+            // 0. 최신 데이터 불러오기 (fetchData returns the latest data from DB)
+            const latest = await fetchData();
+
+            // 데이터가 정상적으로 오지 않았을 경우 방어 코드
+            const currentUsers = latest?.users || users;
+            const currentLogs = latest?.allLogs || allLogs;
+            const currentResponses = latest?.responses || responses;
+            const currentNotices = latest?.notices || notices;
+            const currentLocations = latest?.locations || locations;
+
+            // 1. 회원정보 (User Info)
+            setSyncProgress('전송용 데이터 준비 중...');
+            const userRows = currentUsers.map(u => ({
+                'ID': u.id,
+                '이름': u.name,
+                '학교': u.school,
+                '연락처': u.phone || '-',
+                '생년월일': u.birth || '-',
+                '가입일': u.created_at ? format(new Date(u.created_at), 'yyyy-MM-dd') : '-'
+            }));
+
+            // 2. 공간로그 (Space Logs)
+            const logRows = currentLogs.filter(l => !l.type?.startsWith('PRG_')).map(log => {
+                const u = currentUsers.find(user => user.id === log.user_id);
+                const loc = currentLocations.find(l => l.id === log.location_id);
+                return {
+                    '일시': format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss'),
+                    '이름': u ? u.name : '알 수 없음',
+                    '학교': u ? u.school : '-',
+                    '장소': loc ? loc.name : '-',
+                    '유형': log.type === 'CHECKIN' ? '입실' : log.type === 'CHECKOUT' ? '퇴실' : '이동'
+                };
+            });
+
+            // 3. 프로그램로그 (Program Logs)
+            const prgRows = (currentResponses || []).map(res => {
+                const u = currentUsers.find(user => user.id === res.user_id);
+                const notice = currentNotices.find(n => n.id === res.notice_id);
+                return {
+                    '날짜': notice ? notice.program_date : '-',
+                    '프로그램': notice ? notice.title : '삭제됨',
+                    '이름': u ? u.name : '알 수 없음',
+                    '상태': res.status,
+                    '출석여부': res.is_attended ? '참석' : '미참석'
+                };
+            });
+
+            // 4. 운영리포트 (Operational Report)
+            let summaryRows = [];
+            try {
+                const analytics = processAnalyticsData(currentLogs, currentLocations, currentUsers, new Date(), 'WEEKLY');
+                summaryRows = [{
+                    '생성일': format(new Date(), 'yyyy-MM-dd'),
+                    '총 이용건수': analytics?.totalVisits || 0,
+                    '고유 방문자': analytics?.uniqueUsers || 0,
+                    '평균 체류시간(분)': Math.round(analytics?.avgDuration || 0),
+                    '인기 장소': analytics?.roomAnalysis?.[0]?.name || '-'
+                }];
+            } catch (aErr) { console.warn('Analytics failed', aErr); }
+
+            // 5. 한 번에 전송 (Bulk Sync)
+            setSyncProgress('구글 시트로 모든 데이터 전송 중...');
+            const payloads = [
+                { tabName: '회원정보', rows: userRows, headers: ['ID', '이름', '학교', '연락처', '생년월일', '가입일'] },
+                { tabName: '공간로그', rows: logRows, headers: ['일시', '이름', '학교', '장소', '유형'] },
+                { tabName: '프로그램로그', rows: prgRows, headers: ['날짜', '프로그램', '이름', '상태', '출석여부'] },
+                { tabName: '운영리포트', rows: summaryRows, headers: ['생성일', '총 이용건수', '고유 방문자', '평균 체류시간(분)', '인기 장소'] }
+            ].filter(p => p.rows.length > 0);
+
+            await bulkSyncToGoogleSheets(gsWebhookUrl, payloads);
+
+            console.log('Sync Complete!');
+            setSyncProgress('');
+            alert('모든 데이터가 구글 시트로 동기화되었습니다!\n(최신 회원가입자 정보 포함)');
         } catch (err) {
+            console.error('Backup Error:', err);
+            setSyncProgress('');
             alert('백업 실패: ' + err.message);
         } finally {
             setIsBackingUp(false);
+            setSyncProgress('');
         }
     };
 
@@ -253,8 +332,11 @@ const AdminSettings = ({ currentAdmin, locations, fetchData, users, allLogs }) =
                             disabled={isBackingUp}
                             className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition shadow-sm disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm"
                         >
-                            {isBackingUp ? '백업 중...' : <><Database size={16} /> 지금 시트로 백업하기</>}
+                            {isBackingUp ? '동기화 중...' : <><Database size={16} /> 모든 데이터 시트 동기화</>}
                         </button>
+                        {syncProgress && (
+                            <p className="text-xs text-blue-600 font-bold animate-pulse text-center">{syncProgress}</p>
+                        )}
                         <p className="text-[10px] text-gray-400 leading-relaxed">* 구글 앱스 스크립트를 통해 시트에 로그를 전송합니다.</p>
                     </div>
 

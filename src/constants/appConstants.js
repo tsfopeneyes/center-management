@@ -34,3 +34,19 @@ export const COLOR_THEMES = {
     WARNING: 'orange',
     DANGER: 'red'
 };
+
+export const BADGE_DEFINITIONS = [
+    // VISIT BADGES
+    { id: 'visit_1', type: 'VISIT', min: 1, label: '첫 만남', icon: '🌱', image: '/badges/visit_1.png', color: 'bg-green-100 text-green-600' },
+    { id: 'visit_10', type: 'VISIT', min: 10, label: '단골 손님', icon: '⭐', image: '/badges/visit_10.png', color: 'bg-blue-100 text-blue-600' },
+    { id: 'visit_30', type: 'VISIT', min: 30, label: '공간의 주인', icon: '🏠', image: '/badges/visit_30.png', color: 'bg-indigo-100 text-indigo-600' },
+    { id: 'visit_50', type: 'VISIT', min: 50, label: '센터의 친구', icon: '🤝', image: '/badges/visit_50.png', color: 'bg-purple-100 text-purple-600' },
+    { id: 'visit_80', type: 'VISIT', min: 80, label: '우수 멤버', icon: '🏅', image: '/badges/visit_80.png', color: 'bg-pink-100 text-pink-600' },
+    { id: 'visit_100', type: 'VISIT', min: 100, label: '센터의 자랑', icon: '🏆', image: '/badges/visit_100.png', color: 'bg-yellow-100 text-yellow-600' },
+
+    // PROGRAM BADGES
+    { id: 'program_5', type: 'PROGRAM', min: 5, label: '성장하는 중', icon: '🚀', image: '/badges/program_5.png', color: 'bg-cyan-100 text-cyan-600' },
+    { id: 'program_10', type: 'PROGRAM', min: 10, label: '열정 학생', icon: '🔥', image: '/badges/program_10.png', color: 'bg-orange-100 text-orange-600' },
+    { id: 'program_20', type: 'PROGRAM', min: 20, label: '프로그램 매니아', icon: '💎', image: '/badges/program_20.png', color: 'bg-blue-100 text-blue-600' },
+    { id: 'program_30', type: 'PROGRAM', min: 30, label: '마스터', icon: '👑', image: '/badges/program_30.png', color: 'bg-yellow-400 text-white' },
+];

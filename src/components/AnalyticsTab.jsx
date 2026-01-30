@@ -195,7 +195,9 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses }) => {
                                 <h3 className="text-gray-500 text-sm font-bold">평균 출석률</h3>
                             </div>
                             <p className="text-2xl font-bold text-gray-800">
-                                {programData.length > 0 ? Math.round(programData.reduce((acc, curr) => acc + curr.attendanceRate, 0) / programData.length) : 0}
+                                {programData.filter(p => p.attendanceRate !== null).length > 0
+                                    ? Math.round(programData.reduce((acc, curr) => acc + (curr.attendanceRate || 0), 0) / programData.filter(p => p.attendanceRate !== null).length)
+                                    : 0}
                                 <span className="text-sm font-normal text-gray-400">%</span>
                             </p>
                         </div>
@@ -342,17 +344,30 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses }) => {
                                     <tr><td colSpan="6" className="p-8 text-center text-gray-400">등록된 프로그램이 없습니다.</td></tr>
                                 ) : (
                                     programData.map((p) => (
-                                        <tr key={p.id} className="hover:bg-gray-50/50 transition">
-                                            <td className="p-4 font-bold text-gray-700">{p.title}</td>
-                                            <td className="p-4 text-center font-bold text-blue-600">{p.joinCount}명 <span className="text-[10px] text-gray-400 font-normal">(대기 {p.waitlistCount})</span></td>
-                                            <td className="p-4 text-center font-bold text-green-600">{p.attendedCount}명</td>
-                                            <td className="p-4 text-center">
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <span className="font-bold">{p.attendanceRate}%</span>
-                                                    <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-green-500" style={{ width: `${p.attendanceRate}%` }} />
-                                                    </div>
+                                        <tr key={p.id} className="hover:bg-gray-50/50 transition border-b border-gray-50 last:border-0">
+                                            <td className="p-4 font-bold text-gray-700 max-w-[240px] leading-snug break-keep">
+                                                {p.title}
+                                            </td>
+                                            <td className="p-4 text-center whitespace-nowrap">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="font-bold text-blue-600">{p.joinCount}명</span>
+                                                    {p.waitlistCount > 0 && (
+                                                        <span className="text-[10px] text-gray-400 font-bold">(대기 {p.waitlistCount}명)</span>
+                                                    )}
                                                 </div>
+                                            </td>
+                                            <td className="p-4 text-center font-bold text-green-600 whitespace-nowrap">{p.attendedCount}명</td>
+                                            <td className="p-4 text-center min-w-[100px]">
+                                                {p.attendanceRate !== null ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="font-bold">{p.attendanceRate}%</span>
+                                                        <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-green-500" style={{ width: `${p.attendanceRate}%` }} />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-300">-</span>
+                                                )}
                                             </td>
                                             <td className="p-4 text-center">
                                                 <span className={`px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap inline-block ${p.status === 'ACTIVE' ? 'bg-blue-100 text-blue-600' : p.status === 'CANCELLED' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>

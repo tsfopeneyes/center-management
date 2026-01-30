@@ -3,6 +3,7 @@ import { Trash2, MessageCircle, X, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import LinkPreview from '../LinkPreview';
 import { extractUrls } from '../../utils/linkUtils';
+import { guestbookApi } from '../../api/guestbookApi';
 
 const AdminGuestbook = () => {
     const [posts, setPosts] = useState([]);
@@ -13,12 +14,7 @@ const AdminGuestbook = () => {
 
     const fetchPosts = async () => {
         try {
-            const { data, error } = await supabase
-                .from('guest_posts')
-                .select('*, users(name, school)')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
+            const data = await guestbookApi.fetchPosts();
             setPosts(data || []);
         } catch (error) {
             console.error('Error fetching guest posts:', error);
@@ -31,37 +27,33 @@ const AdminGuestbook = () => {
         if (!confirm('이 방명록 글을 삭제하시겠습니까? (댓글도 함께 삭제됩니다)')) return;
 
         try {
-            const { error } = await supabase.from('guest_posts').delete().eq('id', postId);
-            if (error) throw error;
+            await guestbookApi.deletePost(postId);
             alert('삭제되었습니다.');
-            fetchPosts();
+            await fetchPosts();
             if (selectedPost?.id === postId) setSelectedPost(null);
         } catch (error) {
-            alert('삭제 실패: ' + error.message);
+            alert('삭제 실패: ' + (error.message || error));
         }
     };
 
     const deleteComment = async (commentId) => {
         if (!confirm('이 댓글을 삭제하시겠습니까?')) return;
         try {
-            const { error } = await supabase.from('guest_comments').delete().eq('id', commentId);
-            if (error) throw error;
-            fetchComments(selectedPost.id);
+            await guestbookApi.deleteComment(commentId);
+            if (selectedPost?.id) {
+                await fetchComments(selectedPost.id);
+            }
         } catch (error) {
-            alert('댓글 삭제 실패: ' + error.message);
+            alert('댓글 삭제 실패: ' + (error.message || error));
         }
     };
 
     const fetchComments = async (postId) => {
         try {
-            const { data } = await supabase
-                .from('guest_comments')
-                .select('*, users(name)')
-                .eq('post_id', postId)
-                .order('created_at', { ascending: true });
+            const data = await guestbookApi.fetchComments(postId);
             setComments(data || []);
         } catch (error) {
-            console.error(error);
+            console.error('Error fetching comments:', error);
         }
     };
 

@@ -1,50 +1,62 @@
 import { format } from 'date-fns';
 
 /**
- * Backup logs to Google Sheets via Webhook
- * @param {string} webhookUrl - Google Apps Script Webhook URL
- * @param {Array} logs - Raw logs
- * @param {Array} users - User list for name mapping
- * @param {Array} locations - Location list for name mapping
+ * Generic Sync to Google Sheets
+ * @param {string} webhookUrl 
+ * @param {string} tabName - The name of the tab in Google Sheets
+ * @param {Array} rows - Array of objects (data)
+ * @param {Array} headers - Optional headers for first-time creation
  */
-export const backupLogsToGoogleSheets = async (webhookUrl, logs, users, locations) => {
+export const syncToGoogleSheets = async (webhookUrl, tabName, rows, headers = []) => {
+    return await bulkSyncToGoogleSheets(webhookUrl, [{ tabName, rows, headers }]);
+};
+
+/**
+ * Bulk Sync to Google Sheets (Multiple tabs in one request)
+ * @param {string} webhookUrl 
+ * @param {Array} payloads - Array of { tabName, rows, headers }
+ */
+export const bulkSyncToGoogleSheets = async (webhookUrl, payloads) => {
     if (!webhookUrl) throw new Error('Google Sheets Webhook URL이 설정되지 않았습니다.');
 
-    const formattedData = logs.map(log => {
-        const user = users.find(u => u.id === log.user_id);
-        const location = locations.find(l => l.id === log.location_id);
-
-        let typeLabel = '';
-        switch (log.type) {
-            case 'CHECKIN': typeLabel = '입실'; break;
-            case 'CHECKOUT': typeLabel = '퇴실'; break;
-            case 'MOVE': typeLabel = '이동'; break;
-            default: typeLabel = log.type;
-        }
-
-        return {
-            timestamp: format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss'),
-            userName: user ? user.name : '알 수 없음',
-            userGroup: user ? user.user_group : '-',
-            type: typeLabel,
-            location: location ? location.name : '-'
-        };
-    });
-
     try {
-        const response = await fetch(webhookUrl, {
+        await fetch(webhookUrl, {
             method: 'POST',
-            mode: 'no-cors', // Apps Script often requires no-cors for simple webhooks
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ logs: formattedData })
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ isBulk: true, payloads })
         });
         return { success: true };
     } catch (error) {
-        console.error('Google Sheets Backup Error:', error);
+        console.error('Google Sheets Bulk Sync Error:', error);
         throw error;
     }
+};
+
+/**
+ * Legacy wrapper for backward compatibility or convenience
+ */
+export const backupLogsToGoogleSheets = async (webhookUrl, logs, users, locations, notices) => {
+    const formatted = logs.map(log => {
+        const user = users.find(u => u.id === log.user_id);
+        const location = locations.find(l => l.id === log.location_id);
+
+        let targetName = location ? location.name : '-';
+        if (log.type?.startsWith('PRG_')) {
+            const notice = notices?.find(n => n.id === log.location_id);
+            targetName = notice ? `[프로그램] ${notice.title}` : '삭제된 프로그램';
+        }
+
+        return {
+            '일시': format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss'),
+            '이름': user ? user.name : '알 수 없음',
+            '학교': user ? user.school : '-',
+            '구분': log.type,
+            '장소/프로그램': targetName
+        };
+    });
+
+    return await syncToGoogleSheets(webhookUrl, '공간로그', formatted, ['일시', '이름', '학교', '구분', '장소/프로그램']);
 };
 
 /**

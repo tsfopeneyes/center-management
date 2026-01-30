@@ -7,13 +7,14 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen }
     const menus = [
         { id: 'STATUS', label: '공간 현황', icon: <LayoutDashboard size={20} /> },
         { id: 'PROGRAMS', label: '센터 프로그램', icon: <Users size={20} /> },
-        { id: 'BOARD', label: '공지사항', icon: <MessageSquare size={20} /> },
+        { id: 'BOARD', label: '게시판', icon: <MessageSquare size={20} /> },
         { id: 'GALLERY', label: '사진첩', icon: <Image size={20} /> },
         { id: 'GUESTBOOK', label: '방명록', icon: <FileText size={20} /> },
-        { id: 'MESSAGES', label: '메시지', icon: <Send size={20} /> },
+        // { id: 'MESSAGES', label: '메시지', icon: <Send size={20} /> },
         { id: 'USERS', label: '이용자 관리', icon: <Users size={20} /> },
         { id: 'STATISTICS', label: '통계', icon: <BarChart2 size={20} /> },
         { id: 'LOGS', label: '로그', icon: <FileText size={20} /> },
+        { id: 'REPORTS', label: '운영 리포트', icon: <FileText size={20} /> },
         { id: 'SETTINGS', label: '설정', icon: <Settings size={20} /> },
     ];
 

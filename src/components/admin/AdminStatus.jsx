@@ -31,7 +31,8 @@ const AdminStatus = ({
                 loc.name.includes('워크숍') ||
                 loc.name.includes('회의실') ||
                 loc.name.includes('멤버십') ||
-                loc.name.includes('맴버십')
+                loc.name.includes('맴버십') ||
+                loc.name.includes('고백')
             );
         }
         if (locationTab === 'ENOF') {
@@ -89,7 +90,7 @@ const AdminStatus = ({
                     <button onClick={fetchData} className="flex-1 md:flex-none bg-white text-green-600 border border-green-200 px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-green-50 transition font-bold shadow-sm">
                         <RotateCw size={18} /> <span className="text-sm">새로고침</span>
                     </button>
-                    <button onClick={() => navigate('/checkin')} className="flex-1 md:flex-none bg-indigo-600 text-white px-5 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition shadow-lg font-bold">
+                    <button onClick={() => navigate('/kiosk')} className="flex-1 md:flex-none bg-indigo-600 text-white px-5 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition shadow-lg font-bold">
                         <Tablet size={20} /> <span className="text-sm">키오스크</span>
                     </button>
                 </div>

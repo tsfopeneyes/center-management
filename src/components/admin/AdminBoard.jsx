@@ -2,7 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import { noticesApi } from '../../api/noticesApi';
 import { CATEGORIES, RESPONSE_STATUS } from '../../constants/appConstants';
-import { PlusCircle, FileText, Grid, UploadCloud, Trash2, Edit2, ImageIcon, Users, X, ZoomIn, RotateCw, Eye, ArrowLeft, Heart, MessageCircle, MoreHorizontal, CheckCircle2, XCircle, UserPlus, Search, RefreshCw } from 'lucide-react';
+import { isWithinInterval, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { PlusCircle, FileText, Grid, UploadCloud, Trash2, Edit2, ImageIcon, Users, X, ZoomIn, RotateCw, Eye, ArrowLeft, Heart, MessageCircle, MoreHorizontal, CheckCircle2, XCircle, UserPlus, Search, RefreshCw, Calendar, MapPin } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '../../utils/imageUtils';
@@ -15,25 +16,59 @@ import Microlink from '@microlink/react';
 import { formatToLocalISO } from '../../utils/dateUtils';
 import { extractUrls } from '../../utils/textUtils';
 import IntuitiveTimePicker from '../common/IntuitiveTimePicker';
+import { exportParticipantsToExcel } from '../../utils/exportUtils';
 
 const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
     // mode: 'NOTICE' | 'PROGRAM' | 'GALLERY'
     const targetCategory = mode;
 
+    // Search & Filter State
+    const [filterTitle, setFilterTitle] = useState('');
+    const [filterLocation, setFilterLocation] = useState('');
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
+
     // Filter Notices for this view
-    const filteredNotices = notices.filter(n => n.category === mode);
+    const filteredNotices = notices.filter(n => {
+        // 1. Basic Category Filter
+        if (n.category !== mode) return false;
+
+        // 2. Title Filter
+        if (filterTitle && !n.title.toLowerCase().includes(filterTitle.toLowerCase())) return false;
+
+        // 3. Location Filter (for Programs)
+        if (mode === CATEGORIES.PROGRAM && filterLocation) {
+            // Since location is in the HTML content, we check the content
+            // We strip HTML tags from search if needed, but simple includes is usually enough
+            if (!n.content.toLowerCase().includes(filterLocation.toLowerCase())) return false;
+        }
+
+        // 4. Date Range Filter
+        if (filterStartDate || filterEndDate) {
+            const targetDate = mode === CATEGORIES.PROGRAM && n.program_date
+                ? parseISO(n.program_date)
+                : parseISO(n.created_at);
+
+            const start = filterStartDate ? startOfDay(parseISO(filterStartDate)) : new Date(0);
+            const end = filterEndDate ? endOfDay(parseISO(filterEndDate)) : new Date(8640000000000000);
+
+            if (!isWithinInterval(targetDate, { start, end })) return false;
+        }
+
+        return true;
+    });
 
     // State
     const [showWriteForm, setShowWriteForm] = useState(false);
     const [newNotice, setNewNotice] = useState({
         title: '',
         content: '',
-        is_recruiting: false,
+        is_recruiting: mode === CATEGORIES.PROGRAM,
         is_sticky: false,
         send_push: false,
         category: targetCategory,
         recruitment_deadline: '',
-        max_capacity: '',
+        max_capacity: mode === CATEGORIES.PROGRAM ? 0 : '',
         program_date: '',
         program_duration: '',
         program_location: ''
@@ -72,9 +107,18 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                 // We'll keep this direct for now as it's a batch select for stats
                 const { data: responses } = await supabase.from('notice_responses').select('*').in('notice_id', recruitingIds);
                 const nStats = {};
-                recruitingIds.forEach(id => nStats[id] = { [RESPONSE_STATUS.JOIN]: 0, [RESPONSE_STATUS.DECLINE]: 0, [RESPONSE_STATUS.UNDECIDED]: 0 });
+                recruitingIds.forEach(id => nStats[id] = {
+                    [RESPONSE_STATUS.JOIN]: 0,
+                    [RESPONSE_STATUS.DECLINE]: 0,
+                    [RESPONSE_STATUS.UNDECIDED]: 0,
+                    [RESPONSE_STATUS.WAITLIST]: 0,
+                    attendedCount: 0
+                });
                 responses?.forEach(r => {
-                    if (nStats[r.notice_id]) nStats[r.notice_id][r.status] = (nStats[r.notice_id][r.status] || 0) + 1;
+                    if (nStats[r.notice_id]) {
+                        nStats[r.notice_id][r.status] = (nStats[r.notice_id][r.status] || 0) + 1;
+                        if (r.is_attended) nStats[r.notice_id].attendedCount += 1;
+                    }
                 });
                 setNoticeStats(nStats);
             }
@@ -119,12 +163,12 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
         setNewNotice({
             title: '',
             content: '',
-            is_recruiting: false,
+            is_recruiting: mode === CATEGORIES.PROGRAM,
             is_sticky: false,
             send_push: false,
             category: targetCategory,
             recruitment_deadline: '',
-            max_capacity: '',
+            max_capacity: mode === CATEGORIES.PROGRAM ? 0 : '',
             program_date: '',
             program_duration: '',
             program_location: ''
@@ -255,29 +299,9 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
             if (editNoticeId) {
                 await noticesApi.update(editNoticeId, payload);
 
-                // Logging
-                if (isProgram) {
-                    const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    await supabase.from('logs').insert([{
-                        user_id: admin?.id,
-                        type: 'PROGRAM_UPDATE',
-                        location_id: null
-                    }]);
-                }
-
                 alert('수정되었습니다.');
             } else {
                 const created = await noticesApi.create(payload);
-
-                // Logging
-                if (isProgram) {
-                    const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    await supabase.from('logs').insert([{
-                        user_id: admin?.id,
-                        type: 'PROGRAM_CREATE',
-                        location_id: null
-                    }]);
-                }
 
                 alert('등록되었습니다.');
             }
@@ -366,13 +390,85 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
         } catch (err) { alert('출석 상태 변경 실패'); }
     };
 
+    const handleMarkAllAttended = async () => {
+        if (!window.confirm('모든 신청 인원을 참석 처리하시겠습니까?')) return;
+        try {
+            await noticesApi.markAllAttended(selectedNoticeForParticipants.id);
+            setParticipantList(prev => {
+                const next = { ...prev };
+                next.JOIN = next.JOIN.map(u => ({ ...u, is_attended: true }));
+                return next;
+            });
+        } catch (err) { alert('전체 참석 처리 실패'); }
+    };
+
     const handleStatusChange = async (noticeId, newStatus) => {
+        const notice = notices.find(n => n.id === noticeId);
+        if (!notice) return;
+
         const statusMap = { 'COMPLETED': '완료', 'CANCELLED': '취소', 'ACTIVE': '진행중(활성)' };
         if (!window.confirm(`프로그램 상태를 [${statusMap[newStatus]}] 상태로 변경하시겠습니까?`)) return;
+
         try {
+            // Archiving Logic
+            if (newStatus === 'COMPLETED' || newStatus === 'CANCELLED') {
+                const { data: responses, error: resError } = await supabase
+                    .from('notice_responses')
+                    .select('user_id, status, is_attended')
+                    .eq('notice_id', noticeId);
+
+                if (resError) throw resError;
+
+                let archiveLogs = [];
+                // Store ID, Title, Date, Time, and Location for persistence
+                const info = extractProgramInfo(notice.content);
+                const archiveId = `${notice.id}|${notice.title}|${notice.program_date || ''}|${notice.program_time || ''}|${info.location || ''}`;
+
+                if (newStatus === 'COMPLETED') {
+                    // Archive ALL sign-ups with attend/absent distinction
+                    archiveLogs = (responses || [])
+                        .filter(r => r.status === 'JOIN')
+                        .map(r => ({
+                            user_id: r.user_id,
+                            type: r.is_attended ? 'PRG_ATTENDED' : 'PRG_ABSENT',
+                            location_id: archiveId
+                        }));
+                } else if (newStatus === 'CANCELLED') {
+                    // Archive all sign-ups (Join or Waitlist) as Cancelled
+                    archiveLogs = (responses || [])
+                        .filter(r => r.status === 'JOIN' || r.status === 'WAITLIST')
+                        .map(r => ({
+                            user_id: r.user_id,
+                            type: 'PRG_CANCELLED',
+                            location_id: archiveId
+                        }));
+                }
+
+                if (archiveLogs.length > 0) {
+                    const { error: logError } = await supabase.from('logs').insert(archiveLogs);
+                    if (logError) {
+                        console.error('Archive logging failed:', logError);
+                        alert(`데이터 아카이빙 실패: ${logError.message}`);
+                    }
+                } else {
+                    // Fallback: If no participants, create a single "System" log entry to ensure persistence
+                    const admin = JSON.parse(localStorage.getItem('admin_user'));
+                    const systemLog = {
+                        user_id: admin?.id || '00000000-0000-0000-0000-000000000000', // Admin or nil UUID
+                        type: newStatus === 'COMPLETED' ? 'PRG_COMPLETED' : 'PRG_CANCELLED',
+                        location_id: archiveId
+                    };
+                    const { error: logError } = await supabase.from('logs').insert([systemLog]);
+                    if (logError) console.error('System archive logging failed:', logError);
+                }
+            }
+
             await noticesApi.updateProgramStatus(noticeId, newStatus);
             fetchData();
-        } catch (err) { alert('상태 변경 실패'); }
+        } catch (err) {
+            console.error('Status change error:', err);
+            alert('상태 변경 및 데이터 아카이빙 실패: ' + err.message);
+        }
     };
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -438,13 +534,29 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                                         <input
                                             type="date"
                                             value={splitDateTime(newNotice.program_date).date}
-                                            onChange={e => setNewNotice(prev => ({ ...prev, program_date: joinDateTime(e.target.value, splitDateTime(prev.program_date).time) }))}
+                                            onChange={e => {
+                                                const newDate = joinDateTime(e.target.value, splitDateTime(newNotice.program_date).time);
+                                                setNewNotice(prev => ({
+                                                    ...prev,
+                                                    program_date: newDate,
+                                                    // Sync deadline if it was empty or matches old program_date
+                                                    recruitment_deadline: (!prev.recruitment_deadline || prev.recruitment_deadline === prev.program_date) ? newDate : prev.recruitment_deadline
+                                                }));
+                                            }}
                                             className="w-full p-3 bg-white border border-blue-100 rounded-xl outline-none focus:border-blue-500 transition text-sm"
                                             required
                                         />
                                         <IntuitiveTimePicker
                                             value={splitDateTime(newNotice.program_date).time}
-                                            onChange={time => setNewNotice(prev => ({ ...prev, program_date: joinDateTime(splitDateTime(prev.program_date).date, time) }))}
+                                            onChange={time => {
+                                                const newDate = joinDateTime(splitDateTime(newNotice.program_date).date, time);
+                                                setNewNotice(prev => ({
+                                                    ...prev,
+                                                    program_date: newDate,
+                                                    // Sync deadline
+                                                    recruitment_deadline: (!prev.recruitment_deadline || prev.recruitment_deadline === prev.program_date) ? newDate : prev.recruitment_deadline
+                                                }));
+                                            }}
                                         />
                                     </div>
                                 </div>
@@ -521,59 +633,73 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                             </div>
                         )}
 
-                        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 pt-4">
+                        {/* Form Footer: Settings & Actions */}
+                        <div className="pt-6 border-t border-gray-100 space-y-6">
                             {(mode === 'NOTICE' || mode === 'PROGRAM') && (
-                                <div className="flex flex-wrap gap-4">
-                                    <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100">
-                                        <input type="checkbox" checked={newNotice.is_sticky} onChange={e => setNewNotice(prev => ({ ...prev, is_sticky: e.target.checked }))} className="w-4 h-4 text-orange-600 rounded" />
-                                        <span className="text-sm font-bold text-gray-600">상단 고정 공지</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100">
-                                        <input type="checkbox" checked={newNotice.is_recruiting} onChange={e => setNewNotice(prev => ({ ...prev, is_recruiting: e.target.checked }))} className="w-4 h-4 text-blue-600 rounded" />
-                                        <span className="text-sm font-bold text-gray-600">학생들에게 참석여부 묻기</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100">
-                                        <input type="checkbox" checked={newNotice.send_push} onChange={e => setNewNotice(prev => ({ ...prev, send_push: e.target.checked }))} className="w-4 h-4 text-red-600 rounded" />
-                                        <span className="text-sm font-bold text-gray-600">🔔 푸시 알림 발송</span>
-                                    </label>
+                                <div className="space-y-4">
+                                    <p className="text-xs font-bold text-gray-400 ml-1">게시글 설정</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        <label className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100">
+                                            <input type="checkbox" checked={newNotice.is_sticky} onChange={e => setNewNotice(prev => ({ ...prev, is_sticky: e.target.checked }))} className="w-5 h-5 text-orange-600 rounded-lg" />
+                                            <span className="text-sm font-bold text-gray-700">상단 고정 공지</span>
+                                        </label>
+                                        <label className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100">
+                                            <input type="checkbox" checked={newNotice.is_recruiting} onChange={e => setNewNotice(prev => ({ ...prev, is_recruiting: e.target.checked }))} className="w-5 h-5 text-blue-600 rounded-lg" />
+                                            <span className="text-sm font-bold text-gray-700">학생들에게 참석여부 묻기</span>
+                                        </label>
+                                        <label className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100">
+                                            <input type="checkbox" checked={newNotice.send_push} onChange={e => setNewNotice(prev => ({ ...prev, send_push: e.target.checked }))} className="w-5 h-5 text-red-600 rounded-lg" />
+                                            <span className="text-sm font-bold text-gray-700">🔔 푸시 알림 발송</span>
+                                        </label>
+                                    </div>
                                 </div>
                             )}
 
                             {/* Recruitment Options (Visible if is_recruiting is checked) */}
                             {newNotice.is_recruiting && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">신청 마감 일자</label>
-                                        <input
-                                            type="date"
-                                            value={splitDateTime(newNotice.recruitment_deadline).date}
-                                            onChange={e => setNewNotice(prev => ({ ...prev, recruitment_deadline: joinDateTime(e.target.value, splitDateTime(prev.recruitment_deadline).time) }))}
-                                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 transition text-sm"
-                                        />
-                                    </div>
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">마감 시간</label>
-                                        <IntuitiveTimePicker
-                                            value={splitDateTime(newNotice.recruitment_deadline).time}
-                                            onChange={time => setNewNotice(prev => ({ ...prev, recruitment_deadline: joinDateTime(splitDateTime(prev.recruitment_deadline).date, time) }))}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">모집 인원 제한 (0: 무제한) {mode === CATEGORIES.PROGRAM && '*'}</label>
-                                        <input
-                                            type="number"
-                                            placeholder="예: 10"
-                                            value={newNotice.max_capacity}
-                                            onChange={e => setNewNotice(prev => ({ ...prev, max_capacity: e.target.value }))}
-                                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 transition text-sm"
-                                            required={mode === CATEGORIES.PROGRAM}
-                                        />
+                                <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4 animate-fade-in">
+                                    <p className="text-xs font-bold text-blue-600 ml-1">신청 및 인원 설정</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 mb-1 ml-1 uppercase">신청 마감 일자</label>
+                                            <input
+                                                type="date"
+                                                value={splitDateTime(newNotice.recruitment_deadline).date}
+                                                onChange={e => setNewNotice(prev => ({ ...prev, recruitment_deadline: joinDateTime(e.target.value, splitDateTime(prev.recruitment_deadline).time) }))}
+                                                className="w-full h-[46px] p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm shadow-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 mb-1 ml-1 uppercase">마감 시간</label>
+                                            <IntuitiveTimePicker
+                                                value={splitDateTime(newNotice.recruitment_deadline).time}
+                                                onChange={time => setNewNotice(prev => ({ ...prev, recruitment_deadline: joinDateTime(splitDateTime(prev.recruitment_deadline).date, time) }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 mb-1 ml-1 uppercase">모집 인원 (0: 무제한) {mode === CATEGORIES.PROGRAM && '*'}</label>
+                                            <input
+                                                type="number"
+                                                placeholder="예: 10"
+                                                value={newNotice.max_capacity}
+                                                onChange={e => setNewNotice(prev => ({ ...prev, max_capacity: e.target.value }))}
+                                                className="w-full h-[46px] p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm shadow-sm"
+                                                required={mode === CATEGORIES.PROGRAM}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             )}
-                            <div className="flex gap-2">
-                                <button type="button" onClick={handleCancelEdit} className="flex-1 md:flex-none px-6 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition">취소</button>
-                                <button type="submit" disabled={uploading || (targetCategory === 'GALLERY' && selectedFiles.length === 0 && existingImages.length === 0)} className="flex-1 md:flex-none px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 disabled:bg-gray-300 transition">
+
+                            <div className="flex flex-col md:flex-row items-center justify-end gap-3 pt-4">
+                                <button type="button" onClick={handleCancelEdit} className="w-full md:w-auto px-8 py-3.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition order-2 md:order-1">
+                                    취소
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={uploading || (targetCategory === 'GALLERY' && selectedFiles.length === 0 && existingImages.length === 0)}
+                                    className="w-full md:w-auto px-10 py-3.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:bg-gray-300 transition order-1 md:order-2"
+                                >
                                     {uploading ? '업로드 중...' : (editNoticeId ? '수정 저장' : '등록하기')}
                                 </button>
                             </div>
@@ -581,6 +707,100 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                     </form>
                 </div>
             )}
+
+            {/* Search & Filter Bar */}
+            <div className="bg-white p-4 md:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                {/* Row 1: Search Inputs */}
+                <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="제목 검색..."
+                            value={filterTitle}
+                            onChange={(e) => setFilterTitle(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 transition text-sm font-bold shadow-inner"
+                        />
+                    </div>
+                    {mode === CATEGORIES.PROGRAM && (
+                        <div className="flex-1 relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <input
+                                type="text"
+                                placeholder="장소 검색..."
+                                value={filterLocation}
+                                onChange={(e) => setFilterLocation(e.target.value)}
+                                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 transition text-sm font-bold shadow-inner"
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Row 2: Date Filters & Results Summary */}
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-gray-50">
+                    <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <Calendar className="text-gray-400 hidden sm:block" size={18} />
+                            <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100">
+                                <input
+                                    type="date"
+                                    value={filterStartDate}
+                                    onChange={(e) => setFilterStartDate(e.target.value)}
+                                    className="p-2 bg-transparent outline-none text-[11px] font-bold w-[125px] sm:w-[135px]"
+                                />
+                                <span className="text-gray-300 text-xs">-</span>
+                                <input
+                                    type="date"
+                                    value={filterEndDate}
+                                    onChange={(e) => setFilterEndDate(e.target.value)}
+                                    className="p-2 bg-transparent outline-none text-[11px] font-bold w-[125px] sm:w-[135px]"
+                                />
+                            </div>
+                        </div>
+
+                        {(filterTitle || filterLocation || filterStartDate || filterEndDate) && (
+                            <button
+                                onClick={() => {
+                                    setFilterTitle('');
+                                    setFilterLocation('');
+                                    setFilterStartDate('');
+                                    setFilterEndDate('');
+                                }}
+                                className="px-3 py-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex items-center gap-1.5"
+                            >
+                                <X size={14} /> 필터 초기화
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="py-2.5 px-4 bg-gray-50 text-gray-500 rounded-xl text-[11px] font-bold border border-gray-100">
+                            검색 결과: <span className="text-blue-600">{filteredNotices.length}개</span>
+                        </div>
+                        {mode === CATEGORIES.PROGRAM && filteredNotices.length > 0 && (
+                            <div className="py-2.5 px-4 bg-blue-600 text-white rounded-xl text-[11px] font-bold flex items-center gap-3 shadow-md shadow-blue-100">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="opacity-70">총 신청:</span>
+                                    <span className="text-white">{filteredNotices.reduce((acc, n) => acc + (noticeStats[n.id]?.JOIN || 0), 0)}명</span>
+                                </div>
+                                <span className="w-px h-3 bg-white/30" />
+                                <div className="flex items-center gap-1.5">
+                                    <span className="opacity-70">평균 출석:</span>
+                                    <span className="text-white">
+                                        {(() => {
+                                            const programsWithStats = filteredNotices.filter(n => noticeStats[n.id]);
+                                            if (programsWithStats.length === 0) return '0%';
+                                            const totalJoin = programsWithStats.reduce((acc, n) => acc + (noticeStats[n.id]?.JOIN || 0), 0);
+                                            const totalAttended = programsWithStats.reduce((acc, n) => acc + (noticeStats[n.id]?.attendedCount || 0), 0);
+                                            return totalJoin > 0 ? Math.round((totalAttended / totalJoin) * 100) + '%' : '0%';
+                                        })()}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
 
             {/* List */}
             <div className="space-y-4">
@@ -607,7 +827,22 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             {notice.is_sticky && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[9px] font-bold">📌 공지</span>}
-                                            {notice.is_recruiting && notice.program_status === 'ACTIVE' && <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-bold">모집중</span>}
+                                            {notice.is_recruiting && notice.program_status === 'ACTIVE' && (
+                                                <>
+                                                    <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-bold">모집중</span>
+                                                    {(() => {
+                                                        if (!notice.recruitment_deadline) return null;
+                                                        const deadline = parseISO(notice.recruitment_deadline);
+                                                        const now = new Date();
+                                                        const diff = deadline - now;
+                                                        const oneDay = 24 * 60 * 60 * 1000;
+                                                        if (diff > 0 && diff < oneDay) {
+                                                            return <span className="px-2 py-0.5 bg-red-500 text-white rounded-full text-[9px] font-bold animate-pulse">🔥 마감임박</span>;
+                                                        }
+                                                        return null;
+                                                    })()}
+                                                </>
+                                            )}
                                             {notice.program_status === 'COMPLETED' && <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-[9px] font-bold">진행완료</span>}
                                             {notice.program_status === 'CANCELLED' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[9px] font-bold">취소됨</span>}
                                             {(notice.images?.length > 0 || notice.image_url) && (
@@ -703,15 +938,32 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                                 <div className="space-y-6">
                                     {/* Attendance Check Section */}
                                     <div className="bg-green-50 p-4 rounded-2xl border border-green-100/50">
-                                        <h4 className="font-bold text-green-700 mb-3 flex justify-between items-center text-sm">
-                                            참여 인원 ({participantList.JOIN.length})
-                                            <span className="text-[10px] font-medium text-green-600">이름 옆 체크박스로 출석을 표시하세요</span>
+                                        <h4 className="font-bold text-green-700 mb-3 flex flex-wrap justify-between items-center gap-2 text-sm">
+                                            <div className="flex items-center gap-2">
+                                                참여 인원 ({participantList.JOIN.length})
+                                                <button
+                                                    onClick={handleMarkAllAttended}
+                                                    className="ml-2 text-[10px] bg-green-50 text-green-600 border border-green-200 px-2 py-0.5 rounded-md hover:bg-green-100 transition font-bold"
+                                                >
+                                                    전체 참석
+                                                </button>
+                                                <button
+                                                    onClick={() => exportParticipantsToExcel(selectedNoticeForParticipants, participantList)}
+                                                    className="ml-1 text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-md hover:bg-blue-100 transition font-bold flex items-center gap-1"
+                                                >
+                                                    <UploadCloud size={10} /> 엑셀 다운로드
+                                                </button>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <span className="text-blue-600">참석: {participantList.JOIN.filter(u => u.is_attended).length}</span>
+                                                <span className="text-gray-400">미참석: {participantList.JOIN.filter(u => !u.is_attended).length}</span>
+                                            </div>
                                         </h4>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                             {participantList.JOIN.map((u, i) => (
                                                 <div key={i} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${u.is_attended ? 'bg-green-100 border-green-200' : 'bg-white border-white shadow-sm'}`}>
                                                     <div className="flex flex-col">
-                                                        <span className="font-bold text-sm text-gray-800">{u.name}</span>
+                                                        <span className={`font-bold text-sm ${u.is_attended ? 'text-green-700' : 'text-gray-800'}`}>{u.name}</span>
                                                         <span className="text-[10px] text-gray-500">{u.school} | {u.phone_back4}</span>
                                                     </div>
                                                     <button
@@ -762,18 +1014,22 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                                         <div className="bg-orange-50 p-4 rounded-xl border border-orange-100/50">
-                                            <h4 className="font-bold text-orange-700 mb-3 flex justify-between text-xs uppercase tracking-wider">대기 <span className="bg-white px-2 rounded-full text-[10px]">{participantList.WAITLIST?.length || 0}</span></h4>
-                                            <ul className="space-y-1.5">{participantList.WAITLIST?.map((u, i) => <li key={i} className="bg-white/80 p-2 rounded-lg text-[10px] shadow-sm"><span className="font-bold text-gray-700">{u.name}</span> <span className="text-gray-400">({u.school})</span></li>)}</ul>
+                                            <h4 className="font-bold text-orange-700 mb-2 flex justify-between text-[10px] uppercase tracking-wider">대기 <span className="bg-white px-2 rounded-full">{participantList.WAITLIST?.length || 0}</span></h4>
+                                            <p className="text-[10px] text-gray-400 truncate">{participantList.WAITLIST?.map(u => u.name).join(', ') || '-'}</p>
                                         </div>
                                         <div className="bg-gray-100/50 p-4 rounded-xl border border-gray-200/50">
-                                            <h4 className="font-bold text-gray-600 mb-3 flex justify-between text-xs uppercase tracking-wider">미정 <span className="bg-white px-2 rounded-full text-[10px]">{participantList.UNDECIDED.length}</span></h4>
-                                            <ul className="space-y-1.5">{participantList.UNDECIDED.map((u, i) => <li key={i} className="bg-white/80 p-2 rounded-lg text-[10px] shadow-sm"><span className="font-bold text-gray-600">{u.name}</span> <span className="text-gray-400">({u.school})</span></li>)}</ul>
+                                            <h4 className="font-bold text-gray-600 mb-2 flex justify-between text-[10px] uppercase tracking-wider">미정 <span className="bg-white px-2 rounded-full">{participantList.UNDECIDED.length}</span></h4>
+                                            <p className="text-[10px] text-gray-400 truncate">{participantList.UNDECIDED.map(u => u.name).join(', ') || '-'}</p>
                                         </div>
-                                        <div className="bg-red-50 p-4 rounded-xl border border-red-100/50 opacity-60">
-                                            <h4 className="font-bold text-red-700 mb-3 flex justify-between text-xs uppercase tracking-wider">불참 <span className="bg-white px-2 rounded-full text-[10px]">{participantList.DECLINE.length}</span></h4>
-                                            <ul className="space-y-1.5">{participantList.DECLINE.map((u, i) => <li key={i} className="bg-white/40 p-2 rounded-lg text-[10px]"><span className="text-gray-400 font-medium">{u.name}</span></li>)}</ul>
+                                        <div className="bg-red-50 p-4 rounded-xl border border-red-100/50">
+                                            <h4 className="font-bold text-red-700 mb-2 flex justify-between text-[10px] uppercase tracking-wider">불참 <span className="bg-white px-2 rounded-full">{participantList.DECLINE.length}</span></h4>
+                                            <p className="text-[10px] text-gray-400 truncate">{participantList.DECLINE.map(u => u.name).join(', ') || '-'}</p>
+                                        </div>
+                                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                            <h4 className="font-bold text-gray-500 mb-2 flex justify-between text-[10px] uppercase tracking-wider">미참석 <span className="bg-white px-2 rounded-full">{participantList.JOIN.filter(u => !u.is_attended).length}</span></h4>
+                                            <p className="text-[10px] text-gray-400 truncate">{participantList.JOIN.filter(u => !u.is_attended).map(u => u.name).join(', ') || '-'}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -865,7 +1121,7 @@ const AdminNoticeDetailModal = ({ notice, onClose }) => {
                                 </div>
                             </div>
                             <div>
-                                <p className="text-sm font-bold text-gray-900 leading-none">{notice.category === 'GALLERY' ? '갤러리' : '공지사항'}</p>
+                                <p className="text-sm font-bold text-gray-900 leading-none">{notice.category === 'GALLERY' ? '갤러리' : '게시판'}</p>
                                 <p className="text-xs text-gray-500 mt-0.5">{notice.title}</p>
                             </div>
                         </div>

@@ -12,6 +12,7 @@ import AdminSettings from '../components/admin/AdminSettings';
 import AdminStatistics from '../components/admin/AdminStatistics';
 import AdminMessages from '../components/admin/AdminMessages';
 import AdminGuestbook from '../components/admin/AdminGuestbook';
+import AdminReport from '../components/admin/AdminReport';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
 
@@ -92,6 +93,8 @@ const AdminDashboard = () => {
             setZoneStats(zStats);
             setCurrentLocations(userCurrentLocation);
             setAllLogs(logs || []);
+
+            return { users: userData || [], locations: locData || [], notices: noticeData || [], responses: responseData || [], allLogs: logs || [] };
 
         } catch (error) { console.error(error); }
         finally { setLoading(false); }
@@ -209,10 +212,13 @@ const AdminDashboard = () => {
                         <AdminStatistics logs={allLogs} locations={locations} users={users} notices={notices} responses={responses} />
                     )}
                     {activeMenu === 'LOGS' && (
-                        <AdminLogs allLogs={allLogs} users={users} locations={locations} fetchData={fetchData} />
+                        <AdminLogs allLogs={allLogs} users={users} locations={locations} notices={notices} fetchData={fetchData} />
+                    )}
+                    {activeMenu === 'REPORTS' && (
+                        <AdminReport />
                     )}
                     {activeMenu === 'SETTINGS' && (
-                        <AdminSettings currentAdmin={currentAdmin} locations={locations} fetchData={fetchData} users={users} allLogs={allLogs} />
+                        <AdminSettings currentAdmin={currentAdmin} locations={locations} notices={notices} fetchData={fetchData} users={users} allLogs={allLogs} responses={responses} />
                     )}
                 </div>
             </div>

@@ -5,7 +5,7 @@ import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import StudentDashboard from './pages/StudentDashboard'
-import CheckIn from './pages/CheckIn'
+import Kiosk from './pages/Kiosk'
 
 function App() {
     return (
@@ -15,10 +15,10 @@ function App() {
                     <Route index element={<Landing />} />
                     <Route path="student" element={<StudentDashboard />} />
                     <Route path="admin" element={<AdminDashboard />} />
-                    <Route path="checkin" element={<CheckIn />} />
                     {/* Legacy or unused routes can be kept or removed */}
                     <Route path="dashboard" element={<Dashboard />} />
                 </Route>
+                <Route path="kiosk" element={<Kiosk />} />
             </Routes>
         </BrowserRouter>
     )

@@ -83,7 +83,8 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         const matchesAge = age && age.includes(cleanSearch);
 
         const matchesGroup = filterGroup === 'ALL' || user.user_group === filterGroup;
-        return (matchesSearch || matchesAge) && matchesGroup;
+        const isSystemAdmin = user.name === 'admin';
+        return !isSystemAdmin && (matchesSearch || matchesAge) && matchesGroup;
     });
 
     // Handlers
@@ -197,15 +198,15 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-stretch md:items-center">
-                    {selectedUserIds.size > 0 && (
+                    {/* {selectedUserIds.size > 0 && (
                         <button
                             onClick={() => setMessageModalOpen(true)}
                             className="bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center gap-2 animate-fade-in"
                         >
                             <span className="bg-white text-blue-600 text-[10px] px-2 py-0.5 rounded-full">{selectedUserIds.size}</span>
-                            <span className="text-sm">메시지 보내기</span>
+                            <span className="text-sm whitespace-nowrap">메시지 보내기</span>
                         </button>
-                    )}
+                    )} */}
                     <div className="relative flex-1 md:min-w-[300px] flex gap-2">
                         <div className="relative flex-1">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />

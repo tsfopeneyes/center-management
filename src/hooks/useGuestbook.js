@@ -74,6 +74,29 @@ export const useGuestbook = (userId) => {
         }
     };
 
+    const handleDeletePost = async (postId) => {
+        try {
+            await guestbookApi.deletePost(postId);
+            fetchGuestPosts();
+            return true;
+        } catch (err) {
+            console.error('Error deleting guest post:', err);
+            alert('삭제 실패: ' + err.message);
+            return false;
+        }
+    };
+
+    const handleDeleteComment = async (postId, commentId) => {
+        try {
+            await guestbookApi.deleteComment(commentId);
+            return true;
+        } catch (err) {
+            console.error('Error deleting guest comment:', err);
+            alert('댓글 삭제 실패');
+            return false;
+        }
+    };
+
     useEffect(() => {
         fetchGuestPosts();
     }, [fetchGuestPosts]);
@@ -85,6 +108,8 @@ export const useGuestbook = (userId) => {
         fetchGuestPosts,
         handleCreatePost,
         fetchComments,
-        handlePostComment
+        handlePostComment,
+        handleDeletePost,
+        handleDeleteComment
     };
 };

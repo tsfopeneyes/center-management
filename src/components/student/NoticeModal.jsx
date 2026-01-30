@@ -142,7 +142,7 @@ const NoticeModal = ({ notice, onClose, user, responses, onResponse, comments, n
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-0 z-50 bg-white flex flex-col sm:max-w-lg mx-auto overflow-hidden shadow-2xl"
+            className="fixed inset-0 z-[110] bg-white flex flex-col sm:max-w-lg mx-auto overflow-hidden shadow-2xl pb-20"
         >
             {/* Header */}
             <div className="h-14 px-4 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-50 shrink-0">

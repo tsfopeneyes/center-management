@@ -131,6 +131,15 @@ export const noticesApi = {
         if (error) throw error;
     },
 
+    async markAllAttended(noticeId) {
+        const { error } = await supabase
+            .from('notice_responses')
+            .update({ is_attended: true })
+            .eq('notice_id', noticeId)
+            .eq('status', 'JOIN');
+        if (error) throw error;
+    },
+
     async searchUsers(query) {
         const { data, error } = await supabase
             .from('users')
