@@ -111,3 +111,38 @@ export const exportParticipantsToExcel = (notice, list) => {
     const fileName = `[명단]_${notice.title}_${format(new Date(), 'yyyyMMdd')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
 };
+
+/**
+ * Export student visit log to Excel
+ * @param {Array} visitSummaries - Aggregated visit data
+ * @param {Object} visitNotes - Manual notes { 'userId_date': { purpose, remarks } }
+ */
+export const exportVisitLogToExcel = (visitSummaries, visitNotes) => {
+    const exportData = visitSummaries.map(summary => {
+        const noteKey = `${summary.userId}_${summary.date}`;
+        const note = visitNotes[noteKey] || {};
+
+        return {
+            '주차구분': summary.weekId,
+            '날짜': summary.date,
+            '요일': summary.dayOfWeek,
+            '학교': summary.school,
+            '나이': summary.age,
+            '이름': summary.name,
+            '시작시간': summary.startTime,
+            '끝시간': summary.endTime,
+            '사용공간': summary.usedSpaces,
+            '센터타임': summary.durationStr,
+            '센터타임(분)': summary.durationMin,
+            '방문목적 (수기작성)': note.purpose || '',
+            '상세 방문 목적 및 비고 (수기작성)': note.remarks || ''
+        };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "학생방문일지");
+
+    const fileName = `학생방문일지_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+};

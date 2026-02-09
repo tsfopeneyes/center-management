@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { userApi } from '../api/userApi';
+import { compressImage } from '../utils/imageUtils';
 
 export const useProfile = (initialUser) => {
     const [user, setUser] = useState(initialUser);
@@ -14,12 +15,22 @@ export const useProfile = (initialUser) => {
         try {
             const logs = await userApi.fetchLogs(userId);
 
+            // Helper to get local YYYY-MM-DD
+            const getLocalDateKey = (dateStr) => {
+                const d = new Date(dateStr);
+                const offset = d.getTimezoneOffset() * 60000;
+                const local = new Date(d.getTime() - offset);
+                return local.toISOString().split('T')[0];
+            };
+
             // 1. Visit Count (Unique Days)
-            const checkinDates = logs
-                ?.filter(l => l.type === 'CHECKIN')
-                .map(l => new Date(l.created_at).toLocaleDateString()) || [];
-            const uniqueDays = new Set(checkinDates);
-            setVisitCount(uniqueDays.size);
+            const uniqueDaysSet = new Set(
+                logs
+                    ?.filter(l => l.type === 'CHECKIN' || l.type === 'MOVE')
+                    .map(l => getLocalDateKey(l.created_at)) || []
+            );
+            const sortedDates = Array.from(uniqueDaysSet).sort();
+            setVisitCount(uniqueDaysSet.size);
 
             // 2. Total Hours
             let totalMs = 0;
@@ -42,7 +53,61 @@ export const useProfile = (initialUser) => {
                 .eq('is_attended', true);
 
             setProgramCount(responses?.length || 0);
-            return { attendedPrograms: responses?.map(r => r.notices?.title).filter(Boolean) || [] };
+
+            // 4. Special Stats (Birthday, Locations, Streak)
+            let isBirthdayVisited = false;
+            let visitedLocations = new Set();
+            let maxConsecutiveDays = 0;
+
+            // Fetch total locations for dynamic threshold
+            const { count: totalLocationsCount } = await supabase
+                .from('locations')
+                .select('*', { count: 'exact', head: true });
+
+            if (uniqueDaysSet.size > 0) {
+                // Birthday check
+                if (user?.birth) {
+                    const birthMMDD = user.birth.substring(2, 6); // YYMMDD -> MMDD
+                    isBirthdayVisited = sortedDates.some(d => {
+                        const [year, month, day] = d.split('-');
+                        return (month + day) === birthMMDD;
+                    });
+                }
+
+                // Unique Locations (include MOVE and CHECKIN)
+                logs?.filter(l => l.type === 'CHECKIN' || l.type === 'MOVE').forEach(l => {
+                    if (l.location_id) visitedLocations.add(l.location_id);
+                });
+
+                // Streak (Consecutive Days)
+                if (sortedDates.length > 0) {
+                    let currentStreak = 1;
+                    for (let i = 1; i < sortedDates.length; i++) {
+                        const prev = new Date(sortedDates[i - 1]);
+                        const curr = new Date(sortedDates[i]);
+                        const diffTime = Math.abs(curr - prev);
+                        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                        if (diffDays === 1) {
+                            currentStreak++;
+                        } else {
+                            maxConsecutiveDays = Math.max(maxConsecutiveDays, currentStreak);
+                            currentStreak = 1;
+                        }
+                    }
+                    maxConsecutiveDays = Math.max(maxConsecutiveDays, currentStreak);
+                }
+            }
+
+            return {
+                attendedPrograms: responses?.map(r => r.notices?.title).filter(Boolean) || [],
+                specialStats: {
+                    isBirthdayVisited,
+                    uniqueLocationsCount: visitedLocations.size,
+                    totalLocationsCount: totalLocationsCount || 0,
+                    maxConsecutiveDays
+                }
+            };
 
         } catch (err) {
             console.error('Error fetching stats:', err);
@@ -55,11 +120,13 @@ export const useProfile = (initialUser) => {
             let imageUrl = user.profile_image_url;
 
             if (profileImage) {
-                const fileExt = profileImage.name.split('.').pop();
+                // Apply automatic compression before upload
+                const compressedFile = await compressImage(profileImage);
+                const fileExt = compressedFile.name.split('.').pop();
                 const fileName = `profile_${user.id}_${Date.now()}.${fileExt}`;
                 const { error: uploadError } = await supabase.storage
                     .from('notice-images')
-                    .upload(fileName, profileImage);
+                    .upload(fileName, compressedFile);
 
                 if (uploadError) throw uploadError;
 

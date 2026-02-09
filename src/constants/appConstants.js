@@ -1,7 +1,18 @@
 export const CATEGORIES = {
     NOTICE: 'NOTICE',
     PROGRAM: 'PROGRAM',
-    GALLERY: 'GALLERY'
+    GALLERY: 'GALLERY',
+    ADMIN_SCHEDULE: 'ADMIN_SCHEDULE',
+    SYSTEM: 'SYSTEM'
+};
+
+export const CALENDAR_CATEGORIES = {
+    PROGRAM: { label: '프로그램', color: 'bg-pink-100 text-pink-700 border-pink-200', dot: 'bg-pink-500' },
+    MEETING: { label: '회의', color: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+    VACATION: { label: '연차/휴가', color: 'bg-green-100 text-green-700 border-green-200', dot: 'bg-green-500' },
+    RENTAL: { label: '대관', color: 'bg-purple-100 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+    FOUNDATION: { label: '재단 일정', color: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+    OTHERS: { label: '기타', color: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-500' }
 };
 
 export const USER_GROUPS = {
@@ -19,8 +30,9 @@ export const RESPONSE_STATUS = {
 
 export const TAB_NAMES = {
     HOME: 'home',
+    CHALLENGES: 'challenges',
     PROGRAMS: 'programs',
-    BOARD: 'board',
+    NOTICES: 'notices',
     GALLERY: 'gallery',
     MESSAGES: 'messages',
     GUESTBOOK: 'guestbook'
@@ -45,6 +57,7 @@ export const BADGE_DEFINITIONS = [
     { id: 'visit_100', type: 'VISIT', min: 100, label: '센터의 자랑', icon: '🏆', image: '/badges/visit_100.png', color: 'bg-yellow-100 text-yellow-600' },
 
     // PROGRAM BADGES
+    { id: 'program_1', type: 'PROGRAM', min: 1, label: '첫 참여', icon: '🐣', image: '/badges/program_1.png', color: 'bg-green-100 text-green-600' },
     { id: 'program_5', type: 'PROGRAM', min: 5, label: '성장하는 중', icon: '🚀', image: '/badges/program_5.png', color: 'bg-cyan-100 text-cyan-600' },
     { id: 'program_10', type: 'PROGRAM', min: 10, label: '열정 학생', icon: '🔥', image: '/badges/program_10.png', color: 'bg-orange-100 text-orange-600' },
     { id: 'program_20', type: 'PROGRAM', min: 20, label: '프로그램 매니아', icon: '💎', image: '/badges/program_20.png', color: 'bg-blue-100 text-blue-600' },

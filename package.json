@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -12,7 +12,18 @@
     "@babel/runtime": "^7.28.6",
     "@microlink/react": "^5.5.24",
     "@supabase/supabase-js": "^2.39.8",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tiptap/extension-highlight": "^2.11.5",
+    "@tiptap/extension-image": "^2.11.5",
+    "@tiptap/extension-link": "^2.11.5",
+    "@tiptap/extension-placeholder": "^2.11.5",
+    "@tiptap/extension-text-align": "^2.11.5",
+    "@tiptap/extension-underline": "^2.11.5",
+    "@tiptap/pm": "^2.11.5",
+    "@tiptap/react": "^2.11.5",
+    "@tiptap/starter-kit": "^2.11.5",
     "@yudiel/react-qr-scanner": "^2.5.0",
+    "canvas-confetti": "^1.9.4",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.26.2",
     "lucide-react": "^0.363.0",
@@ -26,6 +37,7 @@
     "recharts": "^3.6.0",
     "suneditor": "^2.47.8",
     "suneditor-react": "^3.6.1",
+    "tippy.js": "^6.3.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

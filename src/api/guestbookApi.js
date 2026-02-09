@@ -4,17 +4,18 @@ export const guestbookApi = {
     async fetchPosts() {
         const { data, error } = await supabase
             .from('guest_posts')
-            .select('*, users(name, school, user_group)')
+            .select('*, users(name, school, user_group, profile_image_url)')
             .order('created_at', { ascending: false });
         if (error) throw error;
         return data;
     },
 
-    async createPost(userId, content, imageUrl) {
+    async createPost(userId, content, imageUrl, images = []) {
         const { error } = await supabase.from('guest_posts').insert([{
             user_id: userId,
             content: content,
-            image_url: imageUrl
+            image_url: imageUrl,
+            images: images
         }]);
         if (error) throw error;
     },
@@ -22,7 +23,7 @@ export const guestbookApi = {
     async fetchComments(postId) {
         const { data, error } = await supabase
             .from('guest_comments')
-            .select('*, users(name)')
+            .select('*, users(name, profile_image_url)')
             .eq('post_id', postId)
             .order('created_at', { ascending: true });
         if (error) throw error;

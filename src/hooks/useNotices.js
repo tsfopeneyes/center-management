@@ -62,21 +62,22 @@ export const useNotices = (userId) => {
             const oldStatus = responses[noticeId];
 
             // 3. Toggle/Cancel Logic
-            // If clicking the same status (or JOIN while being WAITLIST), cancel the response
             if (status === oldStatus || (status === RESPONSE_STATUS.JOIN && oldStatus === RESPONSE_STATUS.WAITLIST)) {
-                await noticesApi.deleteResponse(noticeId, userId);
-                setResponses(prev => {
-                    const next = { ...prev };
-                    delete next[noticeId];
-                    return next;
-                });
+                if (window.confirm('신청을 취소하시겠습니까?')) {
+                    await noticesApi.deleteResponse(noticeId, userId);
+                    setResponses(prev => {
+                        const next = { ...prev };
+                        delete next[noticeId];
+                        return next;
+                    });
 
-                // If cancelled JOIN, try to promote someone
-                if (oldStatus === RESPONSE_STATUS.JOIN) {
-                    try {
-                        await noticesApi.promoteFromWaitlist(noticeId);
-                    } catch (promoErr) {
-                        console.error('Waitlist promotion failed:', promoErr);
+                    // If cancelled JOIN, try to promote someone
+                    if (oldStatus === RESPONSE_STATUS.JOIN) {
+                        try {
+                            await noticesApi.promoteFromWaitlist(noticeId);
+                        } catch (promoErr) {
+                            console.error('Waitlist promotion failed:', promoErr);
+                        }
                     }
                 }
                 return;

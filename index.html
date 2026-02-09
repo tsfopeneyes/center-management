@@ -15,9 +15,22 @@
   <meta name="application-name" content="SCI CENTER">
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#4338ca">
+  <meta name="color-scheme" content="light">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    #root {
+      transition: opacity 0.5s ease-in;
+    }
+
+    /* Prevent content jump before splash screen z-index takes over */
+    body {
+      margin: 0;
+      background: #4338ca;
+      /* Indigo-700 to match splash */
+    }
+  </style>
 </head>
 
 <body>

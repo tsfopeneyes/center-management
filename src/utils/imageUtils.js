@@ -95,3 +95,38 @@ export default async function getCroppedImg(
         }, 'image/jpeg')
     })
 }
+
+/**
+ * Optimizes an image by resizing (max 1280px) and compressing (80% quality).
+ */
+export async function compressImage(file, maxWidth = 1200, quality = 0.8) {
+    if (!file || !file.type.startsWith('image/')) return file;
+
+    const imageSrc = URL.createObjectURL(file);
+    const image = await createImage(imageSrc);
+    URL.revokeObjectURL(imageSrc);
+
+    let { width, height } = image;
+
+    // Resize if larger than maxWidth
+    if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0, width, height);
+
+    return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+            const optimizedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+            });
+            resolve(optimizedFile);
+        }, 'image/jpeg', quality);
+    });
+}

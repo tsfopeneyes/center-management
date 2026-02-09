@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { guestbookApi } from '../api/guestbookApi';
+import { compressImage } from '../utils/imageUtils';
 
 export const useGuestbook = (userId) => {
     const [guestPosts, setGuestPosts] = useState([]);
@@ -19,17 +20,20 @@ export const useGuestbook = (userId) => {
         }
     }, []);
 
-    const handleCreatePost = async (content, imageFile) => {
-        if (!content && !imageFile) return;
+    const handleCreatePost = async (content, imageFiles = []) => {
+        if (!content && (!imageFiles || imageFiles.length === 0)) return;
         setUploading(true);
         try {
-            let imageUrl = null;
-            if (imageFile) {
-                const fileExt = imageFile.name.split('.').pop();
+            const imageUrls = [];
+
+            for (const file of imageFiles) {
+                // Apply automatic compression before upload
+                const compressedFile = await compressImage(file);
+                const fileExt = compressedFile.name.split('.').pop();
                 const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
                 const { error: uploadError } = await supabase.storage
                     .from('notice-images')
-                    .upload(`guest/${fileName}`, imageFile);
+                    .upload(`guest/${fileName}`, compressedFile);
 
                 if (uploadError) throw uploadError;
 
@@ -37,10 +41,12 @@ export const useGuestbook = (userId) => {
                     .from('notice-images')
                     .getPublicUrl(`guest/${fileName}`);
 
-                imageUrl = publicUrl;
+                imageUrls.push(publicUrl);
             }
 
-            await guestbookApi.createPost(userId, content, imageUrl);
+            // image_url is the first one for backward compatibility, images is the full array
+            const mainImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
+            await guestbookApi.createPost(userId, content, mainImageUrl, imageUrls);
             fetchGuestPosts();
             return true;
         } catch (err) {

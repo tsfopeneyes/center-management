@@ -1,7 +1,7 @@
 import React from 'react';
 import { stripHtml } from '../../utils/textUtils';
 import { parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { MapPin, Calendar, Clock, ChevronRight } from 'lucide-react';
+import { MapPin, Calendar, Clock, ChevronRight, Users, CheckCircle2 } from 'lucide-react';
 
 const ProgramCard = ({ program, onClick }) => {
     const thumb = program.image_url || (program.images?.length > 0 ? program.images[0] : null);
@@ -16,12 +16,27 @@ const ProgramCard = ({ program, onClick }) => {
         return diff > 0 && diff < oneDay;
     })();
 
+    const formatDate = (dateString) => {
+        if (!dateString) return '일정 미정';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('ko-KR', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
+
+    const isPast = program.program_date && new Date(program.program_date) < startOfDay(new Date());
+
     return (
         <div
             onClick={() => onClick(program)}
-            className="group relative bg-white rounded-[2rem] overflow-hidden shadow-sm hover:shadow-xl border border-gray-100 transition-all duration-300 active:scale-[0.97] cursor-pointer"
+            className="group bg-white rounded-[2.5rem] overflow-hidden shadow-md hover:shadow-xl border border-gray-100 transition-all duration-300 active:scale-[0.98] cursor-pointer flex flex-col"
         >
-            {/* Thumbnail Section (16:9) */}
+            {/* Thumbnail Section */}
             <div className="relative aspect-video overflow-hidden bg-gray-100">
                 {thumb ? (
                     <img
@@ -37,59 +52,62 @@ const ProgramCard = ({ program, onClick }) => {
 
                 {/* Status Badges Overlaid */}
                 <div className="absolute top-4 left-4 flex flex-col gap-2">
-                    {program.is_recruiting && (
-                        <div className="flex items-center gap-1 px-3 py-1.5 bg-blue-600/90 backdrop-blur-md text-white rounded-full text-[10px] font-bold shadow-lg">
-                            <Clock size={12} /> 모집중
+                    {program.is_recruiting && !isClosingSoon && !isPast && (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white rounded-full text-[10px] font-black shadow-lg">
+                            <Clock size={12} strokeWidth={3} /> 모집중
                         </div>
                     )}
-                    {isClosingSoon && (
-                        <div className="flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded-full text-[10px] font-bold shadow-lg animate-pulse">
-                            🔥 마감임박
+                    {isClosingSoon && !isPast && (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-white rounded-full text-[10px] font-black shadow-lg">
+                            <CheckCircle2 size={12} strokeWidth={3} /> 마감임박
                         </div>
                     )}
                 </div>
-
-                {/* Location Overlay Pill (Bottom Right) */}
-                {program.program_location && (
-                    <div className="absolute bottom-4 right-4 px-3 py-1.5 bg-black/60 backdrop-blur-md text-white rounded-xl text-[10px] font-bold flex items-center gap-1.5 border border-white/20">
-                        <MapPin size={12} className="text-blue-300" />
-                        {program.program_location}
-                    </div>
-                )}
-
-                {/* Gradient Overlay for better contrast on text if needed */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
             </div>
 
             {/* Content Section */}
-            <div className="p-5">
-                <div className="flex justify-between items-start mb-2">
-                    <h3 className="flex-1 font-extrabold text-gray-800 text-lg leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
-                        {program.title}
-                    </h3>
-                </div>
+            <div className="p-6 pb-4">
+                <h3 className="font-extrabold text-gray-900 text-xl leading-tight mb-4 line-clamp-2">
+                    {program.title}
+                </h3>
 
-                <p className="text-gray-500 text-xs line-clamp-2 mb-4 leading-relaxed">
-                    {stripHtml(program.content)}
-                </p>
-
-                <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
-                            <Calendar size={12} />
-                            {program.program_date ? new Date(program.program_date).toLocaleDateString() : '일정 미정'}
+                <div className="space-y-3 mb-6">
+                    <div className="flex items-center gap-3 text-gray-400">
+                        <Calendar size={18} className="shrink-0" />
+                        <span className="text-sm font-bold text-gray-600">{formatDate(program.program_date)}</span>
+                    </div>
+                    {program.program_duration && (
+                        <div className="flex items-center gap-3 text-gray-400">
+                            <Clock size={18} className="shrink-0" />
+                            <span className="text-sm font-bold text-gray-600">소요시간: {program.program_duration}</span>
                         </div>
-                        {program.program_duration && (
-                            <span className="text-[11px] text-gray-400 font-medium">
-                                {program.program_duration}
-                            </span>
-                        )}
-                    </div>
-                    <div className="flex items-center text-gray-300 group-hover:text-blue-500 transition-colors">
-                        <span className="text-[10px] font-bold mr-1">상세보기</span>
-                        <ChevronRight size={14} />
+                    )}
+                    {program.program_location && (
+                        <div className="flex items-center gap-3 text-gray-400">
+                            <MapPin size={18} className="shrink-0" />
+                            <span className="text-sm font-bold text-gray-600">{program.program_location}</span>
+                        </div>
+                    )}
+                    <div className="flex items-center gap-3 text-gray-400">
+                        <Users size={18} className="shrink-0" />
+                        <span className="text-sm font-bold text-gray-600">
+                            모집 정원: {program.max_capacity > 0 ? `${program.max_capacity}명` : '제한 없음'}
+                        </span>
                     </div>
                 </div>
+
+                <div className="flex items-center justify-between mb-6">
+                    <div className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black flex items-center gap-1.5">
+                        <span>🍞 {program.program_date ? new Date(program.program_date).toLocaleDateString() : '일정 미정'}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-gray-300 text-[11px] font-black group-hover:text-blue-500 transition-colors">
+                        상세보기 <ChevronRight size={14} />
+                    </div>
+                </div>
+
+                <button className={`w-full py-4 rounded-full font-black text-base transition-colors active:scale-95 shadow-lg ${program.responseStatus === 'JOIN' ? 'bg-gray-100 text-gray-400' : (program.responseStatus === 'WAITLIST' ? 'bg-orange-500 text-white shadow-orange-200' : 'bg-blue-600 text-white shadow-blue-200 hover:bg-blue-700')}`}>
+                    {program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기중' : '신청하기')}
+                </button>
             </div>
         </div>
     );

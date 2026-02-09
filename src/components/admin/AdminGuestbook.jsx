@@ -115,9 +115,17 @@ const AdminGuestbook = () => {
                                     </button>
                                 </div>
                                 <p className="text-xs md:text-sm text-gray-600 line-clamp-2 leading-relaxed">{post.content}</p>
-                                {post.image_url && (
-                                    <div className="mt-2 h-16 w-16 md:h-20 md:w-20 rounded-lg overflow-hidden border border-gray-100 ring-1 ring-gray-100">
-                                        <img src={post.image_url} alt="thumbnail" className="w-full h-full object-cover" />
+                                {post.images?.length > 1 ? (
+                                    <div className="mt-2 grid grid-cols-2 gap-1 w-16 md:w-20 rounded-lg overflow-hidden border border-gray-100 ring-1 ring-gray-100 aspect-square">
+                                        {post.images.slice(0, 4).map((img, idx) => (
+                                            <div key={idx} className="relative aspect-square">
+                                                <img src={img} alt="thumbnail" className="w-full h-full object-cover" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (post.images?.[0] || post.image_url) && (
+                                    <div className="mt-2 h-16 w-16 md:h-20 md:w-20 rounded-lg overflow-hidden border border-gray-100 ring-1 ring-gray-100 bg-gray-50 flex items-center justify-center">
+                                        <img src={post.images?.[0] || post.image_url} alt="thumbnail" className="max-w-full max-h-full object-contain" />
                                     </div>
                                 )}
                             </div>
@@ -162,9 +170,22 @@ const AdminGuestbook = () => {
                             ))}
                         </p>
 
-                        {selectedPost.image_url && (
-                            <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-md mb-8 ring-1 ring-gray-100">
-                                <img src={selectedPost.image_url} alt="Post" className="w-full" />
+                        {(selectedPost.images?.length > 0 || selectedPost.image_url) && (
+                            <div className={`rounded-2xl overflow-hidden border border-gray-100 shadow-md mb-8 ring-1 ring-gray-100 ${selectedPost.images?.length > 1 ? 'grid grid-cols-2 gap-1' : 'bg-gray-50'
+                                }`}>
+                                {selectedPost.images?.length > 1 ? (
+                                    selectedPost.images.map((img, idx) => (
+                                        <div key={idx} className="relative aspect-square">
+                                            <img src={img} alt="Post" className="w-full h-full object-cover" />
+                                        </div>
+                                    ))
+                                ) : (
+                                    <img
+                                        src={selectedPost.images?.[0] || selectedPost.image_url}
+                                        alt="Post"
+                                        className="w-full h-auto max-h-[500px] object-contain mx-auto"
+                                    />
+                                )}
                             </div>
                         )}
 

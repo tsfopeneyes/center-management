@@ -1,10 +1,69 @@
-import React, { useState, useMemo } from 'react';
-import { RefreshCw, FileSpreadsheet, MapPin, Calendar, Trash2 } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { RefreshCw, FileSpreadsheet, MapPin, Calendar, Trash2, Filter, X } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
-import { exportLogsToExcel } from '../../utils/exportUtils';
+import { exportLogsToExcel, exportVisitLogToExcel } from '../../utils/exportUtils';
+import RangeDatePicker from '../common/RangeDatePicker';
+import CheckboxFilter from '../common/CheckboxFilter';
+
+import { getWeekIdentifier } from '../../utils/dateUtils';
+import { aggregateVisitSessions } from '../../utils/visitUtils';
 
 const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
-    const [logCategory, setLogCategory] = useState('SPACE'); // SPACE, PROGRAM
+    const [logCategory, setLogCategory] = useState('VISIT'); // VISIT, SPACE, PROGRAM
+    const [visitNotes, setVisitNotes] = useState({}); // { 'userId_date': { purpose, remarks } }
+    const inputRefs = useRef({}); // { 'rowIdx-field': ref }
+    const [selection, setSelection] = useState({ startIdx: null, endIdx: null, field: null, isDragging: false });
+
+    // Date Filtering State
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
+    // Visit Log Column Filters
+    const [visitFilters, setVisitFilters] = useState({
+        weekIds: [], // array
+        dates: [],   // array
+        days: [],    // array
+        school: '',
+        name: '',
+        age: '',      // new
+        space: '',   // new
+        duration: '', // new
+        purpose: '',
+        remarks: ''
+    });
+
+    const [selectedRows, setSelectedRows] = useState(new Set()); // new
+    const [isManualModalOpen, setIsManualModalOpen] = useState(false); // new
+    const [manualEntry, setManualEntry] = useState({
+        userId: '',
+        date: new Date().toLocaleDateString('en-CA'),
+        startTime: '14:00',
+        endTime: '16:00',
+        locationId: ''
+    });
+    const [userSearchText, setUserSearchText] = useState('');
+    const [showUserResults, setShowUserResults] = useState(false); // new
+
+    const toggleFilter = (field, value) => {
+        setVisitFilters(prev => {
+            const current = prev[field] || [];
+            const next = current.includes(value)
+                ? current.filter(v => v !== value)
+                : [...current, value];
+            return { ...prev, [field]: next };
+        });
+    };
+
+    const isWithinRange = (dateStr) => {
+        if (!dateStr) return true;
+        // Ensure we compare based on local date part YYYY-MM-DD
+        const target = dateStr.includes('T') || dateStr.includes(' ')
+            ? new Date(dateStr).toLocaleDateString('en-CA')
+            : dateStr;
+        if (startDate && target < startDate) return false;
+        if (endDate && target > endDate) return false;
+        return true;
+    };
 
     const parseLocationId = (locId) => {
         if (!locId) return { id: '', title: '', date: '', time: '', location: '' };
@@ -114,14 +173,21 @@ const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
             }
         });
 
-        return Object.values(groups).sort((a, b) => b.sortTime - a.sortTime);
-    }, [allLogs, notices, users]);
+        return Object.values(groups)
+            .filter(g => {
+                const datePart = new Date(g.sortTime).toISOString().split('T')[0];
+                return isWithinRange(datePart);
+            })
+            .sort((a, b) => b.sortTime - a.sortTime);
+    }, [allLogs, notices, users, startDate, endDate]);
 
     const handleDeleteLog = async (id) => {
-        if (!confirm('해당 로그를 삭제하시겠습니까?')) return;
+        if (!confirm('해당 로그(들)를 삭제하시겠습니까?')) return;
+        const ids = Array.isArray(id) ? id : [id];
         try {
-            const { error } = await supabase.from('logs').delete().eq('id', id);
+            const { error } = await supabase.from('logs').delete().in('id', ids);
             if (error) throw error;
+            setSelectedRows(new Set());
             fetchData();
         } catch (err) { alert('삭제 실패: ' + err.message); }
     };
@@ -135,12 +201,263 @@ const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
         } catch (err) { alert('삭제 실패: ' + err.message); }
     };
 
+    const handleBulkDelete = () => {
+        if (selectedRows.size === 0) return;
+        const allLogIds = [];
+        selectedRows.forEach(rowId => {
+            const row = filteredVisitSummaries.find(s => s.id === rowId);
+            if (row && row.rawLogs) {
+                allLogIds.push(...row.rawLogs.map(l => l.id));
+            }
+        });
+        if (allLogIds.length === 0) {
+            alert('삭제할 수 있는 로그 데이터가 없습니다.');
+            return;
+        }
+        handleDeleteLog(allLogIds);
+    };
+
+    const handleSelectiveExport = () => {
+        if (selectedRows.size === 0) {
+            exportVisitLogToExcel(filteredVisitSummaries, visitNotes);
+            return;
+        }
+        const selectedSummaries = filteredVisitSummaries.filter(s => selectedRows.has(s.id));
+        exportVisitLogToExcel(selectedSummaries, visitNotes);
+    };
+
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            setSelectedRows(new Set(filteredVisitSummaries.map(s => s.id)));
+        } else {
+            setSelectedRows(new Set());
+        }
+    };
+
+    const handleRowSelect = (id) => {
+        setSelectedRows(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleManualSubmit = async (e) => {
+        e.preventDefault();
+        if (!manualEntry.userId || !manualEntry.locationId || !manualEntry.startTime || !manualEntry.endTime) {
+            alert('모든 필드를 입력해주세요.');
+            return;
+        }
+
+        try {
+            const startTimestamp = `${manualEntry.date}T${manualEntry.startTime}:00+09:00`;
+            const endTimestamp = `${manualEntry.date}T${manualEntry.endTime}:00+09:00`;
+
+            // Insert CHECKIN and CHECKOUT logs
+            const { error: error1 } = await supabase.from('logs').insert({
+                user_id: manualEntry.userId,
+                type: 'CHECKIN',
+                location_id: manualEntry.locationId,
+                created_at: startTimestamp
+            });
+            if (error1) throw error1;
+
+            const { error: error2 } = await supabase.from('logs').insert({
+                user_id: manualEntry.userId,
+                type: 'CHECKOUT',
+                location_id: manualEntry.locationId,
+                created_at: endTimestamp
+            });
+            if (error2) throw error2;
+
+            alert('수기 방문 기록이 저장되었습니다.');
+            setIsManualModalOpen(false);
+            setManualEntry({
+                userId: '',
+                date: new Date().toLocaleDateString('en-CA'),
+                startTime: '14:00',
+                endTime: '16:00',
+                locationId: ''
+            });
+            setUserSearchText('');
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            alert('저장 실패: ' + err.message);
+        }
+    };
+
+    const visitSummaries = useMemo(() => {
+        const aggregated = aggregateVisitSessions(allLogs, users, locations, startDate, endDate);
+
+        // Calculate unique options for checkboxes from the aggregated (but not yet column-filtered) data
+        const uniqueOptions = {
+            weekIds: [...new Set(aggregated.map(s => s.weekId))].sort().reverse(),
+            dates: [...new Set(aggregated.map(s => s.date))].sort().reverse(),
+            days: ['월', '화', '수', '목', '금', '토', '일']
+        };
+
+        const filtered = aggregated.filter(summary => {
+            const noteKey = `${summary.userId}_${summary.date}`;
+            const note = visitNotes[noteKey] || {};
+
+            const matchFilter = (val, filter) => !filter || val.toLowerCase().includes(filter.toLowerCase());
+            const matchArray = (val, arr) => !arr || arr.length === 0 || arr.includes(val);
+
+            return matchArray(summary.weekId, visitFilters.weekIds) &&
+                matchArray(summary.date, visitFilters.dates) &&
+                matchArray(summary.dayOfWeek, visitFilters.days) &&
+                matchFilter(summary.school, visitFilters.school) &&
+                matchFilter(summary.name, visitFilters.name) &&
+                matchFilter(summary.age?.toString() || '', visitFilters.age) &&
+                matchFilter(summary.usedSpaces, visitFilters.space) &&
+                matchFilter(summary.durationMin?.toString() || '', visitFilters.duration) &&
+                matchFilter(note.purpose || '', visitFilters.purpose) &&
+                matchFilter(note.remarks || '', visitFilters.remarks);
+        });
+
+        return {
+            data: filtered.sort((a, b) => b.sortTime - a.sortTime),
+            options: uniqueOptions
+        };
+    }, [allLogs, users, locations, startDate, endDate, visitFilters, visitNotes]);
+
+    // Convenience alias
+    const filteredVisitSummaries = visitSummaries.data;
+    const filterOptions = visitSummaries.options;
+
+    const handleSaveNote = async (userId, date, field, value) => {
+        try {
+            const key = `${userId}_${date}`;
+            const { error } = await supabase.from('visit_notes').upsert({
+                user_id: userId,
+                visit_date: date,
+                [field]: value,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id,visit_date' });
+
+            if (error) throw error;
+
+            setVisitNotes(prev => ({
+                ...prev,
+                [key]: { ...prev[key], [field]: value }
+            }));
+        } catch (err) {
+            console.error(err);
+            alert('저장 실패: ' + err.message);
+        }
+    };
+
+    const handleBulkSaveNote = async (summaries, field, value) => {
+        try {
+            const updates = summaries.map(s => ({
+                user_id: s.userId,
+                visit_date: s.date,
+                [field]: value,
+                updated_at: new Date().toISOString()
+            }));
+
+            const { error } = await supabase.from('visit_notes').upsert(updates, { onConflict: 'user_id,visit_date' });
+            if (error) throw error;
+
+            setVisitNotes(prev => {
+                const next = { ...prev };
+                summaries.forEach(s => {
+                    const key = `${s.userId}_${s.date}`;
+                    next[key] = { ...next[key], [field]: value };
+                });
+                return next;
+            });
+        } catch (err) {
+            console.error(err);
+            alert('일괄 저장 실패: ' + err.message);
+        }
+    };
+
+    const handleNoteKeyDown = (e, rowIdx, field) => {
+        if (e.key === 'Enter' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const nextRef = inputRefs.current[`${rowIdx + 1}-${field}`];
+            if (nextRef) nextRef.focus();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const prevRef = inputRefs.current[`${rowIdx - 1}-${field}`];
+            if (prevRef) prevRef.focus();
+        } else if ((e.key === 'Delete' || e.key === 'Backspace') && selection.startIdx !== null && selection.endIdx !== null) {
+            const min = Math.min(selection.startIdx, selection.endIdx);
+            const max = Math.max(selection.startIdx, selection.endIdx);
+            if (min !== max) {
+                e.preventDefault();
+                const selectedRows = filteredVisitSummaries.slice(min, max + 1);
+                handleBulkSaveNote(selectedRows, selection.field, '');
+            }
+        }
+    };
+
+    const handleNotePaste = (e, rowIdx, field) => {
+        if (selection.startIdx !== null && selection.endIdx !== null) {
+            const min = Math.min(selection.startIdx, selection.endIdx);
+            const max = Math.max(selection.startIdx, selection.endIdx);
+            if (min !== max) {
+                e.preventDefault();
+                const pastedText = e.clipboardData.getData('text');
+                const selectedRows = filteredVisitSummaries.slice(min, max + 1);
+                handleBulkSaveNote(selectedRows, selection.field, pastedText);
+            }
+        }
+    };
+
+    const handleCellMouseDown = (idx, field) => {
+        setSelection({ startIdx: idx, endIdx: idx, field, isDragging: true });
+    };
+
+    const handleCellMouseEnter = (idx, field) => {
+        if (selection.isDragging && selection.field === field) {
+            setSelection(prev => ({ ...prev, endIdx: idx }));
+        }
+    };
+
+    useEffect(() => {
+        const handleGlobalMouseUp = () => {
+            setSelection(prev => ({ ...prev, isDragging: false }));
+        };
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+        return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+    }, []);
+
+    const isCellSelected = (idx, field) => {
+        if (selection.startIdx === null || selection.endIdx === null || selection.field !== field) return false;
+        const min = Math.min(selection.startIdx, selection.endIdx);
+        const max = Math.max(selection.startIdx, selection.endIdx);
+        return idx >= min && idx <= max;
+    };
+
+    // Auto-fetch notes on mount/change
+    React.useEffect(() => {
+        const fetchNotes = async () => {
+            const { data, error } = await supabase.from('visit_notes').select('*');
+            if (data) {
+                const mapped = {};
+                data.forEach(n => {
+                    mapped[`${n.user_id}_${n.visit_date}`] = n;
+                });
+                setVisitNotes(mapped);
+            }
+        };
+        fetchNotes();
+    }, []);
+
     const filteredLogs = useMemo(() => {
         if (logCategory === 'SPACE') {
-            return allLogs.filter(log => ['CHECKIN', 'CHECKOUT', 'MOVE'].includes(log.type));
+            return allLogs.filter(log => {
+                const matchesType = ['CHECKIN', 'CHECKOUT', 'MOVE'].includes(log.type);
+                const datePart = new Date(log.created_at).toLocaleDateString('en-CA');
+                return matchesType && isWithinRange(datePart);
+            });
         }
         return [];
-    }, [allLogs, logCategory]);
+    }, [allLogs, logCategory, startDate, endDate]);
 
     return (
         <div className="space-y-6 animate-fade-in-up">
@@ -149,34 +466,346 @@ const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800">로그 기록</h2>
                     <p className="text-gray-500 text-xs md:text-sm">시스템 전체 이용 및 아카이빙 로그</p>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={() => exportLogsToExcel(allLogs, users, locations, notices)} className="flex-1 md:flex-none bg-green-50 text-green-600 border border-green-200 px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-green-100 transition font-bold shadow-sm">
-                        <FileSpreadsheet size={18} /> 엑셀 저장
-                    </button>
-                    <button onClick={fetchData} className="flex-1 md:flex-none bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 transition font-bold shadow-sm">
-                        <RefreshCw size={18} /> 새로고침
-                    </button>
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <div className="flex items-center gap-2">
+                        <RangeDatePicker
+                            startDate={startDate}
+                            endDate={endDate}
+                            onRangeChange={(s, e) => {
+                                setStartDate(s);
+                                setEndDate(e);
+                            }}
+                        />
+                        {(startDate || endDate || Object.values(visitFilters).some(v => v)) && (
+                            <button
+                                onClick={() => {
+                                    setStartDate('');
+                                    setEndDate('');
+                                    setVisitFilters({
+                                        weekIds: [],
+                                        dates: [],
+                                        days: [],
+                                        school: '',
+                                        name: '',
+                                        age: '',
+                                        space: '',
+                                        duration: '',
+                                        purpose: '',
+                                        remarks: ''
+                                    });
+                                }}
+                                className="p-2.5 bg-gray-100/80 text-gray-500 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all shadow-sm border border-gray-100 flex items-center justify-center gap-1.5 text-xs font-bold"
+                                title="필터 초기화"
+                            >
+                                <X size={16} /> 초기화
+                            </button>
+                        )}
+                        {logCategory === 'VISIT' && selectedRows.size > 0 && (
+                            <button
+                                onClick={handleBulkDelete}
+                                className="p-2.5 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-all shadow-sm border border-red-100 flex items-center justify-center gap-1.5 text-xs font-bold"
+                            >
+                                <Trash2 size={16} /> 선택 삭제 ({selectedRows.size})
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => {
+                                if (logCategory === 'VISIT') {
+                                    handleSelectiveExport();
+                                } else {
+                                    const filtered = allLogs.filter(log => {
+                                        const datePart = new Date(log.created_at).toISOString().split('T')[0];
+                                        return isWithinRange(datePart);
+                                    });
+                                    exportLogsToExcel(filtered, users, locations, notices);
+                                }
+                            }}
+                            className="bg-green-50 text-green-600 border border-green-200 px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-green-100 transition font-bold shadow-sm text-sm"
+                        >
+                            <FileSpreadsheet size={18} /> {logCategory === 'VISIT' && selectedRows.size > 0 ? `선택 내보내기 (${selectedRows.size})` : '엑셀 저장'}
+                        </button>
+                        <button onClick={fetchData} className="bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 transition font-bold shadow-sm text-sm">
+                            <RefreshCw size={18} /> 새로고침
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Category Filter Tabs */}
-            <div className="flex bg-gray-100/50 p-1.5 rounded-2xl w-full md:w-fit border border-gray-100 shadow-inner">
-                <button
-                    onClick={() => setLogCategory('SPACE')}
-                    className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${logCategory === 'SPACE' ? 'bg-white text-blue-600 shadow-md transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    <MapPin size={16} /> 공간 이용
-                </button>
-                <button
-                    onClick={() => setLogCategory('PROGRAM')}
-                    className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${logCategory === 'PROGRAM' ? 'bg-white text-blue-600 shadow-md transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    <Calendar size={16} /> 프로그램 참여
-                </button>
+            {/* Category Filter Tabs with Manual Entry Button */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex bg-gray-100/50 p-1.5 rounded-2xl w-full md:w-fit border border-gray-100 shadow-inner">
+                    <button
+                        onClick={() => setLogCategory('VISIT')}
+                        className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${logCategory === 'VISIT' ? 'bg-white text-blue-600 shadow-md transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <FileSpreadsheet size={16} /> 학생방문일지
+                    </button>
+                    <button
+                        onClick={() => setLogCategory('SPACE')}
+                        className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${logCategory === 'SPACE' ? 'bg-white text-blue-600 shadow-md transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <MapPin size={16} /> 공간 이용
+                    </button>
+                    <button
+                        onClick={() => setLogCategory('PROGRAM')}
+                        className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${logCategory === 'PROGRAM' ? 'bg-white text-blue-600 shadow-md transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Calendar size={16} /> 프로그램 참여
+                    </button>
+                </div>
+
+                {logCategory === 'VISIT' && (
+                    <button
+                        onClick={() => setIsManualModalOpen(true)}
+                        className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-extrabold shadow-lg shadow-blue-200 hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                    >
+                        <Calendar size={18} /> 수기작성
+                    </button>
+                )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                {logCategory === 'PROGRAM' ? (
+            <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden ${logCategory === 'VISIT' ? 'min-h-[500px]' : ''}`}>
+                {logCategory === 'VISIT' && (
+                    <div className={`overflow-x-auto custom-scrollbar ${selection.isDragging ? 'select-none' : ''}`} style={{ minHeight: '500px' }}>
+                        <table className="w-full text-left border-collapse min-w-[1300px]">
+                            <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-semibold">
+                                <tr className="border-b border-gray-100">
+                                    <th className="p-3 pl-6 w-10">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            onChange={handleSelectAll}
+                                            checked={filteredVisitSummaries.length > 0 && selectedRows.size === filteredVisitSummaries.length}
+                                        />
+                                    </th>
+                                    <th className="p-3">
+                                        <CheckboxFilter
+                                            label="주차구분"
+                                            options={filterOptions.weekIds}
+                                            selectedValues={visitFilters.weekIds}
+                                            onToggle={(val) => toggleFilter('weekIds', val)}
+                                            onSelectAll={() => setVisitFilters(prev => ({ ...prev, weekIds: filterOptions.weekIds }))}
+                                            onClear={() => setVisitFilters(prev => ({ ...prev, weekIds: [] }))}
+                                        />
+                                    </th>
+                                    <th className="p-3">
+                                        <CheckboxFilter
+                                            label="날짜"
+                                            options={filterOptions.dates}
+                                            selectedValues={visitFilters.dates}
+                                            onToggle={(val) => toggleFilter('dates', val)}
+                                            onSelectAll={() => setVisitFilters(prev => ({ ...prev, dates: filterOptions.dates }))}
+                                            onClear={() => setVisitFilters(prev => ({ ...prev, dates: [] }))}
+                                        />
+                                    </th>
+                                    <th className="p-3">
+                                        <CheckboxFilter
+                                            label="요일"
+                                            options={filterOptions.days}
+                                            selectedValues={visitFilters.days}
+                                            onToggle={(val) => toggleFilter('days', val)}
+                                            onSelectAll={() => setVisitFilters(prev => ({ ...prev, days: filterOptions.days }))}
+                                            onClear={() => setVisitFilters(prev => ({ ...prev, days: [] }))}
+                                        />
+                                    </th>
+                                    <th className="p-3">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
+                                                <span>학교</span>
+                                                {visitFilters.school && <Filter size={10} className="text-blue-500" />}
+                                            </div>
+                                            <input
+                                                className={`font-normal border rounded px-1.5 py-0.5 text-[10px] w-full bg-white outline-none transition-colors ${visitFilters.school ? 'border-blue-400 focus:border-blue-500' : 'border-gray-200 focus:border-blue-400'}`}
+                                                placeholder="검색..."
+                                                value={visitFilters.school}
+                                                onChange={(e) => setVisitFilters(prev => ({ ...prev, school: e.target.value }))}
+                                            />
+                                        </div>
+                                    </th>
+                                    <th className="p-3">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
+                                                <span>나이</span>
+                                                {visitFilters.age && <Filter size={10} className="text-blue-500" />}
+                                            </div>
+                                            <input
+                                                className={`font-normal border rounded px-1.5 py-0.5 text-[10px] w-full bg-white outline-none transition-colors ${visitFilters.age ? 'border-blue-400 focus:border-blue-500' : 'border-gray-200 focus:border-blue-400'}`}
+                                                placeholder="검색..."
+                                                value={visitFilters.age}
+                                                onChange={(e) => setVisitFilters(prev => ({ ...prev, age: e.target.value }))}
+                                            />
+                                        </div>
+                                    </th>
+                                    <th className="p-3">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
+                                                <span>이름</span>
+                                                {visitFilters.name && <Filter size={10} className="text-blue-500" />}
+                                            </div>
+                                            <input
+                                                className={`font-normal border rounded px-1.5 py-0.5 text-[10px] w-full bg-white outline-none transition-colors ${visitFilters.name ? 'border-blue-400 focus:border-blue-500' : 'border-gray-200 focus:border-blue-400'}`}
+                                                placeholder="검색..."
+                                                value={visitFilters.name}
+                                                onChange={(e) => setVisitFilters(prev => ({ ...prev, name: e.target.value }))}
+                                            />
+                                        </div>
+                                    </th>
+                                    <th className="p-3">시작시간</th>
+                                    <th className="p-3">끝시간</th>
+                                    <th className="p-3">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
+                                                <span>사용공간</span>
+                                                {visitFilters.space && <Filter size={10} className="text-blue-500" />}
+                                            </div>
+                                            <input
+                                                className={`font-normal border rounded px-1.5 py-0.5 text-[10px] w-full bg-white outline-none transition-colors ${visitFilters.space ? 'border-blue-400 focus:border-blue-500' : 'border-gray-200 focus:border-blue-400'}`}
+                                                placeholder="검색..."
+                                                value={visitFilters.space}
+                                                onChange={(e) => setVisitFilters(prev => ({ ...prev, space: e.target.value }))}
+                                            />
+                                        </div>
+                                    </th>
+                                    <th className="p-3">센터타임</th>
+                                    <th className="p-3">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
+                                                <span>센터타임(분)</span>
+                                                {visitFilters.duration && <Filter size={10} className="text-blue-500" />}
+                                            </div>
+                                            <input
+                                                className={`font-normal border rounded px-1.5 py-0.5 text-[10px] w-full bg-white outline-none transition-colors ${visitFilters.duration ? 'border-blue-400 focus:border-blue-500' : 'border-gray-200 focus:border-blue-400'}`}
+                                                placeholder="검색..."
+                                                value={visitFilters.duration}
+                                                onChange={(e) => setVisitFilters(prev => ({ ...prev, duration: e.target.value }))}
+                                            />
+                                        </div>
+                                    </th>
+                                    <th className="p-3">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
+                                                <span>방문목적</span>
+                                                {visitFilters.purpose && <Filter size={10} className="text-blue-500" />}
+                                            </div>
+                                            <input
+                                                className={`font-normal border rounded px-1.5 py-0.5 text-[10px] w-full bg-white outline-none transition-colors ${visitFilters.purpose ? 'border-blue-400 focus:border-blue-500' : 'border-gray-200 focus:border-blue-400'}`}
+                                                placeholder="검색..."
+                                                value={visitFilters.purpose}
+                                                onChange={(e) => setVisitFilters(prev => ({ ...prev, purpose: e.target.value }))}
+                                            />
+                                        </div>
+                                    </th>
+                                    <th className="p-3 pr-6">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
+                                                <span>비고</span>
+                                                {visitFilters.remarks && <Filter size={10} className="text-blue-500" />}
+                                            </div>
+                                            <input
+                                                className={`font-normal border rounded px-1.5 py-0.5 text-[10px] w-full bg-white outline-none transition-colors ${visitFilters.remarks ? 'border-blue-400 focus:border-blue-500' : 'border-gray-200 focus:border-blue-400'}`}
+                                                placeholder="검색..."
+                                                value={visitFilters.remarks}
+                                                onChange={(e) => setVisitFilters(prev => ({ ...prev, remarks: e.target.value }))}
+                                            />
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 text-sm">
+                                {filteredVisitSummaries.length === 0 ? (
+                                    <tr><td colSpan="13" className="p-10 text-center text-gray-400 font-bold italic">기록이 없습니다.</td></tr>
+                                ) : (
+                                    filteredVisitSummaries.map((summary, idx) => {
+                                        const noteKey = `${summary.userId}_${summary.date}`;
+                                        const note = visitNotes[noteKey] || {};
+
+                                        return (
+                                            <tr key={summary.id} className={`hover:bg-gray-50 transition border-l-4 border-l-blue-400 ${selectedRows.has(summary.id) ? 'bg-blue-50/30' : ''}`}>
+                                                <td className="p-3 pl-6 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        checked={selectedRows.has(summary.id)}
+                                                        onChange={() => handleRowSelect(summary.id)}
+                                                    />
+                                                </td>
+                                                <td className="p-3 font-mono text-[11px] text-gray-500">{summary.weekId}</td>
+                                                <td className="p-3 whitespace-nowrap">{summary.date}</td>
+                                                <td className="p-3">{summary.dayOfWeek}</td>
+                                                <td className="p-3 whitespace-nowrap">{summary.school}</td>
+                                                <td className="p-3">{summary.age}</td>
+                                                <td className="p-3 font-bold text-gray-800">{summary.name}</td>
+                                                <td className="p-3 font-mono text-xs">{summary.startTime}</td>
+                                                <td className="p-3 font-mono text-xs">{summary.endTime}</td>
+                                                <td className="p-3">
+                                                    <span className="text-[11px] text-gray-600 line-clamp-2 leading-tight" title={summary.usedSpaces}>
+                                                        {summary.usedSpaces}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 font-mono text-xs text-blue-600 font-bold">{summary.durationStr}</td>
+                                                <td className="p-3 text-xs text-gray-500">{summary.durationMin}</td>
+                                                <td className={`p-1 min-w-[150px] transition-colors ${isCellSelected(idx, 'purpose') ? 'bg-blue-100/50' : ''}`}>
+                                                    <input
+                                                        ref={el => inputRefs.current[`${idx}-purpose`] = el}
+                                                        className={`w-full p-2 bg-transparent border-none outline-none focus:bg-blue-50/50 focus:ring-1 focus:ring-blue-100 rounded text-xs text-blue-700 font-medium transition-all ${isCellSelected(idx, 'purpose') ? 'placeholder-blue-300' : ''}`}
+                                                        placeholder="방문목적..."
+                                                        value={visitNotes[`${summary.userId}_${summary.date}`]?.purpose || ''}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setVisitNotes(prev => ({
+                                                                ...prev,
+                                                                [`${summary.userId}_${summary.date}`]: { ...prev[`${summary.userId}_${summary.date}`], purpose: val }
+                                                            }));
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            const original = visitNotes[`${summary.userId}_${summary.date}`]?.purpose || '';
+                                                            if (e.target.value !== original) {
+                                                                handleSaveNote(summary.userId, summary.date, 'purpose', e.target.value);
+                                                            }
+                                                        }}
+                                                        onKeyDown={(e) => handleNoteKeyDown(e, idx, 'purpose')}
+                                                        onPaste={(e) => handleNotePaste(e, idx, 'purpose')}
+                                                        onMouseDown={() => handleCellMouseDown(idx, 'purpose')}
+                                                        onMouseEnter={() => handleCellMouseEnter(idx, 'purpose')}
+                                                    />
+                                                </td>
+                                                <td className={`p-1 pr-6 min-w-[150px] transition-colors ${isCellSelected(idx, 'remarks') ? 'bg-blue-100/50' : ''}`}>
+                                                    <input
+                                                        ref={el => inputRefs.current[`${idx}-remarks`] = el}
+                                                        className={`w-full p-2 bg-transparent border-none outline-none focus:bg-gray-100/50 focus:ring-1 focus:ring-gray-200 rounded text-xs text-gray-500 transition-all ${isCellSelected(idx, 'remarks') ? 'placeholder-blue-300' : ''}`}
+                                                        placeholder="비고..."
+                                                        value={visitNotes[`${summary.userId}_${summary.date}`]?.remarks || ''}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setVisitNotes(prev => ({
+                                                                ...prev,
+                                                                [`${summary.userId}_${summary.date}`]: { ...prev[`${summary.userId}_${summary.date}`], remarks: val }
+                                                            }));
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            const original = visitNotes[`${summary.userId}_${summary.date}`]?.remarks || '';
+                                                            if (e.target.value !== original) {
+                                                                handleSaveNote(summary.userId, summary.date, 'remarks', e.target.value);
+                                                            }
+                                                        }}
+                                                        onKeyDown={(e) => handleNoteKeyDown(e, idx, 'remarks')}
+                                                        onPaste={(e) => handleNotePaste(e, idx, 'remarks')}
+                                                        onMouseDown={() => handleCellMouseDown(idx, 'remarks')}
+                                                        onMouseEnter={() => handleCellMouseEnter(idx, 'remarks')}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {logCategory === 'PROGRAM' && (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-semibold">
@@ -246,7 +875,9 @@ const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
                             </tbody>
                         </table>
                     </div>
-                ) : (
+                )}
+
+                {logCategory === 'SPACE' && (
                     <>
                         <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left border-collapse">
@@ -366,6 +997,132 @@ const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
                     </>
                 )}
             </div>
+            {/* Manual Entry Modal */}
+            {isManualModalOpen && (
+                <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h3 className="text-xl font-extrabold text-gray-800">방문 기록 수기작성</h3>
+                                <p className="text-xs text-gray-400 font-bold">오프라인 방문 데이터를 수동으로 입력합니다.</p>
+                            </div>
+                            <button onClick={() => setIsManualModalOpen(false)} className="p-2 hover:bg-white rounded-full transition text-gray-400">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleManualSubmit} className="p-6 space-y-4">
+                            {/* Member Selection */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-gray-500 flex items-center gap-1"><RefreshCw size={12} /> 회원 선택</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        placeholder="이름 또는 학교 검색..."
+                                        value={userSearchText}
+                                        onChange={(e) => {
+                                            setUserSearchText(e.target.value);
+                                            setShowUserResults(true);
+                                        }}
+                                        onFocus={() => setShowUserResults(true)}
+                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 focus:bg-white transition-all text-sm font-bold"
+                                    />
+                                    {showUserResults && userSearchText && (
+                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-xl max-h-[160px] overflow-y-auto z-10 custom-scrollbar">
+                                            {users.filter(u =>
+                                                u.name.includes(userSearchText) || (u.school && u.school.includes(userSearchText))
+                                            ).map(u => (
+                                                <button
+                                                    key={u.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setManualEntry({ ...manualEntry, userId: u.id });
+                                                        setUserSearchText(`${u.name} (${u.school || '-'})`);
+                                                        setShowUserResults(false);
+                                                    }}
+                                                    className="w-full p-2.5 text-left hover:bg-blue-50 transition border-b border-gray-50 last:border-0 flex justify-between items-center"
+                                                >
+                                                    <span className="font-bold text-gray-700 text-sm">{u.name}</span>
+                                                    <span className="text-[10px] text-gray-400 font-bold">{u.school} | {u.birth}</span>
+                                                </button>
+                                            ))}
+                                            {users.filter(u => u.name.includes(userSearchText) || (u.school && u.school.includes(userSearchText))).length === 0 && (
+                                                <div className="p-4 text-center text-xs text-gray-400">검색 결과가 없습니다.</div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500">방문 날짜</label>
+                                    <input
+                                        type="date"
+                                        value={manualEntry.date}
+                                        onChange={(e) => setManualEntry({ ...manualEntry, date: e.target.value })}
+                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 focus:bg-white transition-all text-sm font-bold"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500">사용 공간</label>
+                                    <select
+                                        value={manualEntry.locationId}
+                                        onChange={(e) => setManualEntry({ ...manualEntry, locationId: e.target.value })}
+                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 focus:bg-white transition-all text-sm font-bold appearance-none"
+                                        required
+                                    >
+                                        <option value="">장소 선택...</option>
+                                        {locations.map(loc => (
+                                            <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500">시작 시간</label>
+                                    <input
+                                        type="time"
+                                        value={manualEntry.startTime}
+                                        onChange={(e) => setManualEntry({ ...manualEntry, startTime: e.target.value })}
+                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 focus:bg-white transition-all text-sm font-bold"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500">종료 시간</label>
+                                    <input
+                                        type="time"
+                                        value={manualEntry.endTime}
+                                        onChange={(e) => setManualEntry({ ...manualEntry, endTime: e.target.value })}
+                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 focus:bg-white transition-all text-sm font-bold"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsManualModalOpen(false)}
+                                    className="flex-1 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold hover:bg-gray-200 transition"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-[2] py-3 bg-blue-600 text-white rounded-2xl font-extrabold hover:bg-blue-700 transition shadow-lg shadow-blue-100"
+                                >
+                                    저장하기
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

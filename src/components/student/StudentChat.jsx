@@ -225,9 +225,9 @@ const StudentChat = ({ currentUser, onRefreshUnread }) => {
     // View: Chat List
     if (!selectedMatch && !isNewChat) {
         return (
-            <div className="animate-fade-in pb-20 p-4">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">메시지</h2>
+            <div className="animate-fade-in pb-20 p-2.5">
+                <div className="flex justify-between items-center mb-6 px-1.5">
+                    <h2 className="text-3xl font-black text-gray-800 flex items-center gap-2">메시지 💬</h2>
                     <button
                         onClick={() => setIsNewChat(true)}
                         className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 transition active:scale-95"
@@ -276,12 +276,12 @@ const StudentChat = ({ currentUser, onRefreshUnread }) => {
     // View: New Chat Selection
     if (isNewChat && !selectedMatch) {
         return (
-            <div className="animate-fade-in pb-20 p-4">
-                <div className="flex items-center gap-3 mb-6">
+            <div className="animate-fade-in pb-20 p-2.5">
+                <div className="flex items-center gap-3 mb-6 px-1.5">
                     <button onClick={() => setIsNewChat(false)} className="p-2 hover:bg-gray-100 rounded-full">
                         <ArrowLeft size={24} className="text-gray-600" />
                     </button>
-                    <h2 className="text-2xl font-bold text-gray-800">선생님 선택</h2>
+                    <h2 className="text-3xl font-black text-gray-800">선생님 선택</h2>
                 </div>
 
                 <div className="space-y-3">

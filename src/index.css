@@ -6,8 +6,61 @@
 
 @layer base {
     body {
-        @apply antialiased text-gray-900;
+        @apply antialiased text-gray-900 bg-gray-50;
         word-break: keep-all;
         overflow-wrap: break-word;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: none;
     }
+
+    /* Force hardware acceleration for problematic layers on Android */
+    .gpu-accelerated {
+        will-change: transform, opacity;
+        transform: translateZ(0);
+    }
+}
+
+@layer utilities {
+    .glass-morphism {
+        @apply bg-white/60 backdrop-blur-xl border border-white/40 shadow-xl;
+    }
+
+    .glass-card {
+        @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-lg;
+    }
+
+    .bg-primary-gradient {
+        @apply bg-gradient-to-br from-indigo-700 via-blue-600 to-blue-500;
+    }
+
+    .btn-tactile {
+        @apply active:scale-95 transition-all duration-200;
+    }
+
+    .text-balance {
+        text-wrap: balance;
+    }
+}
+
+@keyframes float {
+    0% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate(30px, -50px) scale(1.1);
+    }
+
+    66% {
+        transform: translate(-20px, 20px) scale(0.9);
+    }
+
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+}
+
+.animate-float {
+    animation: float 15s infinite ease-in-out;
 }
