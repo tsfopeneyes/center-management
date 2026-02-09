@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+
+// Utilities
+import { performFullSyncToGoogleSheets } from '../utils/integrationUtils';
+import { processAnalyticsData, processUserAnalytics, processProgramAnalytics } from '../utils/analyticsUtils';
+import { aggregateVisitSessions } from '../utils/visitUtils';
 
 // Components
 import AdminSidebar from '../components/admin/AdminSidebar';
@@ -13,6 +19,8 @@ import AdminStatistics from '../components/admin/AdminStatistics';
 import AdminMessages from '../components/admin/AdminMessages';
 import AdminGuestbook from '../components/admin/AdminGuestbook';
 import AdminReport from '../components/admin/AdminReport';
+import AdminChallenges from '../components/admin/AdminChallenges';
+import AdminCalendar from '../components/admin/AdminCalendar';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
 
@@ -23,7 +31,9 @@ const AdminDashboard = () => {
     const [currentAdmin, setCurrentAdmin] = useState(null);
     const [activeMenu, setActiveMenu] = useState('STATUS'); // STATUS, BOARD, GALLERY, USERS, STATISTICS, LOGS, SETTINGS
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isSidebarPinned, setIsSidebarPinned] = useState(true);
     const [loading, setLoading] = useState(true);
+    const [isStatsLoading, setIsStatsLoading] = useState(false);
 
     // Data
     const [users, setUsers] = useState([]);
@@ -32,6 +42,7 @@ const AdminDashboard = () => {
     const [allLogs, setAllLogs] = useState([]);
     const [responses, setResponses] = useState([]);
     const [zoneStats, setZoneStats] = useState({});
+    const [dailyVisitStats, setDailyVisitStats] = useState({});
     const [currentLocations, setCurrentLocations] = useState({}); // { userId: locationId }
 
     useEffect(() => {
@@ -46,19 +57,31 @@ const AdminDashboard = () => {
         fetchData();
         subscribeToPush(admin.id); // Ask for notification permission
 
-        // Realtime Subscription
+        // Realtime Subscription with Debounce
+        let debounceTimer;
+        const debouncedFetch = () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                fetchData();
+            }, 1000); // 1-second debounce to handle burst updates
+        };
+
         const subscription = supabase
             .channel('public:updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, () => fetchData())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, () => fetchData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, debouncedFetch)
             .subscribe();
 
         return () => {
+            clearTimeout(debounceTimer);
             supabase.removeChannel(subscription);
         };
     }, [navigate]);
 
-    const fetchData = async () => {
+    const fetchData = async (isFullFetch = false) => {
+        // Automatically perform full fetch if currently in statistics or report mode
+        const needsFullFetch = isFullFetch || activeMenu === 'STATISTICS' || activeMenu === 'REPORTS';
+        if (needsFullFetch) setIsStatsLoading(true);
         try {
             const { data: userData } = await supabase.from('users').select('*').order('name');
             setUsers(userData || []);
@@ -74,30 +97,64 @@ const AdminDashboard = () => {
             const { data: responseData } = await supabase.from('notice_responses').select('*');
             setResponses(responseData || []);
 
-            // Stats Calculation
-            const { data: logs } = await supabase.from('logs').select('*').order('created_at', { ascending: true });
+            // Stats Calculation - Increase limit for initial load and allow full fetch for statistics
+            const logLimit = isFullFetch ? 10000 : 3000;
+            const { data: rawLogs } = await supabase.from('logs').select('*').order('created_at', { ascending: false }).limit(logLimit);
+            const logs = rawLogs ? [...rawLogs].reverse() : [];
 
             const userCurrentLocation = {};
             logs?.forEach(log => {
-                if (log.type === 'CHECKIN') userCurrentLocation[log.user_id] = log.location_id;
-                else if (log.type === 'MOVE') userCurrentLocation[log.user_id] = log.location_id;
+                if (log.type === 'CHECKIN' || log.type === 'MOVE') userCurrentLocation[log.user_id] = log.location_id;
                 else if (log.type === 'CHECKOUT') userCurrentLocation[log.user_id] = null;
             });
 
+            // Occupancy Stats Calculation (Real-time)
             const zStats = {};
             locData?.forEach(l => zStats[l.id] = 0);
             Object.values(userCurrentLocation).forEach(locId => {
                 if (locId && zStats[locId] !== undefined) zStats[locId]++;
             });
 
+            // Visitor Stats Calculation (Today)
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayLogs = logs?.filter(l => new Date(l.created_at) >= todayStart) || [];
+
+            const vStats = {};
+            const locVisitors = {}; // { locId: Set of studentIds }
+
+            locData?.forEach(l => {
+                vStats[l.id] = 0;
+                locVisitors[l.id] = new Set();
+            });
+
+            todayLogs.forEach(log => {
+                if (log.location_id && vStats[log.location_id] !== undefined) {
+                    if (log.type === 'GUEST_ENTRY') {
+                        vStats[log.location_id]++;
+                    } else if (log.type === 'CHECKIN' || log.type === 'MOVE') {
+                        locVisitors[log.location_id].add(log.user_id);
+                    }
+                }
+            });
+
+            // Merge student sets into counts
+            Object.keys(locVisitors).forEach(locId => {
+                vStats[locId] += locVisitors[locId].size;
+            });
+
             setZoneStats(zStats);
+            setDailyVisitStats(vStats);
             setCurrentLocations(userCurrentLocation);
             setAllLogs(logs || []);
 
             return { users: userData || [], locations: locData || [], notices: noticeData || [], responses: responseData || [], allLogs: logs || [] };
 
         } catch (error) { console.error(error); }
-        finally { setLoading(false); }
+        finally {
+            setLoading(false);
+            setIsStatsLoading(false);
+        }
     };
 
     const handleForceCheckout = async (userId) => {
@@ -140,6 +197,89 @@ const AdminDashboard = () => {
         }
     };
 
+    // Trigger full fetch when entering statistics
+    useEffect(() => {
+        if (activeMenu === 'STATISTICS') {
+            fetchData(true);
+        }
+    }, [activeMenu]);
+
+    // Responsive Sidebar Fix: Handle window resize to sync states
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth >= 768) {
+                // When expanding to desktop, close mobile drawer
+                setIsMenuOpen(false);
+                // Auto-pin when returning to desktop to restore original behavior
+                setIsSidebarPinned(true);
+            } else {
+                // When shrinking to mobile, always close the overlay and clear pin
+                setIsMenuOpen(false);
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Weekday 10PM Auto Sync Scheduler
+    const syncDataRef = React.useRef({ users, allLogs, responses, notices, locations });
+    useEffect(() => {
+        syncDataRef.current = { users, allLogs, responses, notices, locations };
+    }, [users, allLogs, responses, notices, locations]);
+
+    useEffect(() => {
+        const checkAutoSync = () => {
+            const now = new Date();
+            const day = now.getDay(); // 0: Sun, 1-5: Mon-Fri, 6: Sat
+            const isWeekday = day >= 1 && day <= 5;
+            const hour = now.getHours();
+
+            if (isWeekday && hour === 22) {
+                const today = format(now, 'yyyy-MM-dd');
+                const lastSync = localStorage.getItem('last_auto_sync_date');
+                const gsWebhookUrl = localStorage.getItem('gs_webhook_url');
+
+                if (lastSync !== today && gsWebhookUrl && syncDataRef.current.users.length > 0) {
+                    console.log('--- Triggering Weekday 10PM Auto Sync ---');
+                    handleAutoSync(gsWebhookUrl, today);
+                }
+            }
+        };
+
+        const interval = setInterval(checkAutoSync, 60000); // Check every minute
+        checkAutoSync(); // Initial check
+
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleAutoSync = async (webhookUrl, todayStr) => {
+        try {
+            // Need latest visit notes for the sync
+            const { data: vNotes } = await supabase.from('visit_notes').select('*');
+            const { users, allLogs, responses, notices, locations } = syncDataRef.current;
+
+            await performFullSyncToGoogleSheets({
+                webhookUrl,
+                users,
+                logs: allLogs,
+                responses,
+                notices,
+                locations,
+                visitNotes: vNotes,
+                processUserAnalytics,
+                processProgramAnalytics,
+                processAnalyticsData,
+                aggregateVisitSessions
+            });
+
+            localStorage.setItem('last_auto_sync_date', todayStr);
+            console.log('Auto Sync Successful:', todayStr);
+        } catch (err) {
+            console.error('Auto Sync Failed:', err);
+        }
+    };
+
     const handleLogout = () => {
         if (confirm("로그아웃 하시겠습니까?")) {
             localStorage.removeItem('admin_user');
@@ -162,33 +302,52 @@ const AdminDashboard = () => {
                 onLogout={handleLogout}
                 isOpen={isMenuOpen}
                 setIsOpen={setIsMenuOpen}
+                isPinned={isSidebarPinned}
+                setIsPinned={setIsSidebarPinned}
             />
 
             {/* Main Content */}
-            <div className="flex-1 md:ml-64 min-w-0">
-                {/* Mobile Header */}
-                <header className="md:hidden bg-white border-b border-gray-100 p-4 sticky top-0 z-10 flex justify-between items-center">
+            <div className={`flex-1 ${isSidebarPinned ? 'md:ml-64' : 'ml-0'} min-w-0 transition-all duration-300 ease-in-out`}>
+                {/* Universal Header - Visible on all sizes */}
+                <header className="bg-white border-b border-gray-100 p-4 sticky top-0 z-30 flex justify-between items-center shadow-sm">
                     <h1 className="text-lg font-extrabold text-blue-600 tracking-tight">SCI CENTER <span className="text-gray-400 text-[10px] ml-1 uppercase">Admin</span></h1>
                     <button
-                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        onClick={() => {
+                            // On desktop, toggle pinning. On mobile, toggle overlay.
+                            if (window.innerWidth >= 768) {
+                                // If already unpinned but overlay is open, close overlay
+                                if (!isSidebarPinned && isMenuOpen) {
+                                    setIsMenuOpen(false);
+                                } else {
+                                    setIsSidebarPinned(!isSidebarPinned);
+                                }
+                            } else {
+                                setIsMenuOpen(!isMenuOpen);
+                            }
+                        }}
                         className="p-2 text-gray-500 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100 shadow-sm"
                     >
-                        {isMenuOpen ? <CloseIcon size={20} /> : <Menu size={20} />}
+                        {(isMenuOpen || (window.innerWidth >= 768 && isSidebarPinned)) ? <CloseIcon size={20} /> : <Menu size={20} />}
                     </button>
                 </header>
 
-                <div className="p-4 md:p-8">
+                <main className="p-4 md:p-10 max-w-[1600px] mx-auto">
                     {activeMenu === 'STATUS' && (
                         <AdminStatus
                             users={users}
                             locations={locations}
                             zoneStats={zoneStats}
                             currentLocations={currentLocations}
-                            handleForceCheckout={handleForceCheckout}
                             handleBatchCheckout={handleBatchCheckout}
                             fetchData={fetchData}
+                            allLogs={allLogs}
+                            dailyVisitStats={dailyVisitStats}
                             setActiveMenu={setActiveMenu}
+                            handleForceCheckout={handleForceCheckout}
                         />
+                    )}
+                    {activeMenu === 'CALENDAR' && (
+                        <AdminCalendar notices={notices} fetchData={fetchData} />
                     )}
                     {activeMenu === 'PROGRAMS' && (
                         <AdminBoard mode="PROGRAM" notices={notices} fetchData={fetchData} />
@@ -205,25 +364,29 @@ const AdminDashboard = () => {
                     {activeMenu === 'USERS' && (
                         <AdminUsers users={users} allLogs={allLogs} locations={locations} fetchData={fetchData} />
                     )}
+                    {activeMenu === 'CHALLENGES' && (
+                        <AdminChallenges />
+                    )}
                     {activeMenu === 'MESSAGES' && (
                         <AdminMessages users={users} />
                     )}
                     {activeMenu === 'STATISTICS' && (
-                        <AdminStatistics logs={allLogs} locations={locations} users={users} notices={notices} responses={responses} />
+                        <AdminStatistics logs={allLogs} locations={locations} users={users} notices={notices} responses={responses} isLoading={isStatsLoading} />
                     )}
                     {activeMenu === 'LOGS' && (
                         <AdminLogs allLogs={allLogs} users={users} locations={locations} notices={notices} fetchData={fetchData} />
                     )}
                     {activeMenu === 'REPORTS' && (
-                        <AdminReport />
+                        <AdminReport allLogs={allLogs} users={users} locations={locations} notices={notices} />
                     )}
                     {activeMenu === 'SETTINGS' && (
                         <AdminSettings currentAdmin={currentAdmin} locations={locations} notices={notices} fetchData={fetchData} users={users} allLogs={allLogs} responses={responses} />
                     )}
-                </div>
+                </main>
             </div>
         </div>
     );
 };
 
 export default AdminDashboard;
+

@@ -7,13 +7,16 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterGroup, setFilterGroup] = useState('ALL');
     const [editingUser, setEditingUser] = useState(null);
-    const [editFormData, setEditFormData] = useState({ school: '', phone_back4: '', user_group: '재학생', memo: '' });
+    const [editFormData, setEditFormData] = useState({ name: '', school: '', phone_back4: '', user_group: '재학생', memo: '' });
 
-    // Messaging State
+    // Messaging State (Deprecated/Hidden for now as per user request)
+    // const [selectedUserIds, setSelectedUserIds] = useState(new Set());
+    // const [messageModalOpen, setMessageModalOpen] = useState(false);
+    // const [messageContent, setMessageContent] = useState('');
+    // const [sending, setSending] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState(new Set());
-    const [messageModalOpen, setMessageModalOpen] = useState(false);
-    const [messageContent, setMessageContent] = useState('');
     const [sending, setSending] = useState(false);
+    const [bulkTargetGroup, setBulkTargetGroup] = useState('졸업생');
 
     // Selection Logic
     const toggleSelectAll = () => {
@@ -31,27 +34,28 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         setSelectedUserIds(newSet);
     };
 
-    // Send Message Logic
-    const handleSendMessage = async () => {
-        if (!messageContent.trim()) return;
+    /* handleSendMessage is suppressed as per user request */
+
+    // Bulk Group Update Logic
+    const handleBulkUpdateGroup = async (newGroup) => {
+        if (selectedUserIds.size === 0) return;
+        if (!confirm(`선택한 ${selectedUserIds.size}명의 그룹을 '${newGroup}'(으)로 변경하시겠습니까?`)) return;
+
         setSending(true);
         try {
-            const messages = Array.from(selectedUserIds).map(receiverId => ({
-                receiver_id: receiverId,
-                content: messageContent,
-                is_read: false
-            }));
+            const { error } = await supabase
+                .from('users')
+                .update({ user_group: newGroup })
+                .in('id', Array.from(selectedUserIds));
 
-            const { error } = await supabase.from('messages').insert(messages);
             if (error) throw error;
 
-            alert(`성공적으로 ${messages.length}명에게 메시지를 보냈습니다.`);
-            setMessageModalOpen(false);
-            setMessageContent('');
+            alert('일괄 변경이 완료되었습니다.');
             setSelectedUserIds(new Set());
+            fetchData();
         } catch (err) {
             console.error(err);
-            alert('메시지 전송 실패: ' + err.message);
+            alert('일괄 변경 실패: ' + err.message);
         } finally {
             setSending(false);
         }
@@ -83,7 +87,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         const matchesAge = age && age.includes(cleanSearch);
 
         const matchesGroup = filterGroup === 'ALL' || user.user_group === filterGroup;
-        const isSystemAdmin = user.name === 'admin';
+        const isSystemAdmin = user.name === 'admin' || user.user_group === '관리자' || user.role === 'admin';
         return !isSystemAdmin && (matchesSearch || matchesAge) && matchesGroup;
     });
 
@@ -91,6 +95,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
     const openUserEditModal = (user) => {
         setEditingUser(user);
         setEditFormData({
+            name: user.name || '',
             school: user.school || '',
             phone_back4: user.phone_back4 || '',
             user_group: user.user_group || '재학생',
@@ -102,6 +107,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         if (!editingUser) return;
         try {
             const { error } = await supabase.from('users').update({
+                name: editFormData.name,
                 school: editFormData.school,
                 phone_back4: editFormData.phone_back4,
                 user_group: editFormData.user_group,
@@ -191,34 +197,31 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
 
     return (
         <div className="space-y-6 animate-fade-in-up">
-            <div className="p-4 md:p-6 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="p-6 md:p-10 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-gray-50/30">
                 <div>
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-800">이용자 관리</h2>
-                    <p className="text-gray-500 text-xs md:text-sm">전체 회원 목록 조회 및 정보 수정</p>
+                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tighter">이용자 관리</h2>
+                    <p className="text-gray-500 text-sm font-medium mt-1">전체 회원 목록 조회 및 정보 수정</p>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-stretch md:items-center">
-                    {/* {selectedUserIds.size > 0 && (
-                        <button
-                            onClick={() => setMessageModalOpen(true)}
-                            className="bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition flex items-center justify-center gap-2 animate-fade-in"
-                        >
-                            <span className="bg-white text-blue-600 text-[10px] px-2 py-0.5 rounded-full">{selectedUserIds.size}</span>
-                            <span className="text-sm whitespace-nowrap">메시지 보내기</span>
-                        </button>
-                    )} */}
-                    <div className="relative flex-1 md:min-w-[300px] flex gap-2">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                            <input type="text" placeholder="이름 또는 뒷번호 검색..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-11 p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-blue-500 transition font-bold text-gray-700 text-sm md:text-base" />
+                <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto items-stretch md:items-center">
+                    <div className="relative flex-1 lg:min-w-[400px] flex gap-3">
+                        <div className="relative flex-1 group">
+                            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
+                            <input
+                                type="text"
+                                placeholder="이름, 학교 또는 뒷번호 검색..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-14 p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 transition-all font-bold text-gray-700 shadow-inner"
+                            />
                         </div>
                         <button
                             onClick={() => exportUsersToExcel(users, allLogs)}
-                            className="bg-green-50 text-green-600 border border-green-200 px-4 py-2.5 rounded-xl font-bold hover:bg-green-100 transition flex items-center gap-2 shadow-sm whitespace-nowrap"
+                            className="bg-white text-green-600 border border-green-100 px-6 py-4 rounded-2xl font-black hover:bg-green-600 hover:text-white transition-all duration-300 flex items-center gap-2 shadow-sm whitespace-nowrap"
                             title="전체 명단 엑셀 다운로드"
                         >
-                            <FileSpreadsheet size={18} />
-                            <span className="hidden md:inline">Excel</span>
+                            <FileSpreadsheet size={20} />
+                            <span className="hidden xl:inline">명단 내보내기</span>
                         </button>
                     </div>
                 </div>
@@ -354,32 +357,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 </div>
             </div>
 
-            {/* Message Modal */}
-            {messageModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-800">메시지 보내기 ({selectedUserIds.size}명)</h3>
-                            <button onClick={() => setMessageModalOpen(false)}><X size={20} className="text-gray-400" /></button>
-                        </div>
-                        <div className="p-6">
-                            <textarea
-                                value={messageContent}
-                                onChange={(e) => setMessageContent(e.target.value)}
-                                placeholder="보낼 메시지 내용을 입력하세요..."
-                                className="w-full h-32 p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 resize-none mb-4"
-                            />
-                            <button
-                                onClick={handleSendMessage}
-                                disabled={sending || !messageContent.trim()}
-                                className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition disabled:bg-gray-300"
-                            >
-                                {sending ? '전송 중...' : '전송하기'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Edit Modal */}
             {editingUser && (
@@ -393,7 +371,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                             </div>
                         </div>
                         <div className="p-6 space-y-4">
-                            <div><label className="text-xs font-bold text-gray-500 block mb-1">이름</label><input type="text" value={editingUser.name} disabled className="w-full p-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-bold" /></div>
+                            <div><label className="text-xs font-bold text-gray-500 block mb-1">이름</label><input type="text" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold" /></div>
                             <div>
                                 <label className="text-xs font-bold text-gray-500 block mb-1">그룹</label>
                                 <select value={editFormData.user_group} onChange={(e) => setEditFormData({ ...editFormData, user_group: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-white font-bold">
@@ -416,6 +394,52 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                             )}
                         </div>
                         <div className="p-6 pt-0"><button onClick={handleSaveUser} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"><Save size={20} /> 수정사항 저장</button></div>
+                    </div>
+                </div>
+            )}
+            {/* Bulk Action Bar */}
+            {selectedUserIds.size > 0 && (
+                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] w-[95%] max-w-2xl bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] p-5 sm:p-6 shadow-[0_30px_60px_rgba(0,0,0,0.4)] border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-bottom-10 duration-500">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-blue-600 text-white w-12 h-12 rounded-[1.25rem] flex items-center justify-center text-xl font-black shadow-lg shadow-blue-500/20">
+                            {selectedUserIds.size}
+                        </div>
+                        <div>
+                            <p className="text-white font-black text-base tracking-tight leading-none mb-1">명이 선택되었습니다</p>
+                            <button
+                                onClick={() => setSelectedUserIds(new Set())}
+                                className="text-blue-400 text-sm font-bold hover:text-blue-300 transition-colors"
+                            >
+                                선택 모두 해제
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <span className="text-white/40 text-xs font-bold uppercase tracking-widest hidden sm:block">변경할 그룹:</span>
+                        <div className="relative flex-1 sm:flex-none">
+                            <select
+                                value={bulkTargetGroup}
+                                onChange={(e) => setBulkTargetGroup(e.target.value)}
+                                className="w-full sm:w-32 py-4 pl-4 pr-10 bg-white/10 hover:bg-white/15 text-white border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
+                            >
+                                <option value="청소년" className="text-gray-800">청소년</option>
+                                <option value="졸업생" className="text-gray-800">졸업생</option>
+                                <option value="STAFF" className="text-gray-800">STAFF</option>
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
+                                <Search size={14} className="rotate-90" />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => handleBulkUpdateGroup(bulkTargetGroup)}
+                            disabled={sending}
+                            className="flex-1 sm:flex-none px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-600/30 active:scale-95 disabled:bg-gray-700 flex items-center justify-center gap-2 whitespace-nowrap"
+                        >
+                            <Save size={18} className={sending ? 'animate-pulse' : ''} />
+                            변경 적용
+                        </button>
                     </div>
                 </div>
             )}

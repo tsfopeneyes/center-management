@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '../../supabaseClient';
-import { Settings, User, Camera, Save, Edit2, Trash2, Plus, ZoomIn, RotateCw, ExternalLink, Share2, Database, FileText } from 'lucide-react';
+import { Settings, User, Camera, Save, Edit2, Trash2, Plus, ZoomIn, RotateCw, ExternalLink, Share2, Database, FileText, ArrowUp, ArrowDown, Eye, EyeOff, Layout } from 'lucide-react';
+import { CATEGORIES } from '../../constants/appConstants';
 import Cropper from 'react-easy-crop';
-import getCroppedImg from '../../utils/imageUtils';
-import { backupLogsToGoogleSheets, uploadSummaryToNotion, syncToGoogleSheets, bulkSyncToGoogleSheets } from '../../utils/integrationUtils';
-import { processAnalyticsData } from '../../utils/analyticsUtils';
+import getCroppedImg, { compressImage } from '../../utils/imageUtils';
+import { backupLogsToGoogleSheets, uploadSummaryToNotion, syncToGoogleSheets, bulkSyncToGoogleSheets, performFullSyncToGoogleSheets } from '../../utils/integrationUtils';
+import { processAnalyticsData, processUserAnalytics, processProgramAnalytics } from '../../utils/analyticsUtils';
+import { aggregateVisitSessions } from '../../utils/visitUtils';
 
 const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, allLogs, responses = [] }) => {
     // Profile State
@@ -19,6 +21,7 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
     const [gsWebhookUrl, setGsWebhookUrl] = useState(localStorage.getItem('gs_webhook_url') || '');
     const [notionApiKey, setNotionApiKey] = useState(localStorage.getItem('notion_api_key') || '');
     const [notionDbId, setNotionDbId] = useState(localStorage.getItem('notion_db_id') || '');
+    const [kioskMasterPin, setKioskMasterPin] = useState(localStorage.getItem('kiosk_master_pin') || '1801');
     const [isBackingUp, setIsBackingUp] = useState(false);
     const [isUploadingNotion, setIsUploadingNotion] = useState(false);
     const [syncProgress, setSyncProgress] = useState('');
@@ -34,6 +37,15 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+    // Dashboard Layout State
+    const [dashboardConfig, setDashboardConfig] = useState([
+        { id: 'stats', label: '활동 통계', isVisible: true, count: 3 },
+        { id: 'programs', label: '프로그램 신청', isVisible: true, count: 3 },
+        { id: 'notices', label: '공지사항', isVisible: true, count: 3 },
+        { id: 'gallery', label: '갤러리', isVisible: true, count: 6 }
+    ]);
+    const [configLoading, setConfigLoading] = useState(false);
 
     // Profile Logic
     const handleAdminProfileImageSelect = (e) => {
@@ -63,9 +75,11 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
         try {
             let imageUrl = currentAdmin.profile_image_url;
             if (profileImage) {
-                const fileExt = profileImage.name.split('.').pop();
+                // Apply automatic compression before upload
+                const compressedFile = await compressImage(profileImage);
+                const fileExt = compressedFile.name.split('.').pop();
                 const fileName = `admin_${currentAdmin.id}_${Date.now()}.${fileExt}`;
-                const { error: uploadError } = await supabase.storage.from('notice-images').upload(fileName, profileImage);
+                const { error: uploadError } = await supabase.storage.from('notice-images').upload(fileName, compressedFile);
                 if (uploadError) throw uploadError;
                 const { data: { publicUrl } } = supabase.storage.from('notice-images').getPublicUrl(fileName);
                 imageUrl = publicUrl;
@@ -129,7 +143,76 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
         localStorage.setItem('gs_webhook_url', gsWebhookUrl);
         localStorage.setItem('notion_api_key', notionApiKey);
         localStorage.setItem('notion_db_id', notionDbId);
-        alert('연동 설정이 브라우저에 저장되었습니다.');
+        localStorage.setItem('kiosk_master_pin', kioskMasterPin);
+        alert('연동 및 보안 설정이 브라우저에 저장되었습니다.');
+    };
+
+    // Dashboard Layout Logic
+    React.useEffect(() => {
+        const fetchConfig = async () => {
+            const { data } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STUDENT_DASHBOARD_CONFIG')
+                .maybeSingle();
+
+            if (data && data.content) {
+                try {
+                    const parsed = JSON.parse(data.content);
+                    if (Array.isArray(parsed)) setDashboardConfig(parsed);
+                } catch (e) { console.error(e); }
+            }
+        };
+        fetchConfig();
+    }, []);
+
+    const handleMoveConfig = (index, direction) => {
+        const newConfig = [...dashboardConfig];
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= newConfig.length) return;
+        const temp = newConfig[index];
+        newConfig[index] = newConfig[targetIndex];
+        newConfig[targetIndex] = temp;
+        setDashboardConfig(newConfig);
+    };
+
+    const handleUpdateConfig = (id, field, value) => {
+        setDashboardConfig(prev => prev.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ));
+    };
+
+    const handleSaveDashboardConfig = async () => {
+        setConfigLoading(true);
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STUDENT_DASHBOARD_CONFIG')
+                .maybeSingle();
+
+            const payload = {
+                title: 'STUDENT_DASHBOARD_CONFIG',
+                content: JSON.stringify(dashboardConfig),
+                category: CATEGORIES.SYSTEM,
+                is_sticky: false,
+                is_recruiting: false
+            };
+
+            if (existing) {
+                await supabase.from('notices').update(payload).eq('id', existing.id);
+            } else {
+                await supabase.from('notices').insert([payload]);
+            }
+            alert('대시보드 레이아웃 설정이 저장되었습니다.');
+        } catch (err) {
+            console.error(err);
+            alert('저장 실패');
+        } finally {
+            setConfigLoading(false);
+        }
     };
 
     const handleGoogleSheetsBackup = async () => {
@@ -138,80 +221,33 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
         setIsBackingUp(true);
         setSyncProgress('Supabase에서 최신 데이터를 불러오는 중...');
         try {
-            console.log('--- Starting Google Sheets Sync ---');
-
-            // 0. 최신 데이터 불러오기 (fetchData returns the latest data from DB)
+            // 0. 최신 데이터 불러오기
             const latest = await fetchData();
-
-            // 데이터가 정상적으로 오지 않았을 경우 방어 코드
             const currentUsers = latest?.users || users;
             const currentLogs = latest?.allLogs || allLogs;
             const currentResponses = latest?.responses || responses;
             const currentNotices = latest?.notices || notices;
             const currentLocations = latest?.locations || locations;
 
-            // 1. 회원정보 (User Info)
-            setSyncProgress('전송용 데이터 준비 중...');
-            const userRows = currentUsers.map(u => ({
-                'ID': u.id,
-                '이름': u.name,
-                '학교': u.school,
-                '연락처': u.phone || '-',
-                '생년월일': u.birth || '-',
-                '가입일': u.created_at ? format(new Date(u.created_at), 'yyyy-MM-dd') : '-'
-            }));
+            setSyncProgress('전송용 데이터 준비 및 전송 중...');
 
-            // 2. 공간로그 (Space Logs)
-            const logRows = currentLogs.filter(l => !l.type?.startsWith('PRG_')).map(log => {
-                const u = currentUsers.find(user => user.id === log.user_id);
-                const loc = currentLocations.find(l => l.id === log.location_id);
-                return {
-                    '일시': format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss'),
-                    '이름': u ? u.name : '알 수 없음',
-                    '학교': u ? u.school : '-',
-                    '장소': loc ? loc.name : '-',
-                    '유형': log.type === 'CHECKIN' ? '입실' : log.type === 'CHECKOUT' ? '퇴실' : '이동'
-                };
+            // 학생방문일지용 메모 데이터 별도 수집
+            const { data: vNotes } = await supabase.from('visit_notes').select('*');
+
+            await performFullSyncToGoogleSheets({
+                webhookUrl: gsWebhookUrl,
+                users: currentUsers,
+                logs: currentLogs,
+                responses: currentResponses,
+                notices: currentNotices,
+                locations: currentLocations,
+                visitNotes: vNotes,
+                processUserAnalytics,
+                processProgramAnalytics,
+                processAnalyticsData,
+                aggregateVisitSessions
             });
 
-            // 3. 프로그램로그 (Program Logs)
-            const prgRows = (currentResponses || []).map(res => {
-                const u = currentUsers.find(user => user.id === res.user_id);
-                const notice = currentNotices.find(n => n.id === res.notice_id);
-                return {
-                    '날짜': notice ? notice.program_date : '-',
-                    '프로그램': notice ? notice.title : '삭제됨',
-                    '이름': u ? u.name : '알 수 없음',
-                    '상태': res.status,
-                    '출석여부': res.is_attended ? '참석' : '미참석'
-                };
-            });
-
-            // 4. 운영리포트 (Operational Report)
-            let summaryRows = [];
-            try {
-                const analytics = processAnalyticsData(currentLogs, currentLocations, currentUsers, new Date(), 'WEEKLY');
-                summaryRows = [{
-                    '생성일': format(new Date(), 'yyyy-MM-dd'),
-                    '총 이용건수': analytics?.totalVisits || 0,
-                    '고유 방문자': analytics?.uniqueUsers || 0,
-                    '평균 체류시간(분)': Math.round(analytics?.avgDuration || 0),
-                    '인기 장소': analytics?.roomAnalysis?.[0]?.name || '-'
-                }];
-            } catch (aErr) { console.warn('Analytics failed', aErr); }
-
-            // 5. 한 번에 전송 (Bulk Sync)
-            setSyncProgress('구글 시트로 모든 데이터 전송 중...');
-            const payloads = [
-                { tabName: '회원정보', rows: userRows, headers: ['ID', '이름', '학교', '연락처', '생년월일', '가입일'] },
-                { tabName: '공간로그', rows: logRows, headers: ['일시', '이름', '학교', '장소', '유형'] },
-                { tabName: '프로그램로그', rows: prgRows, headers: ['날짜', '프로그램', '이름', '상태', '출석여부'] },
-                { tabName: '운영리포트', rows: summaryRows, headers: ['생성일', '총 이용건수', '고유 방문자', '평균 체류시간(분)', '인기 장소'] }
-            ].filter(p => p.rows.length > 0);
-
-            await bulkSyncToGoogleSheets(gsWebhookUrl, payloads);
-
-            console.log('Sync Complete!');
             setSyncProgress('');
             alert('모든 데이터가 구글 시트로 동기화되었습니다!\n(최신 회원가입자 정보 포함)');
         } catch (err) {
@@ -223,6 +259,7 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
             setSyncProgress('');
         }
     };
+
 
     const handleNotionUpload = async () => {
         if (!notionApiKey || !notionDbId) return alert('노션 API 키와 데이터베이스 ID를 입력해주세요.');
@@ -377,7 +414,95 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
                         </button>
                         <p className="text-[10px] text-gray-400 leading-relaxed">* 오늘 하루의 통계(방문자 등)를 노션 데이터베이스에 추가합니다.</p>
                     </div>
+
+                    {/* Kiosk Master Pin */}
+                    <div className="space-y-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100 md:col-span-2">
+                        <div className="flex items-center gap-2 text-blue-600 font-bold mb-2">
+                            <Settings size={18} />
+                            <span>키오스크 보안 설정</span>
+                        </div>
+                        <div className="flex flex-col md:flex-row items-end gap-4">
+                            <div className="flex-1 w-full">
+                                <label className="block text-[10px] font-bold text-gray-500 mb-1 ml-1">키오스크 마스터 핀 (4자리 숫자)</label>
+                                <input
+                                    type="password"
+                                    maxLength="4"
+                                    value={kioskMasterPin}
+                                    onChange={e => setKioskMasterPin(e.target.value.replace(/[^0-9]/g, ''))}
+                                    placeholder="1801"
+                                    className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm font-mono tracking-widest"
+                                />
+                            </div>
+                            <button
+                                onClick={handleSaveIntegrations}
+                                className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-sm text-sm"
+                            >
+                                마스터 핀 저장
+                            </button>
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-relaxed">* 키오스크 진입 및 설정 변경 시 필요한 비밀번호입니다. 유출되지 않도록 주의하세요.</p>
+                    </div>
                 </div>
+            </div>
+
+            {/* Dashboard Layout Customization */}
+            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-base md:text-lg text-gray-700 flex items-center gap-2"><Layout size={20} /> 학생 대시보드 레이아웃 설정</h3>
+                    <button
+                        onClick={handleSaveDashboardConfig}
+                        disabled={configLoading}
+                        className="text-xs bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition shadow-md disabled:bg-gray-300"
+                    >
+                        {configLoading ? '저장 중...' : '레이아웃 저장'}
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    {dashboardConfig.map((item, index) => (
+                        <div key={item.id} className={`flex items-center justify-between p-4 rounded-2xl border transition ${item.isVisible ? 'bg-white border-gray-100 shadow-sm' : 'bg-gray-50 border-transparent opacity-60'}`}>
+                            <div className="flex items-center gap-4">
+                                <div className="flex flex-col gap-1">
+                                    <button
+                                        onClick={() => handleMoveConfig(index, -1)}
+                                        disabled={index === 0}
+                                        className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-0"
+                                    ><ArrowUp size={16} /></button>
+                                    <button
+                                        onClick={() => handleMoveConfig(index, 1)}
+                                        disabled={index === dashboardConfig.length - 1}
+                                        className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-0"
+                                    ><ArrowDown size={16} /></button>
+                                </div>
+                                <div>
+                                    <span className="font-bold text-gray-700 block">{item.label}</span>
+                                    <span className="text-[10px] text-gray-400 uppercase font-bold">{item.id}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-gray-500">노출 개수</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="20"
+                                        value={item.count}
+                                        onChange={(e) => handleUpdateConfig(item.id, 'count', parseInt(e.target.value) || 1)}
+                                        className="w-16 p-2 bg-gray-50 border border-gray-100 rounded-lg text-center text-sm font-bold outline-none focus:border-blue-500"
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => handleUpdateConfig(item.id, 'isVisible', !item.isVisible)}
+                                    className={`p-2.5 rounded-xl transition-all ${item.isVisible ? 'bg-blue-50 text-blue-600 shadow-sm' : 'bg-gray-200 text-gray-500'}`}
+                                >
+                                    {item.isVisible ? <Eye size={18} /> : <EyeOff size={18} />}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <p className="mt-4 text-[10px] text-gray-400 leading-relaxed">* 학생 대시보드 홈 탭에 표시되는 섹션의 순서와 노출 개수를 설정합니다. 상하 화살표로 순서를 변경하세요.</p>
             </div>
 
             {/* Cropper Modal */}

@@ -10,14 +10,21 @@ const AdminStatus = ({
     handleForceCheckout,
     handleBatchCheckout,
     fetchData,
-    setActiveMenu
+    setActiveMenu,
+    allLogs = [],
+    dailyVisitStats = {}
 }) => {
     const navigate = useNavigate();
     const [locationTab, setLocationTab] = useState('ALL'); // ALL, HYPHEN, ENOF
 
     // 10 PM Check
     const isPast10PM = new Date().getHours() >= 22;
-    const activeUserCount = Object.keys(currentLocations).filter(uid => currentLocations[uid]).length;
+    const adminIdsSet = new Set(users.filter(u =>
+        u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
+    ).map(u => u.id));
+    const activeUserCount = Object.keys(currentLocations).filter(uid =>
+        currentLocations[uid] && !adminIdsSet.has(uid)
+    ).length;
 
     // Zone Detail Modal State
     const [zoneDetailModal, setZoneDetailModal] = useState({ isOpen: false, locationId: null, locationName: '', activeUsers: [] });
@@ -47,6 +54,8 @@ const AdminStatus = ({
 
     // Get Active Users List for Table
     const activeUsersList = users.filter(u => {
+        const isAdmin = u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin';
+        if (isAdmin) return false;
         const locId = currentLocations[u.id];
         if (!locId) return false;
         return filteredLocations.some(l => l.id === locId);
@@ -57,7 +66,9 @@ const AdminStatus = ({
 
     const handleZoneClick = (location) => {
         // Find users currently in this location
-        const activeUserIds = Object.keys(currentLocations).filter(uid => currentLocations[uid] === location.id);
+        const activeUserIds = Object.keys(currentLocations).filter(uid =>
+            currentLocations[uid] === location.id && !adminIdsSet.has(uid)
+        );
         const activeUsers = users.filter(u => activeUserIds.includes(u.id));
 
         setZoneDetailModal({
@@ -70,28 +81,39 @@ const AdminStatus = ({
 
     return (
         <div className="space-y-6 animate-fade-in-up">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50/50 p-4 rounded-2xl gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center glass-morphism p-6 rounded-[2.5rem] gap-4 border-white/20">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">이용 현황</h2>
-                    <p className="text-gray-500 text-sm">실시간 공간 이용 현황 및 입실자 관리</p>
+                    <h2 className="text-2xl font-black text-gray-800 tracking-tight">이용 현황</h2>
+                    <p className="text-gray-500 text-sm font-bold opacity-70">실시간 공간 이용 현황 및 입실자 관리</p>
                 </div>
                 <div className="flex flex-wrap gap-2 w-full md:w-auto">
                     {activeUserCount > 0 && (
                         <button
-                            onClick={() => handleBatchCheckout(Object.keys(currentLocations).filter(uid => currentLocations[uid]))}
-                            className={`flex-1 md:flex-none px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition font-bold shadow-sm border ${isPast10PM
+                            onClick={() => handleBatchCheckout(Object.keys(currentLocations).filter(uid =>
+                                currentLocations[uid] && !adminIdsSet.has(uid)
+                            ))}
+                            className={`flex-1 md:flex-none px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition-all font-black shadow-lg border btn-tactile ${isPast10PM
                                 ? 'bg-red-600 text-white border-red-700 hover:bg-red-700 animate-pulse'
-                                : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-50'
+                                : 'bg-white text-orange-600 border-orange-100 hover:bg-orange-50'
                                 }`}
                         >
-                            <LogOut size={18} /> <span className="text-sm">전원 퇴실</span>
+                            <LogOut size={18} /> <span className="text-xs uppercase tracking-wider">전원 퇴실</span>
                         </button>
                     )}
-                    <button onClick={fetchData} className="flex-1 md:flex-none bg-white text-green-600 border border-green-200 px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-green-50 transition font-bold shadow-sm">
-                        <RotateCw size={18} /> <span className="text-sm">새로고침</span>
+                    <button onClick={fetchData} className="flex-1 md:flex-none bg-white text-green-600 border border-green-100 px-5 py-3 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition-all font-black shadow-lg btn-tactile">
+                        <RotateCw size={18} /> <span className="text-xs uppercase tracking-wider">새로고침</span>
                     </button>
-                    <button onClick={() => navigate('/kiosk')} className="flex-1 md:flex-none bg-indigo-600 text-white px-5 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition shadow-lg font-bold">
-                        <Tablet size={20} /> <span className="text-sm">키오스크</span>
+                    <button
+                        onClick={() => {
+                            if (window.confirm('보안을 위해 로그아웃 후 키오스크 모드로 전환하시겠습니까?\n(예 클릭 시 로그아웃 후 이동하며, 학생들이 관리자 페이지로 접근하는 것을 방지합니다.)')) {
+                                localStorage.removeItem('user');
+                                localStorage.removeItem('admin_user');
+                                navigate('/kiosk');
+                            }
+                        }}
+                        className="flex-1 md:flex-none bg-primary-gradient text-white px-6 py-3 rounded-2xl flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-xl font-black btn-tactile"
+                    >
+                        <Tablet size={20} /> <span className="text-xs uppercase tracking-wider">키오스크</span>
                     </button>
                 </div>
             </div>
@@ -118,11 +140,16 @@ const AdminStatus = ({
                     </button>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
                     {/* Total Count Card */}
-                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-left flex flex-col justify-center">
-                        <h3 className="text-gray-400 text-xs md:text-sm font-bold mb-1 md:mb-2">현재 입실 인원</h3>
-                        <p className="text-3xl md:text-4xl font-extrabold text-blue-600">{totalActive}<span className="text-base md:text-lg text-gray-400 ml-1 font-medium">명</span></p>
+                    <div className="bg-primary-gradient p-8 rounded-[2.5rem] shadow-2xl shadow-blue-500/20 text-white flex flex-col justify-center relative overflow-hidden min-h-[180px] btn-tactile">
+                        <div className="absolute right-0 top-0 w-32 h-32 bg-white/20 rounded-full -mr-16 -mt-16 blur-3xl animate-float opacity-50" />
+                        <h3 className="text-blue-100 text-xs font-black mb-1 uppercase tracking-widest opacity-90">Total Active</h3>
+                        <p className="text-6xl font-black tracking-tighter tabular-nums">{totalActive}<span className="text-xl text-blue-200 ml-2 font-black uppercase">명</span></p>
+                        <div className="mt-4 flex items-center gap-2 bg-white/20 w-fit px-4 py-2 rounded-2xl backdrop-blur-md border border-white/10">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-200 animate-pulse" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Live Status</span>
+                        </div>
                     </div>
 
                     {/* Zone Cards */}
@@ -130,29 +157,34 @@ const AdminStatus = ({
                         <div
                             key={loc.id}
                             onClick={() => handleZoneClick(loc)}
-                            className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 text-left cursor-pointer hover:border-blue-500 hover:shadow-md transition active:scale-95 group flex flex-col justify-between h-30 md:h-36"
+                            className="glass-card p-8 rounded-[2.5rem] text-left cursor-pointer hover:border-blue-500 transition-all duration-500 btn-tactile group flex flex-col justify-between min-h-[180px]"
                         >
-                            <div className="flex justify-between items-start">
-                                <h3 className="text-gray-500 text-xs md:text-sm font-bold group-hover:text-blue-600 w-full pr-2 break-keep leading-tight line-clamp-2">{loc.name}</h3>
-                                <div className="text-gray-200 group-hover:text-blue-200 bg-gray-50 group-hover:bg-blue-50 p-1 md:p-1.5 rounded-lg transition">
-                                    <Users size={14} />
+                            <div className="flex justify-between items-start mb-6">
+                                <h3 className="text-gray-400 text-xs md:text-sm font-black group-hover:text-blue-600 break-keep leading-tight transition-colors uppercase tracking-widest">{loc.name}</h3>
+                                <div className="text-gray-300 group-hover:text-blue-500 bg-gray-50/50 group-hover:bg-blue-50 p-3 rounded-2xl transition-all duration-300 shrink-0 shadow-inner">
+                                    <Users size={22} />
                                 </div>
                             </div>
-                            <p className="text-2xl md:text-3xl font-bold text-gray-800 group-hover:text-blue-600 self-start mt-auto">{zoneStats[loc.id] || 0}<span className="text-xs md:text-sm font-normal text-gray-400 ml-1">명</span></p>
+                            <div className="flex flex-col">
+                                <p className="text-5xl font-black text-gray-800 group-hover:text-blue-600 transition-colors tracking-tighter tabular-nums">{zoneStats[loc.id] || 0}<span className="text-sm font-bold text-gray-400 ml-2">명</span></p>
+                                <div className="flex items-center gap-1.5 mt-4 bg-gray-50 group-hover:bg-blue-50 w-fit px-4 py-1.5 rounded-2xl transition-colors border border-transparent group-hover:border-blue-100 shadow-sm">
+                                    <p className="text-[11px] font-black text-gray-400 group-hover:text-blue-500 transition-colors uppercase tracking-widest">Today {dailyVisitStats[loc.id] || 0}</p>
+                                </div>
+                            </div>
                         </div>
                     ))}
                 </div>
             </section>
 
             {/* Realtime User List */}
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
-                    <h3 className="font-bold text-lg text-gray-800">실시간 입실 현황</h3>
-                    <span className="text-[10px] md:text-xs font-bold text-gray-400 bg-white border border-gray-100 px-2.5 py-1 rounded-full shadow-sm">Total {activeUsersList.length}</span>
+            <section className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+                <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/20">
+                    <h3 className="font-black text-xl text-gray-800 tracking-tight">실시간 입실 현황</h3>
+                    <span className="text-[11px] font-black text-blue-600 bg-blue-50 px-4 py-1.5 rounded-full shadow-sm uppercase tracking-widest border border-blue-100">Total {activeUsersList.length}</span>
                 </div>
 
                 {activeUsersList.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-sm">
+                    <div className="flex flex-col items-center justify-center py-28 text-gray-300 font-bold">
                         <p>현재 입실 중인 이용자가 없습니다.</p>
                     </div>
                 ) : (
@@ -160,33 +192,38 @@ const AdminStatus = ({
                         {/* Desktop Table View */}
                         <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left border-collapse">
-                                <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-semibold">
+                                <thead className="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-widest font-black border-b border-gray-50">
                                     <tr>
-                                        <th className="p-4 pl-6">이름</th>
-                                        <th className="p-4">현재 위치</th>
-                                        <th className="p-4">학교</th>
-                                        <th className="p-4">그룹</th>
-                                        <th className="p-4 pr-6 text-right">관리</th>
+                                        <th className="p-6 pl-10">이름</th>
+                                        <th className="p-6">현재 위치</th>
+                                        <th className="p-6">학교</th>
+                                        <th className="p-6">그룹</th>
+                                        <th className="p-6 pr-10 text-right">관리</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100 text-sm">
+                                <tbody className="divide-y divide-gray-50 text-sm">
                                     {activeUsersList.map(user => (
-                                        <tr key={user.id} className="hover:bg-blue-50/30 transition">
-                                            <td className="p-4 pl-6 font-bold text-gray-700">{user.name}</td>
-                                            <td className="p-4 text-blue-600 font-bold">{user.currentLocationName}</td>
-                                            <td className="p-4 text-gray-500">{user.school}</td>
-                                            <td className="p-4">
-                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${user.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' :
+                                        <tr key={user.id} className="hover:bg-blue-50/20 transition-all duration-300 group">
+                                            <td className="p-6 pl-10 font-bold text-gray-700 flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 font-bold group-hover:bg-blue-100 group-hover:text-blue-500 transition-colors">
+                                                    {user.name?.[0]}
+                                                </div>
+                                                {user.name}
+                                            </td>
+                                            <td className="p-6 text-blue-600 font-black">{user.currentLocationName}</td>
+                                            <td className="p-6 text-gray-500 font-medium">{user.school || '-'}</td>
+                                            <td className="p-6">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-600' :
                                                     user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' :
                                                         'bg-blue-100 text-blue-600'
                                                     }`}>
                                                     {user.user_group || '재학생'}
                                                 </span>
                                             </td>
-                                            <td className="p-4 pr-6 text-right">
+                                            <td className="p-6 pr-10 text-right">
                                                 <button
                                                     onClick={() => handleForceCheckout(user.id)}
-                                                    className="text-xs bg-white text-red-500 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-500 hover:text-white transition font-bold shadow-sm"
+                                                    className="px-4 py-2 bg-white border border-red-100 text-red-500 text-[11px] font-black rounded-xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-300 shadow-sm"
                                                 >
                                                     강제 퇴실
                                                 </button>
