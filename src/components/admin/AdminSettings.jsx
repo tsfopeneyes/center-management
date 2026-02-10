@@ -45,7 +45,23 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
         { id: 'notices', label: '공지사항', isVisible: true, count: 3 },
         { id: 'gallery', label: '갤러리', isVisible: true, count: 6 }
     ]);
+    const [sidebarConfig, setSidebarConfig] = useState([
+        { id: 'STATUS', label: '공간 현황', isVisible: true },
+        { id: 'CALENDAR', label: '일정 관리', isVisible: true },
+        { id: 'PROGRAMS', label: '프로그램 관리', isVisible: true },
+        { id: 'BOARD', label: '공지사항', isVisible: true },
+        { id: 'GALLERY', label: '사진첩', isVisible: true },
+        { id: 'GUESTBOOK', label: '방명록', isVisible: true },
+        { id: 'USERS', label: '이용자 관리', isVisible: true },
+        { id: 'SCHOOLS', label: '학교 관리', isVisible: true },
+        { id: 'CHALLENGES', label: '챌린지 관리', isVisible: true },
+        { id: 'STATISTICS', label: '통계', isVisible: true },
+        { id: 'LOGS', label: '로그', isVisible: true },
+        { id: 'REPORTS', label: '운영 리포트', isVisible: true },
+        { id: 'SETTINGS', label: '설정', isVisible: true }
+    ]);
     const [configLoading, setConfigLoading] = useState(false);
+    const [sidebarConfigLoading, setSidebarConfigLoading] = useState(false);
 
     // Profile Logic
     const handleAdminProfileImageSelect = (e) => {
@@ -165,6 +181,35 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
             }
         };
         fetchConfig();
+
+        const fetchSidebarConfig = async () => {
+            const { data } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'ADMIN_SIDEBAR_CONFIG')
+                .maybeSingle();
+
+            if (data && data.content) {
+                try {
+                    const parsed = JSON.parse(data.content);
+                    if (Array.isArray(parsed)) {
+                        // Merge with defaults to handle new tabs
+                        const merged = sidebarConfig.map(def => {
+                            const found = parsed.find(p => p.id === def.id);
+                            return found ? { ...def, ...found } : def;
+                        });
+                        // Add persistent order from parsed
+                        const ordered = [
+                            ...parsed.map(p => merged.find(m => m.id === p.id)).filter(Boolean),
+                            ...merged.filter(m => !parsed.find(p => p.id === m.id))
+                        ];
+                        setSidebarConfig(ordered);
+                    }
+                } catch (e) { console.error(e); }
+            }
+        };
+        fetchSidebarConfig();
     }, []);
 
     const handleMoveConfig = (index, direction) => {
@@ -212,6 +257,55 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
             alert('저장 실패');
         } finally {
             setConfigLoading(false);
+        }
+    };
+
+    const handleMoveSidebarConfig = (index, direction) => {
+        const newConfig = [...sidebarConfig];
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= newConfig.length) return;
+        const temp = newConfig[index];
+        newConfig[index] = newConfig[targetIndex];
+        newConfig[targetIndex] = temp;
+        setSidebarConfig(newConfig);
+    };
+
+    const handleUpdateSidebarConfig = (id, field, value) => {
+        setSidebarConfig(prev => prev.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ));
+    };
+
+    const handleSaveSidebarConfig = async () => {
+        setSidebarConfigLoading(true);
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'ADMIN_SIDEBAR_CONFIG')
+                .maybeSingle();
+
+            const payload = {
+                title: 'ADMIN_SIDEBAR_CONFIG',
+                content: JSON.stringify(sidebarConfig),
+                category: CATEGORIES.SYSTEM,
+                is_sticky: false,
+                is_recruiting: false
+            };
+
+            if (existing) {
+                await supabase.from('notices').update(payload).eq('id', existing.id);
+            } else {
+                await supabase.from('notices').insert([payload]);
+            }
+            alert('사이드바 설정이 저장되었습니다. 페이지 새로고침 시 적용됩니다.');
+            window.location.reload();
+        } catch (err) {
+            console.error(err);
+            alert('저장 실패');
+        } finally {
+            setSidebarConfigLoading(false);
         }
     };
 
@@ -503,6 +597,55 @@ const AdminSettings = ({ currentAdmin, locations, notices, fetchData, users, all
                     ))}
                 </div>
                 <p className="mt-4 text-[10px] text-gray-400 leading-relaxed">* 학생 대시보드 홈 탭에 표시되는 섹션의 순서와 노출 개수를 설정합니다. 상하 화살표로 순서를 변경하세요.</p>
+            </div>
+
+            {/* Admin Sidebar Layout Customization */}
+            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-base md:text-lg text-gray-700 flex items-center gap-2"><Layout size={20} /> 관리자 사이드바 메뉴 설정</h3>
+                    <button
+                        onClick={handleSaveSidebarConfig}
+                        disabled={sidebarConfigLoading}
+                        className="text-xs bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition shadow-md disabled:bg-gray-300"
+                    >
+                        {sidebarConfigLoading ? '저장 중...' : '사이드바 저장'}
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    {sidebarConfig.map((item, index) => (
+                        <div key={item.id} className={`flex items-center justify-between p-4 rounded-2xl border transition ${item.isVisible ? 'bg-white border-gray-100 shadow-sm' : 'bg-gray-50 border-transparent opacity-60'}`}>
+                            <div className="flex items-center gap-4">
+                                <div className="flex flex-col gap-1">
+                                    <button
+                                        onClick={() => handleMoveSidebarConfig(index, -1)}
+                                        disabled={index === 0}
+                                        className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-0"
+                                    ><ArrowUp size={16} /></button>
+                                    <button
+                                        onClick={() => handleMoveSidebarConfig(index, 1)}
+                                        disabled={index === sidebarConfig.length - 1}
+                                        className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-0"
+                                    ><ArrowDown size={16} /></button>
+                                </div>
+                                <div>
+                                    <span className="font-bold text-gray-700 block">{item.label}</span>
+                                    <span className="text-[10px] text-gray-400 uppercase font-bold">{item.id}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-6">
+                                <button
+                                    onClick={() => handleUpdateSidebarConfig(item.id, 'isVisible', !item.isVisible)}
+                                    className={`p-2.5 rounded-xl transition-all ${item.isVisible ? 'bg-blue-50 text-blue-600 shadow-sm' : 'bg-gray-200 text-gray-500'}`}
+                                >
+                                    {item.isVisible ? <Eye size={18} /> : <EyeOff size={18} />}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <p className="mt-4 text-[10px] text-gray-400 leading-relaxed">* 관리자 메뉴의 순서와 노출 여부를 설정합니다. 상하 화살표로 순서를 변경하세요.</p>
             </div>
 
             {/* Cropper Modal */}

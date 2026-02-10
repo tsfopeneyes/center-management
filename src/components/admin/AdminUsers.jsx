@@ -7,7 +7,10 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterGroup, setFilterGroup] = useState('ALL');
     const [editingUser, setEditingUser] = useState(null);
-    const [editFormData, setEditFormData] = useState({ name: '', school: '', phone_back4: '', user_group: '재학생', memo: '' });
+    const [editFormData, setEditFormData] = useState({
+        name: '', school: '', phone_back4: '', user_group: '재학생', memo: '',
+        status: 'approved', guardian_name: '', guardian_phone: '', guardian_relation: ''
+    });
 
     // Messaging State (Deprecated/Hidden for now as per user request)
     // const [selectedUserIds, setSelectedUserIds] = useState(new Set());
@@ -87,8 +90,8 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         const matchesAge = age && age.includes(cleanSearch);
 
         const matchesGroup = filterGroup === 'ALL' || user.user_group === filterGroup;
-        const isSystemAdmin = user.name === 'admin' || user.user_group === '관리자' || user.role === 'admin';
-        return !isSystemAdmin && (matchesSearch || matchesAge) && matchesGroup;
+        const isInternalAdmin = user.name === 'admin';
+        return !isInternalAdmin && (matchesSearch || matchesAge) && matchesGroup;
     });
 
     // Handlers
@@ -99,7 +102,11 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
             school: user.school || '',
             phone_back4: user.phone_back4 || '',
             user_group: user.user_group || '재학생',
-            memo: user.memo || ''
+            memo: user.memo || '',
+            status: user.status || 'approved',
+            guardian_name: user.guardian_name || '',
+            guardian_phone: user.guardian_phone || '',
+            guardian_relation: user.guardian_relation || ''
         });
     };
 
@@ -156,6 +163,16 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
             alert(`관리자 권한이 ${action}되었습니다.`);
             fetchData();
         } catch (err) { alert('권한 변경 실패'); }
+    };
+
+    const handleApproveUser = async (user) => {
+        if (!confirm(`'${user.name}' 회원을 정식 회원으로 승인하시겠습니까?`)) return;
+        try {
+            const { error } = await supabase.from('users').update({ status: 'approved' }).eq('id', user.id);
+            if (error) throw error;
+            alert('회원 승인이 완료되었습니다.');
+            fetchData();
+        } catch (err) { alert('승인 실패'); }
     };
 
     // Stats Calculation
@@ -288,13 +305,21 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                             {user.memo && <div className="w-2 h-2 rounded-full bg-yellow-400" title="메모 있음" />}
                                         </td>
                                         <td className="p-4">
-                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${user.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' : user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                {user.user_group || '재학생'}
-                                            </span>
+                                            <div className="flex flex-col gap-1 items-start">
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${user.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' : user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                    {user.user_group || '재학생'}
+                                                </span>
+                                                {user.status === 'pending' && (
+                                                    <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-[9px] font-black">승인 대기</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-4 text-gray-500">{user.school}</td>
                                         <td className="p-4 font-mono text-gray-500 text-xs md:text-sm">{user.phone_back4 || user.phone}</td>
                                         <td className="p-4 pr-6 text-right flex items-center justify-end gap-2">
+                                            {user.status === 'pending' && (
+                                                <button onClick={() => handleApproveUser(user)} className="px-3 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition shadow-md whitespace-nowrap">승인</button>
+                                            )}
                                             {user.user_group === 'STAFF' && (
                                                 <button onClick={() => handleToggleAdminRole(user)} className={`p-2 rounded-lg transition ${user.role === 'admin' ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md' : 'bg-gray-100 text-gray-400 hover:text-indigo-600'}`} title={user.role === 'admin' ? "관리자 권한 해제" : "관리자 권한 부여"}><UserPlus size={16} /></button>
                                             )}
@@ -341,6 +366,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-500' : user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>
                                             {user.user_group || '재학생'}
                                         </span>
+                                        {user.status === 'pending' && <span className="bg-red-100 text-red-600 text-[9px] font-black px-1.5 py-0.5 rounded-full">대기</span>}
                                         {user.memo && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" title="메모 있음" />}
                                     </div>
                                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400">
@@ -349,6 +375,9 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                     </div>
                                 </div>
                                 <div className="flex gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    {user.status === 'pending' && (
+                                        <button onClick={() => handleApproveUser(user)} className="px-3 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black hover:bg-red-700 transition shadow-md active:scale-95">승인</button>
+                                    )}
                                     <button onClick={() => openUserEditModal(user)} className="p-2.5 bg-gray-50 text-gray-500 rounded-xl hover:bg-blue-50 hover:text-blue-600 border border-gray-100 transition shadow-sm active:scale-95"><Edit2 size={16} /></button>
                                 </div>
                             </div>
@@ -379,6 +408,18 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                 </select>
                             </div>
                             <div><label className="text-xs font-bold text-gray-500 block mb-1">학교</label><input type="text" value={editFormData.school} onChange={(e) => setEditFormData({ ...editFormData, school: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold" /></div>
+
+                            {editFormData.guardian_name && (
+                                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
+                                    <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">보호자 정보 (만 14세 미만)</p>
+                                    <div className="grid grid-cols-2 gap-4 text-xs font-bold">
+                                        <div><span className="text-blue-400 block text-[9px]">성함</span>{editFormData.guardian_name}</div>
+                                        <div><span className="text-blue-400 block text-[9px]">관계</span>{editFormData.guardian_relation}</div>
+                                        <div className="col-span-2"><span className="text-blue-400 block text-[9px]">연락처</span>{editFormData.guardian_phone}</div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div><label className="text-xs font-bold text-gray-500 block mb-1">메모 (관리자용)</label><textarea value={editFormData.memo} onChange={(e) => setEditFormData({ ...editFormData, memo: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 resize-none h-24 text-sm" placeholder="특이사항 입력" /></div>
 
                             {userStats && (

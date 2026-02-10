@@ -6,6 +6,19 @@ export const CATEGORIES = {
     SYSTEM: 'SYSTEM'
 };
 
+export const PROGRAM_TYPES = {
+    CENTER: 'CENTER',
+    SCHOOL_CHURCH: 'SCHOOL_CHURCH'
+};
+
+export const SCHOOL_REGIONS = ['강동', '강서'];
+
+export const CLUB_TYPES = {
+    AUTONOMOUS: '자율동아리',
+    REGULAR: '정규동아리',
+    UNOFFICIAL: '비공식모임'
+};
+
 export const CALENDAR_CATEGORIES = {
     PROGRAM: { label: '프로그램', color: 'bg-pink-100 text-pink-700 border-pink-200', dot: 'bg-pink-500' },
     MEETING: { label: '회의', color: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
@@ -35,7 +48,8 @@ export const TAB_NAMES = {
     NOTICES: 'notices',
     GALLERY: 'gallery',
     MESSAGES: 'messages',
-    GUESTBOOK: 'guestbook'
+    GUESTBOOK: 'guestbook',
+    CALENDAR: 'calendar'
 };
 
 export const COLOR_THEMES = {

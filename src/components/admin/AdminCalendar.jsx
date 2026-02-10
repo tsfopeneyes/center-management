@@ -57,7 +57,9 @@ const AdminCalendar = ({ notices, fetchData }) => {
         end_time: '13:00',
         category_id: '',
         program_location: '',
-        max_capacity: 0
+        max_capacity: 0,
+        program_type: 'CENTER',
+        closed_spaces: [] // ['HYPHEN', 'ENOF']
     });
 
     // Fetch Admin Schedules & Categories
@@ -89,7 +91,8 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 (catData || []).forEach(cat => {
                     if (next[cat.id] === undefined) next[cat.id] = true;
                 });
-                if (next['PROGRAM'] === undefined) next['PROGRAM'] = true;
+                if (next['PROGRAM_CENTER'] === undefined) next['PROGRAM_CENTER'] = true;
+                if (next['PROGRAM_SCHOOL'] === undefined) next['PROGRAM_SCHOOL'] = true;
                 return next;
             });
 
@@ -108,36 +111,54 @@ const AdminCalendar = ({ notices, fetchData }) => {
     const allEvents = useMemo(() => {
         const programEvents = notices
             .filter(n => n.category === CATEGORIES.PROGRAM && n.program_date)
-            .map(n => ({
-                id: `PRG-${n.id}`,
-                originalId: n.id,
-                title: n.title,
-                content: n.content,
-                start: startOfDay(parseISO(n.program_date)),
-                end: endOfDay(parseISO(n.program_date)),
-                category: 'PROGRAM',
-                isPublic: true,
-                raw: n
-            }));
+            .map(n => {
+                const type = n.program_type || 'CENTER';
+                return {
+                    id: `PRG-${n.id}`,
+                    originalId: n.id,
+                    title: n.title,
+                    content: n.content,
+                    start: startOfDay(parseISO(n.program_date)),
+                    end: endOfDay(parseISO(n.program_date)),
+                    category: type === 'CENTER' ? 'PROGRAM_CENTER' : 'PROGRAM_SCHOOL',
+                    isPublic: true,
+                    raw: n
+                };
+            });
 
         const generalEvents = adminSchedules.map(s => {
             const cat = dynamicCategories.find(c => c.id === s.category_id);
+            let closed_spaces = [];
+            let displayContent = s.content;
+
+            if (cat?.name === '휴관') {
+                try {
+                    const parsed = JSON.parse(s.content);
+                    if (parsed && typeof parsed === 'object') {
+                        closed_spaces = parsed.closed_spaces || [];
+                        displayContent = parsed.text || '';
+                    }
+                } catch (e) {
+                    // Not JSON, use as is
+                }
+            }
+
             return {
                 id: `SCH-${s.id}`,
                 originalId: s.id,
                 title: s.title,
-                content: s.content,
+                content: displayContent,
                 start: startOfDay(parseISO(s.start_date)),
                 end: endOfDay(parseISO(s.end_date)),
                 category_id: s.category_id,
                 color_theme: cat?.color_theme || 'gray',
                 isPublic: false,
-                raw: s
+                raw: { ...s, closed_spaces }
             };
         });
 
         return [...programEvents, ...generalEvents].filter(e => {
-            if (e.isPublic) return visibleCategories['PROGRAM'];
+            if (e.isPublic) return visibleCategories[e.category];
             return visibleCategories[e.category_id];
         });
     }, [notices, adminSchedules, dynamicCategories, visibleCategories]);
@@ -193,7 +214,8 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 start_time: format(event.start, 'HH:mm'),
                 category_id: 'PROGRAM',
                 program_location: event.raw.program_location || '',
-                max_capacity: event.raw.max_capacity || 0
+                max_capacity: event.raw.max_capacity || 0,
+                program_type: event.raw.program_type || 'CENTER'
             });
         } else {
             setFormData({
@@ -204,7 +226,8 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 start_time: format(event.start, 'HH:mm'),
                 end_date: format(event.end, 'yyyy-MM-dd'),
                 end_time: format(event.end, 'HH:mm'),
-                category_id: event.category_id
+                category_id: event.category_id,
+                closed_spaces: event.raw.closed_spaces || []
             });
         }
         setShowModal(true);
@@ -223,9 +246,12 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 : `${formData.end_date}T${formData.end_time}:00`;
 
             if (formData.type === 'SCHEDULE') {
+                const isClosedDay = dynamicCategories.find(c => c.id === formData.category_id)?.name === '휴관';
                 const payload = {
                     title: formData.title,
-                    content: formData.content,
+                    content: isClosedDay
+                        ? JSON.stringify({ closed_spaces: formData.closed_spaces, text: formData.content })
+                        : formData.content,
                     start_date: new Date(startStr).toISOString(),
                     end_date: new Date(endStr).toISOString(),
                     category_id: formData.category_id,
@@ -256,14 +282,19 @@ const AdminCalendar = ({ notices, fetchData }) => {
 `;
                 const finalContent = infoBlock + formData.content;
 
+                const programDateStr = new Date(startStr).toISOString();
                 const payload = {
                     title: formData.title,
                     content: finalContent,
                     category: CATEGORIES.PROGRAM,
-                    program_date: new Date(startStr).toISOString(),
+                    program_date: programDateStr,
                     is_recruiting: true,
+                    is_sticky: false,
+                    recruitment_deadline: programDateStr,
                     max_capacity: formData.max_capacity ? parseInt(formData.max_capacity) : null,
-                    images: selectedEvent?.raw?.images || []
+                    program_type: formData.program_type,
+                    images: selectedEvent?.raw?.images || [],
+                    image_url: (selectedEvent?.raw?.images && selectedEvent?.raw?.images.length > 0) ? selectedEvent.raw.images[0] : null
                 };
 
                 if (selectedEvent && selectedEvent.isPublic) {
@@ -415,14 +446,24 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                 <Filter size={14} className="text-gray-300" />
                             </div>
                             <div className="space-y-1.5">
-                                {/* Program Filter (Pinned) */}
-                                <label className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all cursor-pointer group ${visibleCategories['PROGRAM'] ? 'bg-pink-50/50' : 'hover:bg-gray-50'}`}>
-                                    <div className={`relative w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center ${visibleCategories['PROGRAM'] ? 'bg-pink-600 border-pink-600 shadow-lg shadow-pink-200' : 'border-gray-200 group-hover:border-pink-300'}`}>
-                                        <input type="checkbox" checked={visibleCategories['PROGRAM']} onChange={() => toggleCategory('PROGRAM')} className="hidden" />
-                                        {visibleCategories['PROGRAM'] && <Check size={12} className="text-white" strokeWidth={4} />}
+                                {/* Program Filters (Pinned) */}
+                                <label className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all cursor-pointer group ${visibleCategories['PROGRAM_CENTER'] ? 'bg-pink-50/50' : 'hover:bg-gray-50'}`}>
+                                    <div className={`relative w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center ${visibleCategories['PROGRAM_CENTER'] ? 'bg-pink-600 border-pink-600 shadow-lg shadow-pink-200' : 'border-gray-200 group-hover:border-pink-300'}`}>
+                                        <input type="checkbox" checked={visibleCategories['PROGRAM_CENTER']} onChange={() => toggleCategory('PROGRAM_CENTER')} className="hidden" />
+                                        {visibleCategories['PROGRAM_CENTER'] && <Check size={12} className="text-white" strokeWidth={4} />}
                                     </div>
-                                    <span className={`text-sm font-black transition-colors ${visibleCategories['PROGRAM'] ? 'text-pink-700' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                                    <span className={`text-sm font-black transition-colors ${visibleCategories['PROGRAM_CENTER'] ? 'text-pink-700' : 'text-gray-400 group-hover:text-gray-600'}`}>
                                         센터 프로그램
+                                    </span>
+                                </label>
+
+                                <label className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all cursor-pointer group ${visibleCategories['PROGRAM_SCHOOL'] ? 'bg-purple-50/50' : 'hover:bg-gray-50'}`}>
+                                    <div className={`relative w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center ${visibleCategories['PROGRAM_SCHOOL'] ? 'bg-purple-600 border-purple-600 shadow-lg shadow-purple-200' : 'border-gray-200 group-hover:border-purple-300'}`}>
+                                        <input type="checkbox" checked={visibleCategories['PROGRAM_SCHOOL']} onChange={() => toggleCategory('PROGRAM_SCHOOL')} className="hidden" />
+                                        {visibleCategories['PROGRAM_SCHOOL'] && <Check size={12} className="text-white" strokeWidth={4} />}
+                                    </div>
+                                    <span className={`text-sm font-black transition-colors ${visibleCategories['PROGRAM_SCHOOL'] ? 'text-purple-700' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                                        스처 프로그램
                                     </span>
                                 </label>
 
@@ -564,7 +605,7 @@ const AdminCalendar = ({ notices, fetchData }) => {
                             <form onSubmit={handleSaveEvent} className="p-8 pt-4 space-y-6">
                                 <div className="space-y-4">
                                     <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100">
-                                        {[{ id: 'SCHEDULE', label: '일반 일정', icon: <CalendarIcon size={14} /> }, { id: 'PROGRAM', label: '센터 프로그램', icon: <Users size={14} /> }].map(opt => (
+                                        {[{ id: 'SCHEDULE', label: '일반 일정', icon: <CalendarIcon size={14} /> }, { id: 'PROGRAM', label: '프로그램', icon: <Users size={14} /> }].map(opt => (
                                             <button key={opt.id} type="button" onClick={() => setFormData(prev => ({ ...prev, type: opt.id }))} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${formData.type === opt.id ? 'bg-white text-blue-600 shadow-md border border-blue-50' : 'text-gray-400 hover:text-gray-600'}`}>{opt.icon}{opt.label}</button>
                                         ))}
                                     </div>
@@ -585,6 +626,13 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                             </div>
                                         </div>
                                     </div>
+                                    {formData.type === 'PROGRAM' && (
+                                        <div className="flex gap-4 p-1 bg-gray-50 rounded-2xl border border-gray-100">
+                                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, program_type: 'CENTER' }))} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${formData.program_type === 'CENTER' ? 'bg-white text-pink-600 shadow-sm border border-pink-50' : 'text-gray-400'}`}>센터 프로그램</button>
+                                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, program_type: 'SCHOOL_CHURCH' }))} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${formData.program_type === 'SCHOOL_CHURCH' ? 'bg-white text-purple-600 shadow-sm border border-purple-50' : 'text-gray-400'}`}>스처 프로그램</button>
+                                        </div>
+                                    )}
+
                                     {formData.type === 'SCHEDULE' && (
                                         <>
                                             <div className="grid grid-cols-2 gap-4">
@@ -615,6 +663,40 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                                     ))}
                                                 </select>
                                             </div>
+
+                                            {/* Closed Day Space Selection */}
+                                            {dynamicCategories.find(c => c.id === formData.category_id)?.name === '휴관' && (
+                                                <div className="p-4 bg-orange-50/50 rounded-2xl border border-orange-100/50 space-y-4">
+                                                    <div className="flex items-center gap-2 text-orange-600">
+                                                        <MapPin size={16} strokeWidth={3} />
+                                                        <span className="text-[10px] font-black uppercase tracking-wider">휴관 공간 선택</span>
+                                                    </div>
+                                                    <div className="flex gap-3">
+                                                        {[
+                                                            { id: 'HYPHEN', label: '하이픈' },
+                                                            { id: 'ENOF', label: '이높플레이스' }
+                                                        ].map(space => (
+                                                            <button
+                                                                key={space.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const current = formData.closed_spaces || [];
+                                                                    const next = current.includes(space.id)
+                                                                        ? current.filter(s => s !== space.id)
+                                                                        : [...current, space.id];
+                                                                    setFormData(prev => ({ ...prev, closed_spaces: next }));
+                                                                }}
+                                                                className={`flex-1 py-3 rounded-xl text-xs font-black transition-all border ${formData.closed_spaces?.includes(space.id)
+                                                                    ? 'bg-orange-600 text-white border-orange-600 shadow-md'
+                                                                    : 'bg-white text-gray-400 border-gray-100'
+                                                                    }`}
+                                                            >
+                                                                {space.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                     {formData.type === 'PROGRAM' && (

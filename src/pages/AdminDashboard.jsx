@@ -21,6 +21,7 @@ import AdminGuestbook from '../components/admin/AdminGuestbook';
 import AdminReport from '../components/admin/AdminReport';
 import AdminChallenges from '../components/admin/AdminChallenges';
 import AdminCalendar from '../components/admin/AdminCalendar';
+import AdminSchool from '../components/admin/AdminSchool';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
 
@@ -363,6 +364,9 @@ const AdminDashboard = () => {
                     )}
                     {activeMenu === 'USERS' && (
                         <AdminUsers users={users} allLogs={allLogs} locations={locations} fetchData={fetchData} />
+                    )}
+                    {activeMenu === 'SCHOOLS' && (
+                        <AdminSchool users={users} fetchData={fetchData} />
                     )}
                     {activeMenu === 'CHALLENGES' && (
                         <AdminChallenges />

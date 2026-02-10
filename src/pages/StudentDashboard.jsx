@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CATEGORIES, TAB_NAMES, RESPONSE_STATUS, BADGE_DEFINITIONS } from '../constants/appConstants';
 import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '../supabaseClient';
-import { Clock, Info, LogOut, CheckCircle, XCircle, HelpCircle, Search, MessageSquare, Send, X, ArrowLeft, Image as ImageIcon, Grid, Settings, User, Plus, Heart, ZoomIn, RotateCw, Home, FileText, MessageCircle, BookOpen, MoreHorizontal, Bookmark, Share2, ShieldCheck, Calendar, Edit2, Trash2, Save, Trash, ChevronRight, Pin, Award, Share } from 'lucide-react';
+import { AlertCircle, MapPin, Clock, Info, LogOut, CheckCircle, XCircle, HelpCircle, Search, MessageSquare, Send, X, ArrowLeft, Image as ImageIcon, Grid, Settings, User, Plus, Heart, ZoomIn, RotateCw, Home, FileText, MessageCircle, BookOpen, MoreHorizontal, Bookmark, Share2, ShieldCheck, Calendar, Edit2, Trash2, Save, Trash, ChevronRight, Pin, Award, Share } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Microlink from '@microlink/react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,7 +27,7 @@ import { useGuestbook } from '../hooks/useGuestbook';
 import { useProfile } from '../hooks/useProfile';
 import { challengesApi } from '../api/challengesApi';
 
-import { parseISO, isWithinInterval, startOfDay } from 'date-fns';
+import { parseISO, isWithinInterval, startOfDay, eachDayOfInterval, isSameDay } from 'date-fns';
 
 const getBadgeProgress = (badge, stats) => {
     const { visitCount, programCount, specialStats } = stats;
@@ -287,6 +287,8 @@ const StudentDashboard = () => {
     const [challengesLoading, setChallengesLoading] = useState(false);
     const [specialStats, setSpecialStats] = useState({ isBirthdayVisited: false, uniqueLocationsCount: 0, maxConsecutiveDays: 0 });
     const [selectedBadge, setSelectedBadge] = useState(null);
+    const [adminSchedules, setAdminSchedules] = useState([]);
+    const [calendarCategories, setCalendarCategories] = useState([]);
     const [dashboardConfig, setDashboardConfig] = useState([
         { id: 'stats', label: '활동 통계', isVisible: true, count: 3 },
         { id: 'programs', label: '프로그램 신청', isVisible: true, count: 3 },
@@ -351,8 +353,22 @@ const StudentDashboard = () => {
 
         fetchChallengeData();
         subscribeToPush(parsedUser.id);
+        fetchSchedules();
         setLoading(false);
     }, [navigate, fetchStats]); // Removed user/setUser from deps to avoid identity loops
+
+    const fetchSchedules = async () => {
+        try {
+            const [catRes, schRes] = await Promise.all([
+                supabase.from('calendar_categories').select('*'),
+                supabase.from('admin_schedules').select('*')
+            ]);
+            if (catRes.data) setCalendarCategories(catRes.data);
+            if (schRes.data) setAdminSchedules(schRes.data);
+        } catch (err) {
+            console.error('Error fetching schedules:', err);
+        }
+    };
 
     useEffect(() => {
         const fetchDashboardConfig = async () => {
@@ -971,14 +987,14 @@ const StudentDashboard = () => {
                 <>
                     {/* Compact Integrated Header */}
                     {/* [COMPACT EFFICIENCY UI] - 여백을 최소화하여 데이터 밀도를 높임 */}
-                    <header className="bg-primary-gradient p-5 pt-10 pb-6 text-white rounded-b-[2.5rem] shadow-2xl relative overflow-hidden mb-0 gpu-accelerated">
+                    <header className="bg-primary-gradient p-5 pt-7 pb-5 text-white rounded-b-[2.5rem] shadow-2xl relative overflow-hidden mb-0 gpu-accelerated">
                         {/* Subtle Decorative Elements */}
                         <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-[60px] animate-float" />
                         <div className="absolute bottom-[-10%] left-[-5%] w-48 h-48 bg-indigo-500/20 rounded-full blur-[50px] animate-float [animation-delay:-5s]" />
 
                         <div className="relative z-10 max-w-sm mx-auto">
                             {/* Compact Content Wrapper */}
-                            <div className="flex flex-col gap-5">
+                            <div className="flex flex-col gap-4">
                                 {/* Top: Info & QR Row */}
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-4">
@@ -1002,10 +1018,9 @@ const StudentDashboard = () => {
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
                                         onClick={() => setShowEnlargedQr(true)}
-                                        className="bg-white p-2.5 rounded-[1.5rem] shadow-xl flex flex-col items-center cursor-pointer shrink-0 border-[3px] border-white shadow-blue-900/5"
+                                        className="bg-white p-2 rounded-2xl shadow-xl flex items-center justify-center cursor-pointer shrink-0 border-[3px] border-white shadow-blue-900/5 aspect-square"
                                     >
-                                        <QRCodeSVG value={user?.id || '0000'} size={70} level="H" />
-                                        <span className="text-[10px] font-mono font-black text-gray-800 mt-1 tracking-wider">{user?.phone_back4}</span>
+                                        <QRCodeSVG value={user?.id || '0000'} size={60} level="H" />
                                     </motion.div>
                                 </div>
 
@@ -1035,6 +1050,51 @@ const StudentDashboard = () => {
                             </div>
                         </div>
                     </header>
+
+                    {/* Today's Closure Notification */}
+                    {(() => {
+                        const today = startOfDay(new Date());
+                        const todayClosure = adminSchedules.find(sch => {
+                            const cat = calendarCategories.find(c => c.id === sch.category_id);
+                            if (cat?.name !== '휴관') return false;
+                            const start = startOfDay(new Date(sch.start_date));
+                            const end = startOfDay(new Date(sch.end_date));
+                            return today >= start && today <= end;
+                        });
+
+                        if (!todayClosure) return null;
+
+                        let closedSpaces = todayClosure.closed_spaces || [];
+                        try {
+                            const parsed = JSON.parse(todayClosure.content);
+                            if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                                closedSpaces = parsed.closed_spaces;
+                            }
+                        } catch (e) { }
+
+                        const isHyphenClosed = closedSpaces.includes('HYPHEN');
+                        const isEnofClosed = closedSpaces.includes('ENOF');
+
+                        let message = "오늘은 센터 전체 휴관일입니다 🏠";
+                        if (isHyphenClosed && !isEnofClosed) message = "오늘은 하이픈 휴관일입니다 ⛔";
+                        else if (!isHyphenClosed && isEnofClosed) message = "오늘은 이높플레이스 휴관일입니다 ⚠️";
+
+                        return (
+                            <motion.div
+                                initial={{ opacity: 0, y: -20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="mx-2.5 mt-4 p-4 rounded-2xl bg-red-50/80 backdrop-blur-md border-l-4 border-red-500 shadow-sm flex items-center gap-3 relative overflow-hidden"
+                            >
+                                <div className="p-2 bg-red-100 rounded-xl text-red-600 animate-pulse">
+                                    <AlertCircle size={20} strokeWidth={3} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-red-700 font-black text-sm tracking-tight">{message}</p>
+                                    <p className="text-red-400 text-[10px] font-bold mt-0.5">이용에 참고하시기 바랍니다.</p>
+                                </div>
+                            </motion.div>
+                        );
+                    })()}
 
                     <div className="p-2.5 pt-2.5 pb-10 space-y-2.5 relative z-0">
 
@@ -1380,14 +1440,91 @@ const StudentDashboard = () => {
                     </div>
                 )}
 
+            {activeTab === TAB_NAMES.CALENDAR && (
+                <div className="p-2.5 pt-8 pb-32">
+                    <h1 className="text-3xl font-black text-gray-800 mb-2">캘린더 📅</h1>
+                    <p className="text-gray-500 text-sm mb-6">센터의 전체 일정을 한눈에 확인하세요</p>
+
+                    <div className="space-y-4">
+                        {/* Group schedules by date or simple list for now, 
+                            but a list of upcoming events is often better for mobile */}
+                        {(() => {
+                            const sortedEvents = [...adminSchedules, ...notices.filter(n => n.category === CATEGORIES.PROGRAM)]
+                                .map(e => {
+                                    const isProgram = e.category === CATEGORIES.PROGRAM;
+                                    const cat = calendarCategories.find(c => c.id === e.category_id);
+                                    let catName = isProgram ? '프로그램' : cat?.name || '기타';
+                                    let baseTitle = e.title;
+
+                                    if (cat?.name === '휴관') {
+                                        try {
+                                            const parsed = JSON.parse(e.content);
+                                            if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                                                const spaces = parsed.closed_spaces.map(s => s === 'HYPHEN' ? '하이픈' : '이높').join(', ');
+                                                if (spaces) baseTitle = `[${spaces}] ${e.title}`;
+                                            }
+                                        } catch (err) { }
+                                    }
+
+                                    const start = startOfDay(new Date(e.start_date || e.program_date));
+                                    const end = isProgram ? start : startOfDay(new Date(e.end_date || e.start_date));
+
+                                    return {
+                                        ...e,
+                                        start,
+                                        end,
+                                        title: baseTitle,
+                                        type: isProgram ? 'PROGRAM' : 'SCHEDULE',
+                                        catName: catName
+                                    };
+                                })
+                                .filter(e => e.end >= startOfDay(new Date()))
+                                .sort((a, b) => a.start - b.start);
+
+                            if (sortedEvents.length === 0) return <div className="text-center py-20 text-gray-400">등록된 일정이 없습니다.</div>;
+
+                            return sortedEvents.map((event, idx) => (
+                                <motion.div
+                                    key={idx}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: idx * 0.05 }}
+                                    className="p-4 bg-white rounded-[1.5rem] border border-gray-100 shadow-sm flex gap-4 items-center group active:scale-[0.98] transition-all"
+                                    onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
+                                >
+                                    <div className="flex flex-col items-center justify-center min-w-[70px] py-1 border-r border-gray-50 pr-4">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase">{event.start.toLocaleString('ko-KR', { month: 'short' })}</span>
+                                        <span className="text-xl font-black text-gray-800 tracking-tighter">
+                                            {isSameDay(event.start, event.end) ? event.start.getDate() : `${event.start.getDate()}~${event.end.getDate()}`}
+                                        </span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight ${event.type === 'PROGRAM' ? 'bg-pink-100 text-pink-600' :
+                                                event.catName === '휴관' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+                                                }`}>
+                                                {event.catName}
+                                            </span>
+                                            {event.type === 'PROGRAM' && <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1"><Clock size={10} /> {new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>}
+                                        </div>
+                                        <h4 className="font-bold text-gray-800 text-sm truncate">{event.title}</h4>
+                                    </div>
+                                    <ChevronRight size={16} className="text-gray-300 group-active:text-blue-500 transition-colors" />
+                                </motion.div>
+                            ));
+                        })()}
+                    </div>
+                </div>
+            )}
+
             {/* Bottom Navigation */}
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 flex justify-around items-center px-4 py-3 z-[120] safe-area-bottom shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-[2.5rem]">
                 {[
                     { id: TAB_NAMES.HOME, icon: Home, label: '홈' },
-                    { id: TAB_NAMES.CHALLENGES, icon: Award, label: '챌린지' },
+                    { id: TAB_NAMES.NOTICES, icon: FileText, label: '공지' },
                     { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '프로그램', activeColor: 'text-blue-600' },
-                    { id: TAB_NAMES.GALLERY, icon: ImageIcon, label: '갤러리' },
-                    { id: TAB_NAMES.GUESTBOOK, icon: MessageCircle, label: '방명록' }
+                    { id: TAB_NAMES.CALENDAR, icon: Calendar, label: '캘린더' },
+                    { id: TAB_NAMES.CHALLENGES, icon: Award, label: '챌린지' },
                 ].map((tab) => (
                     <motion.button
                         key={tab.id}

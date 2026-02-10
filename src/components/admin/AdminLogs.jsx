@@ -152,6 +152,7 @@ const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
                     prgId,
                     prgTitle: prgTitle || notice?.title || '삭제된 프로그램',
                     prgLocation: location || info?.location || '',
+                    prgType: notice?.program_type || 'CENTER',
                     displayTime: formatShortTime(actualDate, actualTime, log.created_at),
                     sortTime,
                     type: (log.type === 'PRG_CANCELLED' || log.type === 'PRG_CANCEL_SYSTEM') ? 'CANCELLED' : 'COMPLETED',
@@ -812,6 +813,7 @@ const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
                                 <tr>
                                     <th className="p-4 pl-6 whitespace-nowrap">프로그램 일정</th>
                                     <th className="p-4">프로그램명</th>
+                                    <th className="p-4 text-center">분류</th>
                                     <th className="p-4">유형</th>
                                     <th className="p-4">참여 현황</th>
                                     <th className="p-4">명단</th>
@@ -836,6 +838,11 @@ const AdminLogs = ({ allLogs, users, locations, notices, fetchData }) => {
                                                         <span className="text-[10px] text-gray-400 font-bold leading-tight">({summary.prgLocation})</span>
                                                     )}
                                                 </div>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${summary.prgType === 'CENTER' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                                    {summary.prgType === 'CENTER' ? '센터' : '스처'}
+                                                </span>
                                             </td>
                                             <td className="p-4">
                                                 <span className={`inline-block px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap text-center min-w-[50px] ${summary.type === 'COMPLETED' ? 'text-indigo-600 bg-indigo-50' : 'text-orange-600 bg-orange-50'}`}>

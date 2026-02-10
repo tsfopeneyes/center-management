@@ -23,6 +23,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
     const [filterLocation, setFilterLocation] = useState('');
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
+    const [filterProgramType, setFilterProgramType] = useState('ALL'); // ALL, CENTER, SCHOOL_CHURCH
 
     // Filter Notices for this view
     const filteredNotices = notices.filter(n => {
@@ -51,6 +52,12 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
             if (!isWithinInterval(targetDate, { start, end })) return false;
         }
 
+        // 5. Program Type Filter
+        if (mode === CATEGORIES.PROGRAM && filterProgramType !== 'ALL') {
+            const type = n.program_type || 'CENTER';
+            if (type !== filterProgramType) return false;
+        }
+
         return true;
     });
 
@@ -67,7 +74,8 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
         max_capacity: mode === CATEGORIES.PROGRAM ? 0 : '',
         program_date: '',
         program_duration: '',
-        program_location: ''
+        program_location: '',
+        program_type: 'CENTER'
     }); // Default to target
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [uploading, setUploading] = useState(false);
@@ -141,7 +149,8 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
             max_capacity: notice.max_capacity || '',
             program_date: notice.program_date ? formatToLocalISO(notice.program_date) : date,
             program_duration: duration,
-            program_location: location
+            program_location: location,
+            program_type: notice.program_type || 'CENTER'
         });
 
         let currentImages = [];
@@ -167,7 +176,8 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
             max_capacity: mode === CATEGORIES.PROGRAM ? 0 : '',
             program_date: '',
             program_duration: '',
-            program_location: ''
+            program_location: '',
+            program_type: 'CENTER'
         });
         setSelectedFiles([]);
         setExistingImages([]);
@@ -455,7 +465,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50/50 p-4 rounded-2xl gap-4">
                 <div>
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800">
-                        {mode === 'GALLERY' ? '사진첩 관리' : mode === 'PROGRAM' ? '센터 프로그램 관리' : '공지사항 관리'}
+                        {mode === 'GALLERY' ? '사진첩 관리' : mode === 'PROGRAM' ? '프로그램 관리' : '공지사항 관리'}
                     </h2>
                     <p className="text-gray-500 text-xs md:text-sm">
                         {mode === 'GALLERY' ? '스처 갤러리에 업로드된 사진을 관리합니다.' :
@@ -480,6 +490,31 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
 
                     <form onSubmit={handleSaveNotice} className="space-y-4">
                         <input type="text" placeholder="제목을 입력하세요" className="w-full p-3 md:p-4 border border-gray-100 bg-gray-50 rounded-xl outline-none focus:bg-white focus:border-blue-500 text-base md:text-lg font-bold transition" value={newNotice.title} onChange={e => setNewNotice(prev => ({ ...prev, title: e.target.value }))} required />
+
+                        {mode === CATEGORIES.PROGRAM && (
+                            <div className="flex gap-4 mb-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="program_type"
+                                        checked={newNotice.program_type === 'CENTER' || !newNotice.program_type}
+                                        onChange={() => setNewNotice(prev => ({ ...prev, program_type: 'CENTER' }))}
+                                        className="w-4 h-4 text-blue-600"
+                                    />
+                                    <span className="text-sm font-bold text-gray-700">센터 프로그램</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="program_type"
+                                        checked={newNotice.program_type === 'SCHOOL_CHURCH'}
+                                        onChange={() => setNewNotice(prev => ({ ...prev, program_type: 'SCHOOL_CHURCH' }))}
+                                        className="w-4 h-4 text-blue-600"
+                                    />
+                                    <span className="text-sm font-bold text-gray-700">스처 프로그램</span>
+                                </label>
+                            </div>
+                        )}
 
                         {mode === CATEGORIES.PROGRAM && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50/30 p-4 rounded-2xl border border-blue-100/50">
@@ -652,6 +687,30 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
 
             {/* Search & Filter Bar */}
             <div className="bg-white p-4 md:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                {/* Row 0: Program Type Tabs (Only for PROGRAM mode) */}
+                {mode === CATEGORIES.PROGRAM && (
+                    <div className="flex bg-gray-50 p-1 rounded-xl w-fit border border-gray-100">
+                        <button
+                            onClick={() => setFilterProgramType('ALL')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterProgramType === 'ALL' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            전체
+                        </button>
+                        <button
+                            onClick={() => setFilterProgramType('CENTER')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterProgramType === 'CENTER' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            센터 프로그램
+                        </button>
+                        <button
+                            onClick={() => setFilterProgramType('SCHOOL_CHURCH')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterProgramType === 'SCHOOL_CHURCH' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            스처 프로그램
+                        </button>
+                    </div>
+                )}
+
                 {/* Row 1: Search Inputs */}
                 <div className="flex flex-col lg:flex-row gap-4">
                     <div className="flex-1 relative">
@@ -700,13 +759,14 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                             </div>
                         </div>
 
-                        {(filterTitle || filterLocation || filterStartDate || filterEndDate) && (
+                        {(filterTitle || filterLocation || filterStartDate || filterEndDate || filterProgramType !== 'ALL') && (
                             <button
                                 onClick={() => {
                                     setFilterTitle('');
                                     setFilterLocation('');
                                     setFilterStartDate('');
                                     setFilterEndDate('');
+                                    setFilterProgramType('ALL');
                                 }}
                                 className="px-3 py-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex items-center gap-1.5"
                             >

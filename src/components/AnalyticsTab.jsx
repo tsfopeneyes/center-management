@@ -36,16 +36,22 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
     const [selectedRoomDetails, setSelectedRoomDetails] = useState(null);
     const [userSort, setUserSort] = useState({ key: 'spaceDuration', order: 'desc' });
     const [userSearch, setUserSearch] = useState('');
+    const [programFilter, setProgramFilter] = useState('ALL'); // 'ALL', 'CENTER', 'SCHOOL_CHURCH'
 
     const spaceData = useMemo(() => {
         const currentDate = new Date(selectedYear, selectedMonth, selectedDay);
         return processAnalyticsData(logs, locations, users, currentDate, periodType);
     }, [logs, locations, users, selectedYear, selectedMonth, selectedDay, periodType]);
 
-    const programData = useMemo(() => {
+    const rawProgramData = useMemo(() => {
         const currentDate = new Date(selectedYear, selectedMonth, selectedDay);
         return processProgramAnalytics(notices, responses, currentDate, periodType);
     }, [notices, responses, selectedYear, selectedMonth, selectedDay, periodType]);
+
+    const programData = useMemo(() => {
+        if (programFilter === 'ALL') return rawProgramData;
+        return rawProgramData.filter(p => (p.program_type || 'CENTER') === programFilter);
+    }, [rawProgramData, programFilter]);
 
     const rawUserData = useMemo(() => {
         const currentDate = new Date(selectedYear, selectedMonth, selectedDay);
@@ -163,6 +169,33 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
                         </button>
                     </div>
                 </div>
+
+                {/* Program Type Filter (Only visible in Program Mode) */}
+                {viewMode === 'PROGRAM' && (
+                    <div className="mt-4 pt-4 border-t border-gray-50 flex items-center gap-3">
+                        <span className="text-xs font-black text-gray-400 uppercase tracking-widest">분류 선택</span>
+                        <div className="flex bg-gray-50 p-1 rounded-xl shadow-inner">
+                            <button
+                                onClick={() => setProgramFilter('ALL')}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${programFilter === 'ALL' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                전체
+                            </button>
+                            <button
+                                onClick={() => setProgramFilter('CENTER')}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${programFilter === 'CENTER' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            >
+                                센터 프로그램
+                            </button>
+                            <button
+                                onClick={() => setProgramFilter('SCHOOL_CHURCH')}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${programFilter === 'SCHOOL_CHURCH' ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            >
+                                스처 프로그램
+                            </button>
+                        </div>
+                    </div>
+                )}
             </section>
 
             {/* Summary Cards */}
@@ -220,9 +253,22 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Calendar size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">전체 프로그램</h3>
+                                <h3 className="text-gray-500 text-sm font-bold">
+                                    {programFilter === 'ALL' ? '전체 프로그램' : programFilter === 'CENTER' ? '센터 프로그램' : '스처 프로그램'}
+                                </h3>
                             </div>
                             <p className="text-2xl font-bold text-gray-800">{programData.length} <span className="text-sm font-normal text-gray-400">개</span></p>
+                            <div className="mt-2 flex gap-2 text-[10px] font-bold">
+                                {programFilter === 'ALL' ? (
+                                    <>
+                                        <span className="text-blue-500">센터 {rawProgramData.filter(p => (p.program_type || 'CENTER') === 'CENTER').length}</span>
+                                        <span className="text-gray-300">|</span>
+                                        <span className="text-purple-500">스처 {rawProgramData.filter(p => p.program_type === 'SCHOOL_CHURCH').length}</span>
+                                    </>
+                                ) : (
+                                    <span className="text-gray-400">해당 유형 분석 진행 중</span>
+                                )}
+                            </div>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                             <div className="flex items-center gap-3 mb-2">
@@ -393,13 +439,16 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
             ) : viewMode === 'PROGRAM' ? (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="p-5 border-b border-gray-100 bg-gray-50/50">
-                        <h3 className="text-lg font-bold text-gray-800">프로그램 참여 및 출석 현황</h3>
+                        <h3 className="text-lg font-bold text-gray-800">
+                            {programFilter === 'ALL' ? '프로그램 참여 및 출석 현황' : programFilter === 'CENTER' ? '센터 프로그램 분석 상세' : '스처 프로그램 분석 상세'}
+                        </h3>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold">
                                 <tr>
                                     <th className="p-4">프로그램명</th>
+                                    <th className="p-4 text-center">구분</th>
                                     <th className="p-4 text-center">신청 인원</th>
                                     <th className="p-4 text-center">출석 인원</th>
                                     <th className="p-4 text-center">출석률</th>
@@ -415,6 +464,11 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition border-b border-gray-50 last:border-0">
                                             <td className="p-4 font-bold text-gray-700 max-w-[240px] leading-snug break-keep">
                                                 {p.title}
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${(p.program_type || 'CENTER') === 'CENTER' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                                    {(p.program_type || 'CENTER') === 'CENTER' ? '센터' : '스처'}
+                                                </span>
                                             </td>
                                             <td className="p-4 text-center whitespace-nowrap">
                                                 <div className="flex flex-col items-center">

@@ -1,31 +1,70 @@
 import React from 'react';
-import { LayoutDashboard, MessageSquare, Image, Users, BarChart2, FileText, Settings, LogOut, Send, User, Calendar } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Image, Users, BarChart2, FileText, Settings, LogOut, Send, User, Calendar, School } from 'lucide-react';
+import { supabase } from '../../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 
 const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, isPinned, setIsPinned }) => {
     const navigate = useNavigate();
     const [winWidth, setWinWidth] = React.useState(window.innerWidth);
+    const [menus, setMenus] = React.useState([]);
 
     React.useEffect(() => {
         const handleResize = () => setWinWidth(window.innerWidth);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-    const menus = [
+
+    const baseMenus = [
         { id: 'STATUS', label: '공간 현황', icon: <LayoutDashboard size={20} /> },
         { id: 'CALENDAR', label: '일정 관리', icon: <Calendar size={20} /> },
-        { id: 'PROGRAMS', label: '센터 프로그램', icon: <Users size={20} /> },
+        { id: 'PROGRAMS', label: '프로그램 관리', icon: <Users size={20} /> },
         { id: 'BOARD', label: '공지사항', icon: <MessageSquare size={20} /> },
         { id: 'GALLERY', label: '사진첩', icon: <Image size={20} /> },
         { id: 'GUESTBOOK', label: '방명록', icon: <FileText size={20} /> },
-        // { id: 'MESSAGES', label: '메시지', icon: <Send size={20} /> },
         { id: 'USERS', label: '이용자 관리', icon: <Users size={20} /> },
+        { id: 'SCHOOLS', label: '학교 관리', icon: <School size={20} /> },
         { id: 'CHALLENGES', label: '챌린지 관리', icon: <BarChart2 size={20} /> },
         { id: 'STATISTICS', label: '통계', icon: <BarChart2 size={20} /> },
         { id: 'LOGS', label: '로그', icon: <FileText size={20} /> },
         { id: 'REPORTS', label: '운영 리포트', icon: <FileText size={20} /> },
         { id: 'SETTINGS', label: '설정', icon: <Settings size={20} /> },
     ];
+
+    React.useEffect(() => {
+        const fetchConfig = async () => {
+            try {
+                const { data } = await supabase
+                    .from('notices')
+                    .select('content')
+                    .eq('category', 'SYSTEM')
+                    .eq('title', 'ADMIN_SIDEBAR_CONFIG')
+                    .maybeSingle();
+
+                if (data && data.content) {
+                    const parsed = JSON.parse(data.content);
+                    if (Array.isArray(parsed)) {
+                        const orderedMenus = parsed
+                            .filter(item => item.isVisible)
+                            .map(item => {
+                                const base = baseMenus.find(m => m.id === item.id);
+                                return base ? { ...base, ...item } : null;
+                            })
+                            .filter(Boolean);
+
+                        // Add any new base menus that might not be in the config yet
+                        const extraMenus = baseMenus.filter(bm => !parsed.find(p => p.id === bm.id));
+                        setMenus([...orderedMenus, ...extraMenus]);
+                        return;
+                    }
+                }
+                setMenus(baseMenus);
+            } catch (e) {
+                console.error('Failed to fetch sidebar config:', e);
+                setMenus(baseMenus);
+            }
+        };
+        fetchConfig();
+    }, []);
 
     // Helper to handle menu click and auto-close if in overlay mode
     const handleMenuClick = (menuId) => {
