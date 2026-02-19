@@ -8,7 +8,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
     const [filterGroup, setFilterGroup] = useState('ALL');
     const [editingUser, setEditingUser] = useState(null);
     const [editFormData, setEditFormData] = useState({
-        name: '', school: '', phone_back4: '', user_group: '재학생', memo: '',
+        name: '', school: '', phone: '', user_group: '재학생', memo: '',
         status: 'approved', guardian_name: '', guardian_phone: '', guardian_relation: ''
     });
 
@@ -100,7 +100,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         setEditFormData({
             name: user.name || '',
             school: user.school || '',
-            phone_back4: user.phone_back4 || '',
+            phone: user.phone || user.phone_back4 || '',
             user_group: user.user_group || '재학생',
             memo: user.memo || '',
             status: user.status || 'approved',
@@ -116,7 +116,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
             const { error } = await supabase.from('users').update({
                 name: editFormData.name,
                 school: editFormData.school,
-                phone_back4: editFormData.phone_back4,
+                phone: editFormData.phone,
                 user_group: editFormData.user_group,
                 memo: editFormData.memo
             }).eq('id', editingUser.id);
@@ -315,7 +315,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                             </div>
                                         </td>
                                         <td className="p-4 text-gray-500">{user.school}</td>
-                                        <td className="p-4 font-mono text-gray-500 text-xs md:text-sm">{user.phone_back4 || user.phone}</td>
+                                        <td className="p-4 font-mono text-gray-500 text-xs md:text-sm">{user.phone}</td>
                                         <td className="p-4 pr-6 text-right flex items-center justify-end gap-2">
                                             {user.status === 'pending' && (
                                                 <button onClick={() => handleApproveUser(user)} className="px-3 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition shadow-md whitespace-nowrap">승인</button>
@@ -371,7 +371,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                     </div>
                                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400">
                                         <span className="truncate max-w-[120px]">{user.school}</span>
-                                        <span className="font-mono">{user.phone_back4 || user.phone}</span>
+                                        <span className="font-mono">{user.phone}</span>
                                     </div>
                                 </div>
                                 <div className="flex gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -408,6 +408,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                 </select>
                             </div>
                             <div><label className="text-xs font-bold text-gray-500 block mb-1">학교</label><input type="text" value={editFormData.school} onChange={(e) => setEditFormData({ ...editFormData, school: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold" /></div>
+                            <div><label className="text-xs font-bold text-gray-500 block mb-1">연락처 (전체)</label><input type="text" value={editFormData.phone} onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold font-mono" /></div>
 
                             {editFormData.guardian_name && (
                                 <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 space-y-2">

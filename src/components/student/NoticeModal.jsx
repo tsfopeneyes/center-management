@@ -687,41 +687,43 @@ const NoticeModal = ({ notice, context, onClose, user, responses, onResponse, co
                                 </div>
 
                                 {/* Properties Area */}
-                                <div className="space-y-4 mb-8 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
-                                    {(() => {
-                                        const info = extractProgramInfo(notice.content);
-                                        return (
-                                            <div className="grid grid-cols-1 gap-y-4 text-sm">
-                                                <div className="flex items-center gap-4">
-                                                    <CalendarIcon size={18} className="text-blue-500 shrink-0" />
-                                                    <span className="text-gray-400 w-20 shrink-0">일정</span>
-                                                    <span className="text-gray-700 font-bold">
-                                                        {notice.program_date ? new Date(notice.program_date).toLocaleString('ko-KR', {
-                                                            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                                                        }) : (info.date ? new Date(info.date).toLocaleString('ko-KR', {
-                                                            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                                                        }) : '미정')}
-                                                    </span>
+                                {notice.category !== 'NOTICE' && (
+                                    <div className="space-y-4 mb-8 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
+                                        {(() => {
+                                            const info = extractProgramInfo(notice.content);
+                                            return (
+                                                <div className="grid grid-cols-1 gap-y-4 text-sm">
+                                                    <div className="flex items-center gap-4">
+                                                        <CalendarIcon size={18} className="text-blue-500 shrink-0" />
+                                                        <span className="text-gray-400 w-20 shrink-0">일정</span>
+                                                        <span className="text-gray-700 font-bold">
+                                                            {notice.program_date ? new Date(notice.program_date).toLocaleString('ko-KR', {
+                                                                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                            }) : (info.date ? new Date(info.date).toLocaleString('ko-KR', {
+                                                                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                            }) : '미정')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <ClockIcon size={18} className="text-orange-500 shrink-0" />
+                                                        <span className="text-gray-400 w-20 shrink-0">소요시간</span>
+                                                        <span className="text-gray-700 font-bold">{info.duration || '미정'}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <ShieldCheck size={18} className="text-green-500 shrink-0" />
+                                                        <span className="text-gray-400 w-20 shrink-0">장소</span>
+                                                        <span className="text-gray-700 font-bold">{info.location || '미정'}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <User size={18} className="text-indigo-500 shrink-0" />
+                                                        <span className="text-gray-400 w-20 shrink-0">모집인원</span>
+                                                        <span className="text-gray-700 font-bold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-4">
-                                                    <ClockIcon size={18} className="text-orange-500 shrink-0" />
-                                                    <span className="text-gray-400 w-20 shrink-0">소요시간</span>
-                                                    <span className="text-gray-700 font-bold">{info.duration || '미정'}</span>
-                                                </div>
-                                                <div className="flex items-center gap-4">
-                                                    <ShieldCheck size={18} className="text-green-500 shrink-0" />
-                                                    <span className="text-gray-400 w-20 shrink-0">장소</span>
-                                                    <span className="text-gray-700 font-bold">{info.location || '미정'}</span>
-                                                </div>
-                                                <div className="flex items-center gap-4">
-                                                    <User size={18} className="text-indigo-500 shrink-0" />
-                                                    <span className="text-gray-400 w-20 shrink-0">모집인원</span>
-                                                    <span className="text-gray-700 font-bold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
 
                                 <div className="prose max-w-none text-gray-800 leading-relaxed mb-10 overflow-hidden">
                                     <div dangerouslySetInnerHTML={{ __html: extractProgramInfo(notice.content).cleanContent }} />

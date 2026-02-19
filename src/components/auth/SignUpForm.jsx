@@ -105,15 +105,24 @@ const SignUpForm = ({ onSuccess, onCancel, isKiosk = false }) => {
 
         setLoading(true);
         try {
+            // 1. Check for valid phone number format again (Backend barrier)
+            if (formData.phone.replace(/[^0-9]/g, '').length < 11) {
+                alert('핸드폰 번호 형식이 올바르지 않습니다.');
+                setLoading(false);
+                return;
+            }
+
+            // 2. Check for duplicate phone number (Unique Constraint)
             const { data: existing, error: checkError } = await supabase
                 .from('users')
-                .select('id')
-                .eq('name', formData.name)
-                .eq('phone', formData.phone);
+                .select('id, name')
+                .eq('phone', formData.phone)
+                .maybeSingle();
 
             if (checkError) throw checkError;
-            if (existing && existing.length > 0) {
-                alert('이미 가입된 정보(이름 + 전화번호)입니다.');
+
+            if (existing) {
+                alert(`이미 가입된 휴대폰 번호입니다.\n(${existing.name}님으로 가입되어 있습니다.)\n로그인 혹은 관리자에게 문의해주세요.`);
                 setLoading(false);
                 return;
             }
@@ -149,8 +158,8 @@ const SignUpForm = ({ onSuccess, onCancel, isKiosk = false }) => {
             if (onSuccess) onSuccess();
 
         } catch (err) {
-            console.error(err);
-            alert('가입 중 오류가 발생했습니다. 다시 시도해주세요.');
+            console.error('Sign Up Error Details:', err);
+            alert(`가입 중 오류가 발생했습니다.\n내용: ${err.message || err.error_description || JSON.stringify(err)}`);
         } finally {
             setLoading(false);
         }

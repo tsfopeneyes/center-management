@@ -38,7 +38,8 @@
     "suneditor": "^2.47.8",
     "suneditor-react": "^3.6.1",
     "tippy.js": "^6.3.7",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

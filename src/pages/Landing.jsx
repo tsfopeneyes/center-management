@@ -36,9 +36,20 @@ const LoginForm = ({ navigate }) => {
                         .eq('phone_back4', password);
 
                     if (!legacyError && legacyUsers && legacyUsers.length > 0) {
-                        users = legacyUsers;
-                        // Optional: Auto-migrate them by setting password = phone_back4? 
-                        // Let's not auto-write to avoid side effects, but this allows them to login.
+                        // CRITICAL SECURITY FIX:
+                        // Only allow phone_back4 login if the user DOES NOT have a password set.
+                        // If they have a password, they must use it.
+                        const validLegacyUsers = legacyUsers.filter(u => !u.password);
+
+                        if (validLegacyUsers.length > 0) {
+                            users = validLegacyUsers;
+                        } else {
+                            // User exists but has a password set, and the input didn't match that password (Query 1 failed).
+                            // So we explicitly deny this attempt to prevent using phone_back4 as a backdoor.
+                            alert('비밀번호가 설정된 계정입니다. 설정한 비밀번호로 로그인해주세요.');
+                            setLoading(false);
+                            return;
+                        }
                     }
                 }
             }

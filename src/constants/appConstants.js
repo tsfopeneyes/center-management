@@ -77,3 +77,15 @@ export const BADGE_DEFINITIONS = [
     { id: 'program_20', type: 'PROGRAM', min: 20, label: '프로그램 매니아', icon: '💎', image: '/badges/program_20.png', color: 'bg-blue-100 text-blue-600' },
     { id: 'program_30', type: 'PROGRAM', min: 30, label: '마스터', icon: '👑', image: '/badges/program_30.png', color: 'bg-yellow-400 text-white' },
 ];
+// Ministry Log Template
+export const MINISTRY_LOG_TEMPLATE = `**근황**
+* 
+
+**스쿨처치**
+* 
+
+**기도제목**
+* 
+
+**추후방향**
+* `;
