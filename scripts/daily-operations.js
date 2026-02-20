@@ -78,19 +78,28 @@ async function performAutoCheckout() {
         let duration = differenceInMinutes(autoCheckoutTime, checkInTime);
         if (duration < 0) duration = 0;
 
+        // Insert into school_logs (History)
         const { error: insertError } = await supabase.from('school_logs').insert({
             user_id: userId,
-            location_id: lastLog.location_id, // Check out from where they checked in
+            location_id: lastLog.location_id,
             type: 'CHECKOUT',
             duration: duration,
-            created_at: autoCheckoutTime.toISOString(), // Force time to 22:00
+            created_at: autoCheckoutTime.toISOString(),
             remarks: '자동 퇴실 처리 (System Auto-Checkout)'
         });
 
-        if (insertError) {
-            console.error(`Failed to auto-checkout user ${userId}:`, insertError);
+        // Insert into logs (Real-time Status)
+        const { error: logsError } = await supabase.from('logs').insert({
+            user_id: userId,
+            location_id: lastLog.location_id,
+            type: 'CHECKOUT',
+            created_at: autoCheckoutTime.toISOString()
+        });
+
+        if (insertError || logsError) {
+            console.error(`Failed to auto-checkout user ${userId}:`, insertError || logsError);
         } else {
-            console.log(`Auto-checked out user ${userId} (Duration: ${duration}m)`);
+            console.log(`Auto-checked out user ${userId} (Duration: ${duration}m) from both tables.`);
         }
     }
 }

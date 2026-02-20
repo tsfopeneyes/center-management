@@ -114,11 +114,17 @@ const AdminDashboard = () => {
                 else if (log.type === 'CHECKOUT') userCurrentLocation[log.user_id] = null;
             });
 
-            // Occupancy Stats Calculation (Real-time)
+            const adminIdsSet = new Set(userData?.filter(u =>
+                u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
+            ).map(u => u.id) || []);
+
+            // Occupancy Stats Calculation (Real-time) - Only count students
             const zStats = {};
             locData?.forEach(l => zStats[l.id] = 0);
-            Object.values(userCurrentLocation).forEach(locId => {
-                if (locId && zStats[locId] !== undefined) zStats[locId]++;
+            Object.entries(userCurrentLocation).forEach(([userId, locId]) => {
+                if (locId && zStats[locId] !== undefined && !adminIdsSet.has(userId)) {
+                    zStats[locId]++;
+                }
             });
 
             // Visitor Stats Calculation (Today)
