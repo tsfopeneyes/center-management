@@ -10,6 +10,15 @@ export const userApi = {
         if (error) throw error;
         return data;
     },
+    async fetchUser(userId) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .single();
+        if (error) throw error;
+        return data;
+    },
 
     async updateProfile(userId, updates) {
         const { error } = await supabase

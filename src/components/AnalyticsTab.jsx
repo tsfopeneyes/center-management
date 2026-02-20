@@ -3,13 +3,15 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Calendar, Users, Clock, MapPin, Award, Filter, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { processAnalyticsData, processProgramAnalytics, processUserAnalytics } from '../utils/analyticsUtils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
+import SeucheoTimeAnalytics from './admin/analytics/SeucheoTimeAnalytics';
 
-const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading }) => {
+const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, isLoading }) => {
     // State for Filter
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-indexed
     const [selectedDay, setSelectedDay] = useState(new Date().getDate());
     const [periodType, setPeriodType] = useState('MONTHLY'); // 'MONTHLY', 'YEARLY', 'WEEKLY', 'DAILY'
+    const [selectedLocationGroupId, setSelectedLocationGroupId] = useState('ALL');
 
     // ... (existing states omitted for brevity keep as is)
 
@@ -38,10 +40,21 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
     const [userSearch, setUserSearch] = useState('');
     const [programFilter, setProgramFilter] = useState('ALL'); // 'ALL', 'CENTER', 'SCHOOL_CHURCH'
 
+    const filteredLocations = useMemo(() => {
+        if (!locationGroups || locationGroups.length === 0 || selectedLocationGroupId === 'ALL') return locations;
+        return locations.filter(l => l.group_id === selectedLocationGroupId);
+    }, [locations, locationGroups, selectedLocationGroupId]);
+
+    const filteredLogsForSpace = useMemo(() => {
+        if (!locationGroups || locationGroups.length === 0 || selectedLocationGroupId === 'ALL') return logs;
+        const validLocationIds = new Set(filteredLocations.map(l => l.id));
+        return logs.filter(l => !l.location_id || validLocationIds.has(l.location_id));
+    }, [logs, filteredLocations, locationGroups, selectedLocationGroupId]);
+
     const spaceData = useMemo(() => {
         const currentDate = new Date(selectedYear, selectedMonth, selectedDay);
-        return processAnalyticsData(logs, locations, users, currentDate, periodType);
-    }, [logs, locations, users, selectedYear, selectedMonth, selectedDay, periodType]);
+        return processAnalyticsData(filteredLogsForSpace, filteredLocations, users, currentDate, periodType);
+    }, [filteredLogsForSpace, filteredLocations, users, selectedYear, selectedMonth, selectedDay, periodType]);
 
     const rawProgramData = useMemo(() => {
         const currentDate = new Date(selectedYear, selectedMonth, selectedDay);
@@ -145,6 +158,19 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
                                     ))}
                                 </select>
                             )}
+
+                            {viewMode === 'SPACE' && locationGroups && locationGroups.length > 0 && (
+                                <select
+                                    value={selectedLocationGroupId}
+                                    onChange={(e) => setSelectedLocationGroupId(e.target.value)}
+                                    className="p-2 border border-blue-200 text-blue-700 rounded-lg text-xs md:text-sm font-bold outline-none focus:border-blue-500 bg-blue-50 h-[40px] transition-colors"
+                                >
+                                    <option value="ALL">전체 그룹</option>
+                                    {locationGroups.map(g => (
+                                        <option key={g.id} value={g.id}>{g.name}</option>
+                                    ))}
+                                </select>
+                            )}
                         </div>
                     </div>
 
@@ -166,6 +192,12 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
                             className={`flex-1 lg:flex-none px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold border transition h-[40px] flex items-center justify-center gap-1.5 whitespace-nowrap ${viewMode === 'USER' ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                         >
                             <Users size={16} /> 이용자 분석
+                        </button>
+                        <button
+                            onClick={() => setViewMode('SEUCHEO')}
+                            className={`flex-1 lg:flex-none px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold border transition h-[40px] flex items-center justify-center gap-1.5 whitespace-nowrap ${viewMode === 'SEUCHEO' ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            <Clock size={16} /> 스처타임
                         </button>
                     </div>
                 </div>
@@ -199,136 +231,138 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
             </section>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                {viewMode === 'SPACE' ? (
-                    <>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Clock size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">총 이용 시간</h3>
+            {viewMode !== 'SEUCHEO' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    {viewMode === 'SPACE' ? (
+                        <>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Clock size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">총 이용 시간</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {(spaceData.roomAnalysis.reduce((acc, curr) => acc + curr.duration, 0) / 60).toFixed(1)} <span className="text-sm font-normal text-gray-400">시간</span>
+                                </p>
+                                <div className="mt-2 flex gap-2 text-[10px] font-bold">
+                                    <span className="text-blue-500">재학생 {(spaceData.totalDurationSplit.student / 60).toFixed(1)}h</span>
+                                    <span className="text-gray-300">|</span>
+                                    <span className="text-orange-500">졸업생 {(spaceData.totalDurationSplit.graduate / 60).toFixed(1)}h</span>
+                                </div>
                             </div>
-                            <p className="text-2xl font-bold text-gray-800">
-                                {(spaceData.roomAnalysis.reduce((acc, curr) => acc + curr.duration, 0) / 60).toFixed(1)} <span className="text-sm font-normal text-gray-400">시간</span>
-                            </p>
-                            <div className="mt-2 flex gap-2 text-[10px] font-bold">
-                                <span className="text-blue-500">재학생 {(spaceData.totalDurationSplit.student / 60).toFixed(1)}h</span>
-                                <span className="text-gray-300">|</span>
-                                <span className="text-orange-500">졸업생 {(spaceData.totalDurationSplit.graduate / 60).toFixed(1)}h</span>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-green-50 text-green-600 rounded-lg"><MapPin size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">회원 방문 횟수</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">{spaceData.totalVisits} <span className="text-sm font-normal text-gray-400">회</span></p>
+                                <div className="mt-2 flex gap-2 text-[10px] font-bold">
+                                    <span className="text-green-600">재학생 {spaceData.totalVisitsSplit.student}회</span>
+                                    <span className="text-gray-300">|</span>
+                                    <span className="text-orange-500">졸업생 {spaceData.totalVisitsSplit.graduate}회</span>
+                                </div>
                             </div>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-green-50 text-green-600 rounded-lg"><MapPin size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">회원 방문 횟수</h3>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Users size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">회원 방문자 수</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">{spaceData.uniqueUsers} <span className="text-sm font-normal text-gray-400">명</span></p>
+                                <div className="mt-2 flex gap-2 text-[10px] font-bold">
+                                    <span className="text-purple-600">재학생 {spaceData.uniqueUsersSplit.student}명</span>
+                                    <span className="text-gray-300">|</span>
+                                    <span className="text-orange-500">졸업생 {spaceData.uniqueUsersSplit.graduate}명</span>
+                                </div>
                             </div>
-                            <p className="text-2xl font-bold text-gray-800">{spaceData.totalVisits} <span className="text-sm font-normal text-gray-400">회</span></p>
-                            <div className="mt-2 flex gap-2 text-[10px] font-bold">
-                                <span className="text-green-600">재학생 {spaceData.totalVisitsSplit.student}회</span>
-                                <span className="text-gray-300">|</span>
-                                <span className="text-orange-500">졸업생 {spaceData.totalVisitsSplit.graduate}회</span>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 bg-indigo-50/10">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Users size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">손님(0000) 방문</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-indigo-600">{spaceData.totalGuests} <span className="text-sm font-normal text-gray-400">건</span></p>
                             </div>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Users size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">회원 방문자 수</h3>
+                        </>
+                    ) : viewMode === 'PROGRAM' ? (
+                        <>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Calendar size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">
+                                        {programFilter === 'ALL' ? '전체 프로그램' : programFilter === 'CENTER' ? '센터 프로그램' : '스처 프로그램'}
+                                    </h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">{programData.length} <span className="text-sm font-normal text-gray-400">개</span></p>
+                                <div className="mt-2 flex gap-2 text-[10px] font-bold">
+                                    {programFilter === 'ALL' ? (
+                                        <>
+                                            <span className="text-blue-500">센터 {rawProgramData.filter(p => (p.program_type || 'CENTER') === 'CENTER').length}</span>
+                                            <span className="text-gray-300">|</span>
+                                            <span className="text-purple-500">스처 {rawProgramData.filter(p => p.program_type === 'SCHOOL_CHURCH').length}</span>
+                                        </>
+                                    ) : (
+                                        <span className="text-gray-400">해당 유형 분석 진행 중</span>
+                                    )}
+                                </div>
                             </div>
-                            <p className="text-2xl font-bold text-gray-800">{spaceData.uniqueUsers} <span className="text-sm font-normal text-gray-400">명</span></p>
-                            <div className="mt-2 flex gap-2 text-[10px] font-bold">
-                                <span className="text-purple-600">재학생 {spaceData.uniqueUsersSplit.student}명</span>
-                                <span className="text-gray-300">|</span>
-                                <span className="text-orange-500">졸업생 {spaceData.uniqueUsersSplit.graduate}명</span>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Award size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">누적 참여 인원</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">{programData.reduce((acc, curr) => acc + curr.joinCount, 0)} <span className="text-sm font-normal text-gray-400">명</span></p>
                             </div>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 bg-indigo-50/10">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Users size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">손님(0000) 방문</h3>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Users size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">평균 출석률</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {programData.filter(p => p.attendanceRate !== null).length > 0
+                                        ? Math.round(programData.reduce((acc, curr) => acc + (curr.attendanceRate || 0), 0) / programData.filter(p => p.attendanceRate !== null).length)
+                                        : 0}
+                                    <span className="text-sm font-normal text-gray-400">%</span>
+                                </p>
                             </div>
-                            <p className="text-2xl font-bold text-indigo-600">{spaceData.totalGuests} <span className="text-sm font-normal text-gray-400">건</span></p>
-                        </div>
-                    </>
-                ) : viewMode === 'PROGRAM' ? (
-                    <>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Calendar size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">
-                                    {programFilter === 'ALL' ? '전체 프로그램' : programFilter === 'CENTER' ? '센터 프로그램' : '스처 프로그램'}
-                                </h3>
+                        </>
+                    ) : (
+                        <>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Users size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">이용 회원 수</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {rawUserData.filter(u => u.spaceCount > 0 || u.programCount > 0).length}
+                                    <span className="text-sm font-normal text-gray-400 ml-1">/ {users.length} 명</span>
+                                </p>
                             </div>
-                            <p className="text-2xl font-bold text-gray-800">{programData.length} <span className="text-sm font-normal text-gray-400">개</span></p>
-                            <div className="mt-2 flex gap-2 text-[10px] font-bold">
-                                {programFilter === 'ALL' ? (
-                                    <>
-                                        <span className="text-blue-500">센터 {rawProgramData.filter(p => (p.program_type || 'CENTER') === 'CENTER').length}</span>
-                                        <span className="text-gray-300">|</span>
-                                        <span className="text-purple-500">스처 {rawProgramData.filter(p => p.program_type === 'SCHOOL_CHURCH').length}</span>
-                                    </>
-                                ) : (
-                                    <span className="text-gray-400">해당 유형 분석 진행 중</span>
-                                )}
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Clock size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">실 이용자 평균 체류</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {rawUserData.filter(u => u.spaceCount > 0).length > 0
+                                        ? (rawUserData.reduce((acc, curr) => acc + curr.spaceDuration, 0) / rawUserData.filter(u => u.spaceCount > 0).length / 60).toFixed(1)
+                                        : 0}
+                                    <span className="text-sm font-normal text-gray-400">시간</span>
+                                </p>
                             </div>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Award size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">누적 참여 인원</h3>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Award size={20} /></div>
+                                    <h3 className="text-gray-500 text-sm font-bold">실 참여자 평균 프로그램</h3>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {rawUserData.filter(u => u.programCount > 0).length > 0
+                                        ? (rawUserData.reduce((acc, curr) => acc + curr.programCount, 0) / rawUserData.filter(u => u.programCount > 0).length).toFixed(1)
+                                        : 0}
+                                    <span className="text-sm font-normal text-gray-400">회</span>
+                                </p>
                             </div>
-                            <p className="text-2xl font-bold text-gray-800">{programData.reduce((acc, curr) => acc + curr.joinCount, 0)} <span className="text-sm font-normal text-gray-400">명</span></p>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Users size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">평균 출석률</h3>
-                            </div>
-                            <p className="text-2xl font-bold text-gray-800">
-                                {programData.filter(p => p.attendanceRate !== null).length > 0
-                                    ? Math.round(programData.reduce((acc, curr) => acc + (curr.attendanceRate || 0), 0) / programData.filter(p => p.attendanceRate !== null).length)
-                                    : 0}
-                                <span className="text-sm font-normal text-gray-400">%</span>
-                            </p>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Users size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">이용 회원 수</h3>
-                            </div>
-                            <p className="text-2xl font-bold text-gray-800">
-                                {rawUserData.filter(u => u.spaceCount > 0 || u.programCount > 0).length}
-                                <span className="text-sm font-normal text-gray-400 ml-1">/ {users.length} 명</span>
-                            </p>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Clock size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">실 이용자 평균 체류</h3>
-                            </div>
-                            <p className="text-2xl font-bold text-gray-800">
-                                {rawUserData.filter(u => u.spaceCount > 0).length > 0
-                                    ? (rawUserData.reduce((acc, curr) => acc + curr.spaceDuration, 0) / rawUserData.filter(u => u.spaceCount > 0).length / 60).toFixed(1)
-                                    : 0}
-                                <span className="text-sm font-normal text-gray-400">시간</span>
-                            </p>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Award size={20} /></div>
-                                <h3 className="text-gray-500 text-sm font-bold">실 참여자 평균 프로그램</h3>
-                            </div>
-                            <p className="text-2xl font-bold text-gray-800">
-                                {rawUserData.filter(u => u.programCount > 0).length > 0
-                                    ? (rawUserData.reduce((acc, curr) => acc + curr.programCount, 0) / rawUserData.filter(u => u.programCount > 0).length).toFixed(1)
-                                    : 0}
-                                <span className="text-sm font-normal text-gray-400">회</span>
-                            </p>
-                        </div>
-                    </>
-                )}
-            </div>
+                        </>
+                    )}
+                </div>
+            )}
 
             {viewMode === 'SPACE' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -506,6 +540,13 @@ const AnalyticsTab = ({ logs, locations, users, notices, responses, isLoading })
                         </table>
                     </div>
                 </div>
+            ) : viewMode === 'SEUCHEO' ? (
+                <SeucheoTimeAnalytics
+                    schoolLogs={schoolLogs}
+                    users={users}
+                    periodType={periodType}
+                    selectedDate={new Date(selectedYear, selectedMonth, selectedDay)}
+                />
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
@@ -670,24 +711,60 @@ const MemberActivityModal = ({ member, logs, year, month, onClose }) => {
 };
 
 const RoomMemberDetailModal = ({ room, year, month, day, periodType, onClose }) => {
+    const [filterType, setFilterType] = useState('ALL'); // 'ALL', 'YOUTH', 'GRADUATE'
+
+    const filteredUsers = useMemo(() => {
+        if (filterType === 'ALL') return room.userDetails;
+        if (filterType === 'GRADUATE') return room.userDetails.filter(u => u.group === '졸업생');
+        if (filterType === 'YOUTH') return room.userDetails.filter(u => u.group !== '졸업생' && u.group !== '일반인');
+        return room.userDetails;
+    }, [room.userDetails, filterType]);
+
+    const totalFilteredDuration = filteredUsers.reduce((acc, curr) => acc + curr.duration, 0);
+    const totalFilteredCount = filteredUsers.length;
+
     return (
         <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <div>
-                        <h3 className="text-xl font-bold text-gray-800">{room.name} <span className="text-sm font-normal text-gray-400">이용 상세</span></h3>
-                        <p className="text-xs text-gray-500 font-bold">
-                            {year}년 {
-                                periodType === 'DAILY' ? `${month}월 ${day}일` :
-                                    periodType === 'WEEKLY' ? `${month}월 ${Math.ceil(day / 7)}주차` :
-                                        periodType === 'MONTHLY' ? `${month}월` :
-                                            '전체'
-                            }
-                        </p>
+                <div className="p-6 border-b border-gray-100 flex flex-col gap-4 bg-gray-50/50">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-800">{room.name} <span className="text-sm font-normal text-gray-400">이용 상세</span></h3>
+                            <p className="text-xs text-gray-500 font-bold">
+                                {year}년 {
+                                    periodType === 'DAILY' ? `${month}월 ${day}일` :
+                                        periodType === 'WEEKLY' ? `${month}월 ${Math.ceil(day / 7)}주차` :
+                                            periodType === 'MONTHLY' ? `${month}월` :
+                                                '전체'
+                                }
+                            </p>
+                        </div>
+                        <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition text-gray-400 hover:text-gray-600">
+                            <MapPin size={24} />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition text-gray-400 hover:text-gray-600">
-                        <MapPin size={24} />
-                    </button>
+
+                    {/* Filter Tabs */}
+                    <div className="flex bg-gray-200/50 p-1 rounded-xl w-fit">
+                        <button
+                            onClick={() => setFilterType('ALL')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${filterType === 'ALL' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            전체
+                        </button>
+                        <button
+                            onClick={() => setFilterType('YOUTH')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${filterType === 'YOUTH' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            청소년
+                        </button>
+                        <button
+                            onClick={() => setFilterType('GRADUATE')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${filterType === 'GRADUATE' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            졸업생
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto">
@@ -703,10 +780,10 @@ const RoomMemberDetailModal = ({ room, year, month, day, periodType, onClose }) 
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-sm">
-                            {!room.userDetails || room.userDetails.length === 0 ? (
+                            {!filteredUsers || filteredUsers.length === 0 ? (
                                 <tr><td colSpan="5" className="p-8 text-center text-gray-400">데이터가 없습니다.</td></tr>
                             ) : (
-                                room.userDetails.map((user, idx) => (
+                                filteredUsers.map((user, idx) => (
                                     <tr key={idx} className="hover:bg-gray-50 transition">
                                         <td className="p-4 text-center font-bold text-gray-400">{idx + 1}</td>
                                         <td className="p-4 font-bold text-gray-700">{user.name}</td>
@@ -728,10 +805,10 @@ const RoomMemberDetailModal = ({ room, year, month, day, periodType, onClose }) 
 
                     {/* Mobile Card Layout */}
                     <div className="md:hidden divide-y divide-gray-50">
-                        {!room.userDetails || room.userDetails.length === 0 ? (
+                        {!filteredUsers || filteredUsers.length === 0 ? (
                             <div className="p-10 text-center text-gray-400 text-sm">데이터가 없습니다.</div>
                         ) : (
-                            room.userDetails.map((user, idx) => (
+                            filteredUsers.map((user, idx) => (
                                 <div key={idx} className="p-4 flex justify-between items-center transition active:bg-gray-50">
                                     <div className="flex items-center gap-3">
                                         <span className="text-gray-300 font-bold italic w-4">{idx + 1}</span>
@@ -757,8 +834,14 @@ const RoomMemberDetailModal = ({ room, year, month, day, periodType, onClose }) 
 
                 <div className="p-4 md:p-6 border-t border-gray-100 bg-gray-50/30 flex flex-col md:flex-row gap-4 justify-between items-center text-xs text-gray-400">
                     <div className="flex gap-4 font-bold">
-                        <span>총 이용자: <span className="text-gray-800">{room.uniqueUsers}명</span></span>
-                        <span>총 시간: <span className="text-gray-800">{(room.duration / 60).toFixed(1)}시간</span></span>
+                        <span>
+                            {filterType === 'ALL' ? '총 이용자' : filterType === 'YOUTH' ? '청소년 이용자' : '졸업생 이용자'}: {' '}
+                            <span className="text-gray-800">{totalFilteredCount}명</span>
+                        </span>
+                        <span>
+                            {filterType === 'ALL' ? '총 시간' : filterType === 'YOUTH' ? '청소년 시간' : '졸업생 시간'}: {' '}
+                            <span className="text-gray-800">{(totalFilteredDuration / 60).toFixed(1)}시간</span>
+                        </span>
                     </div>
                     <button
                         onClick={onClose}

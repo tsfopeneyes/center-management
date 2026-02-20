@@ -59,7 +59,10 @@ const AdminCalendar = ({ notices, fetchData }) => {
         program_location: '',
         max_capacity: 0,
         program_type: 'CENTER',
-        closed_spaces: [] // ['HYPHEN', 'ENOF']
+        closed_spaces: [], // ['HYPHEN', 'ENOF']
+        isRecurring: false,
+        recurringDays: [], // [0, 1, 2, 3, 4, 5, 6] (Sun-Sat)
+        recurringEndDate: format(addMonths(new Date(), 1), 'yyyy-MM-dd')
     });
 
     // Fetch Admin Schedules & Categories
@@ -131,16 +134,20 @@ const AdminCalendar = ({ notices, fetchData }) => {
             let closed_spaces = [];
             let displayContent = s.content;
 
-            if (cat?.name === '휴관') {
-                try {
-                    const parsed = JSON.parse(s.content);
-                    if (parsed && typeof parsed === 'object') {
-                        closed_spaces = parsed.closed_spaces || [];
+            let groupId = null;
+
+            try {
+                const parsed = JSON.parse(s.content);
+                if (parsed && typeof parsed === 'object') {
+                    // Check if it's our structured content (old or new)
+                    if ('text' in parsed || 'closed_spaces' in parsed || 'groupId' in parsed) {
                         displayContent = parsed.text || '';
+                        closed_spaces = parsed.closed_spaces || [];
+                        groupId = parsed.groupId || null;
                     }
-                } catch (e) {
-                    // Not JSON, use as is
                 }
+            } catch (e) {
+                // Not JSON, use as is
             }
 
             return {
@@ -153,7 +160,8 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 category_id: s.category_id,
                 color_theme: cat?.color_theme || 'gray',
                 isPublic: false,
-                raw: { ...s, closed_spaces }
+
+                raw: { ...s, closed_spaces, groupId }
             };
         });
 
@@ -195,7 +203,10 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 start_date: format(date, 'yyyy-MM-dd'),
                 end_date: format(date, 'yyyy-MM-dd'),
                 type: 'SCHEDULE',
-                category_id: dynamicCategories[0]?.id || ''
+                category_id: dynamicCategories[0]?.id || '',
+                isRecurring: false,
+                recurringDays: [],
+                recurringEndDate: format(addMonths(date, 1), 'yyyy-MM-dd')
             });
             setSelectedEvent(null);
             setShowModal(true);
@@ -215,7 +226,10 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 category_id: 'PROGRAM',
                 program_location: event.raw.program_location || '',
                 max_capacity: event.raw.max_capacity || 0,
-                program_type: event.raw.program_type || 'CENTER'
+                program_type: event.raw.program_type || 'CENTER',
+                isRecurring: false,
+                recurringDays: [],
+                recurringEndDate: format(addMonths(event.start, 1), 'yyyy-MM-dd')
             });
         } else {
             setFormData({
@@ -227,7 +241,10 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 end_date: format(event.end, 'yyyy-MM-dd'),
                 end_time: format(event.end, 'HH:mm'),
                 category_id: event.category_id,
-                closed_spaces: event.raw.closed_spaces || []
+                closed_spaces: event.raw.closed_spaces || [],
+                isRecurring: false,
+                recurringDays: [],
+                recurringEndDate: format(addMonths(event.start, 1), 'yyyy-MM-dd')
             });
         }
         setShowModal(true);
@@ -247,28 +264,83 @@ const AdminCalendar = ({ notices, fetchData }) => {
 
             if (formData.type === 'SCHEDULE') {
                 const isClosedDay = dynamicCategories.find(c => c.id === formData.category_id)?.name === '휴관';
-                const payload = {
+                const basePayload = {
                     title: formData.title,
-                    content: isClosedDay
-                        ? JSON.stringify({ closed_spaces: formData.closed_spaces, text: formData.content })
-                        : formData.content,
-                    start_date: new Date(startStr).toISOString(),
-                    end_date: new Date(endStr).toISOString(),
                     category_id: formData.category_id,
                     created_by: (JSON.parse(localStorage.getItem('admin_user')))?.id
                 };
 
-                if (selectedEvent && !selectedEvent.isPublic) {
-                    const { error } = await supabase
-                        .from('admin_schedules')
-                        .update(payload)
-                        .eq('id', selectedEvent.originalId);
-                    if (error) throw error;
+                // Helper to generate UUID
+                const generateUUID = () => {
+                    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                        return v.toString(16);
+                    });
+                };
+
+                if (formData.isRecurring && formData.recurringDays.length > 0) {
+
+                    // Bulk Insert for Recurring Events
+                    const recurringEvents = [];
+                    let iterDate = parseISO(formData.start_date);
+                    const endDate = parseISO(formData.recurringEndDate);
+                    const groupId = generateUUID(); // Generate Group ID
+
+                    // Calculate duration
+                    const durationMs = new Date(endStr) - new Date(startStr);
+
+                    while (iterDate <= endDate) {
+                        if (formData.recurringDays.includes(getDay(iterDate))) {
+                            const newStart = new Date(iterDate);
+                            const [sh, sm] = formData.start_time.split(':');
+                            newStart.setHours(parseInt(sh), parseInt(sm));
+
+                            const newEnd = new Date(newStart.getTime() + durationMs);
+
+                            recurringEvents.push({
+                                ...basePayload,
+                                content: JSON.stringify({
+                                    text: formData.content,
+                                    closed_spaces: isClosedDay ? formData.closed_spaces : [],
+                                    groupId: groupId
+                                }),
+                                start_date: newStart.toISOString(),
+                                end_date: newEnd.toISOString()
+                            });
+                        }
+                        iterDate = addDays(iterDate, 1);
+                    }
+
+                    if (recurringEvents.length > 0) {
+                        const { error } = await supabase.from('admin_schedules').insert(recurringEvents);
+                        if (error) throw error;
+                    }
                 } else {
-                    const { error } = await supabase
-                        .from('admin_schedules')
-                        .insert([payload]);
-                    if (error) throw error;
+                    const payload = {
+                        ...basePayload,
+                        content: isClosedDay || (selectedEvent && selectedEvent.raw.groupId)
+                            ? JSON.stringify({
+                                text: formData.content,
+                                closed_spaces: isClosedDay ? formData.closed_spaces : [],
+                                groupId: selectedEvent?.raw?.groupId || null
+                            })
+                            : formData.content,
+                        start_date: new Date(startStr).toISOString(),
+                        end_date: new Date(endStr).toISOString(),
+                    };
+
+                    if (selectedEvent && !selectedEvent.isPublic) {
+                        const { error } = await supabase
+                            .from('admin_schedules')
+                            .update(payload)
+                            .eq('id', selectedEvent.originalId);
+                        if (error) throw error;
+                    } else {
+                        const { error } = await supabase
+                            .from('admin_schedules')
+                            .insert([payload]);
+                        if (error) throw error;
+                    }
                 }
                 fetchAdminSchedules();
             } else {
@@ -317,15 +389,60 @@ const AdminCalendar = ({ notices, fetchData }) => {
     };
 
     const handleDelete = async () => {
-        if (!confirm('정말 삭제하시겠습니까?')) return;
+        if (!selectedEvent) return;
+
+        const isRecurringSeries = selectedEvent.raw?.groupId;
+        let deleteMode = 'SINGLE'; // SINGLE, SERIES
+
+        if (isRecurringSeries) {
+            // Ask user for deletion mode
+            // Since we can't easily show a custom modal inside this function without more state,
+            // we will use a confirm dialog with specific text or a simple choice.
+            // For better UX, we could add a state for "ShowDeleteOptionModal", but for now standard confirm.
+            // Let's use a simple confirm for now, or since the user asked for "delete series",
+            // maybe we can assume if it's recurring they might want to delete series?
+            // A common pattern with native confirm is hard.
+            // Let's implement a prompt: "이 일정은 반복 일정입니다.\n[확인]을 누르면 이 전체 반복 일정이 삭제됩니다.\n[취소]를 누르면 이 일정만 삭제됩니다."
+            // But 'Cancel' usually means abort.
+            // Better: use window.confirm("반복되는 일정입니다. 전체 반복 일정을 삭제하시겠습니까? (취소 시 현재 일정만 삭제됩니다.)")
+            // Wait, standard confirm has OK/Cancel.
+            // OK -> Delete All. Cancel -> Delete One ?? No, Cancel usually means Stop.
+
+            // Alternative: Two confirms?
+            // 1. "정말 삭제하시겠습니까?" -> OK
+            // 2. "전체 반복 일정을 삭제하시겠습니까?" -> OK (All), Cancel (One)
+
+            if (!confirm('정말 삭제하시겠습니까?')) return;
+
+            if (confirm('전체 반복 일정을 모두 삭제하시겠습니까?\n\n[확인]: 전체 삭제\n[취소]: 현재 일정만 삭제')) {
+                deleteMode = 'SERIES';
+            }
+        } else {
+            if (!confirm('정말 삭제하시겠습니까?')) return;
+        }
+
         try {
             if (selectedEvent.isPublic) {
                 const { error } = await supabase.from('notices').delete().eq('id', selectedEvent.originalId);
                 if (error) throw error;
                 fetchData();
             } else {
-                const { error } = await supabase.from('admin_schedules').delete().eq('id', selectedEvent.originalId);
-                if (error) throw error;
+                if (deleteMode === 'SERIES' && selectedEvent.raw.groupId) {
+                    // Delete all events with this groupId
+                    // Note: This relies on filtering by content->>'groupId'.
+                    // As content is text, we might need a different approach if database level filtering is hard.
+                    // But simpler approach: Fetch all with same category? No.
+                    // We must filter by parsing content? That's slow in JS.
+                    // Filter in DB: content like '%groupId%'
+                    const { error } = await supabase
+                        .from('admin_schedules')
+                        .delete()
+                        .ilike('content', `%${selectedEvent.raw.groupId}%`);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.from('admin_schedules').delete().eq('id', selectedEvent.originalId);
+                    if (error) throw error;
+                }
             }
             setShowModal(false);
             await fetchAllData();
@@ -424,7 +541,10 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                 ...formData,
                                 type: 'SCHEDULE',
                                 start_date: format(new Date(), 'yyyy-MM-dd'),
-                                category_id: dynamicCategories[0]?.id || ''
+                                category_id: dynamicCategories[0]?.id || '',
+                                isRecurring: false,
+                                recurringDays: [],
+                                recurringEndDate: format(addMonths(new Date(), 1), 'yyyy-MM-dd')
                             });
                             setShowModal(true);
                         }}
@@ -592,62 +712,62 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 {showModal && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
-                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.25)] overflow-hidden relative z-10 border border-gray-100">
-                            <div className="p-8 pb-4 flex justify-between items-start">
+                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="bg-white w-full max-w-md rounded-[2rem] shadow-[0_30px_100px_rgba(0,0,0,0.25)] overflow-hidden relative z-10 border border-gray-100">
+                            <div className="p-5 pb-2 flex justify-between items-start">
                                 <div>
-                                    <span className="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest mb-3 inline-block shadow-sm">
+                                    <span className="px-2.5 py-0.5 bg-blue-100 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 inline-block shadow-sm">
                                         {selectedEvent ? '일정 수정' : '새 일정 등록'}
                                     </span>
-                                    <h3 className="text-2xl font-black text-gray-800 tracking-tighter">{formData.title || '제목 없음'}</h3>
+                                    <h3 className="text-xl font-black text-gray-800 tracking-tighter">{formData.title || '제목 없음'}</h3>
                                 </div>
-                                <button onClick={() => setShowModal(false)} className="p-2 text-gray-300 hover:text-gray-500 hover:bg-gray-50 rounded-2xl transition-all"><X size={24} /></button>
+                                <button onClick={() => setShowModal(false)} className="p-1.5 text-gray-300 hover:text-gray-500 hover:bg-gray-50 rounded-xl transition-all"><X size={20} /></button>
                             </div>
-                            <form onSubmit={handleSaveEvent} className="p-8 pt-4 space-y-6">
+                            <form onSubmit={handleSaveEvent} className="p-5 pt-2 space-y-4">
                                 <div className="space-y-4">
-                                    <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100">
-                                        {[{ id: 'SCHEDULE', label: '일반 일정', icon: <CalendarIcon size={14} /> }, { id: 'PROGRAM', label: '프로그램', icon: <Users size={14} /> }].map(opt => (
-                                            <button key={opt.id} type="button" onClick={() => setFormData(prev => ({ ...prev, type: opt.id }))} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${formData.type === opt.id ? 'bg-white text-blue-600 shadow-md border border-blue-50' : 'text-gray-400 hover:text-gray-600'}`}>{opt.icon}{opt.label}</button>
+                                    <div className="flex gap-2 p-1 bg-gray-50 rounded-xl border border-gray-100">
+                                        {[{ id: 'SCHEDULE', label: '일반 일정', icon: <CalendarIcon size={12} /> }, { id: 'PROGRAM', label: '프로그램', icon: <Users size={12} /> }].map(opt => (
+                                            <button key={opt.id} type="button" onClick={() => setFormData(prev => ({ ...prev, type: opt.id }))} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-black transition-all ${formData.type === opt.id ? 'bg-white text-blue-600 shadow-sm border border-blue-50' : 'text-gray-400 hover:text-gray-600'}`}>{opt.icon}{opt.label}</button>
                                         ))}
                                     </div>
-                                    <input type="text" placeholder="일정 제목을 입력하세요" value={formData.title} onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 font-bold transition shadow-inner" required />
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <input type="text" placeholder="일정 제목을 입력하세요" value={formData.title} onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 font-bold transition shadow-inner text-sm" required />
+                                    <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1.5">
                                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">시작 날짜</label>
                                             <div className="relative">
-                                                <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
-                                                <input type="date" value={formData.start_date} onChange={e => setFormData(prev => ({ ...prev, start_date: e.target.value }))} className="w-full pl-12 p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 text-sm font-bold shadow-inner" />
+                                                <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+                                                <input type="date" value={formData.start_date} onChange={e => setFormData(prev => ({ ...prev, start_date: e.target.value }))} className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 text-xs font-bold shadow-inner" />
                                             </div>
                                         </div>
                                         <div className="space-y-1.5">
                                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">시간</label>
                                             <div className="relative">
-                                                <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
-                                                <input type="time" value={formData.start_time} onChange={e => setFormData(prev => ({ ...prev, start_time: e.target.value }))} className="w-full pl-12 p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 text-sm font-bold shadow-inner" />
+                                                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+                                                <input type="time" value={formData.start_time} onChange={e => setFormData(prev => ({ ...prev, start_time: e.target.value }))} className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 text-xs font-bold shadow-inner" />
                                             </div>
                                         </div>
                                     </div>
                                     {formData.type === 'PROGRAM' && (
-                                        <div className="flex gap-4 p-1 bg-gray-50 rounded-2xl border border-gray-100">
-                                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, program_type: 'CENTER' }))} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${formData.program_type === 'CENTER' ? 'bg-white text-pink-600 shadow-sm border border-pink-50' : 'text-gray-400'}`}>센터 프로그램</button>
-                                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, program_type: 'SCHOOL_CHURCH' }))} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${formData.program_type === 'SCHOOL_CHURCH' ? 'bg-white text-purple-600 shadow-sm border border-purple-50' : 'text-gray-400'}`}>스처 프로그램</button>
+                                        <div className="flex gap-3 p-1 bg-gray-50 rounded-xl border border-gray-100">
+                                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, program_type: 'CENTER' }))} className={`flex-1 py-2 rounded-lg text-[10px] font-black transition-all ${formData.program_type === 'CENTER' ? 'bg-white text-pink-600 shadow-sm border border-pink-50' : 'text-gray-400'}`}>센터 프로그램</button>
+                                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, program_type: 'SCHOOL_CHURCH' }))} className={`flex-1 py-2 rounded-lg text-[10px] font-black transition-all ${formData.program_type === 'SCHOOL_CHURCH' ? 'bg-white text-purple-600 shadow-sm border border-purple-50' : 'text-gray-400'}`}>스처 프로그램</button>
                                         </div>
                                     )}
 
                                     {formData.type === 'SCHEDULE' && (
                                         <>
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">종료 날짜</label>
                                                     <div className="relative">
-                                                        <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
-                                                        <input type="date" value={formData.end_date} onChange={e => setFormData(prev => ({ ...prev, end_date: e.target.value }))} className="w-full pl-12 p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 text-sm font-bold shadow-inner" />
+                                                        <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+                                                        <input type="date" value={formData.end_date} onChange={e => setFormData(prev => ({ ...prev, end_date: e.target.value }))} className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 text-xs font-bold shadow-inner" />
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">시간</label>
                                                     <div className="relative">
-                                                        <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
-                                                        <input type="time" value={formData.end_time} onChange={e => setFormData(prev => ({ ...prev, end_time: e.target.value }))} className="w-full pl-12 p-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 text-sm font-bold shadow-inner" />
+                                                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+                                                        <input type="time" value={formData.end_time} onChange={e => setFormData(prev => ({ ...prev, end_time: e.target.value }))} className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 text-xs font-bold shadow-inner" />
                                                     </div>
                                                 </div>
                                             </div>
@@ -656,7 +776,7 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                                 <select
                                                     value={formData.category_id}
                                                     onChange={e => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
-                                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 font-bold transition shadow-inner appearance-none"
+                                                    className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 font-bold transition shadow-inner appearance-none text-xs"
                                                 >
                                                     {dynamicCategories.map(cat => (
                                                         <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -664,9 +784,62 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                                 </select>
                                             </div>
 
+                                            {/* RECURRENCE UI */}
+                                            {!selectedEvent && (
+                                                <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100/50 space-y-2">
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.isRecurring}
+                                                            onChange={e => setFormData(prev => ({ ...prev, isRecurring: e.target.checked }))}
+                                                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                                                        />
+                                                        <span className="text-xs font-black text-blue-600">매주 반복 일정 등록</span>
+                                                    </label>
+
+                                                    {formData.isRecurring && (
+                                                        <div className="space-y-3 animate-fade-in">
+                                                            <div>
+                                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">반복 요일</label>
+                                                                <div className="flex justify-between gap-1">
+                                                                    {['일', '월', '화', '수', '목', '금', '토'].map((d, idx) => (
+                                                                        <button
+                                                                            key={d}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const current = formData.recurringDays;
+                                                                                const next = current.includes(idx)
+                                                                                    ? current.filter(day => day !== idx)
+                                                                                    : [...current, idx];
+                                                                                setFormData(prev => ({ ...prev, recurringDays: next }));
+                                                                            }}
+                                                                            className={`w-7 h-7 rounded-full text-[10px] font-black transition-all ${formData.recurringDays.includes(idx)
+                                                                                ? 'bg-blue-600 text-white shadow-md scale-110'
+                                                                                : 'bg-white text-gray-400 border border-gray-100'
+                                                                                }`}
+                                                                        >
+                                                                            {d}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">반복 종료일</label>
+                                                                <input
+                                                                    type="date"
+                                                                    value={formData.recurringEndDate}
+                                                                    onChange={e => setFormData(prev => ({ ...prev, recurringEndDate: e.target.value }))}
+                                                                    className="w-full p-2.5 bg-white border border-blue-100 rounded-lg outline-none text-xs font-bold"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             {/* Closed Day Space Selection */}
                                             {dynamicCategories.find(c => c.id === formData.category_id)?.name === '휴관' && (
-                                                <div className="p-4 bg-orange-50/50 rounded-2xl border border-orange-100/50 space-y-4">
+                                                <div className="p-3 bg-orange-50/50 rounded-xl border border-orange-100/50 space-y-3">
                                                     <div className="flex items-center gap-2 text-orange-600">
                                                         <MapPin size={16} strokeWidth={3} />
                                                         <span className="text-[10px] font-black uppercase tracking-wider">휴관 공간 선택</span>
@@ -686,7 +859,7 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                                                         : [...current, space.id];
                                                                     setFormData(prev => ({ ...prev, closed_spaces: next }));
                                                                 }}
-                                                                className={`flex-1 py-3 rounded-xl text-xs font-black transition-all border ${formData.closed_spaces?.includes(space.id)
+                                                                className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all border ${formData.closed_spaces?.includes(space.id)
                                                                     ? 'bg-orange-600 text-white border-orange-600 shadow-md'
                                                                     : 'bg-white text-gray-400 border-gray-100'
                                                                     }`}
@@ -700,19 +873,19 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                         </>
                                     )}
                                     {formData.type === 'PROGRAM' && (
-                                        <div className="p-4 bg-pink-50/50 rounded-2xl border border-pink-100/50 space-y-4">
-                                            <div className="flex items-center gap-2 text-pink-600"><Users size={16} strokeWidth={3} /><span className="text-[10px] font-black uppercase tracking-wider">Program Details</span></div>
+                                        <div className="p-3 bg-pink-50/50 rounded-xl border border-pink-100/50 space-y-3">
+                                            <div className="flex items-center gap-2 text-pink-600"><Users size={14} strokeWidth={3} /><span className="text-[10px] font-black uppercase tracking-wider">Program Details</span></div>
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1.5"><label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">장소</label><input type="text" placeholder="장소" value={formData.program_location} onChange={e => setFormData(prev => ({ ...prev, program_location: e.target.value }))} className="w-full p-3 bg-white border border-pink-100 rounded-xl outline-none text-sm font-bold" /></div>
-                                                <div className="space-y-1.5"><label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">모집 인원</label><input type="number" placeholder="0" value={formData.max_capacity} onChange={e => setFormData(prev => ({ ...prev, max_capacity: e.target.value }))} className="w-full p-3 bg-white border border-pink-100 rounded-xl outline-none text-sm font-bold" /></div>
+                                                <div className="space-y-1.5"><label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">장소</label><input type="text" placeholder="장소" value={formData.program_location} onChange={e => setFormData(prev => ({ ...prev, program_location: e.target.value }))} className="w-full p-2.5 bg-white border border-pink-100 rounded-xl outline-none text-xs font-bold" /></div>
+                                                <div className="space-y-1.5"><label className="text-[10px] font-black text-pink-400 uppercase tracking-widest ml-1">모집 인원</label><input type="number" placeholder="0" value={formData.max_capacity} onChange={e => setFormData(prev => ({ ...prev, max_capacity: e.target.value }))} className="w-full p-2.5 bg-white border border-pink-100 rounded-xl outline-none text-xs font-bold" /></div>
                                             </div>
                                         </div>
                                     )}
-                                    <textarea placeholder="메모를 입력하세요..." rows={3} value={formData.content} onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 text-sm font-bold transition shadow-inner resize-none" />
+                                    <textarea placeholder="메모를 입력하세요..." rows={3} value={formData.content} onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 text-xs font-bold transition shadow-inner resize-none" />
                                 </div>
-                                <div className="flex gap-3 pt-4">
-                                    {selectedEvent && <button type="button" onClick={handleDelete} className="p-4 bg-gray-50 text-red-400 hover:text-white hover:bg-red-500 rounded-2xl transition-all shadow-sm"><Trash2 size={20} strokeWidth={3} /></button>}
-                                    <button type="submit" className="flex-1 py-4 bg-gray-900 text-white rounded-2xl font-black shadow-xl shadow-gray-200 hover:bg-gray-800 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-widest">저장하기</button>
+                                <div className="flex gap-2 pt-2">
+                                    {selectedEvent && <button type="button" onClick={handleDelete} className="p-3 bg-gray-50 text-red-400 hover:text-white hover:bg-red-500 rounded-xl transition-all shadow-sm"><Trash2 size={18} strokeWidth={3} /></button>}
+                                    <button type="submit" className="flex-1 py-3 bg-gray-900 text-white rounded-xl font-black shadow-xl shadow-gray-200 hover:bg-gray-800 hover:scale-[1.02] active:scale-95 transition-all text-xs uppercase tracking-widest">저장하기</button>
                                 </div>
                             </form>
                         </motion.div>

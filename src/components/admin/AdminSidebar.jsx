@@ -1,12 +1,10 @@
 import React from 'react';
-import { LayoutDashboard, MessageSquare, Image, Users, BarChart2, FileText, Settings, LogOut, Send, User, Calendar, School } from 'lucide-react';
-import { supabase } from '../../supabaseClient';
+import { LayoutDashboard, MessageSquare, Users, BarChart2, FileText, Settings, LogOut, User, Calendar, School, Trophy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, isPinned, setIsPinned }) => {
     const navigate = useNavigate();
     const [winWidth, setWinWidth] = React.useState(window.innerWidth);
-    const [menus, setMenus] = React.useState([]);
 
     React.useEffect(() => {
         const handleResize = () => setWinWidth(window.innerWidth);
@@ -14,57 +12,38 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const baseMenus = [
-        { id: 'STATUS', label: '공간 현황', icon: <LayoutDashboard size={20} /> },
-        { id: 'CALENDAR', label: '일정 관리', icon: <Calendar size={20} /> },
-        { id: 'PROGRAMS', label: '프로그램 관리', icon: <Users size={20} /> },
-        { id: 'BOARD', label: '공지사항', icon: <MessageSquare size={20} /> },
-        { id: 'GALLERY', label: '사진첩', icon: <Image size={20} /> },
-        { id: 'GUESTBOOK', label: '방명록', icon: <FileText size={20} /> },
-        { id: 'USERS', label: '이용자 관리', icon: <Users size={20} /> },
-        { id: 'SCHOOLS', label: '학교 관리', icon: <School size={20} /> },
-        { id: 'CHALLENGES', label: '챌린지 관리', icon: <BarChart2 size={20} /> },
-        { id: 'STATISTICS', label: '통계', icon: <BarChart2 size={20} /> },
-        { id: 'LOGS', label: '로그', icon: <FileText size={20} /> },
-        { id: 'REPORTS', label: '운영 리포트', icon: <FileText size={20} /> },
-        { id: 'SETTINGS', label: '설정', icon: <Settings size={20} /> },
+    const menuGroups = [
+        {
+            title: "센터 운영",
+            items: [
+                { id: 'STATUS', label: '공간 현황', icon: <LayoutDashboard size={20} /> },
+                { id: 'CALENDAR', label: '일정 관리', icon: <Calendar size={20} /> },
+                { id: 'PROGRAMS', label: '프로그램 관리', icon: <Users size={20} /> },
+                { id: 'CHALLENGES', label: '챌린지 관리', icon: <Trophy size={20} /> },
+                { id: 'BOARD', label: '공지사항', icon: <MessageSquare size={20} /> },
+            ]
+        },
+        {
+            title: "이용자 관리",
+            items: [
+                { id: 'USERS', label: '이용자 목록', icon: <Users size={20} /> },
+                { id: 'SCHOOLS', label: '학교 관리', icon: <School size={20} /> },
+            ]
+        },
+        {
+            title: "DB 관리",
+            items: [
+                { id: 'STATISTICS', label: '통계', icon: <BarChart2 size={20} /> },
+                { id: 'LOGS', label: '로그', icon: <FileText size={20} /> },
+                { id: 'REPORTS', label: '운영 리포트', icon: <FileText size={20} /> },
+            ]
+        },
+        {
+            items: [
+                { id: 'SETTINGS', label: '설정', icon: <Settings size={20} /> },
+            ]
+        }
     ];
-
-    React.useEffect(() => {
-        const fetchConfig = async () => {
-            try {
-                const { data } = await supabase
-                    .from('notices')
-                    .select('content')
-                    .eq('category', 'SYSTEM')
-                    .eq('title', 'ADMIN_SIDEBAR_CONFIG')
-                    .maybeSingle();
-
-                if (data && data.content) {
-                    const parsed = JSON.parse(data.content);
-                    if (Array.isArray(parsed)) {
-                        const orderedMenus = parsed
-                            .filter(item => item.isVisible)
-                            .map(item => {
-                                const base = baseMenus.find(m => m.id === item.id);
-                                return base ? { ...base, ...item } : null;
-                            })
-                            .filter(Boolean);
-
-                        // Add any new base menus that might not be in the config yet
-                        const extraMenus = baseMenus.filter(bm => !parsed.find(p => p.id === bm.id));
-                        setMenus([...orderedMenus, ...extraMenus]);
-                        return;
-                    }
-                }
-                setMenus(baseMenus);
-            } catch (e) {
-                console.error('Failed to fetch sidebar config:', e);
-                setMenus(baseMenus);
-            }
-        };
-        fetchConfig();
-    }, []);
 
     // Helper to handle menu click and auto-close if in overlay mode
     const handleMenuClick = (menuId) => {
@@ -101,21 +80,32 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
                     <h1 className="text-2xl font-black text-blue-600 tracking-tighter">SCI CENTER</h1>
                     <span className="text-gray-400 font-bold text-[10px] tracking-widest uppercase mt-1">Management System</span>
                 </div>
-                <nav className="flex-1 p-4 py-8 space-y-1.5 overflow-y-auto custom-scrollbar">
-                    {menus.map(menu => (
-                        <button
-                            key={menu.id}
-                            onClick={() => handleMenuClick(menu.id)}
-                            className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeMenu === menu.id
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100 scale-[1.02]'
-                                : 'text-gray-400 hover:bg-gray-50 hover:text-blue-500'
-                                }`}
-                        >
-                            {menu.icon}
-                            <span className="text-sm">{menu.label}</span>
-                        </button>
+
+                <nav className="flex-1 p-4 py-6 space-y-8 overflow-y-auto custom-scrollbar">
+                    {menuGroups.map((group, idx) => (
+                        <div key={idx} className="space-y-2">
+                            {group.title && (
+                                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest px-5 mb-3">{group.title}</h3>
+                            )}
+                            <div className="space-y-1">
+                                {group.items.map(menu => (
+                                    <button
+                                        key={menu.id}
+                                        onClick={() => handleMenuClick(menu.id)}
+                                        className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl font-bold transition-all duration-200 ${activeMenu === menu.id
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-100 scale-[1.02]'
+                                            : 'text-gray-400 hover:bg-gray-50 hover:text-blue-500'
+                                            }`}
+                                    >
+                                        {menu.icon}
+                                        <span className="text-sm">{menu.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     ))}
                 </nav>
+
                 <div className="p-6 border-t border-gray-100 space-y-3 bg-gray-50/50">
                     <button
                         onClick={() => navigate('/student')}

@@ -26,6 +26,7 @@ import { useNotices } from '../hooks/useNotices';
 import { useGuestbook } from '../hooks/useGuestbook';
 import { useProfile } from '../hooks/useProfile';
 import { challengesApi } from '../api/challengesApi';
+import { userApi } from '../api/userApi';
 
 import { parseISO, isWithinInterval, startOfDay, eachDayOfInterval, isSameDay } from 'date-fns';
 
@@ -248,6 +249,12 @@ const StudentDashboard = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
 
+    // Real-time Status State
+    const [locationGroups, setLocationGroups] = useState([]);
+    const [locations, setLocations] = useState([]);
+    const [allUsers, setAllUsers] = useState([]);
+    const [activeUserCountByGroup, setActiveUserCountByGroup] = useState({});
+
     // Hooks
     const { user, setUser, totalHours, visitCount, programCount, fetchStats, updateProfile, loading: profileLoadingState } = useProfile(null);
     const { notices, responses, fetchNotices, handleResponse } = useNotices(user?.id);
@@ -292,6 +299,7 @@ const StudentDashboard = () => {
     const [dashboardConfig, setDashboardConfig] = useState([
         { id: 'stats', label: '활동 통계', isVisible: true, count: 3 },
         { id: 'programs', label: '프로그램 신청', isVisible: true, count: 3 },
+        { id: 'space_status', isVisible: true, count: 0 }, // Add space_status below programs
         { id: 'notices', label: '공지사항', isVisible: true, count: 3 },
         { id: 'gallery', label: '갤러리', isVisible: true, count: 6 }
     ]);
@@ -337,10 +345,18 @@ const StudentDashboard = () => {
 
         const parsedUser = JSON.parse(storedUser);
 
-        // Stabilize user state - only set if different
         if (!user || user.id !== parsedUser.id) {
             setUser(parsedUser);
         }
+
+        // Refresh User Data (to ensure is_leader is up-to-date)
+        userApi.fetchUser(parsedUser.id).then(latestUser => {
+            if (latestUser) {
+                const mergedUser = { ...parsedUser, ...latestUser };
+                setUser(mergedUser);
+                localStorage.setItem('user', JSON.stringify(mergedUser));
+            }
+        });
 
         fetchStats(parsedUser.id).then(res => {
             if (res && res.attendedPrograms) {
@@ -354,8 +370,79 @@ const StudentDashboard = () => {
         fetchChallengeData();
         subscribeToPush(parsedUser.id);
         fetchSchedules();
+        fetchRealtimeStatusData();
         setLoading(false);
+
+        // Realtime Subscription for Logs (Status Update)
+        let debounceTimer;
+        const debouncedFetchStatus = () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                fetchRealtimeStatusData();
+            }, 1000);
+        };
+
+        const subscription = supabase
+            .channel('public:logs_student_dashboard')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, debouncedFetchStatus)
+            .subscribe();
+
+        return () => {
+            clearTimeout(debounceTimer);
+            supabase.removeChannel(subscription);
+        };
     }, [navigate, fetchStats]); // Removed user/setUser from deps to avoid identity loops
+
+    const fetchRealtimeStatusData = async () => {
+        try {
+            const [usersRes, locRes, groupRes, logsRes] = await Promise.all([
+                supabase.from('users').select('id, name, user_group, role'),
+                supabase.from('locations').select('id, group_id'),
+                supabase.from('location_groups').select('id, name'),
+                supabase.from('logs').select('user_id, location_id, type').order('created_at', { ascending: false }).limit(3000)
+            ]);
+
+            const fetchedUsers = usersRes.data || [];
+            const fetchedLocations = locRes.data || [];
+            const fetchedGroups = groupRes.data || [];
+            const fetchedLogs = logsRes.data ? [...logsRes.data].reverse() : [];
+
+            setAllUsers(fetchedUsers);
+            setLocations(fetchedLocations);
+            setLocationGroups(fetchedGroups);
+
+            const adminIdsSet = new Set(fetchedUsers.filter(u =>
+                u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
+            ).map(u => u.id));
+
+            const userCurrentLocation = {};
+            fetchedLogs.forEach(log => {
+                if (log.type === 'CHECKIN' || log.type === 'MOVE') userCurrentLocation[log.user_id] = log.location_id;
+                else if (log.type === 'CHECKOUT') userCurrentLocation[log.user_id] = null;
+            });
+
+            const groupCounts = {};
+            fetchedGroups.forEach(g => { groupCounts[g.id] = 0; });
+            groupCounts['unassigned'] = 0; // fallback
+
+            Object.entries(userCurrentLocation).forEach(([uid, locId]) => {
+                if (locId && !adminIdsSet.has(uid)) {
+                    const loc = fetchedLocations.find(l => l.id === locId);
+                    if (loc && loc.group_id) {
+                        if (groupCounts[loc.group_id] !== undefined) {
+                            groupCounts[loc.group_id]++;
+                        }
+                    } else if (loc) {
+                        groupCounts['unassigned']++;
+                    }
+                }
+            });
+
+            setActiveUserCountByGroup(groupCounts);
+        } catch (err) {
+            console.error('Error fetching realtime status:', err);
+        }
+    };
 
     const fetchSchedules = async () => {
         try {
@@ -783,7 +870,10 @@ const StudentDashboard = () => {
                                 <div className="flex items-center gap-3 mb-4">
                                     <UserAvatar user={selectedGuestPost.users} size="w-10 h-10" />
                                     <div>
-                                        <div className="font-bold text-gray-800 text-sm">{selectedGuestPost.users?.name}</div>
+                                        <div className="font-bold text-gray-800 text-sm flex items-center gap-1">
+                                            {selectedGuestPost.users?.name}
+                                            {selectedGuestPost.users?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                        </div>
                                         <div className="text-xs text-gray-400">{new Date(selectedGuestPost.created_at).toLocaleString()}</div>
                                     </div>
                                 </div>
@@ -816,7 +906,10 @@ const StudentDashboard = () => {
                                             <div className="flex justify-between items-baseline mb-1">
                                                 <div className="flex items-center gap-2">
                                                     <UserAvatar user={c.users} size="w-4 h-4" textSize="text-[8px]" />
-                                                    <span className="font-bold text-sm text-gray-800">{c.users?.name}</span>
+                                                    <span className="font-bold text-sm text-gray-800 flex items-center gap-1">
+                                                        {c.users?.name}
+                                                        {c.users?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                                    </span>
                                                 </div>
                                                 <div className="flex justify-between items-start mb-2">
                                                     <span className="font-bold text-gray-900">{c.users?.name}</span>
@@ -1008,8 +1101,9 @@ const StudentDashboard = () => {
                                         </motion.div>
                                         <div className="flex flex-col min-w-0">
                                             <p className="text-white/60 text-[10px] font-black tracking-widest uppercase mb-0.5">{user?.school || 'WELCOME'}</p>
-                                            <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-tight text-white whitespace-nowrap">
+                                            <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-tight text-white whitespace-nowrap flex items-center gap-2">
                                                 {user?.name} 님!
+                                                {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                             </h1>
                                         </div>
                                     </div>
@@ -1097,14 +1191,13 @@ const StudentDashboard = () => {
                     })()}
 
                     <div className="p-2.5 pt-2.5 pb-10 space-y-2.5 relative z-0">
-
                         {dashboardConfig.map((config) => {
                             if (!config.isVisible) return null;
 
                             switch (config.id) {
                                 case 'stats':
                                     return (
-                                        <div key="stats" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-around">
+                                        <div key="stats" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-around mb-2">
                                             <div className="flex flex-col items-center flex-1">
                                                 <p className="text-gray-400 text-[9px] mb-1 font-black uppercase tracking-wider">이용시간</p>
                                                 <div className="flex items-baseline gap-1">
@@ -1137,7 +1230,6 @@ const StudentDashboard = () => {
                                         </div>
                                     );
 
-
                                 case 'programs':
                                     return (
                                         <div key="programs" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
@@ -1162,7 +1254,7 @@ const StudentDashboard = () => {
                                     return (
                                         <div key="notices" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                                             <h3 className="font-bold text-gray-800 mb-3 flex justify-between items-center text-sm">
-                                                공지사항
+                                                📢 공지사항
                                                 <button onClick={() => setActiveTab(TAB_NAMES.NOTICES)} className="text-[10px] text-blue-500 font-bold">더보기</button>
                                             </h3>
                                             <ul className="space-y-2">
@@ -1210,164 +1302,195 @@ const StudentDashboard = () => {
                                     return null;
                             }
                         })}
-                    </div>
+
+                        {/* Real-time Space Status (공간현황) placed below everything */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-2 mt-2">
+                            <h3 className="font-bold text-gray-800 mb-3 flex items-center text-sm gap-2">
+                                🟢 실시간 공간 현황
+                            </h3>
+                            <div className="flex justify-around items-center">
+                                {locationGroups.map((group, idx) => (
+                                    <React.Fragment key={group.id}>
+                                        <div className="flex flex-col items-center flex-1">
+                                            <p className="text-gray-400 text-[9px] mb-1 font-black uppercase tracking-wider">{group.name}</p>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-2xl font-black text-blue-600 tracking-tighter">
+                                                    {activeUserCountByGroup[group.id] || 0}
+                                                </span>
+                                                <span className="text-blue-300 text-[9px] font-black">명</span>
+                                            </div>
+                                        </div>
+                                        {idx < locationGroups.length - 1 && (
+                                            <div className="w-px h-8 bg-gray-100" />
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        </div>
+                    </div >
 
                 </>
             )}
 
-            {activeTab === TAB_NAMES.CHALLENGES && (
-                <div className="p-2.5 pt-10 pb-32 relative overflow-hidden min-h-screen">
-                    {/* Decorative Background Elements */}
-                    <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-blue-400/10 rounded-full blur-3xl -z-10" />
-                    <div className="absolute bottom-[20%] left-[-10%] w-48 h-48 bg-pink-400/10 rounded-full blur-3xl -z-10" />
+            {
+                activeTab === TAB_NAMES.CHALLENGES && (
+                    <div className="p-2.5 pt-10 pb-32 relative overflow-hidden min-h-screen">
+                        {/* Decorative Background Elements */}
+                        <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-blue-400/10 rounded-full blur-3xl -z-10" />
+                        <div className="absolute bottom-[20%] left-[-10%] w-48 h-48 bg-pink-400/10 rounded-full blur-3xl -z-10" />
 
-                    <div className="flex justify-between items-end mb-8 px-2">
-                        <div>
-                            <h1 className="text-3xl font-black text-gray-800 flex items-center gap-3">
-                                챌린지 🏆
-                                <span className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-full font-black shadow-lg shadow-blue-200">
-                                    {dynamicChallenges.filter(ch => getBadgeProgress(ch, { visitCount, programCount, specialStats }).earned).length} / {dynamicChallenges.length}
-                                </span>
-                            </h1>
-                            <p className="text-gray-400 text-sm mt-2 font-bold">활동을 통해 멋진 뱃지를 획득해보세요!</p>
+                        <div className="flex justify-between items-end mb-8 px-2">
+                            <div>
+                                <h1 className="text-3xl font-black text-gray-800 flex items-center gap-3">
+                                    챌린지 🏆
+                                    <span className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-full font-black shadow-lg shadow-blue-200">
+                                        {dynamicChallenges.filter(ch => getBadgeProgress(ch, { visitCount, programCount, specialStats }).earned).length} / {dynamicChallenges.length}
+                                    </span>
+                                </h1>
+                                <p className="text-gray-400 text-sm mt-2 font-bold">활동을 통해 멋진 뱃지를 획득해보세요!</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-12">
+                            {challengeCategories.map(cat => {
+                                const catChallenges = dynamicChallenges.filter(ch => ch.category_id === cat.id);
+                                if (catChallenges.length === 0) return null;
+
+                                return (
+                                    <div key={cat.id} className="bg-white/60 backdrop-blur-xl p-8 rounded-[3rem] border border-white shadow-[0_20px_50px_rgba(0,0,0,0.05)]">
+                                        <div className="mb-8 border-b border-gray-100 pb-4">
+                                            <h2 className="text-xl font-black text-gray-800">{cat.name}</h2>
+                                            {cat.description && <p className="text-xs text-gray-400 font-bold mt-1">{cat.description}</p>}
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-y-12 gap-x-4">
+                                            {catChallenges.map(badge => (
+                                                <BadgeItem
+                                                    key={badge.id}
+                                                    badge={badge}
+                                                    visitCount={visitCount}
+                                                    programCount={programCount}
+                                                    specialStats={specialStats}
+                                                    onClick={setSelectedBadge}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
-
-                    <div className="space-y-12">
-                        {challengeCategories.map(cat => {
-                            const catChallenges = dynamicChallenges.filter(ch => ch.category_id === cat.id);
-                            if (catChallenges.length === 0) return null;
-
-                            return (
-                                <div key={cat.id} className="bg-white/60 backdrop-blur-xl p-8 rounded-[3rem] border border-white shadow-[0_20px_50px_rgba(0,0,0,0.05)]">
-                                    <div className="mb-8 border-b border-gray-100 pb-4">
-                                        <h2 className="text-xl font-black text-gray-800">{cat.name}</h2>
-                                        {cat.description && <p className="text-xs text-gray-400 font-bold mt-1">{cat.description}</p>}
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-y-12 gap-x-4">
-                                        {catChallenges.map(badge => (
-                                            <BadgeItem
-                                                key={badge.id}
-                                                badge={badge}
-                                                visitCount={visitCount}
-                                                programCount={programCount}
-                                                specialStats={specialStats}
-                                                onClick={setSelectedBadge}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {activeTab === TAB_NAMES.PROGRAMS && (
-                <div className="p-2.5 pt-8 pb-32">
-                    <h1 className="text-3xl font-black text-gray-800 mb-2">센터 프로그램 🚀</h1>
-                    <p className="text-gray-500 text-sm mb-6">다양한 프로그램에 참여해보세요!</p>
-
-                    <div className="relative mb-6 group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="프로그램 검색..."
-                            className="w-full pl-12 p-4 bg-white border border-gray-100 rounded-[1.5rem] shadow-lg shadow-gray-200/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                        />
-                    </div>
-
-                    <div className="space-y-4">
-                        {filteredPrograms.length === 0 ? (
-                            <div className="text-center py-20 text-gray-400">진행 중인 프로그램이 없습니다.</div>
-                        ) : (
-                            filteredPrograms.map(n => (
-                                <ProgramCard
-                                    key={n.id}
-                                    program={{ ...n, responseStatus: responses[n.id] }}
-                                    onClick={openNoticeDetail}
-                                />
-                            ))
-                        )}
-                    </div>
-                </div>
-            )
+                )
             }
 
-            {activeTab === TAB_NAMES.NOTICES && (
-                <div className="p-2.5 pt-8 pb-32">
-                    <h1 className="text-3xl font-black text-gray-800 mb-6">공지사항 📢</h1>
-                    <div className="relative mb-6">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="검색어를 입력하세요..." className="w-full pl-12 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+            {
+                activeTab === TAB_NAMES.PROGRAMS && (
+                    <div className="p-2.5 pt-8 pb-32">
+                        <h1 className="text-3xl font-black text-gray-800 mb-2">센터 프로그램 🚀</h1>
+                        <p className="text-gray-500 text-sm mb-6">다양한 프로그램에 참여해보세요!</p>
+
+                        <div className="relative mb-6 group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="프로그램 검색..."
+                                className="w-full pl-12 p-4 bg-white border border-gray-100 rounded-[1.5rem] shadow-lg shadow-gray-200/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-4">
+                            {filteredPrograms.length === 0 ? (
+                                <div className="text-center py-20 text-gray-400">진행 중인 프로그램이 없습니다.</div>
+                            ) : (
+                                filteredPrograms.map(n => (
+                                    <ProgramCard
+                                        key={n.id}
+                                        program={{ ...n, responseStatus: responses[n.id] }}
+                                        onClick={openNoticeDetail}
+                                    />
+                                ))
+                            )}
+                        </div>
                     </div>
-                    <div className="space-y-4">
-                        {filteredNotices.length === 0 ? (
-                            <div className="text-center py-20 text-gray-400">등록된 공지사항이 없습니다.</div>
-                        ) : (
-                            filteredNotices.map(n => (
-                                <motion.div
-                                    key={n.id}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    onClick={() => openNoticeDetail(n)}
-                                    className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 btn-tactile cursor-pointer hover:shadow-md"
-                                >
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="flex items-center gap-2">
-                                            {n.is_sticky && (
-                                                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-600 rounded-full text-[10px] font-black shadow-sm whitespace-nowrap shrink-0">
-                                                    <Pin size={12} className="fill-orange-600" /> 공지
-                                                </span>
-                                            )}
-                                            <h3 className="font-extrabold text-gray-800 text-base leading-tight line-clamp-1">{n.title}</h3>
-                                        </div>
-                                        {n.is_recruiting && <span className="px-2.5 py-1 bg-indigo-100 text-indigo-600 rounded-full text-[10px] font-black">모집중</span>}
-                                    </div>
-                                    {/* Thumbnail */}
-                                    {(n.images?.length > 0 || n.image_url) && (
-                                        <div className="mb-4 rounded-2xl overflow-hidden h-36 bg-gray-50 border border-gray-100 relative shadow-inner">
-                                            <img src={n.images?.length > 0 ? n.images[0] : n.image_url} alt="thumbnail" className="w-full h-full object-cover" />
-                                            {n.images?.length > 1 && <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full border border-white/10">+{n.images.length - 1}</div>}
-                                        </div>
-                                    )}
-                                    <p className="text-sm text-gray-500 line-clamp-2 mb-4 leading-relaxed font-medium">{stripHtml(n.content)}</p>
-                                    <div className="flex justify-between items-center text-[10px] text-gray-400 border-t border-gray-50 pt-4 font-bold uppercase tracking-wider">
-                                        <span>{new Date(n.created_at).toLocaleDateString()}</span>
-                                        <span className="flex items-center gap-1.5 text-blue-600">상세보기 <ChevronRight size={12} /></span>
-                                    </div>
-                                </motion.div>
-                            ))
-                        )}
-                    </div>
-                </div>
-            )
+                )
             }
 
-            {activeTab === TAB_NAMES.GALLERY && (
-                <div className="p-2.5 pt-8 pb-32">
-                    <h1 className="text-3xl font-black text-gray-800 mb-2">스처 갤러리 📸</h1>
-                    <p className="text-gray-500 text-sm mb-6">우리들의 추억을 모아보세요</p>
-
-                    <div className="grid grid-cols-3 gap-1.5 rounded-2xl overflow-hidden">
-                        {galleryNotices.map(n => {
-                            const thumb = n.images?.length > 0 ? n.images[0] : n.image_url;
-                            if (!thumb) return null;
-                            return (
-                                <div key={n.id} onClick={() => openNoticeDetail(n, galleryNotices)} className="relative aspect-[4/5] bg-gray-100 overflow-hidden cursor-pointer group rounded-xl border border-gray-100/50">
-                                    <img src={thumb} alt={n.title} className="w-full h-full object-cover transition duration-300 group-hover:scale-110" />
-                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                                        {n.images?.length > 1 && <ImageIcon className="text-white drop-shadow-md" size={20} />}
-                                    </div>
-                                </div>
-                            )
-                        })}
+            {
+                activeTab === TAB_NAMES.NOTICES && (
+                    <div className="p-2.5 pt-8 pb-32">
+                        <h1 className="text-3xl font-black text-gray-800 mb-6">공지사항 📢</h1>
+                        <div className="relative mb-6">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="검색어를 입력하세요..." className="w-full pl-12 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div className="space-y-4">
+                            {filteredNotices.length === 0 ? (
+                                <div className="text-center py-20 text-gray-400">등록된 공지사항이 없습니다.</div>
+                            ) : (
+                                filteredNotices.map(n => (
+                                    <motion.div
+                                        key={n.id}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        onClick={() => openNoticeDetail(n)}
+                                        className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 btn-tactile cursor-pointer hover:shadow-md"
+                                    >
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="flex items-center gap-2">
+                                                {n.is_sticky && (
+                                                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-600 rounded-full text-[10px] font-black shadow-sm whitespace-nowrap shrink-0">
+                                                        <Pin size={12} className="fill-orange-600" /> 공지
+                                                    </span>
+                                                )}
+                                                <h3 className="font-extrabold text-gray-800 text-base leading-tight line-clamp-1">{n.title}</h3>
+                                            </div>
+                                            {n.is_recruiting && <span className="px-2.5 py-1 bg-indigo-100 text-indigo-600 rounded-full text-[10px] font-black">모집중</span>}
+                                        </div>
+                                        {/* Thumbnail */}
+                                        {(n.images?.length > 0 || n.image_url) && (
+                                            <div className="mb-4 rounded-2xl overflow-hidden h-36 bg-gray-50 border border-gray-100 relative shadow-inner">
+                                                <img src={n.images?.length > 0 ? n.images[0] : n.image_url} alt="thumbnail" className="w-full h-full object-cover" />
+                                                {n.images?.length > 1 && <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full border border-white/10">+{n.images.length - 1}</div>}
+                                            </div>
+                                        )}
+                                        <p className="text-sm text-gray-500 line-clamp-2 mb-4 leading-relaxed font-medium">{stripHtml(n.content)}</p>
+                                        <div className="flex justify-between items-center text-[10px] text-gray-400 border-t border-gray-50 pt-4 font-bold uppercase tracking-wider">
+                                            <span>{new Date(n.created_at).toLocaleDateString()}</span>
+                                            <span className="flex items-center gap-1.5 text-blue-600">상세보기 <ChevronRight size={12} /></span>
+                                        </div>
+                                    </motion.div>
+                                ))
+                            )}
+                        </div>
                     </div>
-                    {galleryNotices.length === 0 && <div className="text-center py-20 text-gray-400 text-sm italic">등록된 사진이 없습니다.</div>}
-                </div>
-            )}
+                )
+            }
+
+            {
+                activeTab === TAB_NAMES.GALLERY && (
+                    <div className="p-2.5 pt-8 pb-32">
+                        <h1 className="text-3xl font-black text-gray-800 mb-2">스처 갤러리 📸</h1>
+                        <p className="text-gray-500 text-sm mb-6">우리들의 추억을 모아보세요</p>
+
+                        <div className="grid grid-cols-3 gap-1.5 rounded-2xl overflow-hidden">
+                            {galleryNotices.map(n => {
+                                const thumb = n.images?.length > 0 ? n.images[0] : n.image_url;
+                                if (!thumb) return null;
+                                return (
+                                    <div key={n.id} onClick={() => openNoticeDetail(n, galleryNotices)} className="relative aspect-[4/5] bg-gray-100 overflow-hidden cursor-pointer group rounded-xl border border-gray-100/50">
+                                        <img src={thumb} alt={n.title} className="w-full h-full object-cover transition duration-300 group-hover:scale-110" />
+                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                            {n.images?.length > 1 && <ImageIcon className="text-white drop-shadow-md" size={20} />}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                        {galleryNotices.length === 0 && <div className="text-center py-20 text-gray-400 text-sm italic">등록된 사진이 없습니다.</div>}
+                    </div>
+                )
+            }
 
             {
                 activeTab === TAB_NAMES.MESSAGES && (
@@ -1438,84 +1561,87 @@ const StudentDashboard = () => {
                             <Plus size={28} strokeWidth={2.5} />
                         </button>
                     </div>
-                )}
+                )
+            }
 
-            {activeTab === TAB_NAMES.CALENDAR && (
-                <div className="p-2.5 pt-8 pb-32">
-                    <h1 className="text-3xl font-black text-gray-800 mb-2">캘린더 📅</h1>
-                    <p className="text-gray-500 text-sm mb-6">센터의 전체 일정을 한눈에 확인하세요</p>
+            {
+                activeTab === TAB_NAMES.CALENDAR && (
+                    <div className="p-2.5 pt-8 pb-32">
+                        <h1 className="text-3xl font-black text-gray-800 mb-2">캘린더 📅</h1>
+                        <p className="text-gray-500 text-sm mb-6">센터의 전체 일정을 한눈에 확인하세요</p>
 
-                    <div className="space-y-4">
-                        {/* Group schedules by date or simple list for now, 
+                        <div className="space-y-4">
+                            {/* Group schedules by date or simple list for now, 
                             but a list of upcoming events is often better for mobile */}
-                        {(() => {
-                            const sortedEvents = [...adminSchedules, ...notices.filter(n => n.category === CATEGORIES.PROGRAM)]
-                                .map(e => {
-                                    const isProgram = e.category === CATEGORIES.PROGRAM;
-                                    const cat = calendarCategories.find(c => c.id === e.category_id);
-                                    let catName = isProgram ? '프로그램' : cat?.name || '기타';
-                                    let baseTitle = e.title;
+                            {(() => {
+                                const sortedEvents = [...adminSchedules, ...notices.filter(n => n.category === CATEGORIES.PROGRAM)]
+                                    .map(e => {
+                                        const isProgram = e.category === CATEGORIES.PROGRAM;
+                                        const cat = calendarCategories.find(c => c.id === e.category_id);
+                                        let catName = isProgram ? '프로그램' : cat?.name || '기타';
+                                        let baseTitle = e.title;
 
-                                    if (cat?.name === '휴관') {
-                                        try {
-                                            const parsed = JSON.parse(e.content);
-                                            if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
-                                                const spaces = parsed.closed_spaces.map(s => s === 'HYPHEN' ? '하이픈' : '이높').join(', ');
-                                                if (spaces) baseTitle = `[${spaces}] ${e.title}`;
-                                            }
-                                        } catch (err) { }
-                                    }
+                                        if (cat?.name === '휴관') {
+                                            try {
+                                                const parsed = JSON.parse(e.content);
+                                                if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                                                    const spaces = parsed.closed_spaces.map(s => s === 'HYPHEN' ? '하이픈' : '이높').join(', ');
+                                                    if (spaces) baseTitle = `[${spaces}] ${e.title}`;
+                                                }
+                                            } catch (err) { }
+                                        }
 
-                                    const start = startOfDay(new Date(e.start_date || e.program_date));
-                                    const end = isProgram ? start : startOfDay(new Date(e.end_date || e.start_date));
+                                        const start = startOfDay(new Date(e.start_date || e.program_date));
+                                        const end = isProgram ? start : startOfDay(new Date(e.end_date || e.start_date));
 
-                                    return {
-                                        ...e,
-                                        start,
-                                        end,
-                                        title: baseTitle,
-                                        type: isProgram ? 'PROGRAM' : 'SCHEDULE',
-                                        catName: catName
-                                    };
-                                })
-                                .filter(e => e.end >= startOfDay(new Date()))
-                                .sort((a, b) => a.start - b.start);
+                                        return {
+                                            ...e,
+                                            start,
+                                            end,
+                                            title: baseTitle,
+                                            type: isProgram ? 'PROGRAM' : 'SCHEDULE',
+                                            catName: catName
+                                        };
+                                    })
+                                    .filter(e => e.end >= startOfDay(new Date()))
+                                    .sort((a, b) => a.start - b.start);
 
-                            if (sortedEvents.length === 0) return <div className="text-center py-20 text-gray-400">등록된 일정이 없습니다.</div>;
+                                if (sortedEvents.length === 0) return <div className="text-center py-20 text-gray-400">등록된 일정이 없습니다.</div>;
 
-                            return sortedEvents.map((event, idx) => (
-                                <motion.div
-                                    key={idx}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: idx * 0.05 }}
-                                    className="p-4 bg-white rounded-[1.5rem] border border-gray-100 shadow-sm flex gap-4 items-center group active:scale-[0.98] transition-all"
-                                    onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
-                                >
-                                    <div className="flex flex-col items-center justify-center min-w-[70px] py-1 border-r border-gray-50 pr-4">
-                                        <span className="text-[10px] font-black text-gray-400 uppercase">{event.start.toLocaleString('ko-KR', { month: 'short' })}</span>
-                                        <span className="text-xl font-black text-gray-800 tracking-tighter">
-                                            {isSameDay(event.start, event.end) ? event.start.getDate() : `${event.start.getDate()}~${event.end.getDate()}`}
-                                        </span>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight ${event.type === 'PROGRAM' ? 'bg-pink-100 text-pink-600' :
-                                                event.catName === '휴관' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
-                                                }`}>
-                                                {event.catName}
+                                return sortedEvents.map((event, idx) => (
+                                    <motion.div
+                                        key={idx}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        className="p-4 bg-white rounded-[1.5rem] border border-gray-100 shadow-sm flex gap-4 items-center group active:scale-[0.98] transition-all"
+                                        onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
+                                    >
+                                        <div className="flex flex-col items-center justify-center min-w-[70px] py-1 border-r border-gray-50 pr-4">
+                                            <span className="text-[10px] font-black text-gray-400 uppercase">{event.start.toLocaleString('ko-KR', { month: 'short' })}</span>
+                                            <span className="text-xl font-black text-gray-800 tracking-tighter">
+                                                {isSameDay(event.start, event.end) ? event.start.getDate() : `${event.start.getDate()}~${event.end.getDate()}`}
                                             </span>
-                                            {event.type === 'PROGRAM' && <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1"><Clock size={10} /> {new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>}
                                         </div>
-                                        <h4 className="font-bold text-gray-800 text-sm truncate">{event.title}</h4>
-                                    </div>
-                                    <ChevronRight size={16} className="text-gray-300 group-active:text-blue-500 transition-colors" />
-                                </motion.div>
-                            ));
-                        })()}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight ${event.type === 'PROGRAM' ? 'bg-pink-100 text-pink-600' :
+                                                    event.catName === '휴관' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+                                                    }`}>
+                                                    {event.catName}
+                                                </span>
+                                                {event.type === 'PROGRAM' && <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1"><Clock size={10} /> {new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>}
+                                            </div>
+                                            <h4 className="font-bold text-gray-800 text-sm truncate">{event.title}</h4>
+                                        </div>
+                                        <ChevronRight size={16} className="text-gray-300 group-active:text-blue-500 transition-colors" />
+                                    </motion.div>
+                                ));
+                            })()}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Bottom Navigation */}
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 flex justify-around items-center px-4 py-3 z-[120] safe-area-bottom shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-[2.5rem]">

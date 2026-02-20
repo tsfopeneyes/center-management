@@ -39,8 +39,10 @@ const AdminDashboard = () => {
     // Data
     const [users, setUsers] = useState([]);
     const [locations, setLocations] = useState([]);
+    const [locationGroups, setLocationGroups] = useState([]);
     const [notices, setNotices] = useState([]);
     const [allLogs, setAllLogs] = useState([]);
+    const [schoolLogs, setSchoolLogs] = useState([]);
     const [responses, setResponses] = useState([]);
     const [zoneStats, setZoneStats] = useState({});
     const [dailyVisitStats, setDailyVisitStats] = useState({});
@@ -89,6 +91,9 @@ const AdminDashboard = () => {
 
             const { data: locData } = await supabase.from('locations').select('*').order('id');
             setLocations(locData || []);
+
+            const { data: lgData } = await supabase.from('location_groups').select('*').order('created_at');
+            setLocationGroups(lgData || []);
 
             const { data: noticeData } = await supabase.from('notices').select('*')
                 .order('is_sticky', { ascending: false })
@@ -149,7 +154,11 @@ const AdminDashboard = () => {
             setCurrentLocations(userCurrentLocation);
             setAllLogs(logs || []);
 
-            return { users: userData || [], locations: locData || [], notices: noticeData || [], responses: responseData || [], allLogs: logs || [] };
+            // Fetch School Logs for AdminLogs
+            const { data: sLogs } = await supabase.from('school_logs').select('*, users(name), schools(name)').order('date', { ascending: false });
+            setSchoolLogs(sLogs || []);
+
+            return { users: userData || [], locations: locData || [], locationGroups: lgData || [], notices: noticeData || [], responses: responseData || [], allLogs: logs || [], schoolLogs: sLogs || [] };
 
         } catch (error) { console.error(error); }
         finally {
@@ -224,10 +233,10 @@ const AdminDashboard = () => {
     }, []);
 
     // Weekday 10PM Auto Sync Scheduler
-    const syncDataRef = React.useRef({ users, allLogs, responses, notices, locations });
+    const syncDataRef = React.useRef({ users, allLogs, responses, notices, locations, schoolLogs });
     useEffect(() => {
-        syncDataRef.current = { users, allLogs, responses, notices, locations };
-    }, [users, allLogs, responses, notices, locations]);
+        syncDataRef.current = { users, allLogs, responses, notices, locations, schoolLogs };
+    }, [users, allLogs, responses, notices, locations, schoolLogs]);
 
     useEffect(() => {
         const checkAutoSync = () => {
@@ -258,7 +267,7 @@ const AdminDashboard = () => {
         try {
             // Need latest visit notes for the sync
             const { data: vNotes } = await supabase.from('visit_notes').select('*');
-            const { users, allLogs, responses, notices, locations } = syncDataRef.current;
+            const { users, allLogs, responses, notices, locations, schoolLogs } = syncDataRef.current;
 
             await performFullSyncToGoogleSheets({
                 webhookUrl,
@@ -267,6 +276,7 @@ const AdminDashboard = () => {
                 responses,
                 notices,
                 locations,
+                schoolLogs,
                 visitNotes: vNotes,
                 processUserAnalytics,
                 processProgramAnalytics,
@@ -351,13 +361,13 @@ const AdminDashboard = () => {
                         <AdminCalendar notices={notices} fetchData={fetchData} />
                     )}
                     {activeMenu === 'PROGRAMS' && (
-                        <AdminBoard mode="PROGRAM" notices={notices} fetchData={fetchData} />
+                        <AdminBoard mode="PROGRAM" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} />
                     )}
                     {activeMenu === 'BOARD' && (
-                        <AdminBoard mode="NOTICE" notices={notices} fetchData={fetchData} />
+                        <AdminBoard mode="NOTICE" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} />
                     )}
                     {activeMenu === 'GALLERY' && (
-                        <AdminBoard mode="GALLERY" notices={notices} fetchData={fetchData} />
+                        <AdminBoard mode="GALLERY" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} />
                     )}
                     {activeMenu === 'GUESTBOOK' && (
                         <AdminGuestbook />
@@ -375,16 +385,16 @@ const AdminDashboard = () => {
                         <AdminMessages users={users} />
                     )}
                     {activeMenu === 'STATISTICS' && (
-                        <AdminStatistics logs={allLogs} locations={locations} users={users} notices={notices} responses={responses} isLoading={isStatsLoading} />
+                        <AdminStatistics logs={allLogs} schoolLogs={schoolLogs} locations={locations} locationGroups={locationGroups} users={users} notices={notices} responses={responses} isLoading={isStatsLoading} />
                     )}
                     {activeMenu === 'LOGS' && (
-                        <AdminLogs allLogs={allLogs} users={users} locations={locations} notices={notices} fetchData={fetchData} />
+                        <AdminLogs allLogs={allLogs} schoolLogs={schoolLogs} users={users} locations={locations} notices={notices} fetchData={fetchData} />
                     )}
                     {activeMenu === 'REPORTS' && (
                         <AdminReport allLogs={allLogs} users={users} locations={locations} notices={notices} />
                     )}
                     {activeMenu === 'SETTINGS' && (
-                        <AdminSettings currentAdmin={currentAdmin} locations={locations} notices={notices} fetchData={fetchData} users={users} allLogs={allLogs} responses={responses} />
+                        <AdminSettings currentAdmin={currentAdmin} locations={locations} locationGroups={locationGroups} notices={notices} fetchData={fetchData} users={users} allLogs={allLogs} responses={responses} schoolLogs={schoolLogs} />
                     )}
                 </main>
             </div>

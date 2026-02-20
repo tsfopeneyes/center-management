@@ -7,14 +7,24 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-f
 const AdminReport = ({ allLogs, users, locations, notices }) => {
     const [loading, setLoading] = useState(false);
     const [report, setReport] = useState(null);
-    const [period, setPeriod] = useState('CUSTOM'); // WEEK, MONTH, CUSTOM
+    const [period, setPeriod] = useState('CUSTOM'); // WEEK, MONTH, YEAR, CUSTOM
+    const [selectionMode, setSelectionMode] = useState('RANGE'); // 'RANGE', 'MONTH', 'YEAR'
+    const [targetGroup, setTargetGroup] = useState('ALL'); // 'ALL', 'YOUTH'
+
+    // Initial Date Range
     const [dateRange, setDateRange] = useState({
         start: format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'),
         end: format(new Date(), 'yyyy-MM-dd')
     });
 
+    // Month/Year Select State
+    const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
     const setPeriodPreset = (type) => {
         let start, end = new Date();
+        setSelectionMode('RANGE'); // Using Preset means Range Mode in effect for API
+
         if (type === 'THIS_WEEK') {
             start = startOfWeek(new Date(), { weekStartsOn: 1 });
         } else if (type === 'LAST_WEEK') {
@@ -36,13 +46,37 @@ const AdminReport = ({ allLogs, users, locations, notices }) => {
         setPeriod(type);
     };
 
+    const handleMonthSelect = (e) => {
+        const val = e.target.value; // yyyy-MM
+        setSelectedMonth(val);
+        const [y, m] = val.split('-').map(Number);
+        const date = new Date(y, m - 1, 1);
+        setDateRange({
+            start: format(startOfMonth(date), 'yyyy-MM-dd'),
+            end: format(endOfMonth(date), 'yyyy-MM-dd')
+        });
+        setPeriod('MONTH_PICK');
+    };
+
+    const handleYearSelect = (e) => {
+        const y = parseInt(e.target.value);
+        setSelectedYear(y);
+        const start = new Date(y, 0, 1);
+        const end = new Date(y, 11, 31);
+        setDateRange({
+            start: format(start, 'yyyy-MM-dd'),
+            end: format(end, 'yyyy-MM-dd')
+        });
+        setPeriod('YEAR_PICK');
+    };
+
     const generateReport = async () => {
         setLoading(true);
         try {
             const start = new Date(dateRange.start);
             const end = new Date(dateRange.end);
 
-            const result = analyticsUtils.processOperationReport(allLogs, users, locations, start, end);
+            const result = analyticsUtils.processOperationReport(allLogs, users, locations, start, end, targetGroup);
             setReport(result);
         } catch (err) {
             console.error(err);
@@ -54,49 +88,95 @@ const AdminReport = ({ allLogs, users, locations, notices }) => {
 
     return (
         <div className="space-y-6 animate-fade-in-up">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50/50 p-6 rounded-3xl gap-4 border border-gray-100">
+            <div className="p-6 md:p-10 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-blue-50/20">
                 <div>
-                    <h2 className="text-2xl font-black text-gray-800">운영 데이터 리포트</h2>
-                    <p className="text-gray-500 text-sm font-bold">센터 이용 및 프로그램 참여 통계를 리포트 형식으로 추출합니다.</p>
+                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tighter flex items-center gap-3">
+                        <FileText className="text-blue-600" size={32} />
+                        운영 데이터 리포트
+                    </h2>
+                    <p className="text-gray-500 text-sm font-medium mt-1">센터 이용 및 프로그램 참여 통계를 리포트 형식으로 추출합니다.</p>
                 </div>
-                <div className="flex flex-wrap gap-2 items-center">
-                    <div className="flex bg-white border border-gray-200 rounded-xl overflow-hidden p-1 gap-1">
-                        {['THIS_WEEK', 'LAST_WEEK', 'THIS_MONTH', 'LAST_MONTH'].map(p => (
+
+                <div className="flex flex-col gap-3 w-full xl:w-auto">
+                    {/* Top Row: Filters */}
+                    <div className="flex flex-wrap gap-2 items-center justify-end">
+                        {/* Target Group Toggle */}
+                        <div className="flex bg-white border border-gray-200 rounded-xl overflow-hidden p-1 gap-1">
                             <button
-                                key={p}
-                                onClick={() => setPeriodPreset(p)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${period === p ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                                onClick={() => setTargetGroup('ALL')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${targetGroup === 'ALL' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
-                                {p === 'THIS_WEEK' ? '이번 주' : p === 'LAST_WEEK' ? '지난 주' : p === 'THIS_MONTH' ? '이번 달' : '지난 달'}
+                                전체 (청소년+졸업생)
                             </button>
-                        ))}
+                            <button
+                                onClick={() => setTargetGroup('YOUTH')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${targetGroup === 'YOUTH' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                청소년만
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-1.5 rounded-xl font-bold text-gray-600 text-sm">
-                        <Calendar size={14} className="text-gray-400" />
-                        <input
-                            type="date"
-                            value={dateRange.start}
-                            onChange={(e) => { setDateRange(prev => ({ ...prev, start: e.target.value })); setPeriod('CUSTOM'); }}
-                            className="bg-transparent outline-none"
-                        />
-                        <span className="text-gray-300">~</span>
-                        <input
-                            type="date"
-                            value={dateRange.end}
-                            onChange={(e) => { setDateRange(prev => ({ ...prev, end: e.target.value })); setPeriod('CUSTOM'); }}
-                            className="bg-transparent outline-none"
-                        />
-                    </div>
+                    {/* Bottom Row: Date Selection & Generate */}
+                    <div className="flex flex-wrap gap-2 items-center justify-end">
+                        <div className="flex bg-white border border-gray-200 rounded-xl overflow-hidden p-1 gap-1">
+                            <button onClick={() => { setSelectionMode('RANGE'); setPeriodPreset('THIS_WEEK'); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${selectionMode === 'RANGE' && period === 'THIS_WEEK' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>이번 주</button>
+                            <button onClick={() => { setSelectionMode('RANGE'); setPeriodPreset('THIS_MONTH'); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${selectionMode === 'RANGE' && period === 'THIS_MONTH' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>이번 달</button>
+                            <button onClick={() => { setSelectionMode('MONTH'); setPeriod('MONTH_PICK'); handleMonthSelect({ target: { value: selectedMonth } }); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${selectionMode === 'MONTH' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>월 선택</button>
+                            <button onClick={() => { setSelectionMode('YEAR'); setPeriod('YEAR_PICK'); handleYearSelect({ target: { value: selectedYear } }); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${selectionMode === 'YEAR' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>연도 선택</button>
+                            <button onClick={() => setSelectionMode('RANGE')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${selectionMode === 'RANGE' && (period === 'CUSTOM' || period.includes('LAST')) ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>직접 지정</button>
+                        </div>
 
-                    <button
-                        onClick={generateReport}
-                        disabled={loading}
-                        className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"
-                    >
-                        <FileText size={18} />
-                        {loading ? '생성 중...' : '리포트 생성'}
-                    </button>
+                        <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-1.5 rounded-xl font-bold text-gray-600 text-sm">
+                            <Calendar size={14} className="text-gray-400" />
+
+                            {selectionMode === 'RANGE' && (
+                                <>
+                                    <input
+                                        type="date"
+                                        value={dateRange.start}
+                                        onChange={(e) => { setDateRange(prev => ({ ...prev, start: e.target.value })); setPeriod('CUSTOM'); }}
+                                        className="bg-transparent outline-none w-[110px]"
+                                    />
+                                    <span className="text-gray-300">~</span>
+                                    <input
+                                        type="date"
+                                        value={dateRange.end}
+                                        onChange={(e) => { setDateRange(prev => ({ ...prev, end: e.target.value })); setPeriod('CUSTOM'); }}
+                                        className="bg-transparent outline-none w-[110px]"
+                                    />
+                                </>
+                            )}
+
+                            {selectionMode === 'MONTH' && (
+                                <input
+                                    type="month"
+                                    value={selectedMonth}
+                                    onChange={handleMonthSelect}
+                                    className="bg-transparent outline-none"
+                                />
+                            )}
+
+                            {selectionMode === 'YEAR' && (
+                                <select
+                                    value={selectedYear}
+                                    onChange={handleYearSelect}
+                                    className="bg-transparent outline-none pr-8"
+                                >
+                                    {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}년</option>)}
+                                </select>
+                            )}
+                        </div>
+
+                        <button
+                            onClick={generateReport}
+                            disabled={loading}
+                            className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <FileText size={18} />
+                            {loading ? '생성 중...' : '리포트 생성'}
+                        </button>
+                    </div>
                 </div>
             </div>
 

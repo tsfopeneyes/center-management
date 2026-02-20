@@ -9,9 +9,9 @@ const ChallengeItem = ({ ch, onEdit, onDelete }) => {
     const [imgError, setImgError] = useState(false);
 
     return (
-        <div className="p-5 flex items-center justify-between hover:bg-gray-50/50 transition-colors group">
-            <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center relative">
+        <div className="p-4 md:p-5 flex items-center justify-between hover:bg-gray-50/50 transition-colors group">
+            <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center relative flex-shrink-0">
                     {ch.image_url && !imgError ? (
                         <img
                             src={ch.image_url}
@@ -20,21 +20,21 @@ const ChallengeItem = ({ ch, onEdit, onDelete }) => {
                             className="w-full h-full object-cover"
                         />
                     ) : (
-                        <ImageIcon className="text-gray-300" size={24} />
+                        <ImageIcon className="text-gray-300" size={20} />
                     )}
                 </div>
-                <div>
-                    <p className="font-black text-gray-800 text-lg">{ch.name}</p>
-                    <p className="text-xs text-gray-400 font-bold mb-1">{ch.description}</p>
-                    <div className="flex gap-2">
-                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-black uppercase">{ch.type}</span>
-                        <span className="text-[10px] bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full font-black uppercase">{ch.criteria_label || `${ch.threshold} 기준`}</span>
+                <div className="min-w-0">
+                    <p className="font-black text-gray-800 text-base md:text-lg truncate">{ch.name}</p>
+                    <p className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 truncate max-w-[150px] md:max-w-xs">{ch.description}</p>
+                    <div className="flex gap-1.5 md:gap-2 flex-wrap">
+                        <span className="text-[9px] md:text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-black uppercase whitespace-nowrap">{ch.type}</span>
+                        <span className="text-[9px] md:text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full font-black uppercase whitespace-nowrap">{ch.criteria_label || `${ch.threshold} 기준`}</span>
                     </div>
                 </div>
             </div>
-            <div className="flex gap-2">
-                <button onClick={onEdit} className="p-3 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Edit2 size={18} /></button>
-                <button onClick={onDelete} className="p-3 bg-gray-50 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18} /></button>
+            <div className="flex gap-1 md:gap-2 flex-shrink-0 ml-2">
+                <button onClick={onEdit} className="p-2 md:p-3 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg md:rounded-xl transition-all"><Edit2 size={16} /></button>
+                <button onClick={onDelete} className="p-2 md:p-3 bg-gray-50 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg md:rounded-xl transition-all"><Trash2 size={16} /></button>
             </div>
         </div>
     );
@@ -193,20 +193,20 @@ const AdminChallenges = () => {
                         <div
                             key={cat.id}
                             onClick={() => setExpandedCategory(cat.id)}
-                            className={`group p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${expandedCategory === cat.id ? 'bg-blue-50 border-blue-200 shadow-md shadow-blue-50' : 'bg-white border-gray-100 hover:border-blue-100 hover:bg-gray-50'}`}
+                            className={`group p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${expandedCategory === cat.id ? 'bg-blue-50 border-blue-200 shadow-md shadow-blue-50' : 'bg-white border-gray-100 hover:border-blue-100 hover:bg-gray-50'}`}
                         >
-                            <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${expandedCategory === cat.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                                    <ChevronRight size={18} className={expandedCategory === cat.id ? 'rotate-90 transition-transform' : ''} />
+                            <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
+                                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0 ${expandedCategory === cat.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                    <ChevronRight size={16} className={expandedCategory === cat.id ? 'rotate-90 transition-transform' : ''} />
                                 </div>
-                                <div>
-                                    <p className={`font-black ${expandedCategory === cat.id ? 'text-blue-600' : 'text-gray-700'}`}>{cat.name}</p>
-                                    <p className="text-[10px] text-gray-400 font-bold">{challenges.filter(c => c.category_id === cat.id).length}개의 챌린지</p>
+                                <div className="min-w-0">
+                                    <p className={`font-black text-sm md:text-base truncate ${expandedCategory === cat.id ? 'text-blue-600' : 'text-gray-700'}`}>{cat.name}</p>
+                                    <p className="text-[10px] text-gray-400 font-bold truncate">{challenges.filter(c => c.category_id === cat.id).length}개의 챌린지</p>
                                 </div>
                             </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={(e) => { e.stopPropagation(); setEditingCategory(cat); setShowCategoryForm(true); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors"><Edit2 size={16} /></button>
-                                <button onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"><Trash2 size={16} /></button>
+                            <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                <button onClick={(e) => { e.stopPropagation(); setEditingCategory(cat); setShowCategoryForm(true); }} className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors"><Edit2 size={14} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat.id); }} className="p-1.5 md:p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"><Trash2 size={14} /></button>
                             </div>
                         </div>
                     ))}

@@ -179,11 +179,15 @@ const Kiosk = () => {
                 if (todayLogsCount === 0) isFirstToday = true;
 
                 // 3. Smart Check-in (RSVP Integration)
-                const todayStr = new Date().toISOString().split('T')[0];
+                const now = new Date();
+                const programCheckStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+                const programCheckEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+
                 const { data: todayPrograms } = await supabase
                     .from('notices')
                     .select('id, title, program_date')
-                    .eq('program_date', todayStr);
+                    .gte('program_date', programCheckStart)
+                    .lte('program_date', programCheckEnd);
 
                 if (todayPrograms && todayPrograms.length > 0) {
                     const programIds = todayPrograms.map(p => p.id);
@@ -593,7 +597,13 @@ const Kiosk = () => {
                                     <div className="w-full space-y-3 sm:space-y-4 mb-6 sm:mb-10 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                                         {matchingUsers.map(u => (
                                             <button key={u.id} onClick={() => processKioskAction(u)} className="w-full p-6 sm:p-8 bg-slate-50 rounded-2xl sm:rounded-3xl flex items-center justify-between hover:bg-blue-600 hover:text-white transition-all group active:scale-95 shadow-sm border border-slate-100">
-                                                <div><p className="text-xl sm:text-2xl font-black">{u.name}</p><p className="text-xs sm:text-sm opacity-60 font-bold">{u.school} | {u.phone_back4}</p></div>
+                                                <div>
+                                                    <p className="text-xl sm:text-2xl font-black flex items-center gap-2">
+                                                        {u.name}
+                                                        {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                                    </p>
+                                                    <p className="text-xs sm:text-sm opacity-60 font-bold">{u.school} | {u.phone_back4}</p>
+                                                </div>
                                                 <ChevronRight size={24} className="sm:w-8 sm:h-8 opacity-20 group-hover:opacity-100 transition" />
                                             </button>
                                         ))}

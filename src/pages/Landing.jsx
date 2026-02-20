@@ -21,7 +21,7 @@ const LoginForm = ({ navigate }) => {
             let { data: users, error } = await supabase
                 .from('users')
                 .select('*')
-                .eq('name', name)
+                .ilike('name', name) // Case-insensitive login
                 .eq('password', password);
 
             // 2. Fallback: If no user found, check 'phone_back4' (Legacy Logic)
@@ -32,7 +32,7 @@ const LoginForm = ({ navigate }) => {
                     const { data: legacyUsers, error: legacyError } = await supabase
                         .from('users')
                         .select('*')
-                        .eq('name', name)
+                        .ilike('name', name) // Case-insensitive login
                         .eq('phone_back4', password);
 
                     if (!legacyError && legacyUsers && legacyUsers.length > 0) {
@@ -141,6 +141,7 @@ const LoginForm = ({ navigate }) => {
                                     className="w-full text-left p-4 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-xl font-semibold transition"
                                 >
                                     {u.school} ({u.birth})
+                                    {u.is_leader && <span className="ml-2 inline-flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg></span>}
                                 </button>
                             ))}
                         </div>

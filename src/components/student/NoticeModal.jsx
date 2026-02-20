@@ -79,7 +79,7 @@ const GalleryPost = ({ notice, user, responses, onResponse, isAdmin, onUpdate, o
         try {
             const { data } = await supabase
                 .from('comments')
-                .select('*, users(name, profile_image_url)')
+                .select('*, users(name, profile_image_url, is_leader)')
                 .eq('notice_id', notice.id)
                 .order('created_at', { ascending: true });
             setComments(data || []);
@@ -251,7 +251,10 @@ const GalleryPost = ({ notice, user, responses, onResponse, isAdmin, onUpdate, o
                     {comments.slice(-2).map(c => (
                         <div key={c.id} className="text-xs flex items-center justify-between group/comment">
                             <div className="flex-1">
-                                <span className="font-bold mr-2">{c.users?.name}</span>
+                                <span className="font-bold mr-2 flex items-center gap-1">
+                                    {c.users?.name}
+                                    {c.users?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                </span>
                                 <span className="text-gray-600">{c.content}</span>
                             </div>
                             {c.user_id === user.id && (

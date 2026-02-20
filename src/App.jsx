@@ -24,8 +24,8 @@ function App() {
             {isLoading && <SplashScreen finishLoading={handleFinishLoading} />}
             <BrowserRouter>
                 <Routes>
-                    <Route path="/" element={<Layout />}>
-                        <Route index element={<Landing />} />
+                    <Route path="/" element={<Landing />} />
+                    <Route element={<Layout />}>
                         <Route path="student" element={<StudentDashboard />} />
                         {/* Legacy or unused routes can be kept or removed */}
                         <Route path="dashboard" element={<Dashboard />} />

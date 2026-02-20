@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { noticesApi } from '../../api/noticesApi';
 import { CATEGORIES, RESPONSE_STATUS } from '../../constants/appConstants';
 import { isWithinInterval, startOfDay, endOfDay, parseISO } from 'date-fns';
-import { PlusCircle, FileText, Grid, UploadCloud, Trash2, Edit2, ImageIcon, Users, X, ZoomIn, RotateCw, Eye, ArrowLeft, Heart, MessageCircle, MoreHorizontal, CheckCircle2, XCircle, UserPlus, Search, RefreshCw, Calendar, MapPin } from 'lucide-react';
+import { PlusCircle, FileText, Grid, UploadCloud, Trash2, Edit2, ImageIcon, Users, X, ZoomIn, RotateCw, Eye, ArrowLeft, Heart, MessageCircle, MoreHorizontal, CheckCircle2, XCircle, UserPlus, Search, RefreshCw, Calendar, MapPin, LayoutGrid, Columns, List, ClipboardList } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import Cropper from 'react-easy-crop';
 import getCroppedImg, { compressImage } from '../../utils/imageUtils';
@@ -14,7 +14,137 @@ import { stripHtml, extractUrls, extractProgramInfo } from '../../utils/textUtil
 import IntuitiveTimePicker from '../common/IntuitiveTimePicker';
 import { exportParticipantsToExcel } from '../../utils/exportUtils';
 
-const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
+const NoticeGrid = ({ notices, viewMode, mode, noticeStats, setSelectedNotice, openParticipantModal, handleStatusChange, handleEditClick, handleDeleteNotice }) => {
+    // Grid container styles
+    let gridClass = "grid gap-4 md:gap-6 lg:gap-8 ";
+    if (viewMode === 'large') gridClass += "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
+    else if (viewMode === 'small') gridClass += "grid-cols-2 md:grid-cols-3 xl:grid-cols-4";
+    else if (viewMode === 'smaller') gridClass += "grid-cols-3 md:grid-cols-4 xl:grid-cols-5";
+    else gridClass = "flex flex-col gap-2"; // list
+
+    // Card styles
+    let cardClass = "bg-white border border-gray-100 transition-all duration-300 flex group shadow-sm hover:shadow-xl hover:shadow-blue-500/5 ";
+    let contentClass = "flex ";
+    let thumbClass = "bg-gray-50 overflow-hidden flex-shrink-0 cursor-pointer border border-gray-100 shadow-inner group-hover:border-blue-200 transition-colors ";
+    let titleClass = "font-black cursor-pointer group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug tracking-tight ";
+
+    if (viewMode === 'large') {
+        cardClass += "p-5 md:p-6 lg:p-8 rounded-[1.5rem] md:rounded-[2rem] flex-col";
+        contentClass += "gap-4 md:gap-6 mb-4 md:mb-6";
+        thumbClass += "w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-2xl";
+        titleClass += "text-base md:text-lg lg:text-xl mb-1";
+    } else if (viewMode === 'small') {
+        cardClass += "p-4 rounded-2xl flex-col";
+        contentClass += "gap-3 mb-3";
+        thumbClass += "w-12 h-12 md:w-16 md:h-16 rounded-xl";
+        titleClass += "text-sm md:text-base mb-0.5";
+    } else if (viewMode === 'smaller') {
+        cardClass += "p-3 rounded-xl flex-col";
+        contentClass += "gap-2 mb-2 flex-col"; // Stack image and text
+        thumbClass += "w-full aspect-video rounded-lg";
+        titleClass += "text-xs md:text-sm mb-0.5";
+    } else if (viewMode === 'list') {
+        cardClass += "p-3 rounded-xl flex-row items-center justify-between";
+        contentClass += "gap-4 items-center flex-1 min-w-0";
+        thumbClass += "w-10 h-10 rounded-lg";
+        titleClass += "text-sm md:text-base mb-0.5 truncate";
+    }
+
+    return (
+        <div className={gridClass}>
+            {notices.map(notice => (
+                <div key={notice.id} className={cardClass}>
+                    <div className={contentClass}>
+                        {/* Thumbnail */}
+                        {(notice.images?.length > 0 || notice.image_url) && (
+                            <div onClick={() => setSelectedNotice(notice)} className={thumbClass}>
+                                <img src={notice.images?.length > 0 ? notice.images[0] : notice.image_url} alt="thumb" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                            </div>
+                        )}
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                            {viewMode !== 'list' && (
+                                <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                                    {notice.is_sticky && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-lg text-[9px] font-black uppercase tracking-tight">📌 공지</span>}
+                                    {notice.is_recruiting && notice.program_status === 'ACTIVE' && (
+                                        <>
+                                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-lg text-[9px] font-black uppercase tracking-tight">Active</span>
+                                            {(() => {
+                                                if (!notice.recruitment_deadline) return null;
+                                                const diff = parseISO(notice.recruitment_deadline) - new Date();
+                                                return (diff > 0 && diff < 86400000) ? <span className="px-2 py-0.5 bg-red-500 text-white rounded-lg text-[9px] font-black animate-pulse">마감직전</span> : null;
+                                            })()}
+                                        </>
+                                    )}
+                                    {notice.program_status === 'COMPLETED' && <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-lg text-[9px] font-black uppercase tracking-tight">Completed</span>}
+                                    {notice.program_status === 'CANCELLED' && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-lg text-[9px] font-black uppercase tracking-tight">Cancelled</span>}
+                                    {(notice.images?.length > 0 || notice.image_url) && (
+                                        <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded-lg border border-gray-100">
+                                            <ImageIcon size={10} className="opacity-50" /> {notice.images?.length || 1}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <h3 onClick={() => setSelectedNotice(notice)} className={`${titleClass} ${notice.program_status !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}`}>
+                                {viewMode === 'list' && notice.is_sticky && <span className="mr-2 text-orange-500 shrink-0">📌</span>}
+                                {notice.title}
+                            </h3>
+                            <p className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">{new Date(notice.created_at).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+
+                    {/* Actions & Stats */}
+                    <div className={viewMode === 'list' ? "flex items-center gap-4 shrink-0" : "mt-auto space-y-2 md:space-y-3"}>
+                        {notice.is_recruiting && noticeStats[notice.id] && (
+                            <div className={`p-2 lg:p-3 rounded-xl flex justify-between items-center transition-all shadow-sm ${notice.program_status === 'ACTIVE' ? 'bg-blue-50/50 group-hover:bg-blue-600 group-hover:text-white' : 'bg-gray-100/50 opacity-60'} ${viewMode === 'list' ? 'shrink-0 min-w-[150px]' : ''}`}>
+                                <div className={`flex gap-3 font-black ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
+                                    <span className={notice.program_status === 'ACTIVE' ? "text-blue-600 group-hover:text-white" : ""}>신청 {noticeStats[notice.id].JOIN}</span>
+                                    {viewMode !== 'smaller' && <span className={notice.program_status === 'ACTIVE' ? "text-orange-500 group-hover:text-orange-200" : ""}>대기 {noticeStats[notice.id].WAITLIST || 0}</span>}
+                                </div>
+                                <button onClick={() => openParticipantModal(notice)} className={`text-[9px] md:text-[10px] px-2 py-1 rounded-md font-black transition-all shadow-sm ${notice.program_status === 'ACTIVE' ? 'bg-white text-blue-600 hover:bg-blue-50' : 'bg-gray-200 text-gray-500'}`}>
+                                    명단
+                                </button>
+                            </div>
+                        )}
+
+                        <div className={`flex items-center justify-between lg:gap-2 ${viewMode === 'list' ? '' : 'pt-2 md:pt-3 border-t border-gray-50'}`}>
+                            <div className="flex items-center gap-1 shrink-0">
+                                {mode === CATEGORIES.PROGRAM && (
+                                    <>
+                                        {notice.program_status === 'ACTIVE' ? (
+                                            <button onClick={() => handleStatusChange(notice.id, 'COMPLETED')} className="p-1.5 md:p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="완료 처리">
+                                                <CheckCircle2 size={viewMode === 'smaller' ? 14 : 16} />
+                                            </button>
+                                        ) : (
+                                            <button onClick={() => handleStatusChange(notice.id, 'ACTIVE')} className="p-1.5 md:p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-all" title="되돌리기">
+                                                <RefreshCw size={viewMode === 'smaller' ? 14 : 16} />
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+                                <button onClick={() => setSelectedNotice(notice)} className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="미리보기">
+                                    <Eye size={viewMode === 'smaller' ? 14 : 16} />
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                                <button onClick={() => handleEditClick(notice)} className="p-1.5 md:p-2 bg-white md:bg-gray-50 text-gray-500 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-gray-100" title="수정">
+                                    <Edit2 size={viewMode === 'smaller' ? 14 : 14} />
+                                </button>
+                                <button onClick={() => handleDeleteNotice(notice.id)} className="p-1.5 md:p-2 bg-white md:bg-gray-50 text-gray-400 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-gray-100" title="삭제">
+                                    <Trash2 size={viewMode === 'smaller' ? 14 : 14} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData, users, currentLocations }) => {
     // mode: 'NOTICE' | 'PROGRAM' | 'GALLERY'
     const targetCategory = mode;
 
@@ -24,6 +154,16 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
     const [filterProgramType, setFilterProgramType] = useState('ALL'); // ALL, CENTER, SCHOOL_CHURCH
+
+    // View Mode State
+    const [viewMode, setViewMode] = useState(() => {
+        const saved = localStorage.getItem('adminBoardViewMode');
+        return saved || 'large';
+    });
+
+    React.useEffect(() => {
+        localStorage.setItem('adminBoardViewMode', viewMode);
+    }, [viewMode]);
 
     // Filter Notices for this view
     const filteredNotices = notices.filter(n => {
@@ -61,6 +201,10 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
         return true;
     });
 
+    // Split Programs by Status
+    const activePrograms = mode === CATEGORIES.PROGRAM ? filteredNotices.filter(n => n.program_status === 'ACTIVE' || !n.program_status) : filteredNotices;
+    const completedPrograms = mode === CATEGORIES.PROGRAM ? filteredNotices.filter(n => n.program_status === 'COMPLETED' || n.program_status === 'CANCELLED') : [];
+
     // State
     const [showWriteForm, setShowWriteForm] = useState(false);
     const [newNotice, setNewNotice] = useState({
@@ -97,6 +241,8 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
     const [selectedNoticeForParticipants, setSelectedNoticeForParticipants] = useState(null);
     const [participantList, setParticipantList] = useState({ JOIN: [], DECLINE: [], UNDECIDED: [] });
     const [modalLoading, setModalLoading] = useState(false);
+    const [showEntranceList, setShowEntranceList] = useState(false);
+    const [lastAddedUser, setLastAddedUser] = useState(null);
 
     const [noticeStats, setNoticeStats] = useState({});
 
@@ -452,25 +598,39 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
         try {
             await noticesApi.upsertResponse(selectedNoticeForParticipants.id, user.id, 'JOIN');
             await noticesApi.updateAttendance(selectedNoticeForParticipants.id, user.id, true);
-            alert(`${user.name} 학생이 명단에 추가되고 출석 처리되었습니다.`);
-            openParticipantModal(selectedNoticeForParticipants); // Refresh
+
+            // Optimistic Update & Immediate Feedback
+            const newUser = { ...user, is_attended: true };
+            if (!participantList.JOIN.some(u => u.id === user.id)) {
+                setParticipantList(prev => ({ ...prev, JOIN: [newUser, ...prev.JOIN] }));
+            }
+            setSearchQuery('');
+            setSearchResults([]);
+            setLastAddedUser(user);
+            setTimeout(() => setLastAddedUser(null), 3000);
+
+            openParticipantModal(selectedNoticeForParticipants); // Refresh list
             setSearchQuery('');
             setSearchResults([]);
         } catch (err) { alert('추가 실패'); }
     };
 
+    // Filter users currently in the center
+    const entranceList = users?.filter(u => currentLocations?.[u.id]) || [];
+
 
     return (
         <div className="space-y-6 animate-fade-in-up">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50/50 p-4 rounded-2xl gap-4">
+            <div className="p-6 md:p-10 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-blue-50/20">
                 <div>
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tighter flex items-center gap-3">
+                        {mode === 'GALLERY' ? <ImageIcon className="text-blue-600" size={32} /> : mode === 'PROGRAM' ? <ClipboardList className="text-blue-600" size={32} /> : <FileText className="text-blue-600" size={32} />}
                         {mode === 'GALLERY' ? '사진첩 관리' : mode === 'PROGRAM' ? '프로그램 관리' : '공지사항 관리'}
                     </h2>
-                    <p className="text-gray-500 text-xs md:text-sm">
-                        {mode === 'GALLERY' ? '스처 갤러리에 업로드된 사진을 관리합니다.' :
-                            mode === 'PROGRAM' ? '프로그램 모집 및 안내 글을 관리합니다.' :
-                                '일반 공지사항을 작성하고 관리합니다.'}
+                    <p className="text-gray-500 text-sm font-medium mt-1">
+                        {mode === 'GALLERY' ? '스처 갤러리에 업로드된 사진 및 앨범을 관리합니다.' :
+                            mode === 'PROGRAM' ? '프로그램 모집, 신청 현황 및 안내를 관리합니다.' :
+                                '전체 사용자 대상 공지사항을 작성하고 관리합니다.'}
                     </p>
                 </div>
                 <button
@@ -711,30 +871,51 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                     </div>
                 )}
 
-                {/* Row 1: Search Inputs */}
-                <div className="flex flex-col lg:flex-row gap-4">
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="제목 검색..."
-                            value={filterTitle}
-                            onChange={(e) => setFilterTitle(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 transition text-sm font-bold shadow-inner"
-                        />
-                    </div>
-                    {mode === CATEGORIES.PROGRAM && (
+                {/* Row 1: Search Inputs & View Toggle */}
+                <div className="flex flex-col lg:flex-row gap-4 justify-between items-center">
+                    <div className="flex flex-col lg:flex-row gap-4 flex-1 w-full">
                         <div className="flex-1 relative">
-                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                             <input
                                 type="text"
-                                placeholder="장소 검색..."
-                                value={filterLocation}
-                                onChange={(e) => setFilterLocation(e.target.value)}
+                                placeholder="제목 검색..."
+                                value={filterTitle}
+                                onChange={(e) => setFilterTitle(e.target.value)}
                                 className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 transition text-sm font-bold shadow-inner"
                             />
                         </div>
-                    )}
+                        {mode === CATEGORIES.PROGRAM && (
+                            <div className="flex-1 relative">
+                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="장소 검색..."
+                                    value={filterLocation}
+                                    onChange={(e) => setFilterLocation(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 transition text-sm font-bold shadow-inner"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* View Mode Toggle */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl shrink-0 border border-gray-100 shadow-inner">
+                        {[
+                            { id: 'large', icon: LayoutGrid, label: '크게 보기' },
+                            { id: 'small', icon: Grid, label: '작게 보기' },
+                            { id: 'smaller', icon: Columns, label: '더 작게 보기' },
+                            { id: 'list', icon: List, label: '목록형' }
+                        ].map(m => (
+                            <button
+                                key={m.id}
+                                onClick={() => setViewMode(m.id)}
+                                className={`p-2 rounded-lg transition-all flex items-center justify-center ${viewMode === m.id ? 'bg-white text-blue-600 shadow-sm ring-1 ring-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                                title={m.label}
+                            >
+                                <m.icon size={18} />
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Row 2: Date Filters & Results Summary */}
@@ -805,117 +986,26 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
             </div>
 
             {/* List */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-8">
-                {filteredNotices.length === 0 ? (
-                    <div className="col-span-full py-24 text-center text-gray-400 bg-white rounded-3xl border border-dashed border-gray-200 text-sm font-medium">
-                        등록된 게시글이 없습니다.
-                    </div>
-                ) : (
-                    filteredNotices.map(notice => (
-                        <div key={notice.id} className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 flex flex-col group">
-                            <div className="flex gap-6 mb-6">
-                                {/* Thumbnail for Gallery/Notice */}
-                                {(notice.images?.length > 0 || notice.image_url) && (
-                                    <div
-                                        onClick={() => setSelectedNotice(notice)}
-                                        className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gray-50 overflow-hidden flex-shrink-0 cursor-pointer border border-gray-100 shadow-inner group-hover:border-blue-200 transition-colors"
-                                    >
-                                        <img
-                                            src={notice.images?.length > 0 ? notice.images[0] : notice.image_url}
-                                            alt="thumb"
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                        />
-                                    </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                                        {notice.is_sticky && <span className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded-lg text-[10px] font-black uppercase tracking-tight">📌 공지</span>}
-                                        {notice.is_recruiting && notice.program_status === 'ACTIVE' && (
-                                            <>
-                                                <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-black uppercase tracking-tight">Active</span>
-                                                {(() => {
-                                                    if (!notice.recruitment_deadline) return null;
-                                                    const deadline = parseISO(notice.recruitment_deadline);
-                                                    const now = new Date();
-                                                    const diff = deadline - now;
-                                                    const oneDay = 24 * 60 * 60 * 1000;
-                                                    if (diff > 0 && diff < oneDay) {
-                                                        return <span className="px-2.5 py-1 bg-red-500 text-white rounded-lg text-[10px] font-black animate-pulse">마감직전</span>;
-                                                    }
-                                                    return null;
-                                                })()}
-                                            </>
-                                        )}
-                                        {notice.program_status === 'COMPLETED' && <span className="px-2.5 py-1 bg-gray-100 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-tight">Completed</span>}
-                                        {notice.program_status === 'CANCELLED' && <span className="px-2.5 py-1 bg-red-100 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-tight">Cancelled</span>}
-                                        {(notice.images?.length > 0 || notice.image_url) && (
-                                            <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                                                <ImageIcon size={12} className="opacity-50" /> {notice.images?.length || 1}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <h3
-                                        onClick={() => setSelectedNotice(notice)}
-                                        className={`font-black text-lg md:text-xl mb-1.5 cursor-pointer group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug tracking-tight ${notice.program_status !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}`}
-                                    >
-                                        {notice.title}
-                                    </h3>
-                                    <p className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">{new Date(notice.created_at).toLocaleDateString()}</p>
-                                </div>
-                            </div>
+            {filteredNotices.length === 0 ? (
+                <div className="py-24 text-center text-gray-400 bg-white rounded-3xl border border-dashed border-gray-200 text-sm font-medium">
+                    등록된 게시글이 없습니다.
+                </div>
+            ) : (
+                <div className="space-y-10">
+                    <NoticeGrid notices={activePrograms} viewMode={viewMode} mode={mode} noticeStats={noticeStats} setSelectedNotice={setSelectedNotice} openParticipantModal={openParticipantModal} handleStatusChange={handleStatusChange} handleEditClick={handleEditClick} handleDeleteNotice={handleDeleteNotice} />
 
-                            {/* Actions & Stats */}
-                            <div className="mt-auto space-y-4">
-                                {notice.is_recruiting && noticeStats[notice.id] && (
-                                    <div className={`p-4 rounded-2xl flex justify-between items-center transition-all ${notice.program_status === 'ACTIVE' ? 'bg-blue-50/50 group-hover:bg-blue-600 group-hover:text-white' : 'bg-gray-100/50 opacity-60'}`}>
-                                        <div className="flex gap-4 text-[11px] font-black">
-                                            <span className={notice.program_status === 'ACTIVE' ? "text-blue-600 group-hover:text-white" : ""}>신청 {noticeStats[notice.id].JOIN}</span>
-                                            <span className={notice.program_status === 'ACTIVE' ? "text-orange-500 group-hover:text-orange-200" : ""}>대기 {noticeStats[notice.id].WAITLIST || 0}</span>
-                                        </div>
-                                        <button
-                                            onClick={() => openParticipantModal(notice)}
-                                            className={`text-[11px] px-3 py-1.5 rounded-lg font-black transition-all duration-300 shadow-sm ${notice.program_status === 'ACTIVE' ? 'bg-white text-blue-600 hover:bg-blue-50' : 'bg-gray-200 text-gray-500'}`}
-                                        >
-                                            명단관리
-                                        </button>
-                                    </div>
-                                )}
-
-                                <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-                                    <div className="flex items-center gap-1">
-                                        {mode === CATEGORIES.PROGRAM && (
-                                            <>
-                                                {notice.program_status === 'ACTIVE' ? (
-                                                    <>
-                                                        <button onClick={() => handleStatusChange(notice.id, 'COMPLETED')} className="p-2.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all" title="완료 처리">
-                                                            <CheckCircle2 size={20} />
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <button onClick={() => handleStatusChange(notice.id, 'ACTIVE')} className="p-2.5 text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="되돌리기">
-                                                        <RefreshCw size={20} />
-                                                    </button>
-                                                )}
-                                            </>
-                                        )}
-                                        <button onClick={() => setSelectedNotice(notice)} className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" title="미리보기">
-                                            <Eye size={20} />
-                                        </button>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <button onClick={() => handleEditClick(notice)} className="p-2.5 bg-gray-50 text-gray-500 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-gray-100" title="수정">
-                                            <Edit2 size={18} />
-                                        </button>
-                                        <button onClick={() => handleDeleteNotice(notice.id)} className="p-2.5 bg-gray-50 text-gray-400 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-gray-100" title="삭제">
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </div>
-                                </div>
+                    {completedPrograms.length > 0 && (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-4">
+                                <div className="h-px flex-1 bg-gray-200"></div>
+                                <span className="text-sm font-bold text-gray-400 tracking-wider">종료된 프로그램</span>
+                                <div className="h-px flex-1 bg-gray-200"></div>
                             </div>
+                            <NoticeGrid notices={completedPrograms} viewMode={viewMode} mode={mode} noticeStats={noticeStats} setSelectedNotice={setSelectedNotice} openParticipantModal={openParticipantModal} handleStatusChange={handleStatusChange} handleEditClick={handleEditClick} handleDeleteNotice={handleDeleteNotice} />
                         </div>
-                    ))
-                )}
-            </div>
+                    )}
+                </div>
+            )}
 
             {/* Modals */}
             {showEditor && (
@@ -986,11 +1076,77 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, notices, fetchData }) => {
                                         {participantList.JOIN.length === 0 && <p className="text-center py-6 text-xs text-gray-400 border border-dashed border-green-200 rounded-xl">참여 신청자가 없습니다.</p>}
                                     </div>
 
-                                    {/* Walk-in Addition Section */}
-                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                                        <h4 className="font-bold text-gray-800 mb-3 text-sm flex items-center gap-2">
-                                            <UserPlus size={16} className="text-blue-500" /> 현장 참석자 추가
-                                        </h4>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                                <UserPlus size={16} className="text-blue-500" /> 현장 참석자 추가
+                                            </h4>
+                                            <button
+                                                onClick={() => setShowEntranceList(!showEntranceList)}
+                                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 border ${showEntranceList ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}
+                                            >
+                                                <div className={`w-2 h-2 rounded-full ${showEntranceList ? 'bg-blue-500' : 'bg-gray-400'}`} />
+                                                입실 인원 ({entranceList.length})
+                                            </button>
+                                        </div>
+
+                                        {/* Success Message UI */}
+                                        {lastAddedUser && (
+                                            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-fade-in-down z-20 flex items-center gap-2">
+                                                <CheckCircle2 size={14} />
+                                                {lastAddedUser.name} 학생 추가 완료!
+                                            </div>
+                                        )}
+
+                                        <div className="flex overflow-x-auto pb-4 gap-2 px-1 snap-x scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+                                            {showEntranceList ? (
+                                                entranceList.length > 0 ? (
+                                                    entranceList.map(item => (
+                                                        <div key={item.id} className="snap-start shrink-0 flex items-center gap-3 bg-white p-2.5 rounded-xl border shadow-sm w-[260px] animate-fade-in border-gray-200">
+                                                            <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold border-2 border-white shadow-sm shrink-0">
+                                                                {item.name?.charAt(0) || '?'}
+                                                            </div>
+                                                            <div className="flex flex-col flex-1 min-w-0">
+                                                                <span className="font-bold text-sm text-gray-800 truncate">{item.name}</span>
+                                                                <span className="text-[10px] text-gray-500 truncate">{item.school} | {item.phone_back4}</span>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => addWalkIn(item)}
+                                                                className="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-50 hover:bg-green-500 hover:text-white hover:shadow-md text-gray-400 transition-all shrink-0"
+                                                                title="추가"
+                                                            >
+                                                                <PlusCircle size={20} />
+                                                            </button>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <p className="text-center w-full py-6 text-xs text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">입실한 학생이 없습니다.</p>
+                                                )
+                                            ) : (
+                                                searchResults.map(user => (
+                                                    <div key={user.id} className="snap-start shrink-0 flex items-center gap-3 bg-white p-2.5 rounded-xl border shadow-sm w-[260px] border-gray-200">
+                                                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold border-2 border-white shadow-sm shrink-0 overflow-hidden">
+                                                            {user.profile_image_url ? (
+                                                                <img src={user.profile_image_url} alt="profile" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                user.name?.charAt(0) || '?'
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col flex-1 min-w-0">
+                                                            <span className="font-bold text-sm text-gray-800 truncate">{user.name}</span>
+                                                            <span className="text-[10px] text-gray-500 truncate">{user.school} | {user.phone_back4}</span>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => addWalkIn(user)}
+                                                            className="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-50 hover:bg-green-500 hover:text-white text-gray-400 transition-all shrink-0"
+                                                        >
+                                                            <PlusCircle size={20} />
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                                                 <Search size={16} />
@@ -1197,8 +1353,6 @@ const AdminNoticeDetailModal = ({ notice, onClose }) => {
                     </div>
                 </div>
             </div>
-
-
         </div>
     );
 };

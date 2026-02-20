@@ -382,6 +382,120 @@ export const processUserAnalytics = (users, logs, responses, notices, date, type
     });
 };
 
+export const processSeucheoAnalytics = (schoolLogs, users, periodType, selectedDate) => {
+    const periodStart = periodType === 'DAILY' ? startOfDay(selectedDate) :
+        periodType === 'WEEKLY' ? startOfWeek(selectedDate, { weekStartsOn: 1 }) :
+            periodType === 'MONTHLY' ? startOfMonth(selectedDate) :
+                startOfDay(new Date(selectedDate.getFullYear(), 0, 1)); // YEARLY
+
+    const periodEnd = periodType === 'DAILY' ? endOfDay(selectedDate) :
+        periodType === 'WEEKLY' ? endOfWeek(selectedDate, { weekStartsOn: 1 }) :
+            periodType === 'MONTHLY' ? endOfMonth(selectedDate) :
+                endOfDay(new Date(selectedDate.getFullYear(), 11, 31)); // YEARLY
+
+    const filteredLogs = schoolLogs.filter(log => {
+        const logDate = new Date(log.date);
+        return logDate >= periodStart && logDate <= periodEnd;
+    });
+
+    const staffStats = {};
+    const schoolStats = {};
+
+    filteredLogs.forEach(log => {
+        let duration = 0;
+        if (log.time_range) {
+            const [startStr, endStr] = log.time_range.split('~').map(s => s.trim());
+            if (startStr && endStr) {
+                const [h1, m1] = startStr.split(':').map(Number);
+                const [h2, m2] = endStr.split(':').map(Number);
+                duration = (h2 * 60 + m2) - (h1 * 60 + m1);
+            }
+        }
+
+        const studentCount = log.participant_ids ? log.participant_ids.length : 0;
+        const schoolName = log.schools?.name || log.users?.school || 'Unknown';
+
+        // School Stats
+        if (!schoolStats[schoolName]) {
+            schoolStats[schoolName] = { name: schoolName, totalStudents: 0, totalDuration: 0, meetingCount: 0 };
+        }
+        schoolStats[schoolName].totalStudents += studentCount;
+        schoolStats[schoolName].totalDuration += duration;
+        schoolStats[schoolName].meetingCount += 1;
+
+        // Staff Stats
+        if (log.facilitator_ids && Array.isArray(log.facilitator_ids)) {
+            log.facilitator_ids.forEach(staffId => {
+                const staffUser = users.find(u => u.id === staffId);
+                const name = staffUser ? staffUser.name : 'Unknown';
+
+                if (!staffStats[staffId]) {
+                    staffStats[staffId] = {
+                        name: name,
+                        totalStudents: 0,
+                        totalDuration: 0,
+                        meetingCount: 0
+                    };
+                }
+                staffStats[staffId].totalStudents += studentCount;
+                staffStats[staffId].totalDuration += duration;
+                staffStats[staffId].meetingCount += 1;
+            });
+        }
+    });
+
+    // Time Grouping
+    const timeGrouping = {};
+    filteredLogs.forEach(log => {
+        const dateKey = periodType === 'DAILY' ? log.date :
+            periodType === 'MONTHLY' ? log.date :
+                log.date.substring(0, 7);
+
+        if (!timeGrouping[dateKey]) timeGrouping[dateKey] = {};
+
+        // Calculate Duration again for this scope
+        let duration = 0;
+        if (log.time_range) {
+            const [startStr, endStr] = log.time_range.split('~').map(s => s.trim());
+            if (startStr && endStr) {
+                const [h1, m1] = startStr.split(':').map(Number);
+                const [h2, m2] = endStr.split(':').map(Number);
+                duration = (h2 * 60 + m2) - (h1 * 60 + m1);
+            }
+        }
+
+        if (log.facilitator_ids) {
+            log.facilitator_ids.forEach(staffId => {
+                const staffUser = users.find(u => u.id === staffId);
+                const name = staffUser ? staffUser.name : 'Unknown';
+
+                if (!timeGrouping[dateKey][name]) timeGrouping[dateKey][name] = 0;
+                timeGrouping[dateKey][name] += duration;
+            });
+        }
+    });
+
+    return {
+        staffStats: Object.values(staffStats).sort((a, b) => b.totalDuration - a.totalDuration),
+        schoolStats: Object.values(schoolStats).sort((a, b) => b.totalDuration - a.totalDuration),
+        timeGrouping,
+        totalMeetings: filteredLogs.length,
+        totalStudentsMet: Object.values(staffStats).reduce((acc, curr) => acc + curr.totalStudents, 0),
+        totalDuration: filteredLogs.reduce((acc, log) => {
+            let duration = 0;
+            if (log.time_range) {
+                const [startStr, endStr] = log.time_range.split('~').map(s => s.trim());
+                if (startStr && endStr) {
+                    const [h1, m1] = startStr.split(':').map(Number);
+                    const [h2, m2] = endStr.split(':').map(Number);
+                    duration = (h2 * 60 + m2) - (h1 * 60 + m1);
+                }
+            }
+            return acc + duration;
+        }, 0)
+    };
+};
+
 export const analyticsUtils = {
     async getUsageSummary(startDate, endDate) {
         const { data: logs, error: logsError } = await supabase
@@ -458,7 +572,7 @@ SCI CENTER DASHBOARD
         `.trim();
     },
 
-    processOperationReport(logs, users, locations, startDate, endDate) {
+    processOperationReport(logs, users, locations, startDate, endDate, targetGroup = 'ALL') {
         const start = startOfDay(startDate);
         const end = endOfDay(endDate);
         const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
@@ -467,8 +581,19 @@ SCI CENTER DASHBOARD
             u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
         ).map(u => u.id));
 
+        const targetUsers = users.filter(u => {
+            if (adminIds.has(u.id)) return false;
+            // Filter by targetGroup
+            if (targetGroup === 'YOUTH') {
+                if (u.user_group === '졸업생' || u.user_group === '일반인') return false;
+            }
+            return true;
+        });
+
+        const targetUserIds = new Set(targetUsers.map(u => u.id));
+
         const filteredLogs = logs.filter(l => {
-            if (adminIds.has(l.user_id)) return false;
+            if (!targetUserIds.has(l.user_id)) return false;
             const d = new Date(l.created_at);
             return d >= start && d <= end;
         });
@@ -619,7 +744,8 @@ SCI CENTER DASHBOARD
         return {
             spaceResults,
             monthlyMetrics,
-            totalUnique: new Set(Array.from(userDateVisit).map(k => k.split('_')[0])).size
+            totalUnique: new Set(Array.from(userDateVisit).map(k => k.split('_')[0])).size,
+            reportTarget: targetGroup
         };
     }
 };

@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { getWeekIdentifier, parseTimeRange } from './dateUtils';
 
 /**
  * Generic Sync to Google Sheets
@@ -143,6 +144,7 @@ export const performFullSyncToGoogleSheets = async ({
     notices,
     locations,
     visitNotes,
+    schoolLogs,
     processUserAnalytics,
     processProgramAnalytics,
     processAnalyticsData,
@@ -266,6 +268,26 @@ export const performFullSyncToGoogleSheets = async ({
         };
     });
 
+    // 8. 학생만남일지 (Student Meeting Logs)
+    const schoolLogRows = (schoolLogs || []).map(log => {
+        const timeInfo = parseTimeRange(log.time_range);
+        const facilitatorNames = log.facilitator_ids?.map(fid => users.find(u => u.id === fid)?.name).filter(Boolean).join(', ') || '';
+        const participantNames = log.participant_ids?.map(pid => users.find(u => u.id === pid)?.name).filter(Boolean).join(', ') || '';
+
+        return {
+            'ID': log.id,
+            '주차': getWeekIdentifier(log.date),
+            '날짜': log.date,
+            '시간': log.time_range,
+            '장소': log.location || '-',
+            '학교': log.schools?.name || log.users?.school || '-',
+            '참여자': participantNames,
+            '참여인원': log.participant_ids?.length || 0,
+            '담당자': facilitatorNames,
+            '내용': log.content || ''
+        };
+    });
+
     const payloads = [
         { tabName: '회원정보', rows: userRows, headers: ['ID', '이름', '그룹', '학교', '연락처', '생년월일', '가입일', '최근방문'] },
         { tabName: '회원통계', rows: userStatRows, headers: ['그룹', '학교', '이름', '누적 이용시간(분)', '공간 방문 횟수', '방문 일수', '프로그램 신청', '실제 참석'] },
@@ -273,6 +295,7 @@ export const performFullSyncToGoogleSheets = async ({
         { tabName: '프로그램실적', rows: prgPerfRows, headers: ['날짜', '카테고리', '프로그램명', '모집정원', '신청인원', '참석인원', '출석률'] },
         { tabName: '프로그램로그', rows: prgDetailRows, headers: ['프로그램날짜', '프로그램명', '이름', '학교', '신청상태', '출석여부', '신청일시'] },
         { tabName: '학생방문일지', rows: visitRows, headers: ['주차', '날짜', '요일', '학교', '이름', '시작', '종료', '공간', '체류시간', '방문목적', '비고'] },
+        { tabName: '학생만남일지', rows: schoolLogRows, headers: ['ID', '주차', '날짜', '시간', '장소', '학교', '참여자', '참여인원', '담당자', '내용'] },
         { tabName: '일별운영지표', rows: dailyRows, headers: ['날짜', '요일', '방문 횟수', '총 이용시간(분)'] }
     ].filter(p => p.rows.length > 0);
 

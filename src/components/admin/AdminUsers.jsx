@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Search, RefreshCw, Edit2, Trash2, UserPlus, Save, X, FileSpreadsheet } from 'lucide-react';
+import { Search, RefreshCw, Edit2, Trash2, UserPlus, Save, X, FileSpreadsheet, ShieldAlert, Users } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { exportUsersToExcel } from '../../utils/exportUtils';
+import UserAvatar from '../common/UserAvatar';
 
 const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -89,7 +90,11 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         const cleanSearch = searchTerm.replace(/세|살/g, '');
         const matchesAge = age && age.includes(cleanSearch);
 
-        const matchesGroup = filterGroup === 'ALL' || user.user_group === filterGroup;
+        const matchesGroup = filterGroup === 'ALL'
+            ? true
+            : filterGroup === 'LEADER'
+                ? user.is_leader === true
+                : user.user_group === filterGroup;
         const isInternalAdmin = user.name === 'admin';
         return !isInternalAdmin && (matchesSearch || matchesAge) && matchesGroup;
     });
@@ -106,7 +111,9 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
             status: user.status || 'approved',
             guardian_name: user.guardian_name || '',
             guardian_phone: user.guardian_phone || '',
-            guardian_relation: user.guardian_relation || ''
+            guardian_relation: user.guardian_relation || '',
+            is_leader: user.is_leader || false,
+            is_master: user.is_master || false
         });
     };
 
@@ -118,7 +125,9 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 school: editFormData.school,
                 phone: editFormData.phone,
                 user_group: editFormData.user_group,
-                memo: editFormData.memo
+                memo: editFormData.memo,
+                is_leader: editFormData.is_leader,
+                is_master: editFormData.is_master
             }).eq('id', editingUser.id);
             if (error) throw error;
             alert('회원 정보가 수정되었습니다.');
@@ -161,6 +170,19 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
             const { error } = await supabase.from('users').update({ role: newRole }).eq('id', user.id);
             if (error) throw error;
             alert(`관리자 권한이 ${action}되었습니다.`);
+            fetchData();
+        } catch (err) { alert('권한 변경 실패'); }
+    };
+
+    const handleToggleMasterRole = async (user) => {
+        if (user.user_group !== 'STAFF') { alert('STAFF 그룹만 마스터 권한을 가질 수 있습니다.'); return; }
+        const newMaster = !user.is_master;
+        const action = newMaster ? '부여' : '회수';
+        if (!confirm(`${user.name}님에게 마스터(설정 편집) 권한을 ${action}하시겠습니까?`)) return;
+        try {
+            const { error } = await supabase.from('users').update({ is_master: newMaster }).eq('id', user.id);
+            if (error) throw error;
+            alert(`마스터 권한이 ${action}되었습니다.`);
             fetchData();
         } catch (err) { alert('권한 변경 실패'); }
     };
@@ -214,9 +236,12 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
 
     return (
         <div className="space-y-6 animate-fade-in-up">
-            <div className="p-6 md:p-10 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-gray-50/30">
+            <div className="p-6 md:p-10 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-blue-50/20">
                 <div>
-                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tighter">이용자 관리</h2>
+                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tighter flex items-center gap-3">
+                        <Users className="text-blue-600" size={32} />
+                        이용자 관리
+                    </h2>
                     <p className="text-gray-500 text-sm font-medium mt-1">전체 회원 목록 조회 및 정보 수정</p>
                 </div>
 
@@ -247,7 +272,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 gap-4">
                     <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
-                        {['ALL:전체', '청소년:청소년', '졸업생:졸업생', 'STAFF:STAFF'].map((g) => {
+                        {['ALL:전체', 'LEADER:리더', '청소년:청소년', '졸업생:졸업생', 'STAFF:STAFF'].map((g) => {
                             const [val, label] = g.split(':');
                             return (
                                 <button key={val} onClick={() => setFilterGroup(val)} className={`px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold whitespace-nowrap transition shadow-sm ${filterGroup === val ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
@@ -292,7 +317,9 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                             />
                                         </td>
                                         <td className="p-4 font-bold text-gray-700 flex items-center gap-2 text-sm md:text-base">
+                                            <UserAvatar user={user} size="w-8 h-8" textSize="text-[10px]" />
                                             {user.name}
+                                            {user.is_leader && <span title="리더"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star ml-1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg></span>}
                                             {(() => {
                                                 if (user.birth && user.birth.length === 6) {
                                                     const yy = parseInt(user.birth.substring(0, 2));
@@ -321,7 +348,9 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                                 <button onClick={() => handleApproveUser(user)} className="px-3 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition shadow-md whitespace-nowrap">승인</button>
                                             )}
                                             {user.user_group === 'STAFF' && (
-                                                <button onClick={() => handleToggleAdminRole(user)} className={`p-2 rounded-lg transition ${user.role === 'admin' ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md' : 'bg-gray-100 text-gray-400 hover:text-indigo-600'}`} title={user.role === 'admin' ? "관리자 권한 해제" : "관리자 권한 부여"}><UserPlus size={16} /></button>
+                                                <div className="flex gap-1">
+                                                    <button onClick={() => handleToggleAdminRole(user)} className={`p-2 rounded-lg transition ${user.role === 'admin' ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md' : 'bg-gray-100 text-gray-400 hover:text-indigo-600'}`} title={user.role === 'admin' ? "관리자 권한 해제" : "관리자 권한 부여"}><UserPlus size={16} /></button>
+                                                </div>
                                             )}
                                             <button onClick={() => openUserEditModal(user)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-blue-600 hover:text-white hover:border-blue-600 transition shadow-sm"><Edit2 size={16} /></button>
                                         </td>
@@ -340,45 +369,47 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                         filteredUsers.map((user) => (
                             <div
                                 key={user.id}
-                                className={`p-4 active:bg-gray-50 transition relative flex gap-4 items-center ${selectedUserIds.has(user.id) ? 'bg-blue-50/30' : ''}`}
+                                className={`p-3 active:bg-gray-50 transition relative flex gap-3 items-center ${selectedUserIds.has(user.id) ? 'bg-blue-50/30' : ''}`}
                                 onClick={() => toggleSelectUser(user.id)}
                             >
-                                <div className="p-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <UserAvatar user={user} size="w-10 h-10" textSize="text-xs" />
+                                <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                                     <input
                                         type="checkbox"
                                         checked={selectedUserIds.has(user.id)}
                                         onChange={() => toggleSelectUser(user.id)}
-                                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1.5 overflow-hidden">
-                                        <span className="font-bold text-gray-800 text-base truncate">{user.name}</span>
+                                    <div className="flex items-center gap-1.5 mb-1 overflow-hidden">
+                                        <span className="font-bold text-gray-800 text-sm truncate">{user.name}</span>
+                                        {user.is_leader && <span title="리더"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg></span>}
                                         {(() => {
                                             if (user.birth && user.birth.length === 6) {
                                                 const yy = parseInt(user.birth.substring(0, 2));
                                                 const fullYear = yy <= 40 ? 2000 + yy : 1900 + yy;
                                                 const age = new Date().getFullYear() - fullYear;
-                                                return <span className="text-[10px] text-gray-400 flex-shrink-0">{age}세</span>;
+                                                return <span className="text-[9px] text-gray-400 flex-shrink-0">({age}세)</span>;
                                             }
                                             return null;
                                         })()}
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-500' : user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>
+                                        <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0 ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-500' : user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>
                                             {user.user_group || '재학생'}
                                         </span>
-                                        {user.status === 'pending' && <span className="bg-red-100 text-red-600 text-[9px] font-black px-1.5 py-0.5 rounded-full">대기</span>}
+                                        {user.status === 'pending' && <span className="bg-red-100 text-red-600 text-[8px] font-black px-1 py-0.5 rounded-full">대기</span>}
                                         {user.memo && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" title="메모 있음" />}
                                     </div>
-                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400">
-                                        <span className="truncate max-w-[120px]">{user.school}</span>
+                                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-400">
+                                        <span className="truncate max-w-[100px]">{user.school}</span>
                                         <span className="font-mono">{user.phone}</span>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                                     {user.status === 'pending' && (
-                                        <button onClick={() => handleApproveUser(user)} className="px-3 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black hover:bg-red-700 transition shadow-md active:scale-95">승인</button>
+                                        <button onClick={() => handleApproveUser(user)} className="px-2 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black hover:bg-red-700 transition shadow-md active:scale-95">승인</button>
                                     )}
-                                    <button onClick={() => openUserEditModal(user)} className="p-2.5 bg-gray-50 text-gray-500 rounded-xl hover:bg-blue-50 hover:text-blue-600 border border-gray-100 transition shadow-sm active:scale-95"><Edit2 size={16} /></button>
+                                    <button onClick={() => openUserEditModal(user)} className="p-2 bg-gray-50 text-gray-500 rounded-lg hover:bg-blue-50 hover:text-blue-600 border border-gray-100 transition shadow-sm active:scale-95"><Edit2 size={14} /></button>
                                 </div>
                             </div>
                         ))
@@ -399,6 +430,13 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                 <button onClick={() => setEditingUser(null)}><X size={20} className="text-gray-400" /></button>
                             </div>
                         </div>
+                        <div className="p-6 flex flex-col items-center border-b border-gray-50 bg-gray-50/30">
+                            <UserAvatar user={editingUser} size="w-20 h-20" textSize="text-2xl" />
+                            <div className="mt-2 text-center">
+                                <p className="font-black text-gray-800 text-lg">{editingUser.name}</p>
+                                <p className="text-xs text-gray-400 font-bold">{editingUser.school}</p>
+                            </div>
+                        </div>
                         <div className="p-6 space-y-4">
                             <div><label className="text-xs font-bold text-gray-500 block mb-1">이름</label><input type="text" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold" /></div>
                             <div>
@@ -407,6 +445,39 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                     <option value="청소년">청소년</option><option value="졸업생">졸업생</option><option value="STAFF">STAFF</option><option value="재학생">재학생(구)</option><option value="일반인">일반인(구)</option>
                                 </select>
                             </div>
+
+                            {(editFormData.user_group === '청소년' || editFormData.user_group === '졸업생' || editFormData.user_group === '재학생') && (
+                                <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-100 rounded-xl">
+                                    <input
+                                        type="checkbox"
+                                        id="is_leader"
+                                        checked={editFormData.is_leader}
+                                        onChange={(e) => setEditFormData({ ...editFormData, is_leader: e.target.checked })}
+                                        className="w-5 h-5 text-yellow-500 border-gray-300 rounded focus:ring-yellow-500"
+                                    />
+                                    <label htmlFor="is_leader" className="text-sm font-bold text-gray-700 cursor-pointer flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                                        리더 (Leader) 지정
+                                    </label>
+                                </div>
+                            )}
+
+                            {editFormData.user_group === 'STAFF' && (JSON.parse(localStorage.getItem('admin_user'))?.is_master || JSON.parse(localStorage.getItem('admin_user'))?.name === 'Rok') && (
+                                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+                                    <input
+                                        type="checkbox"
+                                        id="is_master"
+                                        checked={editFormData.is_master}
+                                        onChange={(e) => setEditFormData({ ...editFormData, is_master: e.target.checked })}
+                                        className="w-5 h-5 text-red-500 border-gray-300 rounded focus:ring-red-500"
+                                    />
+                                    <label htmlFor="is_master" className="text-sm font-bold text-gray-700 cursor-pointer flex items-center gap-1">
+                                        <ShieldAlert size={16} className="text-red-500" />
+                                        마스터 (Master) 권한 부여
+                                    </label>
+                                </div>
+                            )}
+
                             <div><label className="text-xs font-bold text-gray-500 block mb-1">학교</label><input type="text" value={editFormData.school} onChange={(e) => setEditFormData({ ...editFormData, school: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold" /></div>
                             <div><label className="text-xs font-bold text-gray-500 block mb-1">연락처 (전체)</label><input type="text" value={editFormData.phone} onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold font-mono" /></div>
 
@@ -435,7 +506,11 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                                 </div>
                             )}
                         </div>
-                        <div className="p-6 pt-0"><button onClick={handleSaveUser} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"><Save size={20} /> 수정사항 저장</button></div>
+                        <div className="p-6 pt-0">
+                            <button onClick={handleSaveUser} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl">
+                                <Save size={20} /> 수정사항 저장
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
-import { School, Users, MapPin, ClipboardList, Settings, Plus, Search, X, Trash2, Save, ChevronRight, User, Calendar, Tag, MoreHorizontal, Clock, MapPin as LocationIcon, FileText } from 'lucide-react';
+import { School, Users, MapPin, ClipboardList, Settings, Plus, Search, X, Trash2, Save, ChevronRight, User, Calendar, Tag, MoreHorizontal, Clock, MapPin as LocationIcon, FileText, Star, LayoutGrid, Grid, List, Columns } from 'lucide-react';
 import { SCHOOL_REGIONS, CLUB_TYPES } from '../../constants/appConstants';
+import { calculateAge } from '../../utils/dateUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MINISTRY_LOG_TEMPLATE = `**근황**
@@ -16,15 +17,44 @@ const MINISTRY_LOG_TEMPLATE = `**근황**
 **추후방향**
 * `;
 
-const AdminSchool = ({ users, fetchData: refreshDashboardData }) => {
+const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
     const [schools, setSchools] = useState([]);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedSchool, setSelectedSchool] = useState(null);
+    const [selectedSchoolName, setSelectedSchoolName] = useState(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [isSettingsMode, setIsSettingsMode] = useState(false);
     const [selectedRegion, setSelectedRegion] = useState('ALL');
+
+    // Persisted State
+    const [favorites, setFavorites] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem('admin_school_favorites')) || [];
+        } catch { return []; }
+    });
+
+    const [viewMode, setViewMode] = useState(() => {
+        return localStorage.getItem('admin_school_view_mode') || 'grid-lg';
+        // 'grid-lg' (Current/Large), 'grid-md' (Small), 'grid-sm' (Smaller), 'list' (List)
+    });
+
+    useEffect(() => {
+        localStorage.setItem('admin_school_favorites', JSON.stringify(favorites));
+    }, [favorites]);
+
+    useEffect(() => {
+        localStorage.setItem('admin_school_view_mode', viewMode);
+    }, [viewMode]);
+
+    const toggleFavorite = (schoolName, e) => {
+        e.stopPropagation();
+        setFavorites(prev =>
+            prev.includes(schoolName)
+                ? prev.filter(n => n !== schoolName)
+                : [...prev, schoolName]
+        );
+    };
 
     useEffect(() => {
         fetchSchoolsAndLogs();
@@ -44,8 +74,12 @@ const AdminSchool = ({ users, fetchData: refreshDashboardData }) => {
         }
     };
 
+    const staffList = useMemo(() => {
+        return (users || []).filter(u => u.user_group === 'STAFF' || u.user_group === 'TEACHER');
+    }, [users]);
+
     const schoolGroups = useMemo(() => {
-        const adolescents = users.filter(u => u.user_group === '청소년');
+        const adolescents = (users || []).filter(u => u.user_group === '청소년');
         const groups = {};
 
         adolescents.forEach(u => {
@@ -80,32 +114,45 @@ const AdminSchool = ({ users, fetchData: refreshDashboardData }) => {
         return Object.values(groups).filter(g =>
             g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (g.metadata?.club_name && g.metadata.club_name.toLowerCase().includes(searchTerm.toLowerCase()))
-        ).sort((a, b) => a.name.localeCompare(b.name));
-    }, [users, schools, searchTerm, selectedRegion]);
+        ).sort((a, b) => {
+            // Sort by Favorites first
+            const isAFav = favorites.includes(a.name);
+            const isBFav = favorites.includes(b.name);
+            if (isAFav && !isBFav) return -1;
+            if (!isAFav && isBFav) return 1;
 
-    const staffList = useMemo(() => users.filter(u => u.user_group === 'STAFF'), [users]);
+            // Then alphabetical
+            return a.name.localeCompare(b.name);
+        });
+    }, [users, schools, searchTerm, selectedRegion, favorites]);
+
+    // Derived State for Modal
+    const targetSchool = useMemo(() => {
+        if (!selectedSchoolName) return null;
+        return schoolGroups.find(g => g.name === selectedSchoolName) || null;
+    }, [schoolGroups, selectedSchoolName]);
 
     const handleOpenDetail = (group) => {
-        setSelectedSchool(group);
+        setSelectedSchoolName(group.name);
         setIsDetailModalOpen(true);
         setIsSettingsMode(false);
     };
 
     const handleSaveMetadata = async (metadata) => {
+        if (!targetSchool) return;
         try {
-            const existing = schools.find(s => s.name === selectedSchool.name);
+            const existing = schools.find(s => s.name === targetSchool.name);
             let result;
             if (existing) {
                 result = await supabase.from('schools').update(metadata).eq('id', existing.id);
             } else {
-                result = await supabase.from('schools').insert([{ ...metadata, name: selectedSchool.name }]);
+                result = await supabase.from('schools').insert([{ ...metadata, name: targetSchool.name }]);
             }
 
             if (result.error) throw result.error;
             await fetchSchoolsAndLogs();
             setIsSettingsMode(false);
-            const updatedSchool = { ...selectedSchool, metadata: { ...selectedSchool.metadata, ...metadata } };
-            setSelectedSchool(updatedSchool);
+            // No need to manually update selectedSchool, fetch will trigger re-render of schoolGroups -> targetSchool
         } catch (err) {
             alert('저장 실패: ' + err.message);
         }
@@ -148,24 +195,64 @@ const AdminSchool = ({ users, fetchData: refreshDashboardData }) => {
                             className="w-full pl-14 p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold text-gray-700 shadow-inner"
                         />
                     </div>
+
+                    {/* View Mode Controls */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
+                        <button
+                            onClick={() => setViewMode('grid-lg')}
+                            className={`p-2 rounded-lg transition-all ${viewMode === 'grid-lg' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="크게 보기"
+                        >
+                            <LayoutGrid size={18} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('grid-md')}
+                            className={`p-2 rounded-lg transition-all ${viewMode === 'grid-md' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="작게 보기"
+                        >
+                            <Grid size={18} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('grid-sm')}
+                            className={`p-2 rounded-lg transition-all ${viewMode === 'grid-sm' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="더 작게 보기"
+                        >
+                            <Columns size={18} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="목록형"
+                        >
+                            <List size={18} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className={`
+                ${viewMode === 'list' ? 'flex flex-col gap-2' : 'grid gap-3 md:gap-4'}
+                ${viewMode === 'grid-lg' ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4' : ''}
+                ${viewMode === 'grid-md' ? 'grid-cols-3 md:grid-cols-4 xl:grid-cols-5' : ''}
+                ${viewMode === 'grid-sm' ? 'grid-cols-4 md:grid-cols-5 xl:grid-cols-6' : ''}
+            `}>
                 {schoolGroups.map((group) => (
                     <SchoolCard
                         key={group.name}
                         group={group}
+                        viewMode={viewMode}
+                        isFavorite={favorites.includes(group.name)}
+                        onToggleFavorite={(e) => toggleFavorite(group.name, e)}
                         onClick={() => handleOpenDetail(group)}
                     />
                 ))}
             </div>
 
             <AnimatePresence>
-                {isDetailModalOpen && selectedSchool && (
+                {isDetailModalOpen && targetSchool && (
                     <SchoolDetailModal
-                        school={selectedSchool}
-                        logs={logs.filter(l => l.school_id === selectedSchool.metadata?.id)}
+                        school={targetSchool}
+                        logs={logs.filter(l => l.school_id === targetSchool.metadata?.id)}
                         staffList={staffList}
                         onClose={() => setIsDetailModalOpen(false)}
                         isSettingsMode={isSettingsMode}
@@ -181,49 +268,112 @@ const AdminSchool = ({ users, fetchData: refreshDashboardData }) => {
     );
 };
 
-const SchoolCard = ({ group, onClick }) => {
+const SchoolCard = ({ group, onClick, viewMode, isFavorite, onToggleFavorite }) => {
     const meta = group.metadata;
+    const isList = viewMode === 'list';
+
+    // Card Style Logic
+    const cardBaseClass = `bg-white border rounded-[1.5rem] md:rounded-[2rem] shadow-sm cursor-pointer transition-all flex h-full relative group
+        ${isFavorite ? 'border-yellow-200 bg-yellow-50/10' : 'border-gray-100 hover:border-indigo-200'}
+        ${isFavorite ? 'shadow-md shadow-yellow-100' : ''}
+    `;
+
+    // View Mode Specific Styles
+    // grid-lg: Current (Large)
+    // grid-md: Compact
+    // grid-sm: Minimal
+    const isSmall = viewMode === 'grid-sm';
+
+    if (isList) {
+        return (
+            <motion.div
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={onClick}
+                className={`w-full p-4 flex items-center gap-4 bg-white border border-gray-100 rounded-xl hover:border-indigo-300 transition-all cursor-pointer relative group ${isFavorite ? 'bg-yellow-50/30 border-yellow-200' : ''}`}
+            >
+                <button
+                    onClick={onToggleFavorite}
+                    className={`shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors ${isFavorite ? 'text-yellow-400' : 'text-gray-300 group-hover:text-gray-400'}`}
+                >
+                    <Star size={16} fill={isFavorite ? "currentColor" : "none"} />
+                </button>
+
+                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+                    <School size={18} />
+                </div>
+
+                <div className="flex-1 min-w-0 grid grid-cols-12 gap-4 items-center">
+                    <div className="col-span-3 font-black text-gray-800 truncate">{group.name}</div>
+                    <div className="col-span-1">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${meta?.region === '강동' ? 'bg-blue-100 text-blue-600' : meta?.region === '강서' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-400'}`}>
+                            {meta?.region || '미지정'}
+                        </span>
+                    </div>
+                    <div className="col-span-3 text-xs text-gray-500 font-bold truncate">{meta?.club_name || '-'}</div>
+                    <div className="col-span-3 text-xs text-gray-400 truncate">{meta?.teacher_name || '-'}</div>
+                    <div className="col-span-2 text-right text-xs font-bold text-gray-500">{group.students.length}명</div>
+                </div>
+            </motion.div>
+        );
+    }
+
     return (
         <motion.div
             whileHover={{ y: -5, shadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)" }}
+            whileTap={{ scale: 0.98 }}
             onClick={onClick}
-            className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm cursor-pointer transition-all hover:border-indigo-200"
+            className={`${cardBaseClass} ${isSmall ? 'p-3 md:p-4' : 'p-4 md:p-6'} flex-col justify-between`}
         >
-            <div className="flex justify-between items-start mb-4">
-                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
-                    <School size={24} />
+            <button
+                onClick={onToggleFavorite}
+                className={`absolute top-3 right-3 p-1.5 rounded-full z-10 hover:bg-black/5 transition-colors ${isFavorite ? 'text-yellow-400' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`}
+            >
+                <Star size={isSmall ? 14 : 18} fill={isFavorite ? "currentColor" : "none"} />
+            </button>
+
+            <div>
+                <div className="flex justify-between items-start mb-3 md:mb-4 pr-6">
+                    <div className={`${isSmall ? 'w-8 h-8' : 'w-10 h-10 md:w-12 md:h-12'} bg-indigo-50 rounded-xl md:rounded-2xl flex items-center justify-center text-indigo-600 shrink-0`}>
+                        <School size={isSmall ? 16 : 20} className={isSmall ? '' : 'md:w-6 md:h-6'} />
+                    </div>
+                    <span className={`px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[9px] md:text-[10px] font-black shrink-0 ${meta?.region === '강동' ? 'bg-blue-100 text-blue-600' : meta?.region === '강서' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-400'}`}>
+                        {meta?.region || '미지정'}
+                    </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-black ${meta?.region === '강동' ? 'bg-blue-100 text-blue-600' : meta?.region === '강서' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-400'}`}>
-                    {meta?.region || '지역 미지정'}
-                </span>
+
+                <h3 className={`${isSmall ? 'text-sm' : 'text-sm md:text-lg'} font-black text-gray-800 mb-0.5 md:mb-1 truncate tracking-tight`}>{group.name}</h3>
+                <p className={`${isSmall ? 'text-[9px]' : 'text-[10px] md:text-xs'} font-bold text-gray-400 mb-3 md:mb-4 truncate`}>{meta?.club_name || '동아리 정보 없음'}</p>
             </div>
 
-            <h3 className="text-lg font-black text-gray-800 mb-1 truncate">{group.name}</h3>
-            <p className="text-xs font-bold text-gray-400 mb-4">{meta?.club_name || '동아리 정보 없음'}</p>
-
-            <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-                <div className="flex items-center gap-1.5 text-gray-500">
-                    <Users size={14} />
-                    <span className="text-xs font-bold">{group.students.length}명</span>
+            <div className={`flex items-center justify-between ${isSmall ? 'pt-2' : 'pt-3 md:pt-4'} border-t border-gray-50 mt-auto`}>
+                <div className="flex items-center gap-1 md:gap-1.5 text-gray-500 shrink-0">
+                    <Users size={isSmall ? 10 : 12} className={isSmall ? '' : 'md:w-[14px] md:h-[14px]'} />
+                    <span className={`${isSmall ? 'text-[9px]' : 'text-[10px] md:text-xs'} font-bold`}>{group.students.length}명</span>
                 </div>
-                <div className="flex -space-x-2">
-                    {group.students.slice(0, 3).map((s, i) => (
-                        <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-[8px] font-bold text-gray-500 overflow-hidden">
-                            {s.profile_image_url ? <img src={s.profile_image_url} className="w-full h-full object-cover" /> : s.name?.charAt(0)}
-                        </div>
-                    ))}
-                    {group.students.length > 3 && (
-                        <div className="w-6 h-6 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[8px] font-bold text-gray-400">
-                            +{group.students.length - 3}
-                        </div>
-                    )}
-                </div>
+                {!isSmall && (
+                    <div className="flex -space-x-1.5 md:-space-x-2">
+                        {group.students.slice(0, 3).map((s, i) => (
+                            <div key={i} className="w-5 h-5 md:w-6 md:h-6 rounded-full border-[1.5px] md:border-2 border-white bg-gray-200 flex items-center justify-center text-[7px] md:text-[8px] font-bold text-gray-500 overflow-hidden shrink-0">
+                                {s.profile_image_url ? <img src={s.profile_image_url} className="w-full h-full object-cover" /> : s.name?.charAt(0)}
+                            </div>
+                        ))}
+                        {group.students.length > 3 && (
+                            <div className="w-5 h-5 md:w-6 md:h-6 rounded-full border-[1.5px] md:border-2 border-white bg-gray-100 flex items-center justify-center text-[7px] md:text-[8px] font-bold text-gray-400 shrink-0">
+                                +{group.students.length - 3}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </motion.div>
     );
 };
 
 const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, setIsSettingsMode, onSaveMetadata, refreshLogs, refreshDashboardData, allUsers }) => {
+    // Safety check for school prop
+    if (!school) return null;
+
     const [editData, setEditData] = useState({
         region: school.metadata?.region || '',
         club_type: school.metadata?.club_type || '',
@@ -232,6 +382,19 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
         teacher_name: school.metadata?.teacher_name || '',
         meeting_time: school.metadata?.meeting_time || ''
     });
+
+    // Reset editData when school changes
+    useEffect(() => {
+        console.log('SchoolDetailModal useEffect triggered:', school);
+        setEditData({
+            region: school.metadata?.region || '',
+            club_type: school.metadata?.club_type || '',
+            club_name: school.metadata?.club_name || '',
+            manager_ids: school.metadata?.manager_ids || [],
+            teacher_name: school.metadata?.teacher_name || '',
+            meeting_time: school.metadata?.meeting_time || ''
+        });
+    }, [school]);
 
     const [isLogFormOpen, setIsLogFormOpen] = useState(false);
     const [selectedLog, setSelectedLog] = useState(null);
@@ -467,7 +630,11 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
                                                         {student.profile_image_url ? <img src={student.profile_image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-gray-300 bg-gray-50 uppercase">{student.name?.charAt(0)}</div>}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-[11px] font-black text-gray-700 truncate">{student.name}</p>
+                                                        <p className="text-[11px] font-black text-gray-700 truncate flex items-center gap-1">
+                                                            {student.name}
+                                                            {student.birth && <span className="text-[10px] text-gray-400 font-extrabold">[{calculateAge(student.birth)}]</span>}
+                                                            {student.is_leader && <span className="text-[10px]" title="리더">⭐</span>}
+                                                        </p>
                                                         <p className="text-[9px] font-bold text-gray-400">{student.birth || '-'}</p>
                                                     </div>
                                                 </div>
@@ -512,12 +679,11 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
                         </div>
 
                         {/* Enhanced Table Header (PC Only) */}
-                        <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50/80 rounded-2xl text-[11px] font-black text-gray-400 uppercase tracking-widest border border-gray-100">
-                            <div className="col-span-2">날짜 및 시간</div>
-                            <div className="col-span-3">참여자</div>
-                            <div className="col-span-2">장소</div>
-                            <div className="col-span-4">내용 요약</div>
-                            <div className="col-span-1 text-center">작성자</div>
+                        <div className="hidden lg:flex items-center gap-4 px-6 py-4 bg-gray-50/80 rounded-2xl text-[11px] font-black text-gray-400 uppercase tracking-widest border border-gray-100">
+                            <div className="w-[180px] shrink-0 text-center">날짜 및 시간</div>
+                            <div className="flex-1 min-w-0">참여자</div>
+                            <div className="w-[120px] shrink-0 text-center">장소</div>
+                            <div className="w-[80px] shrink-0 text-center">작성자</div>
                         </div>
 
                         {/* Logs List - Refined Card UI */}
@@ -526,65 +692,66 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
                                 <div
                                     key={log.id}
                                     onClick={() => handleRowClick(log)}
-                                    className="lg:grid lg:grid-cols-12 flex flex-col gap-2 lg:gap-4 p-4 lg:p-6 bg-white border border-gray-100 rounded-[1.5rem] lg:rounded-[2rem] hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-100/30 transition-all cursor-pointer group animate-fade-in relative overflow-hidden"
+                                    className="flex items-center gap-4 px-6 py-4 bg-white border border-gray-100 rounded-xl hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group animate-fade-in relative overflow-hidden"
                                 >
                                     {/* Left Accent Bar on Hover */}
                                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                                    {/* Date & Time */}
-                                    <div className="lg:col-span-2 flex flex-row lg:flex-col gap-3 lg:gap-1 items-center lg:items-start shrink-0">
-                                        <div className="flex items-center gap-2 font-black text-indigo-600 text-sm lg:text-sm bg-indigo-50/50 lg:bg-transparent px-3 py-1 lg:px-0 lg:py-0 rounded-lg">
-                                            <Calendar size={14} className="text-indigo-500 lg:w-4 lg:h-4" />
-                                            {log.date}
+                                    {/* Date & Time (Fixed Width, Single Line) */}
+                                    <div className="flex items-center justify-center gap-2 shrink-0 w-[180px]">
+                                        <span className="text-[12px] font-black text-indigo-600 whitespace-nowrap">{log.date}</span>
+                                        <div className="w-[1px] h-3 bg-gray-200"></div>
+                                        <span className="text-[11px] text-gray-400 font-bold whitespace-nowrap overflow-hidden text-ellipsis">{log.time_range}</span>
+                                    </div>
+
+                                    {/* Participants & Facilitators (Flexible Width) */}
+                                    <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
+                                        {/* Facilitators */}
+                                        {log.facilitator_ids?.map(fid => {
+                                            const staff = staffList.find(s => s.id === fid);
+                                            return staff ? (
+                                                <span key={fid} className="shrink-0 px-2 py-0.5 bg-indigo-600 rounded text-[10px] font-bold text-white whitespace-nowrap">
+                                                    {staff.name}
+                                                </span>
+                                            ) : null;
+                                        })}
+
+                                        {/* Students */}
+                                        <div className="flex items-center gap-1.5 overflow-hidden">
+                                            {log.participant_ids?.length > 0 ? (
+                                                log.participant_ids.map(pid => {
+                                                    const student = school.students.find(s => s.id === pid) || (allUsers || []).find(u => u.id === pid);
+                                                    return student ? (
+                                                        <span key={pid} className="shrink-0 text-[11px] text-gray-500 font-bold whitespace-nowrap hover:text-indigo-600">
+                                                            {student.name}
+                                                        </span>
+                                                    ) : null;
+                                                })
+                                            ) : (
+                                                (!log.facilitator_ids || log.facilitator_ids.length === 0) && (
+                                                    <span className="text-[10px] text-gray-300 font-bold">참여자 없음</span>
+                                                )
+                                            )}
                                         </div>
-                                        {log.time_range && (
-                                            <div className="flex items-center gap-2 text-[13px] lg:text-xs text-gray-400 font-extrabold">
-                                                <Clock size={14} />
-                                                {log.time_range}
-                                            </div>
-                                        )}
                                     </div>
 
-                                    {/* Participants */}
-                                    <div className="lg:col-span-3 flex items-center gap-1.5 flex-wrap">
-                                        {log.participant_ids?.length > 0 ? (
-                                            log.participant_ids.slice(0, 6).map(pid => {
-                                                const student = school.students.find(s => s.id === pid) || allUsers.find(u => u.id === pid);
-                                                return student ? (
-                                                    <div key={pid} className="px-2 py-1 bg-gray-50 border border-gray-100 rounded-lg text-[10px] lg:text-[11px] font-black text-gray-500 group-hover:bg-indigo-50 group-hover:border-indigo-100 group-hover:text-indigo-600 transition-colors">
-                                                        {student.name}
-                                                    </div>
-                                                ) : null;
-                                            })
-                                        ) : (
-                                            <span className="text-[10px] lg:text-[11px] text-gray-300 font-bold px-1">참여자 미지정</span>
-                                        )}
-                                        {log.participant_ids?.length > 6 && (
-                                            <span className="text-[10px] lg:text-[11px] text-gray-400 font-black">+{log.participant_ids.length - 6}</span>
-                                        )}
-                                    </div>
-
-                                    {/* Location - Hidden on Mobile List */}
-                                    <div className="lg:col-span-2 hidden lg:flex items-center gap-2.5">
-                                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 text-gray-400 group-hover:text-indigo-500 group-hover:bg-indigo-50 transition-colors">
-                                            <LocationIcon size={16} />
+                                    {/* Location (Text Only, Truncate) */}
+                                    <div className="w-[120px] shrink-0 text-center hidden md:block">
+                                        <div className="text-[11px] text-gray-400 font-bold truncate px-2">
+                                            {log.location || '-'}
                                         </div>
-                                        <span className="text-[13px] font-black text-gray-600 group-hover:text-gray-900 transition-colors truncate">{log.location || '장소 기록 없음'}</span>
                                     </div>
 
-                                    {/* Content Summary - Compact on Mobile */}
-                                    <div className={`lg:col-span-4 lg:flex flex-col justify-center min-w-0 py-1 ${window.innerWidth < 1024 ? 'hidden' : 'flex'}`}>
-                                        <p className="text-[14px] lg:text-sm font-bold text-gray-800 line-clamp-2 md:line-clamp-2 leading-relaxed group-hover:text-indigo-700 transition-colors">
-                                            {log.content?.replace(/[\*\#\-]/g, ' ').substring(0, 100) || '기록된 내용이 없습니다.'}
-                                        </p>
+                                    {/* Author */}
+                                    <div className="w-[80px] shrink-0 flex justify-center items-center">
+                                        <span className="text-[11px] font-bold text-gray-500">
+                                            {log.author_id ? ((allUsers || []).find(u => u.id === log.author_id)?.name || '알수없음') : '-'}
+                                        </span>
                                     </div>
 
-                                    {/* Author (Mobile: Simple Arrow) */}
-                                    <div className="lg:col-span-1 flex lg:flex-col items-center justify-end lg:justify-center gap-2 lg:border-t-0 lg:pt-0 lg:mt-0 border-gray-50 absolute right-4 top-1/2 -translate-y-1/2 lg:static lg:translate-y-0">
-                                        <ChevronRight size={18} className="text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
-                                    </div>
-                                </div>
-                            ))}
+                                    {/* Arrow Icon */}
+                                    <ChevronRight size={14} className="text-gray-300 shrink-0 group-hover:text-indigo-500 transition-colors" />
+                                </div>))}
 
                             {logs.length === 0 && (
                                 <div className="p-20 text-center flex flex-col items-center justify-center gap-4 bg-gray-50/30 rounded-[3rem] border-2 border-dashed border-gray-100">
@@ -606,6 +773,8 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
                     {isLogFormOpen && (
                         <LogFormModal
                             school={school}
+
+                            staffList={staffList}
                             onClose={() => setIsLogFormOpen(false)}
                             onSave={async (formData) => {
                                 try {
@@ -672,16 +841,18 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
     );
 };
 
-const LogFormModal = ({ school, onClose, onSave }) => {
+const LogFormModal = ({ school, onClose, onSave, staffList }) => {
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         start_time: '17:00',
         end_time: '18:30',
         location: '',
         participant_ids: [],
+        facilitator_ids: [],
         content: MINISTRY_LOG_TEMPLATE
     });
     const [searchTerm, setSearchTerm] = useState('');
+    const [facilitatorSearchTerm, setFacilitatorSearchTerm] = useState('');
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -740,10 +911,10 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-8 space-y-8">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-8 space-y-6 md:space-y-8">
                     {/* Date & Time */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5 col-span-2">
+                    <div className="grid grid-cols-2 gap-3 md:gap-4">
+                        <div className="space-y-1 col-span-2">
                             <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                                 <Calendar size={12} /> 날짜
                             </label>
@@ -751,10 +922,10 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                                 type="date"
                                 value={formData.date}
                                 onChange={e => setFormData({ ...formData, date: e.target.value })}
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                                className="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner text-sm md:text-base"
                             />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                                 <Clock size={12} /> 시작 시간
                             </label>
@@ -762,10 +933,10 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                                 type="time"
                                 value={formData.start_time}
                                 onChange={e => setFormData({ ...formData, start_time: e.target.value })}
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                                className="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner text-sm md:text-base"
                             />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                                 <Clock size={12} /> 종료 시간
                             </label>
@@ -773,32 +944,32 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                                 type="time"
                                 value={formData.end_time}
                                 onChange={e => setFormData({ ...formData, end_time: e.target.value })}
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                                className="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner text-sm md:text-base"
                             />
                         </div>
                     </div>
 
                     {/* Participants (Multi-select with search) */}
-                    <div className="space-y-3">
+                    <div className="space-y-2 md:space-y-3">
                         <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                             <Users size={12} /> 참여자 선택 ({formData.participant_ids.length}명 선택됨)
                         </label>
-                        <div className="relative mb-3">
+                        <div className="relative mb-2 md:mb-3">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
                             <input
                                 type="text"
                                 placeholder="학생 이름 검색..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold outline-none focus:bg-white focus:border-indigo-500 transition-all"
+                                className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold outline-none focus:bg-white focus:border-indigo-500 transition-all"
                             />
                         </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[160px] overflow-y-auto no-scrollbar p-1">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 md:gap-2 max-h-[140px] md:max-h-[160px] overflow-y-auto no-scrollbar p-1">
                             {filteredStudents.map(student => (
                                 <button
                                     key={student.id}
                                     onClick={() => toggleParticipant(student.id)}
-                                    className={`flex items-center gap-2 p-2 rounded-xl text-[10px] font-black transition-all border ${formData.participant_ids.includes(student.id) ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+                                    className={`flex items-center gap-1.5 md:gap-2 p-1.5 md:p-2 rounded-xl text-[10px] font-black transition-all border ${formData.participant_ids.includes(student.id) ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
                                 >
                                     <span className="truncate">{student.name}</span>
                                 </button>
@@ -806,8 +977,114 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                         </div>
                     </div>
 
+                    {/* Facilitators (Multi-select) */}
+                    <div className="space-y-4 md:space-y-5">
+                        {/* School Managers Section */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-indigo-500 uppercase ml-1 flex items-center gap-2">
+                                <User size={12} /> 학교 담당 매니저
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                                {staffList?.filter(s => school.metadata?.manager_ids?.includes(s.id)).map(staff => (
+                                    <button
+                                        key={staff.id}
+                                        onClick={() => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                facilitator_ids: prev.facilitator_ids?.includes(staff.id)
+                                                    ? prev.facilitator_ids.filter(id => id !== staff.id)
+                                                    : [...(prev.facilitator_ids || []), staff.id]
+                                            }));
+                                        }}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all border ${formData.facilitator_ids?.includes(staff.id) ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-indigo-100 hover:bg-indigo-50'}`}
+                                    >
+                                        <div className="w-5 h-5 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden">
+                                            {staff.profile_image_url ? <img src={staff.profile_image_url} className="w-full h-full object-cover" /> : <User size={12} />}
+                                        </div>
+                                        <span>{staff.name}</span>
+                                    </button>
+                                ))}
+                                {(!staffList?.some(s => school.metadata?.manager_ids?.includes(s.id))) && (
+                                    <div className="text-xs text-gray-300 font-bold px-2 py-1">지정된 매니저 없음</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Other Staff Section (Search & Compact) */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
+                                <Users size={12} /> 전체 스태프 (추가 선택)
+                            </label>
+
+                            {/* Search Input */}
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
+                                <input
+                                    type="text"
+                                    placeholder="이름으로 스태프 검색..."
+                                    value={facilitatorSearchTerm}
+                                    onChange={e => setFacilitatorSearchTerm(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-indigo-500 transition-all"
+                                />
+                                {/* Search Results Dropdown */}
+                                {facilitatorSearchTerm && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-20 p-2 max-h-[160px] overflow-y-auto no-scrollbar">
+                                        {staffList?.filter(s => !school.metadata?.manager_ids?.includes(s.id) && s.name.toLowerCase().includes(facilitatorSearchTerm.toLowerCase())).map(staff => (
+                                            <button
+                                                key={staff.id}
+                                                onClick={() => {
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        facilitator_ids: prev.facilitator_ids?.includes(staff.id)
+                                                            ? prev.facilitator_ids // Already selected
+                                                            : [...(prev.facilitator_ids || []), staff.id]
+                                                    }));
+                                                    setFacilitatorSearchTerm(''); // Clear search after selection
+                                                }}
+                                                className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg text-left group"
+                                            >
+                                                <div className="w-6 h-6 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                                                    {staff.profile_image_url ? <img src={staff.profile_image_url} className="w-full h-full object-cover" /> : <User size={12} className="text-gray-400 group-hover:text-indigo-500 py-0.5" />}
+                                                </div>
+                                                <span className="text-xs font-bold text-gray-600 group-hover:text-indigo-600">{staff.name}</span>
+                                                {formData.facilitator_ids?.includes(staff.id) && <span className="ml-auto text-[10px] text-indigo-500 font-bold">선택됨</span>}
+                                            </button>
+                                        ))}
+                                        {staffList?.filter(s => !school.metadata?.manager_ids?.includes(s.id) && s.name.toLowerCase().includes(facilitatorSearchTerm.toLowerCase())).length === 0 && (
+                                            <div className="text-center py-2 text-xs text-gray-400">검색 결과가 없습니다.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Selected Other Staff Display */}
+                            {staffList?.filter(s => !school.metadata?.manager_ids?.includes(s.id) && formData.facilitator_ids?.includes(s.id)).length > 0 && (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {staffList?.filter(s => !school.metadata?.manager_ids?.includes(s.id) && formData.facilitator_ids?.includes(s.id)).map(staff => (
+                                        <button
+                                            key={staff.id}
+                                            onClick={() => {
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    facilitator_ids: prev.facilitator_ids.filter(id => id !== staff.id)
+                                                }));
+                                            }}
+                                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all border bg-indigo-600 text-white border-indigo-600 shadow-md hover:bg-indigo-700"
+                                        >
+                                            <div className="w-5 h-5 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden">
+                                                {staff.profile_image_url ? <img src={staff.profile_image_url} className="w-full h-full object-cover" /> : <User size={12} />}
+                                            </div>
+                                            <span>{staff.name}</span>
+                                            <X size={12} className="ml-1 opacity-60 hover:opacity-100" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Location */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                         <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                             <LocationIcon size={12} /> 활동 장소
                         </label>
@@ -816,12 +1093,12 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                             placeholder="예: 학교 매점, 정문 앞, 센터 프로그램실 등"
                             value={formData.location}
                             onChange={e => setFormData({ ...formData, location: e.target.value })}
-                            className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                            className="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner text-sm md:text-base"
                         />
                     </div>
 
                     {/* Notepad Content Editor */}
-                    <div className="space-y-3">
+                    <div className="space-y-2 md:space-y-3">
                         <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                             <FileText size={12} /> 사역 내용 (메모장 스타일)
                         </label>
@@ -829,7 +1106,7 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                             value={formData.content}
                             onKeyDown={handleKeyDown}
                             onChange={e => setFormData({ ...formData, content: e.target.value })}
-                            className="w-full h-[400px] p-6 bg-gray-50 border border-gray-100 rounded-[2rem] font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner resize-none text-[13px] leading-relaxed"
+                            className="w-full h-[300px] md:h-[400px] p-4 md:p-6 bg-gray-50 border border-gray-100 rounded-[1.5rem] md:rounded-[2rem] font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner resize-none text-[12px] md:text-[13px] leading-relaxed"
                             placeholder={`여기에 내용을 입력하세요...\n* 엔터 입력 시 불렛 자동 생성\n* 쉬프트+엔터로 일반 줄바꿈`}
                         />
                     </div>
@@ -850,6 +1127,7 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                                 time_range: `${formData.start_time}~${formData.end_time}`,
                                 location: formData.location,
                                 participant_ids: formData.participant_ids,
+                                facilitator_ids: formData.facilitator_ids,
                                 content: formData.content
                             });
                         }}
@@ -859,7 +1137,7 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                     </button>
                 </div>
             </motion.div>
-        </motion.div>
+        </motion.div >
     );
 };
 
@@ -1150,9 +1428,11 @@ const StudentDetailModal = ({ student, onClose, onSave }) => {
                     </div>
                     <button
                         onClick={onClose}
-                        className="absolute top-4 right-4 p-2 bg-white/20 text-white rounded-full hover:bg-white/30 transition-colors backdrop-blur-sm z-10"
+                        className="absolute top-0 right-0 w-24 h-24 flex items-start justify-end pt-6 pr-6 z-20 outline-none group"
                     >
-                        <X size={20} />
+                        <div className="bg-white/20 p-2.5 rounded-full text-white backdrop-blur-sm group-hover:bg-white/30 transition-colors shadow-sm">
+                            <X size={20} />
+                        </div>
                     </button>
 
                     <div className="flex flex-col items-center relative z-10">
