@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { userApi } from '../api/userApi';
 import { compressImage } from '../utils/imageUtils';
+import { isConsecutiveWorkingDay } from '../utils/analyticsUtils';
 
 export const useProfile = (initialUser) => {
     const [user, setUser] = useState(initialUser);
@@ -79,16 +80,14 @@ export const useProfile = (initialUser) => {
                     if (l.location_id) visitedLocations.add(l.location_id);
                 });
 
-                // Streak (Consecutive Days)
+                // Streak (Consecutive Days - Skipping Tue, Sat, Sun)
                 if (sortedDates.length > 0) {
                     let currentStreak = 1;
                     for (let i = 1; i < sortedDates.length; i++) {
-                        const prev = new Date(sortedDates[i - 1]);
-                        const curr = new Date(sortedDates[i]);
-                        const diffTime = Math.abs(curr - prev);
-                        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                        const prev = sortedDates[i - 1]; // sortedDates are YYYY-MM-DD
+                        const curr = sortedDates[i];
 
-                        if (diffDays === 1) {
+                        if (isConsecutiveWorkingDay(prev, curr)) {
                             currentStreak++;
                         } else {
                             maxConsecutiveDays = Math.max(maxConsecutiveDays, currentStreak);

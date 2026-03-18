@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 import { Calendar, Users, Clock, MapPin, Award, Filter, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { processAnalyticsData, processProgramAnalytics, processUserAnalytics } from '../utils/analyticsUtils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
-import SeucheoTimeAnalytics from './admin/analytics/SeucheoTimeAnalytics';
+import SeucheoTimeAnalytics from './admin/statistics/analytics/SeucheoTimeAnalytics';
+import ManagerAssignmentModal from './admin/statistics/analytics/ManagerAssignmentModal';
+import { getKSTWeekOfMonth } from '../utils/dateUtils';
 
-const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, isLoading }) => {
+const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, isLoading, fetchData }) => {
     // State for Filter
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-indexed
@@ -15,23 +17,64 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
 
     // ... (existing states omitted for brevity keep as is)
 
-    // Skeleton Component
+    // Premium Skeleton Component
     const Skeleton = () => (
-        <div className="space-y-6 animate-pulse">
-            <div className="h-24 bg-gray-100 rounded-xl"></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-gray-100 rounded-xl"></div>)}
+        <div className="space-y-6">
+            {/* Filter Skeleton */}
+            <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4 animate-pulse">
+                <div className="flex gap-2">
+                    <div className="h-8 w-16 bg-gray-100 rounded-md"></div>
+                    <div className="h-8 w-16 bg-gray-100 rounded-md"></div>
+                    <div className="h-8 w-16 bg-gray-100 rounded-md"></div>
+                </div>
+                <div className="flex gap-2">
+                    <div className="h-10 w-24 bg-gray-100 rounded-lg"></div>
+                    <div className="h-10 w-24 bg-gray-100 rounded-lg"></div>
+                    <div className="h-10 w-32 bg-gray-100 rounded-lg"></div>
+                </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="h-80 bg-gray-100 rounded-xl"></div>
-                <div className="h-80 bg-gray-100 rounded-xl"></div>
-                <div className="h-80 bg-gray-100 rounded-xl md:col-span-2"></div>
+
+            {/* KPI Cards Skeleton */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-pulse">
+                {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-gray-100 rounded-lg"></div>
+                            <div className="h-4 w-20 bg-gray-100 rounded"></div>
+                        </div>
+                        <div className="h-8 w-16 bg-gray-100 rounded mb-2"></div>
+                        <div className="h-3 w-24 bg-gray-50 rounded"></div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Charts Skeleton */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96 flex flex-col justify-between">
+                    <div className="h-6 w-40 bg-gray-100 rounded mb-8"></div>
+                    <div className="flex gap-4 items-end h-full">
+                        {[1, 2, 3, 4, 5].map(i => <div key={i} className="flex-1 bg-gray-50 rounded-t" style={{ height: `${Math.random() * 80 + 20}%` }}></div>)}
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96 flex flex-col justify-between">
+                    <div className="h-6 w-40 bg-gray-100 rounded mb-8"></div>
+                    <div className="flex gap-4 items-end h-full">
+                        {[1, 2, 3, 4, 5].map(i => <div key={i} className="flex-1 bg-gray-50 rounded-t" style={{ height: `${Math.random() * 80 + 20}%` }}></div>)}
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-80 md:col-span-2 flex flex-col justify-between">
+                    <div className="h-6 w-40 bg-gray-100 rounded mb-8"></div>
+                    <div className="w-full h-full bg-gray-50 rounded-lg"></div>
+                </div>
             </div>
         </div>
     );
 
-    // viewMode: 'SPACE', 'PROGRAM', 'USER'
+    // viewMode: 'SPACE', 'PROGRAM', 'USER', 'SEUCHEO'
     const [viewMode, setViewMode] = useState('SPACE');
+    const [showGuestModal, setShowGuestModal] = useState(false);
+    const [seucheoRegion, setSeucheoRegion] = useState('ALL'); // 'ALL', '강동', '강서'
+    const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
 
     // ...
     const [selectedMemberForCalendar, setSelectedMemberForCalendar] = useState(null);
@@ -147,7 +190,7 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                                 </select>
                             )}
 
-                            {(periodType === 'DAILY' || periodType === 'WEEKLY') && (
+                            {periodType === 'DAILY' && (
                                 <select
                                     value={selectedDay}
                                     onChange={(e) => setSelectedDay(parseInt(e.target.value))}
@@ -155,6 +198,37 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                                 >
                                     {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => (
                                         <option key={i + 1} value={i + 1}>{i + 1}일</option>
+                                    ))}
+                                </select>
+                            )}
+
+                            {periodType === 'WEEKLY' && (
+                                <select
+                                    value={getKSTWeekOfMonth(new Date(selectedYear, selectedMonth, selectedDay))}
+                                    onChange={(e) => {
+                                        const weekNum = parseInt(e.target.value);
+                                        const firstOfMonth = new Date(selectedYear, selectedMonth, 1);
+                                        const firstDay = firstOfMonth.getDay();
+                                        const diffToFirstThursday = (firstDay <= 4 ? 4 - firstDay : 11 - firstDay);
+                                        const firstThursday = new Date(selectedYear, selectedMonth, 1 + diffToFirstThursday);
+                                        const targetDay = new Date(firstThursday);
+                                        targetDay.setDate(firstThursday.getDate() + (weekNum - 1) * 7);
+                                        if (targetDay.getMonth() === selectedMonth) {
+                                            setSelectedDay(targetDay.getDate());
+                                        }
+                                    }}
+                                    className="p-2 border border-blue-200 text-blue-700 rounded-lg text-xs md:text-sm font-bold outline-none focus:border-blue-500 bg-blue-50 h-[40px] transition-colors"
+                                >
+                                    {[1, 2, 3, 4, 5, 6].filter(w => {
+                                        const firstOfMonth = new Date(selectedYear, selectedMonth, 1);
+                                        const firstDay = firstOfMonth.getDay();
+                                        const diffToFirstThursday = (firstDay <= 4 ? 4 - firstDay : 11 - firstDay);
+                                        const firstThursday = new Date(selectedYear, selectedMonth, 1 + diffToFirstThursday);
+                                        const targetDay = new Date(firstThursday);
+                                        targetDay.setDate(firstThursday.getDate() + (w - 1) * 7);
+                                        return targetDay.getMonth() === selectedMonth;
+                                    }).map(w => (
+                                        <option key={w} value={w}>{w}주차</option>
                                     ))}
                                 </select>
                             )}
@@ -228,6 +302,43 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                         </div>
                     </div>
                 )}
+
+                {/* Seucheo Region Filter */}
+                {viewMode === 'SEUCHEO' && (
+                    <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs font-black text-gray-400 uppercase tracking-widest">권역 선택</span>
+                            <div className="flex bg-gray-50 p-1 rounded-xl shadow-inner">
+                                <button
+                                    onClick={() => setSeucheoRegion('ALL')}
+                                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${seucheoRegion === 'ALL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    전체
+                                </button>
+                                <button
+                                    onClick={() => setSeucheoRegion('강동')}
+                                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${seucheoRegion === '강동' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    강동
+                                </button>
+                                <button
+                                    onClick={() => setSeucheoRegion('강서')}
+                                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${seucheoRegion === '강서' ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    강서
+                                </button>
+                            </div>
+                        </div>
+                        {seucheoRegion !== 'ALL' && (
+                            <button
+                                onClick={() => setIsManagerModalOpen(true)}
+                                className="px-4 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition shadow-sm flex items-center gap-1.5"
+                            >
+                                <Users size={14} /> 담당자 관리
+                            </button>
+                        )}
+                    </div>
+                )}
             </section>
 
             {/* Summary Cards */}
@@ -246,6 +357,12 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                                 <div className="mt-2 flex gap-2 text-[10px] font-bold">
                                     <span className="text-blue-500">재학생 {(spaceData.totalDurationSplit.student / 60).toFixed(1)}h</span>
                                     <span className="text-gray-300">|</span>
+                                    {spaceData.totalDurationSplit.guest > 0 && (
+                                        <>
+                                            <span className="text-indigo-500">게스트 {(spaceData.totalDurationSplit.guest / 60).toFixed(1)}h</span>
+                                            <span className="text-gray-300">|</span>
+                                        </>
+                                    )}
                                     <span className="text-orange-500">졸업생 {(spaceData.totalDurationSplit.graduate / 60).toFixed(1)}h</span>
                                 </div>
                             </div>
@@ -273,13 +390,16 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                                     <span className="text-orange-500">졸업생 {spaceData.uniqueUsersSplit.graduate}명</span>
                                 </div>
                             </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 bg-indigo-50/10">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Users size={20} /></div>
-                                    <h3 className="text-gray-500 text-sm font-bold">손님(0000) 방문</h3>
-                                </div>
-                                <p className="text-2xl font-bold text-indigo-600">{spaceData.totalGuests} <span className="text-sm font-normal text-gray-400">건</span></p>
-                            </div>
+                            <button 
+                                onClick={() => setShowGuestModal(true)}
+                                className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 bg-indigo-50/10 text-left hover:shadow-md transition group"
+                            >
+                               <div className="flex items-center gap-3 mb-2">
+                                   <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition"><Users size={20} /></div>
+                                   <h3 className="text-gray-500 text-sm font-bold">게스트 방문</h3>
+                               </div>
+                               <p className="text-2xl font-bold text-indigo-600">{spaceData.totalGuests} <span className="text-sm font-normal text-gray-400">건</span></p>
+                           </button>
                         </>
                     ) : viewMode === 'PROGRAM' ? (
                         <>
@@ -366,72 +486,220 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
 
             {viewMode === 'SPACE' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Chart 1: Room Duration */}
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-1">
-                        <h3 className="text-lg font-bold text-gray-800 mb-6">공간별 이용 시간 (분)</h3>
-                        <div className="w-full h-80">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={spaceData.roomAnalysis} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                                    <XAxis type="number" />
-                                    <YAxis dataKey="name" type="category" width={window.innerWidth < 768 ? 60 : 100} tick={{ fontSize: window.innerWidth < 768 ? 10 : 12 }} />
-                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                                    <Bar
-                                        dataKey="duration"
-                                        fill="#4F46E5"
-                                        radius={[0, 4, 4, 0]}
-                                        barSize={window.innerWidth < 768 ? 12 : 20}
-                                        name="이용 시간(분)"
-                                        onClick={(data) => setSelectedRoomDetails(data)}
-                                        className="cursor-pointer"
-                                    />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
+                    {/* Chart 1: Room Visitors - Donut + Detail */}
+                    {(() => {
+                        const PIE_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#6366F1', '#14B8A6', '#F97316'];
+                        const totalVisitors = spaceData.roomAnalysis.reduce((acc, r) => acc + r.uniqueUsers, 0);
+                        const totalDuration = spaceData.roomAnalysis.reduce((acc, r) => acc + r.duration, 0);
 
-                    {/* Chart 2: Room Unique Users */}
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-1">
-                        <h3 className="text-lg font-bold text-gray-800 mb-6">공간별 방문자 수</h3>
-                        <div className="w-full h-80">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={spaceData.roomAnalysis} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                                    <XAxis type="number" />
-                                    <YAxis dataKey="name" type="category" width={window.innerWidth < 768 ? 60 : 100} tick={{ fontSize: window.innerWidth < 768 ? 10 : 12 }} />
-                                    <Tooltip
-                                        cursor={{ fill: 'transparent' }}
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                        content={({ active, payload }) => {
-                                            if (active && payload && payload.length) {
-                                                const data = payload[0].payload;
+                        // Compute student/graduate split per room from userDetails
+                        const roomSplits = spaceData.roomAnalysis.map(r => {
+                            const students = r.userDetails?.filter(u => u.group !== '졸업생' && u.group !== '일반인' && u.group !== '게스트').length || 0;
+                            const graduates = r.userDetails?.filter(u => u.group === '졸업생' || u.group === '일반인').length || 0;
+                            return { students, graduates };
+                        });
+
+                        const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, index, value }) => {
+                            if (value === 0) return null;
+                            const RADIAN = Math.PI / 180;
+                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                            const pct = totalVisitors > 0 ? Math.round(value / totalVisitors * 100) : 0;
+                            if (pct < 8) return null;
+                            return (
+                                <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" style={{ fontSize: '11px', fontWeight: 900 }}>
+                                    {value}
+                                </text>
+                            );
+                        };
+
+                        const renderDurationLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, index, value }) => {
+                            if (value === 0) return null;
+                            const RADIAN = Math.PI / 180;
+                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                            const pct = totalDuration > 0 ? Math.round(value / totalDuration * 100) : 0;
+                            if (pct < 8) return null;
+                            return (
+                                <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" style={{ fontSize: '10px', fontWeight: 900 }}>
+                                    {(value / 60).toFixed(1)}h
+                                </text>
+                            );
+                        };
+
+                        return (
+                            <>
+                                {/* Visitors Chart */}
+                                <div className="bg-white p-5 md:p-6 rounded-xl shadow-sm border border-gray-100">
+                                    <div className="flex items-baseline justify-between mb-4">
+                                        <h3 className="text-base md:text-lg font-black text-gray-800">공간별 방문자 수</h3>
+                                        <span className="text-xl md:text-2xl font-black text-blue-600">{totalVisitors}<span className="text-xs font-bold text-gray-400 ml-0.5">명</span></span>
+                                    </div>
+
+                                    <div className="flex items-center gap-4">
+                                        {/* Donut */}
+                                        <div className="w-36 h-36 md:w-44 md:h-44 shrink-0">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={spaceData.roomAnalysis}
+                                                        dataKey="uniqueUsers"
+                                                        nameKey="name"
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius="50%"
+                                                        outerRadius="90%"
+                                                        paddingAngle={2}
+                                                        onClick={(data) => setSelectedRoomDetails(data)}
+                                                        className="cursor-pointer"
+                                                        stroke="none"
+                                                        label={renderCustomLabel}
+                                                        labelLine={false}
+                                                    >
+                                                        {spaceData.roomAnalysis.map((_, i) => (
+                                                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                                                        ))}
+                                                    </Pie>
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        </div>
+
+                                        {/* Detail Cards */}
+                                        <div className="flex-1 space-y-2 min-w-0">
+                                            {spaceData.roomAnalysis.map((r, i) => {
+                                                const split = roomSplits[i];
+                                                const pct = totalVisitors > 0 ? Math.round(r.uniqueUsers / totalVisitors * 100) : 0;
                                                 return (
-                                                    <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-100 italic">
-                                                        <p className="font-bold text-gray-800 mb-1">{data.name}</p>
-                                                        <p className="text-xs text-green-600 font-bold">전체 방문: {data.uniqueUsers}명</p>
-                                                        <div className="mt-1 pt-1 border-t border-gray-50 text-[10px] text-gray-500">
-                                                            <p>회원: {data.memberCount}명</p>
-                                                            <p>손님: {data.guestCount}명</p>
+                                                    <button
+                                                        key={r.name}
+                                                        onClick={() => setSelectedRoomDetails(r)}
+                                                        className="w-full text-left p-2.5 md:p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                                                            <span className="text-sm md:text-base font-black text-gray-800 truncate">{r.name}</span>
+                                                            <span className="ml-auto text-sm md:text-base font-black shrink-0" style={{ color: PIE_COLORS[i % PIE_COLORS.length] }}>{r.uniqueUsers}명</span>
+                                                            <span className="text-[10px] font-bold text-gray-400 shrink-0">{pct}%</span>
                                                         </div>
-                                                    </div>
+                                                        {/* Student / Graduate bar */}
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden flex">
+                                                                {split.students > 0 && (
+                                                                    <div
+                                                                        className="h-full bg-blue-400 rounded-l-full"
+                                                                        style={{ width: `${(r.uniqueUsers > 0 ? (split.students / r.uniqueUsers) * 100 : 0)}%` }}
+                                                                    />
+                                                                )}
+                                                                {split.graduates > 0 && (
+                                                                    <div
+                                                                        className="h-full bg-orange-400 rounded-r-full"
+                                                                        style={{ width: `${(r.uniqueUsers > 0 ? (split.graduates / r.uniqueUsers) * 100 : 0)}%` }}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex gap-1.5 text-[9px] font-bold shrink-0">
+                                                                <span className="text-blue-500">재 {split.students}</span>
+                                                                <span className="text-orange-500">졸 {split.graduates}</span>
+                                                                {r.guestCount > 0 && <span className="text-gray-400">손 {r.guestCount}</span>}
+                                                            </div>
+                                                        </div>
+                                                    </button>
                                                 );
-                                            }
-                                            return null;
-                                        }}
-                                    />
-                                    <Bar
-                                        dataKey="uniqueUsers"
-                                        fill="#10B981"
-                                        radius={[0, 4, 4, 0]}
-                                        barSize={window.innerWidth < 768 ? 12 : 20}
-                                        name="방문자 수"
-                                        onClick={(data) => setSelectedRoomDetails(data)}
-                                        className="cursor-pointer"
-                                    />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Duration Chart */}
+                                <div className="bg-white p-5 md:p-6 rounded-xl shadow-sm border border-gray-100">
+                                    <div className="flex items-baseline justify-between mb-4">
+                                        <h3 className="text-base md:text-lg font-black text-gray-800">공간별 이용 시간</h3>
+                                        <span className="text-xl md:text-2xl font-black text-purple-600">{(totalDuration / 60).toFixed(1)}<span className="text-xs font-bold text-gray-400 ml-0.5">시간</span></span>
+                                    </div>
+
+                                    <div className="flex items-center gap-4">
+                                        {/* Donut */}
+                                        <div className="w-36 h-36 md:w-44 md:h-44 shrink-0">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={spaceData.roomAnalysis}
+                                                        dataKey="duration"
+                                                        nameKey="name"
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius="50%"
+                                                        outerRadius="90%"
+                                                        paddingAngle={2}
+                                                        onClick={(data) => setSelectedRoomDetails(data)}
+                                                        className="cursor-pointer"
+                                                        stroke="none"
+                                                        label={renderDurationLabel}
+                                                        labelLine={false}
+                                                    >
+                                                        {spaceData.roomAnalysis.map((_, i) => (
+                                                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                                                        ))}
+                                                    </Pie>
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        </div>
+
+                                        {/* Detail Cards */}
+                                        <div className="flex-1 space-y-2 min-w-0">
+                                            {spaceData.roomAnalysis.map((r, i) => {
+                                                const split = roomSplits[i];
+                                                const durationHours = (r.duration / 60).toFixed(1);
+                                                const pct = totalDuration > 0 ? Math.round(r.duration / totalDuration * 100) : 0;
+                                                // Compute duration split per room
+                                                const studentDuration = r.userDetails?.filter(u => u.group !== '졸업생' && u.group !== '일반인' && u.group !== '게스트').reduce((a, u) => a + u.duration, 0) || 0;
+                                                const graduateDuration = r.userDetails?.filter(u => u.group === '졸업생' || u.group === '일반인').reduce((a, u) => a + u.duration, 0) || 0;
+                                                const guestDuration = r.userDetails?.filter(u => u.group === '게스트').reduce((a, u) => a + u.duration, 0) || 0;
+                                                return (
+                                                    <button
+                                                        key={r.name}
+                                                        onClick={() => setSelectedRoomDetails(r)}
+                                                        className="w-full text-left p-2.5 md:p-3 rounded-xl border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                                                            <span className="text-sm md:text-base font-black text-gray-800 truncate">{r.name}</span>
+                                                            <span className="ml-auto text-sm md:text-base font-black shrink-0" style={{ color: PIE_COLORS[i % PIE_COLORS.length] }}>{durationHours}h</span>
+                                                            <span className="text-[10px] font-bold text-gray-400 shrink-0">{pct}%</span>
+                                                        </div>
+                                                        {/* Duration split bar */}
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden flex">
+                                                                {studentDuration > 0 && (
+                                                                    <div
+                                                                        className="h-full bg-blue-400 rounded-l-full"
+                                                                        style={{ width: `${(r.duration > 0 ? (studentDuration / r.duration) * 100 : 0)}%` }}
+                                                                    />
+                                                                )}
+                                                                {graduateDuration > 0 && (
+                                                                    <div
+                                                                        className="h-full bg-orange-400 rounded-r-full"
+                                                                        style={{ width: `${(r.duration > 0 ? (graduateDuration / r.duration) * 100 : 0)}%` }}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex gap-1.5 text-[9px] font-bold shrink-0">
+                                                                <span className="text-blue-500">재 {(studentDuration / 60).toFixed(1)}h</span>
+                                                                <span className="text-orange-500">졸 {(graduateDuration / 60).toFixed(1)}h</span>
+                                                                {guestDuration > 0 && <span className="text-gray-400">손 {(guestDuration / 60).toFixed(1)}h</span>}
+                                                            </div>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
 
                     {/* Chart 3: Daily Activity Trend */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-2">
@@ -467,6 +735,67 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                                     <Line type="monotone" dataKey="visitCount" stroke="#82ca9d" strokeWidth={2} name="방문 수" />
                                 </AreaChart>
                             </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* Chart 4: Time/Day Heatmap */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-2 overflow-x-auto">
+                        <div className="flex justify-between items-center mb-6 min-w-[700px]">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">요일 및 시간대별 방문 혼잡도</h3>
+                                <p className="text-xs font-medium text-gray-400 mt-1">선택한 기간 동안 각 요일/시간대에 발생한 총 체크인 및 방문 횟수</p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
+                                <span>여유</span>
+                                <div className="flex gap-1">
+                                    <div className="w-4 h-4 rounded bg-gray-50"></div>
+                                    <div className="w-4 h-4 rounded bg-blue-200"></div>
+                                    <div className="w-4 h-4 rounded bg-blue-400"></div>
+                                    <div className="w-4 h-4 rounded bg-blue-600"></div>
+                                    <div className="w-4 h-4 rounded bg-blue-800"></div>
+                                </div>
+                                <span>혼잡</span>
+                            </div>
+                        </div>
+                        <div className="min-w-[700px]">
+                            {/* Header row (Hours: 8 to 23) */}
+                            <div className="flex mb-2">
+                                <div className="w-10 shrink-0"></div>
+                                <div className="flex-1 grid gap-1" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
+                                    {Array.from({ length: 16 }).map((_, i) => (
+                                        <div key={i + 8} className="text-[10px] font-bold text-gray-400 text-center">{i + 8}시</div>
+                                    ))}
+                                </div>
+                            </div>
+                            {/* Data rows (Days) */}
+                            {['일', '월', '화', '수', '목', '금', '토'].map((dayName, dayIdx) => (
+                                <div key={dayIdx} className="flex mb-1 items-center">
+                                    <div className="w-10 shrink-0 text-xs font-bold text-gray-500">{dayName}</div>
+                                    <div className="flex-1 grid gap-1" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
+                                        {spaceData.heatmapData[dayIdx].slice(8, 24).map((count, i) => {
+                                            const hourIdx = i + 8;
+                                            let bgClass = 'bg-gray-50';
+                                            let textClass = 'text-transparent';
+                                            if (count > 0) {
+                                                const ratio = count / (spaceData.maxHeatmapValue || 1);
+                                                if (ratio > 0.8) { bgClass = 'bg-blue-800'; textClass = 'text-white'; }
+                                                else if (ratio > 0.5) { bgClass = 'bg-blue-600'; textClass = 'text-white shadow-sm'; }
+                                                else if (ratio > 0.2) { bgClass = 'bg-blue-400'; textClass = 'text-white'; }
+                                                else { bgClass = 'bg-blue-200'; textClass = 'text-blue-800'; }
+                                            }
+                                            return (
+                                                <div
+                                                    key={hourIdx}
+                                                    className={`h-8 lg:h-10 rounded flex items-center justify-center text-[10px] sm:text-xs font-bold transition-all hover:ring-2 hover:ring-blue-400 hover:scale-105 cursor-pointer ${bgClass} ${textClass}`}
+                                                    title={`${dayName}요일 ${hourIdx}시: ${count}명 방문`}
+                                                >
+                                                    {count > 0 ? count : ''}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -526,8 +855,8 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                                                 )}
                                             </td>
                                             <td className="p-4 text-center">
-                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap inline-block ${p.status === 'ACTIVE' ? 'bg-blue-100 text-blue-600' : p.status === 'CANCELLED' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
-                                                    {p.status === 'ACTIVE' ? '진행중' : p.status === 'CANCELLED' ? '취소됨' : '종료됨'}
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap inline-block ${p.program_status === 'ACTIVE' ? 'bg-blue-100 text-blue-600' : p.program_status === 'CANCELLED' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                                                    {p.program_status === 'ACTIVE' ? '진행중' : p.program_status === 'CANCELLED' ? '취소됨' : '종료됨'}
                                                 </span>
                                             </td>
                                             <td className="p-4 text-right text-gray-400 font-mono text-xs whitespace-nowrap">
@@ -546,6 +875,7 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                     users={users}
                     periodType={periodType}
                     selectedDate={new Date(selectedYear, selectedMonth, selectedDay)}
+                    regionFilter={seucheoRegion}
                 />
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -632,6 +962,30 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                     onClose={() => setSelectedRoomDetails(null)}
                 />
             )}
+
+            {showGuestModal && (
+                <GuestVisitDetailModal
+                    spaceData={spaceData}
+                    year={selectedYear}
+                    month={selectedMonth + 1}
+                    day={selectedDay}
+                    periodType={periodType}
+                    onClose={() => setShowGuestModal(false)}
+                />
+            )}
+
+            {/* Manager Assignment Modal */}
+            <ManagerAssignmentModal
+                isOpen={isManagerModalOpen}
+                onClose={() => setIsManagerModalOpen(false)}
+                selectedRegion={seucheoRegion !== 'ALL' ? seucheoRegion : null}
+                users={users}
+                onSave={() => {
+                    if (fetchData) {
+                        fetchData(true);
+                    }
+                }}
+            />
         </div>
     );
 };
@@ -716,7 +1070,7 @@ const RoomMemberDetailModal = ({ room, year, month, day, periodType, onClose }) 
     const filteredUsers = useMemo(() => {
         if (filterType === 'ALL') return room.userDetails;
         if (filterType === 'GRADUATE') return room.userDetails.filter(u => u.group === '졸업생');
-        if (filterType === 'YOUTH') return room.userDetails.filter(u => u.group !== '졸업생' && u.group !== '일반인');
+        if (filterType === 'YOUTH') return room.userDetails.filter(u => u.group !== '졸업생' && u.group !== '일반인'); // Includes '게스트', '재학생' etc.
         return room.userDetails;
     }, [room.userDetails, filterType]);
 
@@ -846,6 +1200,121 @@ const RoomMemberDetailModal = ({ room, year, month, day, periodType, onClose }) 
                     <button
                         onClick={onClose}
                         className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-sm"
+                    >
+                        닫기
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const GuestVisitDetailModal = ({ spaceData, year, month, day, periodType, onClose }) => {
+    const guests = useMemo(() => {
+        const guestMap = new Map();
+        spaceData.roomAnalysis.forEach(room => {
+            room.userDetails.forEach(user => {
+                if (user.group === '게스트') {
+                    if (guestMap.has(user.name)) {
+                        const existing = guestMap.get(user.name);
+                        existing.count += user.count;
+                        existing.duration += user.duration;
+                    } else {
+                        guestMap.set(user.name, { ...user });
+                    }
+                }
+            });
+        });
+        return Array.from(guestMap.values()).sort((a, b) => b.duration - a.duration);
+    }, [spaceData]);
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                <div className="p-6 border-b border-gray-100 flex flex-col gap-4 bg-indigo-50/30">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h3 className="text-xl font-bold text-indigo-800">게스트 방문 <span className="text-sm font-normal text-indigo-400">이용 상세</span></h3>
+                            <p className="text-xs text-indigo-500 font-bold">
+                                {year}년 {
+                                    periodType === 'DAILY' ? `${month}월 ${day}일` :
+                                        periodType === 'WEEKLY' ? `${month}월 ${Math.ceil(day / 7)}주차` :
+                                            periodType === 'MONTHLY' ? `${month}월` :
+                                                '전체'
+                                }
+                            </p>
+                        </div>
+                        <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition text-indigo-400 hover:text-indigo-600">
+                            <Users size={24} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+                    <table className="hidden md:table w-full text-left border-collapse">
+                        <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold sticky top-0">
+                            <tr>
+                                <th className="p-4 w-12 text-center">#</th>
+                                <th className="p-4">이름</th>
+                                <th className="p-4">그룹</th>
+                                <th className="p-4 text-center">방문 횟수</th>
+                                <th className="p-4 text-center">총 이용 시간</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-sm">
+                            {guests.length === 0 ? (
+                                <tr><td colSpan="5" className="p-8 text-center text-gray-400">방문한 게스트가 없습니다.</td></tr>
+                            ) : (
+                                guests.map((guest, idx) => (
+                                    <tr key={idx} className="hover:bg-indigo-50/30 transition">
+                                        <td className="p-4 text-center font-bold text-gray-400">{idx + 1}</td>
+                                        <td className="p-4 font-bold text-gray-700">{guest.name}</td>
+                                        <td className="p-4">
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-600">
+                                                게스트
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-center text-gray-600 font-bold">{guest.count}회</td>
+                                        <td className="p-4 text-center text-indigo-600 font-bold">{(guest.duration / 60).toFixed(1)}시간</td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+
+                    <div className="md:hidden divide-y divide-gray-50">
+                        {guests.length === 0 ? (
+                            <div className="p-10 text-center text-gray-400 text-sm">방문한 게스트가 없습니다.</div>
+                        ) : (
+                            guests.map((guest, idx) => (
+                                <div key={idx} className="p-4 flex justify-between items-center transition active:bg-indigo-50">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-gray-300 font-bold italic w-4">{idx + 1}</span>
+                                        <div>
+                                            <p className="font-bold text-gray-800 text-sm">{guest.name}</p>
+                                            <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-indigo-100 text-indigo-600">
+                                                게스트
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-bold text-indigo-600 text-xs">{(guest.duration / 60).toFixed(1)}시간</p>
+                                        <p className="text-[10px] text-gray-400">{guest.count}회 방문</p>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 md:p-6 border-t border-gray-100 bg-gray-50/30 flex justify-between items-center text-xs text-gray-400">
+                    <div className="flex gap-4 font-bold">
+                        <span>총 게스트 수: <span className="text-gray-800">{guests.length}명</span></span>
+                        <span>총 이용 건수: <span className="text-indigo-600">{guests.reduce((acc, g) => acc + g.count, 0)}건</span></span>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-sm"
                     >
                         닫기
                     </button>

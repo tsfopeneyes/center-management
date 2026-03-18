@@ -113,11 +113,13 @@ export const exportParticipantsToExcel = (notice, list) => {
 };
 
 /**
- * Export student visit log to Excel
+ * Export visit log to Excel (Universal for Student/Guest)
  * @param {Array} visitSummaries - Aggregated visit data
- * @param {Object} visitNotes - Manual notes { 'userId_date': { purpose, remarks } }
+ * @param {Object} visitNotes - Manual notes
+ * @param {string} title - Sheet title
+ * @param {string} fileNamePrefix - Filename prefix
  */
-export const exportVisitLogToExcel = (visitSummaries, visitNotes) => {
+export const exportVisitLogToExcel = (visitSummaries, visitNotes, title = "학생방문일지", fileNamePrefix = "학생방문일지") => {
     const exportData = visitSummaries.map(summary => {
         const noteKey = `${summary.userId}_${summary.date}`;
         const note = visitNotes[noteKey] || {};
@@ -141,8 +143,8 @@ export const exportVisitLogToExcel = (visitSummaries, visitNotes) => {
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "학생방문일지");
+    XLSX.utils.book_append_sheet(workbook, worksheet, title);
 
-    const fileName = `학생방문일지_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
+    const fileName = `${fileNamePrefix}_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
 };

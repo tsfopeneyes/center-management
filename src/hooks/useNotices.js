@@ -11,7 +11,15 @@ export const useNotices = (userId) => {
         setLoading(true);
         try {
             const data = await noticesApi.fetchAll();
-            setNotices(data || []);
+
+            // Fetch applicant counts
+            const countsMap = await noticesApi.fetchAllJoinCounts();
+            const enrichedNotices = (data || []).map(n => ({
+                ...n,
+                current_applicants: countsMap[n.id] || 0
+            }));
+
+            setNotices(enrichedNotices);
 
             if (userId) {
                 const resData = await noticesApi.fetchResponses(userId);

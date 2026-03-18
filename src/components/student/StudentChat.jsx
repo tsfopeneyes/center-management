@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { Send, MessageCircle, ArrowLeft, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import LinkPreview from '../LinkPreview';
+import LinkPreview from '../common/LinkPreview';
 import { extractUrls } from '../../utils/linkUtils';
 
 const StudentChat = ({ currentUser, onRefreshUnread }) => {

@@ -76,11 +76,11 @@ const IntuitiveTimePicker = ({ value, onChange }) => {
                 <span className="text-gray-300 font-bold">:</span>
 
                 <select
-                    value={minute}
-                    onChange={(e) => handleMinuteChange(e.target.value)}
+                    value={minute - (minute % 5)}
+                    onChange={(e) => handleMinuteChange(parseInt(e.target.value))}
                     className="bg-transparent text-base font-extrabold text-gray-800 outline-none scrollbar-hide appearance-none cursor-pointer hover:text-blue-600 transition-colors w-7 text-center"
                 >
-                    {Array.from({ length: 60 }, (_, i) => i).map(m => (
+                    {Array.from({ length: 12 }, (_, i) => i * 5).map(m => (
                         <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
                     ))}
                 </select>

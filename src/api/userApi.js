@@ -20,6 +20,35 @@ export const userApi = {
         return data;
     },
 
+    async fetchUserPreferences(userId) {
+        if (!userId) return {};
+        const { data, error } = await supabase
+            .from('users')
+            .select('preferences')
+            .eq('id', userId)
+            .single();
+
+        // Return empty object if no preferences yet, or log error
+        if (error && error.code !== 'PGRST116') throw error; // ignore no rows error
+        return data?.preferences || {};
+    },
+
+    async updateUserPreferences(userId, newPreferences) {
+        if (!userId) return;
+
+        // 1. Fetch current first to merge (if needed)
+        const currentPrefs = await this.fetchUserPreferences(userId);
+        const updatedPrefs = { ...currentPrefs, ...newPreferences };
+
+        const { error } = await supabase
+            .from('users')
+            .update({ preferences: updatedPrefs })
+            .eq('id', userId);
+
+        if (error) throw error;
+        return updatedPrefs;
+    },
+
     async updateProfile(userId, updates) {
         const { error } = await supabase
             .from('users')

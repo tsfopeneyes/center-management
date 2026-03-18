@@ -49,8 +49,16 @@ export const TAB_NAMES = {
     GALLERY: 'gallery',
     MESSAGES: 'messages',
     GUESTBOOK: 'guestbook',
-    CALENDAR: 'calendar'
+    CALENDAR: 'calendar',
+    COMMUNITY: 'community'
 };
+
+export const COMMUNITY_CATEGORIES = [
+    '일상 나눔',
+    'L-camp',
+    '고백플레이스',
+    '이높플레이스'
+];
 
 export const COLOR_THEMES = {
     PRIMARY: 'blue',
@@ -78,14 +86,7 @@ export const BADGE_DEFINITIONS = [
     { id: 'program_30', type: 'PROGRAM', min: 30, label: '마스터', icon: '👑', image: '/badges/program_30.png', color: 'bg-yellow-400 text-white' },
 ];
 // Ministry Log Template
-export const MINISTRY_LOG_TEMPLATE = `**근황**
-* 
+export const MINISTRY_LOG_TEMPLATE = '';
 
-**스쿨처치**
-* 
-
-**기도제목**
-* 
-
-**추후방향**
-* `;
+// Terms and Conditions Version
+export const TERMS_VERSION = '2024-03-05';

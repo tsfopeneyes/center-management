@@ -1,4 +1,5 @@
-import { getWeekIdentifier } from './dateUtils';
+import { getWeekIdentifier, getKSTDateString } from './dateUtils';
+import { isAdminOrStaff } from './userUtils';
 
 /**
  * Aggregates raw logs into visit sessions (CHECKIN-CHECKOUT pairs).
@@ -13,28 +14,27 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
     const isWithinRange = (dateStr) => {
         if (!dateStr) return true;
         const target = dateStr.includes('T') || dateStr.includes(' ')
-            ? new Date(dateStr).toLocaleDateString('en-CA')
+            ? getKSTDateString(dateStr)
             : dateStr;
         if (startDate && target < startDate) return false;
         if (endDate && target > endDate) return false;
         return true;
     };
 
-    const visitLogs = allLogs.filter(log => ['CHECKIN', 'CHECKOUT', 'MOVE'].includes(log.type));
+    const visitLogs = allLogs.filter(log => ['CHECKIN', 'CHECKOUT', 'MOVE', 'GUEST_ENTRY'].includes(log.type));
     const userMap = new Map(users.map(u => [u.id, u]));
     const locationMap = new Map(locations.map(l => [l.id, l]));
     const userDateGroups = {};
 
     visitLogs.forEach(log => {
-        const date = new Date(log.created_at).toLocaleDateString('en-CA');
+        const date = getKSTDateString(log.created_at);
         if (!isWithinRange(date)) return;
 
         const groupKey = `${log.user_id}_${date}`;
 
         if (!userDateGroups[groupKey]) {
             const user = userMap.get(log.user_id);
-            const isAdmin = user && (user.name === 'admin' || user.user_group === '관리자' || user.role === 'admin');
-            if (!user || isAdmin) return;
+            if (!user || isAdminOrStaff(user)) return;
 
             userDateGroups[groupKey] = {
                 id: groupKey,
@@ -44,6 +44,8 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
                 dayOfWeek: new Date(log.created_at).toLocaleDateString('ko-KR', { weekday: 'short' }),
                 school: user.school || '-',
                 name: user.name,
+                birth: user.birth || '-',
+                phone: user.phone || (user.phone_back4 ? `***-****-${user.phone_back4}` : '-'),
                 age: (() => {
                     if (user.birth && user.birth.length === 6) {
                         const yy = parseInt(user.birth.substring(0, 2));

@@ -91,6 +91,7 @@ const LogDetailModal = ({ logs, initialLogId, school, onClose, onRefresh, onDele
     };
 
     const handleKeyDown = (e, logId) => {
+        if (e.nativeEvent.isComposing) return;
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             const { selectionStart, selectionEnd, value } = e.target;
@@ -153,7 +154,7 @@ const LogDetailModal = ({ logs, initialLogId, school, onClose, onRefresh, onDele
                                                     {log.date}
                                                 </div>
                                                 <div className="px-3 py-1 bg-indigo-100/50 rounded-lg text-xs font-black text-indigo-600">
-                                                    {index + 1}번째 일지
+                                                    {logs.length - index}번째 일지
                                                 </div>
                                             </div>
                                             <div className="flex flex-wrap gap-4 items-center">

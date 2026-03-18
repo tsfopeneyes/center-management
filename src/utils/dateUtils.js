@@ -1,3 +1,5 @@
+import { startOfWeek, endOfWeek, differenceInDays } from 'date-fns';
+
 export const formatToLocalISO = (dateStr) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
@@ -7,16 +9,19 @@ export const formatToLocalISO = (dateStr) => {
     return localDate.toISOString().substring(0, 16);
 };
 
+export const getKSTDateString = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+};
+
 export const getWeekIdentifier = (date) => {
     const d = new Date(date);
     const year = String(d.getFullYear()).slice(2);
     const month = String(d.getMonth() + 1).padStart(2, '0');
 
-    // Calculate week of month (1st week is 1-7, 2nd 8-14, etc - or more standard: 1st full week?)
-    // User example 2025-11-03 is 2511_W1. Nov 3rd 2025 is Monday.
-    // Let's use a simple week of month based on groups of 7 days starting from 1st
-    const dayOfMonth = d.getDate();
-    const weekNum = Math.ceil(dayOfMonth / 7);
+    const weekNum = getKSTWeekOfMonth(d);
 
     return `${year}${month}_W${weekNum}`;
 };
@@ -46,6 +51,35 @@ export const calculateAge = (birthDate) => {
     return age;
 };
 
+/**
+ * Standard Korean Week of Month calculation.
+ * Rule: The first week of the month is the one containing the first Thursday.
+ * Weeks start on Monday.
+ */
+export const getKSTWeekOfMonth = (date) => {
+    const d = new Date(date);
+
+    // Find the Thursday of this week
+    const day = d.getDay();
+    const diffToThursday = (day === 0 ? -3 : 4 - day);
+    const thursday = new Date(d);
+    thursday.setDate(d.getDate() + diffToThursday);
+
+    const month = thursday.getMonth();
+    const year = thursday.getFullYear();
+
+    // Find the first Thursday of that month
+    const firstOfMonth = new Date(year, month, 1);
+    const firstDay = firstOfMonth.getDay();
+    const diffToFirstThursday = (firstDay <= 4 ? 4 - firstDay : 11 - firstDay);
+    const firstThursday = new Date(year, month, 1 + diffToFirstThursday);
+
+    // Week number = (thursday - firstThursday) / 7 + 1
+    const weeks = Math.round((thursday - firstThursday) / (7 * 24 * 60 * 60 * 1000)) + 1;
+
+    return weeks;
+};
+
 export const parseTimeRange = (timeRangeStr) => {
     if (!timeRangeStr) return { start: '', end: '', durationStr: '', durationMin: 0 };
 
@@ -69,4 +103,25 @@ export const parseTimeRange = (timeRangeStr) => {
     const durationStr = `${hours}:${String(mins).padStart(2, '0')}:00`; // As per excel screenshot "2:00:00"
 
     return { start, end, durationStr, durationMin: diffMin };
+};
+
+export const formatDateRelative = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffSec < 60) return '방금';
+    if (diffMin < 60) return `${diffMin}분`;
+    if (diffHour < 24) return `${diffHour}시간`;
+    if (diffDay < 7) return `${diffDay}일`;
+
+    // if older than 7 days, just show date
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${month}월 ${day}일`;
 };

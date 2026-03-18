@@ -49,6 +49,20 @@ export const noticesApi = {
         return count;
     },
 
+    async fetchAllJoinCounts() {
+        const { data, error } = await supabase
+            .from('notice_responses')
+            .select('notice_id')
+            .eq('status', 'JOIN');
+        if (error) throw error;
+
+        const countsMap = {};
+        data?.forEach((r) => {
+            countsMap[r.notice_id] = (countsMap[r.notice_id] || 0) + 1;
+        });
+        return countsMap;
+    },
+
     async promoteFromWaitlist(noticeId) {
         // 1. Get the first person in waitlist (oldest first)
         const { data: nextInLine, error: fetchError } = await supabase
@@ -148,5 +162,55 @@ export const noticesApi = {
             .limit(10);
         if (error) throw error;
         return data;
+    },
+
+    // Polling API
+    async upsertPollVote(noticeId, userId, optionIds) {
+        if (!Array.isArray(optionIds)) {
+            optionIds = [optionIds];
+        }
+
+        // Delete existing votes for this user on this notice
+        const { error: deleteError } = await supabase
+            .from('notice_poll_responses')
+            .delete()
+            .eq('notice_id', noticeId)
+            .eq('user_id', userId);
+        
+        if (deleteError) throw deleteError;
+
+        if (optionIds.length === 0) return;
+
+        // Insert new votes
+        const inserts = optionIds.map(optId => ({
+            notice_id: noticeId,
+            user_id: userId,
+            option_id: optId
+        }));
+
+        const { error: insertError } = await supabase
+            .from('notice_poll_responses')
+            .insert(inserts);
+
+        if (insertError) throw insertError;
+    },
+
+    async fetchPollResponses(noticeId) {
+        const { data, error } = await supabase
+            .from('notice_poll_responses')
+            .select('user_id, option_id, users(id, name, school)')
+            .eq('notice_id', noticeId);
+        if (error) throw error;
+        return data;
+    },
+
+    async getUserPollVote(noticeId, userId) {
+        const { data, error } = await supabase
+            .from('notice_poll_responses')
+            .select('option_id')
+            .eq('notice_id', noticeId)
+            .eq('user_id', userId);
+        if (error) throw error;
+        return data.map(row => row.option_id);
     }
 };

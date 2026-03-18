@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, X, Calendar, Clock, Users, Search, MapPin as LocationIcon, FileText, Save } from 'lucide-react';
 import { MINISTRY_LOG_TEMPLATE } from '../../../constants/appConstants';
+import TemplateManager from '../TemplateManager';
 
 const LogFormModal = ({ school, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -10,12 +11,13 @@ const LogFormModal = ({ school, onClose, onSave }) => {
         end_time: '18:30',
         location: '',
         participant_ids: [],
-        content: MINISTRY_LOG_TEMPLATE
+        content: ''
     });
     const [searchTerm, setSearchTerm] = useState('');
     const [saving, setSaving] = useState(false);
 
     const handleKeyDown = (e) => {
+        if (e.nativeEvent.isComposing) return;
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             const { selectionStart, selectionEnd, value } = e.target;
@@ -86,63 +88,67 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-8 space-y-8">
                     {/* Date & Time */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5 col-span-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
+                    <div className="grid grid-cols-3 gap-2 md:gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-1.5">
                                 <Calendar size={12} /> 날짜
                             </label>
                             <input
                                 type="date"
                                 value={formData.date}
                                 onChange={e => setFormData({ ...formData, date: e.target.value })}
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                                className="w-full p-2.5 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner text-base md:text-sm"
                             />
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
-                                <Clock size={12} /> 시작 시간
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-1.5">
+                                <Clock size={12} /> 시작
                             </label>
                             <input
                                 type="time"
+                                step="300"
                                 value={formData.start_time}
                                 onChange={e => setFormData({ ...formData, start_time: e.target.value })}
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                                className="w-full p-2.5 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner text-base md:text-sm"
                             />
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
-                                <Clock size={12} /> 종료 시간
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-1.5">
+                                <Clock size={12} /> 종료
                             </label>
                             <input
                                 type="time"
+                                step="300"
                                 value={formData.end_time}
                                 onChange={e => setFormData({ ...formData, end_time: e.target.value })}
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                                className="w-full p-2.5 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner text-base md:text-sm"
                             />
                         </div>
                     </div>
 
                     {/* Participants (Multi-select with search) */}
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
-                            <Users size={12} /> 참여자 선택 ({formData.participant_ids.length}명 선택됨)
-                        </label>
-                        <div className="relative mb-3">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
-                            <input
-                                type="text"
-                                placeholder="학생 이름 검색..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold outline-none focus:bg-white focus:border-indigo-500 transition-all"
-                            />
+                    <div className="space-y-2 md:space-y-3">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
+                                <Users size={12} /> 참여자 선택 ({formData.participant_ids.length})
+                            </label>
+                            <div className="relative w-1/2 max-w-[160px]">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={12} />
+                                <input
+                                    type="text"
+                                    placeholder="학생 검색..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full pl-6 pr-2 py-1.5 bg-gray-50 border border-gray-100 rounded-xl text-base md:text-xs font-bold outline-none focus:bg-white focus:border-indigo-500 transition-all"
+                                />
+                            </div>
                         </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[160px] overflow-y-auto no-scrollbar p-1">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 md:gap-2 max-h-[140px] md:max-h-[160px] overflow-y-auto no-scrollbar p-1">
                             {filteredStudents.map(student => (
                                 <button
                                     key={student.id}
                                     onClick={() => toggleParticipant(student.id)}
-                                    className={`flex items-center gap-2 p-2 rounded-xl text-[10px] font-black transition-all border ${formData.participant_ids.includes(student.id) ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+                                    className={`flex items-center gap-1.5 md:gap-2 p-1.5 md:p-2 rounded-xl text-[10px] font-black transition-all border ${formData.participant_ids.includes(student.id) ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
                                 >
                                     <span className="truncate">{student.name}</span>
                                 </button>
@@ -151,21 +157,28 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                     </div>
 
                     {/* Location */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                         <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                             <LocationIcon size={12} /> 활동 장소
                         </label>
                         <input
                             type="text"
-                            placeholder="예: 학교 매점, 정문 앞, 센터 프로그램실 등"
+                            placeholder="예: 매점, 정문 앞 등"
                             value={formData.location}
                             onChange={e => setFormData({ ...formData, location: e.target.value })}
-                            className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                            className="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner text-base md:text-sm"
                         />
                     </div>
 
+                    <TemplateManager
+                        type="MINISTRY_LOG"
+                        currentContent={formData.content}
+                        onSelect={(content) => setFormData(prev => ({ ...prev, content }))}
+                        currentAdmin={JSON.parse(localStorage.getItem('admin_user'))}
+                    />
+
                     {/* Notepad Content Editor */}
-                    <div className="space-y-3">
+                    <div className="space-y-2 md:space-y-3 pb-20 md:pb-0">
                         <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-2">
                             <FileText size={12} /> 사역 내용 (메모장 스타일)
                         </label>
@@ -173,7 +186,7 @@ const LogFormModal = ({ school, onClose, onSave }) => {
                             value={formData.content}
                             onKeyDown={handleKeyDown}
                             onChange={e => setFormData({ ...formData, content: e.target.value })}
-                            className="w-full h-[400px] p-6 bg-gray-50 border border-gray-100 rounded-[2rem] font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner resize-none text-[13px] leading-relaxed"
+                            className="w-full h-[300px] md:h-[400px] p-5 md:p-6 bg-gray-50 border border-gray-100 rounded-[1.5rem] md:rounded-[2rem] font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner resize-none text-base md:text-[13px] leading-relaxed"
                             placeholder={`여기에 내용을 입력하세요...\n* 엔터 입력 시 불렛 자동 생성\n* 쉬프트+엔터로 일반 줄바꿈`}
                         />
                     </div>

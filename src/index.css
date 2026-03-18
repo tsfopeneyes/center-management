@@ -41,6 +41,15 @@
     .text-balance {
         text-wrap: balance;
     }
+
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
 }
 
 @keyframes float {
@@ -63,4 +72,72 @@
 
 .animate-float {
     animation: float 15s infinite ease-in-out;
+}
+
+/* Premium Typography (Trevari Style) */
+.prose {
+    --tw-prose-body: #374151;
+    --tw-prose-headings: #111827;
+    --tw-prose-links: #2563eb;
+    --tw-prose-bold: #111827;
+    --tw-prose-counters: #6b7280;
+    --tw-prose-bullets: #d1d5db;
+    --tw-prose-hr: #e5e7eb;
+    --tw-prose-quotes: #111827;
+    --tw-prose-quote-borders: #e5e7eb;
+    --tw-prose-captions: #6b7280;
+    --tw-prose-code: #111827;
+    --tw-prose-pre-code: #e5e7eb;
+    --tw-prose-pre-bg: #1f2937;
+    --tw-prose-th-borders: #d1d5db;
+    --tw-prose-td-borders: #e5e7eb;
+    max-width: none !important;
+}
+
+.prose h1,
+.prose h2,
+.prose h3 {
+    @apply mt-10 mb-6 font-black tracking-tight leading-tight text-gray-900;
+}
+
+.prose h1 {
+    @apply text-3xl;
+}
+
+.prose h2 {
+    @apply text-2xl;
+}
+
+.prose h3 {
+    @apply text-xl;
+}
+
+.prose p {
+    @apply my-6 leading-[1.9] text-gray-700 text-base;
+}
+
+.prose blockquote {
+    @apply border-l-4 border-indigo-500 bg-indigo-50/30 py-8 px-8 rounded-r-3xl italic font-medium my-12 text-indigo-900;
+}
+
+.prose img {
+    @apply rounded-[2.5rem] shadow-2xl my-12 w-full object-cover transition-transform duration-500 hover:scale-[1.02];
+}
+
+.prose ul,
+.prose ol {
+    @apply my-8 space-y-4;
+}
+
+.prose ul>li,
+.prose ol>li {
+    @apply leading-relaxed;
+}
+
+.prose strong {
+    @apply font-black text-gray-900;
+}
+
+.prose hr {
+    @apply my-12 border-gray-100;
 }

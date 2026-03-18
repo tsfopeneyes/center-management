@@ -12,7 +12,7 @@ import {
     List, ListOrdered, Quote, Heading1, Heading2,
     AlignLeft, AlignCenter, AlignRight,
     Link as LinkIcon, Image as ImageIcon,
-    Undo, Redo, Highlighter
+    Undo, Redo, Highlighter, Code
 } from 'lucide-react';
 
 const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
@@ -31,6 +31,7 @@ const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
 );
 
 const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세요...' }) => {
+    const [isCodeView, setIsCodeView] = React.useState(false);
     const editor = useEditor({
         extensions: [
             StarterKit,
@@ -106,37 +107,47 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
             {/* Main Toolbar */}
             <div className="flex flex-wrap items-center gap-1 p-2 border-b border-gray-50 bg-gray-50/50 sticky top-0 z-10 backdrop-blur-sm">
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1">
-                    <MenuButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="되돌리기"><Undo size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="다시 실행"><Redo size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo() || isCodeView} title="되돌리기"><Undo size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo() || isCodeView} title="다시 실행"><Redo size={18} /></MenuButton>
                 </div>
 
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1">
-                    <MenuButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} isActive={editor.isActive('heading', { level: 1 })} title="대제목"><Heading1 size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} title="소제목"><Heading2 size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} isActive={editor.isActive('heading', { level: 1 })} disabled={isCodeView} title="대제목"><Heading1 size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} disabled={isCodeView} title="소제목"><Heading2 size={18} /></MenuButton>
                 </div>
 
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1">
-                    <MenuButton onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} title="굵게"><Bold size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} title="기울임"><Italic size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive('underline')} title="밑줄"><UnderlineIcon size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().toggleHighlight().run()} isActive={editor.isActive('highlight')} title="형광펜"><Highlighter size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} disabled={isCodeView} title="굵게"><Bold size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} disabled={isCodeView} title="기울임"><Italic size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive('underline')} disabled={isCodeView} title="밑줄"><UnderlineIcon size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleHighlight().run()} isActive={editor.isActive('highlight')} disabled={isCodeView} title="형광펜"><Highlighter size={18} /></MenuButton>
                 </div>
 
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1">
-                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('left').run()} isActive={editor.isActive({ textAlign: 'left' })} title="왼쪽 정렬"><AlignLeft size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('center').run()} isActive={editor.isActive({ textAlign: 'center' })} title="가운데 정렬"><AlignCenter size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('right').run()} isActive={editor.isActive({ textAlign: 'right' })} title="오른쪽 정렬"><AlignRight size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('left').run()} isActive={editor.isActive({ textAlign: 'left' })} disabled={isCodeView} title="왼쪽 정렬"><AlignLeft size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('center').run()} isActive={editor.isActive({ textAlign: 'center' })} disabled={isCodeView} title="가운데 정렬"><AlignCenter size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('right').run()} isActive={editor.isActive({ textAlign: 'right' })} disabled={isCodeView} title="오른쪽 정렬"><AlignRight size={18} /></MenuButton>
                 </div>
 
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1">
-                    <MenuButton onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} title="글머리 기호"><List size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} title="번호 매기기"><ListOrdered size={18} /></MenuButton>
-                    <MenuButton onClick={() => editor.chain().focus().toggleBlockquote().run()} isActive={editor.isActive('blockquote')} title="인용구"><Quote size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} disabled={isCodeView} title="글머리 기호"><List size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} disabled={isCodeView} title="번호 매기기"><ListOrdered size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleBlockquote().run()} isActive={editor.isActive('blockquote')} disabled={isCodeView} title="인용구"><Quote size={18} /></MenuButton>
                 </div>
 
                 <div className="flex items-center gap-1">
-                    <MenuButton onClick={setLink} isActive={editor.isActive('link')} title="링크"><LinkIcon size={18} /></MenuButton>
-                    <MenuButton onClick={addImage} title="이미지"><ImageIcon size={18} /></MenuButton>
+                    <MenuButton onClick={setLink} isActive={editor.isActive('link')} disabled={isCodeView} title="링크"><LinkIcon size={18} /></MenuButton>
+                    <MenuButton onClick={addImage} disabled={isCodeView} title="이미지"><ImageIcon size={18} /></MenuButton>
+                </div>
+
+                <div className="ml-auto">
+                    <MenuButton
+                        onClick={() => setIsCodeView(!isCodeView)}
+                        isActive={isCodeView}
+                        title={isCodeView ? "에디터 보기" : "코드 보기"}
+                    >
+                        <Code size={18} />
+                    </MenuButton>
                 </div>
             </div>
 
@@ -184,7 +195,16 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
                 )
             }
 
-            <EditorContent editor={editor} />
+            {isCodeView ? (
+                <textarea
+                    value={content}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="w-full min-h-[400px] p-5 font-mono text-sm text-gray-800 bg-gray-50/50 focus:outline-none resize-y"
+                    placeholder="HTML 코드를 입력하세요..."
+                />
+            ) : (
+                <EditorContent editor={editor} />
+            )}
 
             <style>{`
                 .tiptap p.is-editor-empty:first-child::before {

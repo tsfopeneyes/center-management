@@ -3,6 +3,9 @@ import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { User, Smartphone, School, Calendar, CheckCircle, AlertCircle, Tablet, X } from 'lucide-react';
 import SignUpForm from '../components/auth/SignUpForm';
+import TermsConsentModal from '../components/auth/TermsConsentModal';
+import { TERMS_VERSION } from '../constants/appConstants';
+import { hashPassword } from '../utils/hashUtils';
 
 // -- Login Form Component --
 const LoginForm = ({ navigate }) => {
@@ -11,18 +14,43 @@ const LoginForm = ({ navigate }) => {
     const [loading, setLoading] = useState(false);
     const [duplicates, setDuplicates] = useState([]);
     const [showModal, setShowModal] = useState(false);
+    const [pendingUser, setPendingUser] = useState(null);
+    const [showTermsModal, setShowTermsModal] = useState(false);
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            // 1. Try checking 'password' column (New Logic)
+            const hashedPassword = await hashPassword(password);
+
+            // 1. Try checking 'password' column (New Logic - Hashed)
             let { data: users, error } = await supabase
                 .from('users')
                 .select('*')
                 .ilike('name', name) // Case-insensitive login
-                .eq('password', password);
+                .eq('password', hashedPassword);
+
+            // 1.5. Fallback for existing users with plaintext passwords (Migration Logic)
+            if (!error && (!users || users.length === 0)) {
+                const { data: plaintextUsers, error: plainError } = await supabase
+                    .from('users')
+                    .select('*')
+                    .ilike('name', name)
+                    .eq('password', password);
+
+                if (!plainError && plaintextUsers && plaintextUsers.length > 0) {
+                    // Plaintext match found. Update DB to use hashed password for future logins.
+                    const { error: updateError } = await supabase
+                        .from('users')
+                        .update({ password: hashedPassword })
+                        .in('id', plaintextUsers.map(u => u.id));
+
+                    if (!updateError) {
+                        users = plaintextUsers;
+                    }
+                }
+            }
 
             // 2. Fallback: If no user found, check 'phone_back4' (Legacy Logic)
             // This handles cases where SQL update might have failed or for old accounts causing issues
@@ -59,7 +87,7 @@ const LoginForm = ({ navigate }) => {
             if (!users || users.length === 0) {
                 alert('일치하는 회원 정보가 없습니다. 비밀번호를 확인해주세요.');
             } else if (users.length === 1) {
-                proceedLogin(users[0]);
+                checkTermsAgreement(users[0]);
             } else {
                 setDuplicates(users);
                 setShowModal(true);
@@ -69,6 +97,39 @@ const LoginForm = ({ navigate }) => {
             alert('로그인 중 오류가 발생했습니다.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const checkTermsAgreement = (user) => {
+        if (user.preferences?.terms_agreed && user.preferences?.terms_version === TERMS_VERSION) {
+            proceedLogin(user);
+        } else {
+            setPendingUser(user);
+            setShowTermsModal(true);
+        }
+    };
+
+    const handleTermsAgree = async () => {
+        if (!pendingUser) return;
+
+        try {
+            const updatedPreferences = {
+                ...(pendingUser.preferences || {}),
+                terms_agreed: true,
+                terms_version: TERMS_VERSION
+            };
+            const { error } = await supabase
+                .from('users')
+                .update({ preferences: updatedPreferences })
+                .eq('id', pendingUser.id);
+
+            if (error) throw error;
+
+            setShowTermsModal(false);
+            proceedLogin({ ...pendingUser, preferences: updatedPreferences });
+        } catch (err) {
+            console.error(err);
+            alert('약관 동의 처리 중 오류가 발생했습니다.');
         }
     };
 
@@ -137,23 +198,33 @@ const LoginForm = ({ navigate }) => {
                             {duplicates.map((u) => (
                                 <button
                                     key={u.id}
-                                    onClick={() => proceedLogin(u)}
+                                    onClick={() => checkTermsAgreement(u)}
                                     className="w-full text-left p-4 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-xl font-semibold transition"
                                 >
                                     {u.school} ({u.birth})
                                     {u.is_leader && <span className="ml-2 inline-flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg></span>}
                                 </button>
                             ))}
+                            <button
+                                onClick={() => setShowModal(false)}
+                                className="mt-4 w-full py-3 text-gray-400 hover:text-gray-600"
+                            >
+                                닫기
+                            </button>
                         </div>
-                        <button
-                            onClick={() => setShowModal(false)}
-                            className="mt-4 w-full py-3 text-gray-400 hover:text-gray-600"
-                        >
-                            닫기
-                        </button>
                     </div>
                 </div>
             )}
+
+            {/* Terms Agreement Blocking Overlay */}
+            <TermsConsentModal
+                isOpen={showTermsModal}
+                onClose={() => {
+                    setShowTermsModal(false);
+                    setPendingUser(null);
+                }}
+                onAgree={handleTermsAgree}
+            />
         </>
     );
 };

@@ -1,466 +1,35 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
 import {
     Delete, Scan, X, CheckCircle, AlertCircle,
     Calendar, Clock, LogIn, LogOut, ChevronRight,
     MapPin, Camera, SwitchCamera, Settings, UserPlus, Smartphone, User,
-    School
+    School, Check, BookOpen, Coffee, Heart, Edit3, Smile
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { QRCodeSVG } from 'qrcode.react';
-import confetti from 'canvas-confetti';
-// import { BADGE_DEFINITIONS } from '../constants/appConstants';
 import SignUpForm from '../components/auth/SignUpForm';
+import GuestEntryForm from '../components/kiosk/GuestEntryForm';
+import TermsConsentModal from '../components/auth/TermsConsentModal';
+import { useKioskManager } from '../hooks/useKioskManager';
 
 const Kiosk = () => {
     const navigate = useNavigate();
-    // Logic States
-    const [locations, setLocations] = useState([]);
-    const [selectedLocation, setSelectedLocation] = useState(null);
-    const [matchingUsers, setMatchingUsers] = useState([]);
-    const [currentTime, setCurrentTime] = useState(new Date());
 
-    // UI States
-    const [pincode, setPincode] = useState('');
-    const [status, setStatus] = useState('IDLE'); // IDLE, SCANNING, SELECTING, LOADING
-    const [result, setResult] = useState(null); // { type, message, subMessage, color }
-    const [showMasterPin, setShowMasterPin] = useState(false);
-    const [showOptionsMenu, setShowOptionsMenu] = useState(false);
-    const [masterPinInput, setMasterPinInput] = useState('');
-    const [afterPinAction, setAfterPinAction] = useState(null); // 'SETTINGS' or 'EXIT'
-    const [showSignupForm, setShowSignupForm] = useState(false);
-
-    // Scanner Settings
-    const [facingMode, setFacingMode] = useState('environment'); // 'environment' (back) or 'user' (front)
-    const [lastScan, setLastScan] = useState({ code: '', time: 0 });
-    const [challenges, setChallenges] = useState([]);
-
-    // 1. Initial Data Fetch
-    useEffect(() => {
-        const fetchLocs = async () => {
-            const { data } = await supabase.from('locations').select('*').order('name');
-            if (data) setLocations(data);
-        };
-        fetchLocs();
-
-        const savedLoc = localStorage.getItem('kiosk_location');
-        if (savedLoc) {
-            try {
-                setSelectedLocation(JSON.parse(savedLoc));
-            } catch (e) {
-                console.error("Failed to parse saved location", e);
-            }
-        }
-
-        const fetchChallenges = async () => {
-            const { data } = await supabase.from('challenges').select('*');
-            if (data) setChallenges(data);
-        };
-        fetchChallenges();
-
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
-
-    const handleSetLocation = (loc) => {
-        setSelectedLocation(loc);
-        localStorage.setItem('kiosk_location', JSON.stringify(loc));
-    };
-
-    const resetLocation = () => {
-        const master = localStorage.getItem('kiosk_master_pin') || '1801';
-        setAfterPinAction('SETTINGS');
-        setShowMasterPin(true);
-    };
-
-    const handleMasterPinSubmit = (pin) => {
-        const master = localStorage.getItem('kiosk_master_pin') || '1801';
-        if (pin === master) {
-            if (afterPinAction === 'SETTINGS') {
-                setShowOptionsMenu(true);
-            } else if (afterPinAction === 'EXIT') {
-                navigate('/');
-            }
-            setShowMasterPin(false);
-            setMasterPinInput('');
-        } else {
-            alert('핀 번호가 일치하지 않습니다.');
-            setMasterPinInput('');
-        }
-    };
-
-    const handleResetLocation = () => {
-        localStorage.removeItem('kiosk_location');
-        setSelectedLocation(null);
-        setShowOptionsMenu(false);
-        resetState();
-    };
-
-    // 2. Core Processing Logic (In/Move/Out)
-    const processKioskAction = async (user) => {
-        if (!selectedLocation) return;
-        const currentBackgroundStatus = status;
-        setStatus('LOADING');
-
-        try {
-            // A. Determine next log type (In/Move/Out)
-            const { data: lastLogs } = await supabase
-                .from('logs')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-            let nextType = 'CHECKIN';
-            if (lastLogs && lastLogs.length > 0) {
-                const lastLog = lastLogs[0];
-                if (lastLog.type === 'CHECKOUT') {
-                    nextType = 'CHECKIN';
-                } else {
-                    if (lastLog.location_id === selectedLocation.id) {
-                        nextType = 'CHECKOUT';
-                    } else {
-                        nextType = 'MOVE';
-                    }
-                }
-            }
-
-            // B. Stats Calculation (only on CHECKIN)
-            let streakCount = 0;
-            let isFirstToday = false;
-            let activeProgram = null;
-            let activeBadge = null;
-            let totalVisitCount = 0;
-
-            if (nextType === 'CHECKIN') {
-                // 1. Streak Calculation (Consecutive days including today)
-                const { data: recentLogs } = await supabase
-                    .from('logs')
-                    .select('created_at')
-                    .eq('user_id', user.id)
-                    .eq('type', 'CHECKIN')
-                    .order('created_at', { ascending: false });
-
-                if (recentLogs && recentLogs.length > 0) {
-                    let currentStreak = 1;
-                    let lastDate = new Date();
-                    lastDate.setHours(0, 0, 0, 0);
-
-                    // Check if they already checked in today (just for calculation stability)
-                    const uniqueDates = [...new Set(recentLogs.map(l => new Date(l.created_at).toDateString()))];
-
-                    for (let i = 1; i < uniqueDates.length; i++) {
-                        const prevDate = new Date(uniqueDates[i]);
-                        const expectedDate = new Date(lastDate);
-                        expectedDate.setDate(expectedDate.getDate() - 1);
-
-                        if (prevDate.toDateString() === expectedDate.toDateString()) {
-                            currentStreak++;
-                            lastDate = prevDate;
-                        } else {
-                            break;
-                        }
-                    }
-                    streakCount = currentStreak;
-                }
-
-                // 2. First-in Recognition (Today, this location)
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-                const { count: todayLogsCount } = await supabase
-                    .from('logs')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('location_id', selectedLocation.id)
-                    .eq('type', 'CHECKIN')
-                    .gte('created_at', todayStart.toISOString());
-
-                if (todayLogsCount === 0) isFirstToday = true;
-
-                // 3. Smart Check-in (RSVP Integration)
-                const now = new Date();
-                const programCheckStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-                const programCheckEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
-
-                const { data: todayPrograms } = await supabase
-                    .from('notices')
-                    .select('id, title, program_date')
-                    .gte('program_date', programCheckStart)
-                    .lte('program_date', programCheckEnd);
-
-                if (todayPrograms && todayPrograms.length > 0) {
-                    const programIds = todayPrograms.map(p => p.id);
-                    const { data: myRsvps } = await supabase
-                        .from('notice_responses')
-                        .select('notice_id')
-                        .eq('user_id', user.id)
-                        .in('notice_id', programIds)
-                        .eq('status', 'JOIN');
-
-                    if (myRsvps && myRsvps.length > 0) {
-                        activeProgram = todayPrograms.find(p => p.id === myRsvps[0].notice_id);
-                        // Auto-log attendance
-                        await supabase
-                            .from('notice_responses')
-                            .update({ is_attended: true })
-                            .eq('notice_id', activeProgram.id)
-                            .eq('user_id', user.id);
-                    }
-                }
-
-                // 4. Milestone Check (Total History)
-                const { count: fetchedTotalVisitCount } = await supabase
-                    .from('logs')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', user.id)
-                    .eq('type', 'CHECKIN');
-
-                totalVisitCount = fetchedTotalVisitCount || 0;
-
-                const { count: totalPrgCount } = await supabase
-                    .from('notice_responses')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', user.id)
-                    .eq('is_attended', true);
-
-                const currentVisitCount = totalVisitCount + 1;
-                const currentPrgCount = totalPrgCount || 0;
-
-                // Threshold Check: Only trigger if we JUST REACHED the threshold
-                const visitBadge = (nextType === 'CHECKIN')
-                    ? challenges.find(b => b.type === 'VISIT' && b.threshold === currentVisitCount)
-                    : null;
-
-                const prgBadge = (activeProgram)
-                    ? challenges.find(b => b.type === 'PROGRAM' && b.threshold === currentPrgCount)
-                    : null;
-
-                if (visitBadge || prgBadge) {
-                    activeBadge = visitBadge || prgBadge;
-                }
-            }
-
-            // C. Insert Log
-            const { error: insertError } = await supabase.from('logs').insert([{
-                user_id: user.id,
-                location_id: selectedLocation.id,
-                type: nextType
-            }]);
-
-            if (insertError) throw insertError;
-
-            // D. Set Feedback Content
-            let msg = `${user.name}님 반가워요 👋`;
-            let sub = '입실 완료';
-            let color = 'bg-green-500';
-            let isFirstEver = (totalVisitCount || 0) === 0;
-
-            if (nextType === 'MOVE') {
-                msg = `${selectedLocation.name} 장소로 이동🚀`;
-                sub = '이동 완료';
-                color = 'bg-blue-600';
-            } else if (nextType === 'CHECKOUT') {
-                msg = '오늘도 즐거웠어요✨';
-                sub = '퇴실 완료';
-                color = 'bg-orange-500';
-            }
-
-            // Enhanced messages for CHECKIN
-            if (nextType === 'CHECKIN') {
-                if (isFirstEver) {
-                    msg = `첫 방문을 환영합니다! 🎊`;
-                    sub = `${user.name}님, SCI CENTER에 오신 것을 환영해요!`;
-                    color = 'bg-indigo-600';
-
-                    // Trigger confetti for the absolute first visit
-                    try {
-                        confetti({
-                            particleCount: 150,
-                            spread: 70,
-                            origin: { y: 0.6 },
-                            colors: ['#2563eb', '#4f46e5', '#f59e0b', '#10b981', '#ef4444']
-                        });
-                    } catch (cErr) {
-                        console.error('Confetti error:', cErr);
-                    }
-                } else if (activeProgram) {
-                    sub = `잠시 후 [${activeProgram.title}] 시작! 📅`;
-                } else if (streakCount > 1) {
-                    sub = `${streakCount}일 연속 출석 중! 🔥`;
-                }
-            }
-
-            setResult({
-                type: 'SUCCESS',
-                message: activeBadge ? `축하해요! [${activeBadge.name}] 획득!` : msg,
-                subMessage: activeBadge ? '새로운 뱃지를 획득하셨습니다✨' : sub,
-                color: activeBadge ? 'bg-yellow-500' : color,
-                streak: streakCount > 1 ? streakCount : null,
-                isFirst: isFirstEver,
-                program: activeProgram,
-                badge: activeBadge
-            });
-
-            // Always reset to IDLE on success to prevent getting stuck in SELECTING
-            setStatus('IDLE');
-            setPincode('');
-            setMatchingUsers([]);
-
-            // Auto-reset feedback (longer if milestone/badge)
-            const delay = (isFirstToday || activeProgram || streakCount > 1 || activeBadge) ? 3000 : 800;
-            setTimeout(() => {
-                setResult(null);
-            }, delay);
-
-        } catch (err) {
-            console.error('Kiosk Action Error:', err);
-            setResult({
-                type: 'ERROR',
-                message: '처리 오류',
-                subMessage: err.message || '다시 시도해 주세요.',
-                color: 'bg-red-500'
-            });
-            // Reset to IDLE on error too so they can try again
-            setStatus('IDLE');
-            setPincode('');
-            setTimeout(() => setResult(null), 2000);
-        }
-    };
-
-    // 3. Input Handlers
-    const handleVerifyNumeric = useCallback(async (code) => {
-        if (code.length !== 4) return;
-        const currentBackgroundStatus = status;
-        setStatus('LOADING');
-
-        try {
-            // Handle Guest Entry (0000)
-            if (code === '0000') {
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-
-                const { count } = await supabase
-                    .from('logs')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('type', 'GUEST_ENTRY')
-                    .gte('created_at', todayStart.toISOString());
-
-                const guestNum = (count || 0) + 1;
-
-                const { error: guestError } = await supabase.from('logs').insert([{
-                    user_id: null,
-                    location_id: selectedLocation.id,
-                    type: 'GUEST_ENTRY'
-                }]);
-
-                if (guestError) throw guestError;
-
-                setResult({
-                    type: 'SUCCESS',
-                    message: '반가운 손님! ✨',
-                    subMessage: '진심으로 환영하고 축복해🖐️',
-                    color: 'bg-indigo-600'
-                });
-
-                setStatus(currentBackgroundStatus);
-                setPincode('');
-                setTimeout(() => setResult(null), 2500);
-                return;
-            }
-
-            const { data, error } = await supabase
-                .from('users')
-                .select('id, name, school, phone_back4')
-                .eq('phone_back4', code);
-
-            if (error) throw error;
-
-            if (!data || data.length === 0) {
-                setResult({
-                    type: 'ERROR',
-                    message: '등록되지 않은 번호',
-                    subMessage: '번호를 다시 확인해 주세요.',
-                    color: 'bg-red-500'
-                });
-                setStatus(currentBackgroundStatus);
-                setPincode('');
-                setTimeout(() => setResult(null), 1500);
-                return;
-            }
-
-            if (data.length === 1) {
-                await processKioskAction(data[0]);
-            } else {
-                setMatchingUsers(data);
-                setStatus('SELECTING');
-            }
-        } catch (err) {
-            console.error('Verify Numeric Error:', err);
-            setResult({
-                type: 'ERROR',
-                message: '조회 실패',
-                subMessage: err.message || '네트워크 상태를 확인해 주세요.',
-                color: 'bg-red-500'
-            });
-            setStatus(currentBackgroundStatus);
-            setTimeout(() => setResult(null), 1500);
-        }
-    }, [selectedLocation, status]);
-
-    const handleNumberClick = (num) => {
-        if (result || status === 'LOADING') return; // Disable during active feedback
-        if (pincode.length < 4) {
-            const nextCode = pincode + num;
-            setPincode(nextCode);
-            if (nextCode.length === 4) {
-                handleVerifyNumeric(nextCode);
-            }
-        }
-    };
-
-    const handleQrScan = (resultScan) => {
-        if (result || status === 'LOADING') return;
-        if (resultScan && resultScan[0]?.rawValue) {
-            const val = resultScan[0].rawValue;
-            const now = Date.now();
-            if (val === lastScan.code && (now - lastScan.time < 5000)) return;
-            setLastScan({ code: val, time: now });
-            handleIdentifyUser(val);
-        }
-    };
-
-    const handleIdentifyUser = async (val) => {
-        const currentBackgroundStatus = status;
-        setStatus('LOADING');
-        try {
-            const { data: byId } = await supabase.from('users').select('*').eq('id', val).single();
-            if (byId) {
-                await processKioskAction(byId);
-            } else if (val.length === 4) {
-                await handleVerifyNumeric(val);
-            } else {
-                throw new Error('인식 불가');
-            }
-        } catch (err) {
-            console.error('Identify User Error:', err);
-            setResult({
-                type: 'ERROR',
-                message: '인식 실패',
-                subMessage: '올바른 QR 코드가 아닙니다.',
-                color: 'bg-red-500'
-            });
-            setStatus(currentBackgroundStatus);
-            setTimeout(() => setResult(null), 1500);
-        }
-    };
-
-    const resetState = () => {
-        setPincode('');
-        setStatus('IDLE');
-        setMatchingUsers([]);
-        setResult(null);
-    };
+    const {
+        // State
+        locations, selectedLocation, matchingUsers, currentTime, pincode, status, result,
+        showMasterPin, showOptionsMenu, masterPinInput, showSignupForm, showGuestForm, facingMode,
+        pendingKioskUser, pendingCheckoutUser, checkoutVisitDate,
+        // Setters
+        setSelectedLocation, setPincode, setStatus, setResult,
+        setShowMasterPin, setShowOptionsMenu, setMasterPinInput, setShowSignupForm, setShowGuestForm, setFacingMode, setAfterPinAction,
+        // Handlers
+        handleSetLocation, resetLocation, handleMasterPinSubmit, handleResetLocation,
+        processKioskAction, handleIdentifyUser, handleVerifyNumeric, handleNumberClick, handleQrScan, resetState,
+        handleKioskTermsAgree, handleCheckoutPurpose
+    } = useKioskManager(navigate);
 
     if (!selectedLocation) {
         return (
@@ -498,6 +67,13 @@ const Kiosk = () => {
                     setShowOptionsMenu={setShowOptionsMenu}
                     handleResetLocation={handleResetLocation}
                     navigate={navigate}
+                    showGuestForm={showGuestForm}
+                    setShowGuestForm={setShowGuestForm}
+                    processKioskAction={processKioskAction}
+                    status={status}
+                    pendingKioskUser={pendingKioskUser}
+                    handleKioskTermsAgree={handleKioskTermsAgree}
+                    resetState={resetState}
                 />
             </div>
         );
@@ -507,10 +83,26 @@ const Kiosk = () => {
         <div className="fixed inset-0 bg-slate-50 flex flex-col font-sans overflow-hidden select-none h-[100dvh]">
             {/* Animated Background Elements */}
             <div className="absolute inset-0 overflow-hidden -z-10 pointer-events-none">
-                <motion.div animate={{ scale: [1, 1.2, 1], x: [0, 50, 0], y: [0, 30, 0] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-100/50 rounded-full blur-[100px]" />
-                <motion.div animate={{ scale: [1, 1.1, 1], x: [0, -30, 0], y: [0, 50, 0] }} transition={{ duration: 25, repeat: Infinity, ease: "linear" }} className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-indigo-100/40 rounded-full blur-[100px]" />
-                <motion.div animate={{ scale: [1.2, 1.3, 1.2], x: [30, 0, 30] }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }} className="absolute top-[40%] left-[20%] w-[20%] h-[20%] bg-blue-200/20 rounded-full blur-[80px]" />
-                <motion.div animate={{ scale: [1.2, 1, 1.2], rotate: 360 }} transition={{ duration: 30, repeat: Infinity, ease: "linear" }} className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-pink-100/30 rounded-full blur-[120px]" />
+                <motion.div
+                    animate={{ scale: [1, 1.2, 1], x: [0, 50, 0], y: [0, 30, 0] }}
+                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                    className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-100/40 rounded-full blur-[40px] md:blur-[100px] gpu-accelerated"
+                />
+                <motion.div
+                    animate={{ scale: [1, 1.1, 1], x: [0, -30, 0], y: [0, 50, 0] }}
+                    transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+                    className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-indigo-100/30 rounded-full blur-[40px] md:blur-[100px] gpu-accelerated"
+                />
+                <motion.div
+                    animate={{ scale: [1.2, 1.3, 1.2], x: [30, 0, 30] }}
+                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                    className="absolute top-[40%] left-[20%] w-[20%] h-[20%] bg-blue-200/15 rounded-full blur-[30px] md:blur-[80px] gpu-accelerated"
+                />
+                <motion.div
+                    animate={{ scale: [1.2, 1, 1.2], rotate: 360 }}
+                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                    className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-pink-100/20 rounded-full blur-[40px] md:blur-[120px] gpu-accelerated"
+                />
             </div>
 
             {/* Header */}
@@ -618,6 +210,16 @@ const Kiosk = () => {
                                     <p className="text-slate-400 font-black tracking-widest uppercase">Processing...</p>
                                 </motion.div>
                             )}
+
+                            {status === 'REQUIRE_TERMS_AGREEMENT' && (
+                                <motion.div key="terms" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-6">
+                                    <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+                                        <CheckCircle size={40} />
+                                    </div>
+                                    <p className="text-slate-800 font-black text-2xl text-center">약관 동의가 필요합니다</p>
+                                    <p className="text-slate-400 font-bold text-center">서비스 이용을 위해 새로운 약관에 동의해 주세요.</p>
+                                </motion.div>
+                            )}
                         </AnimatePresence>
                     </div>
 
@@ -646,6 +248,13 @@ const Kiosk = () => {
                                 >
                                     <UserPlus size={24} />
                                     회원가입
+                                </button>
+                                <button
+                                    onClick={() => setShowGuestForm(true)}
+                                    className="flex-1 py-5 sm:py-6 bg-indigo-50 text-indigo-600 border-2 border-indigo-100 rounded-3xl font-black text-lg sm:text-xl flex items-center justify-center gap-3 hover:bg-indigo-100/80 hover:border-indigo-200 active:scale-95 transition-all shadow-lg shadow-indigo-100/20"
+                                >
+                                    <UserPlus size={24} />
+                                    게스트 입장
                                 </button>
                             </div>
                         </div>
@@ -719,9 +328,19 @@ const Kiosk = () => {
                 navigate={navigate}
                 showSignupForm={showSignupForm}
                 setShowSignupForm={setShowSignupForm}
+                showGuestForm={showGuestForm}
+                setShowGuestForm={setShowGuestForm}
+                processKioskAction={processKioskAction}
+                status={status}
+                matchingUsers={matchingUsers}
+                pendingKioskUser={pendingKioskUser}
+                handleKioskTermsAgree={handleKioskTermsAgree}
+                pendingCheckoutUser={pendingCheckoutUser}
+                handleCheckoutPurpose={handleCheckoutPurpose}
+                resetState={resetState}
             />
 
-            <style jsx>{`
+            <style>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
@@ -743,7 +362,16 @@ const KioskModals = ({
     handleResetLocation,
     navigate,
     showSignupForm,
-    setShowSignupForm
+    setShowSignupForm,
+    showGuestForm,
+    setShowGuestForm,
+    processKioskAction,
+    pendingKioskUser,
+    handleKioskTermsAgree,
+    pendingCheckoutUser,
+    handleCheckoutPurpose,
+    status,
+    resetState
 }) => {
     // Shared Signup Component handles data and consent now
 
@@ -860,8 +488,137 @@ const KioskModals = ({
                 </div >
             )}
 
+            {/* Guest Entry Form Modal */}
+            {showGuestForm && (
+                <div className="fixed inset-0 bg-slate-900/40 z-[120] flex items-center justify-center p-4 sm:p-6 backdrop-blur-lg animate-fade-in overflow-y-auto">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        className="bg-white/95 w-full max-w-2xl rounded-[3rem] p-8 sm:p-12 shadow-2xl relative my-auto border border-white/50 backdrop-blur-xl"
+                    >
+                        <button
+                            onClick={() => setShowGuestForm(false)}
+                            className="absolute top-8 right-8 p-3 bg-slate-100 rounded-2xl text-slate-400 hover:text-slate-600 transition-all active:scale-90"
+                        >
+                            <X size={24} />
+                        </button>
+
+                        <div className="mb-10">
+                            <h3 className="text-3xl sm:text-4xl font-black text-slate-800 mb-2 tracking-tight">게스트 입장</h3>
+                            <p className="text-slate-400 font-bold">센터 패스를 한 번만 이용할 거라면 간편하게 입장하세요!</p>
+                        </div>
+
+                        <GuestEntryForm
+                            onSuccess={(newUser) => {
+                                setShowGuestForm(false);
+                                processKioskAction(newUser);
+                            }}
+                            onCancel={() => setShowGuestForm(false)}
+                        />
+                    </motion.div>
+                </div>
+            )}
+
             {/* Consent Modals are now handled inside SignUpForm */}
+            <TermsConsentModal
+                isOpen={status === 'REQUIRE_TERMS_AGREEMENT'}
+                onClose={resetState}
+                onAgree={handleKioskTermsAgree}
+                isKiosk={true}
+            />
+
+            <PurposeSelectionModal
+                isOpen={status === 'REQUIRE_PURPOSE'}
+                user={pendingCheckoutUser}
+                onComplete={handleCheckoutPurpose}
+            />
         </>
+    );
+};
+
+const PurposeSelectionModal = ({ isOpen, user, onComplete }) => {
+    const [selected, setSelected] = React.useState([]);
+
+    // Reset selection every time the modal opens
+    React.useEffect(() => {
+        if (isOpen) setSelected([]);
+    }, [isOpen]);
+
+    const categories = [
+        { id: '개인 할 일', label: '개인 할 일', icon: Edit3, color: 'bg-blue-50 text-blue-600', active: 'bg-blue-600 text-white shadow-blue-200' },
+        { id: '프로그램 참여', label: '프로그램 참여', icon: BookOpen, color: 'bg-indigo-50 text-indigo-600', active: 'bg-indigo-600 text-white shadow-indigo-200' },
+        { id: '교제 및 휴식', label: '교제 및 휴식', icon: Coffee, color: 'bg-orange-50 text-orange-600', active: 'bg-orange-600 text-white shadow-orange-200' },
+        { id: '스처쌤 만남', label: '스처쌤 만남', icon: Heart, color: 'bg-rose-50 text-rose-600', active: 'bg-rose-600 text-white shadow-rose-200' }
+    ];
+
+    const toggle = (id) => {
+        setSelected(prev =>
+            prev.includes(id)
+                ? prev.filter(i => i !== id)
+                : [...prev, id]
+        );
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 z-[150] flex items-center justify-center p-4 backdrop-blur-xl animate-fade-in">
+            <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 40 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                className="bg-white w-full max-w-xl rounded-[3.5rem] p-10 sm:p-14 shadow-2xl relative overflow-hidden"
+            >
+                {/* Decorative background gradients */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full -mr-32 -mt-32 blur-3xl -z-10" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50/50 rounded-full -ml-32 -mb-32 blur-3xl -z-10" />
+
+                <div className="text-center mb-12">
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-50 rounded-3xl mb-6 shadow-sm border border-blue-100/50">
+                        <Smile className="text-blue-600" size={40} />
+                    </div>
+                    <h3 className="text-3xl sm:text-4xl font-black text-slate-800 mb-3 tracking-tight">오늘 센터에서<br />어떤 활동을 했나요?</h3>
+                    <p className="text-slate-400 font-bold text-lg">중복 선택이 가능해요! ✨</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-12">
+                    {categories.map((cat) => {
+                        const Icon = cat.icon;
+                        const isActive = selected.includes(cat.id);
+                        return (
+                            <button
+                                key={cat.id}
+                                onClick={() => toggle(cat.id)}
+                                className={`flex flex-col items-center justify-center p-6 sm:p-8 rounded-[2.5rem] transition-all duration-300 border-2 group active:scale-95 ${isActive
+                                    ? `${cat.active} border-transparent shadow-xl scale-[1.02]`
+                                    : `${cat.color} border-transparent opacity-70 hover:opacity-100 hover:scale-[1.01]`
+                                    }`}
+                            >
+                                <Icon size={32} className={`mb-3 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
+                                <span className={`text-base sm:text-lg font-black tracking-tight whitespace-nowrap ${isActive ? 'text-white' : ''}`}>
+                                    {cat.label}
+                                </span>
+                                {isActive && (
+                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-4 right-4 bg-white/20 p-1 rounded-full">
+                                        <Check size={14} className="text-white" strokeWidth={4} />
+                                    </motion.div>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <button
+                    disabled={selected.length === 0}
+                    onClick={() => onComplete(selected)}
+                    className={`w-full py-6 rounded-3xl font-black text-xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 ${selected.length > 0
+                        ? 'bg-slate-800 text-white hover:bg-slate-900 shadow-slate-200'
+                        : 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
+                        }`}
+                >
+                    체크아웃 완료 <ChevronRight size={24} />
+                </button>
+            </motion.div>
+        </div>
     );
 };
 

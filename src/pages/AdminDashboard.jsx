@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -10,18 +10,18 @@ import { aggregateVisitSessions } from '../utils/visitUtils';
 
 // Components
 import AdminSidebar from '../components/admin/AdminSidebar';
-import AdminStatus from '../components/admin/AdminStatus';
-import AdminBoard from '../components/admin/AdminBoard';
-import AdminUsers from '../components/admin/AdminUsers';
-import AdminLogs from '../components/admin/AdminLogs';
-import AdminSettings from '../components/admin/AdminSettings';
-import AdminStatistics from '../components/admin/AdminStatistics';
-import AdminMessages from '../components/admin/AdminMessages';
-import AdminGuestbook from '../components/admin/AdminGuestbook';
-import AdminReport from '../components/admin/AdminReport';
-import AdminChallenges from '../components/admin/AdminChallenges';
-import AdminCalendar from '../components/admin/AdminCalendar';
-import AdminSchool from '../components/admin/AdminSchool';
+import AdminStatus from '../components/admin/dashboard/AdminStatus';
+import AdminBoard from '../components/admin/board/AdminBoard';
+import AdminUsers from '../components/admin/users/AdminUsers';
+import AdminLogs from '../components/admin/dashboard/AdminLogs';
+import AdminSettings from '../components/admin/settings/AdminSettings';
+import AdminStatistics from '../components/admin/statistics/AdminStatistics';
+import AdminMessages from '../components/admin/messages/AdminMessages';
+import AdminGuestbook from '../components/admin/board/AdminGuestbook';
+import AdminReport from '../components/admin/statistics/AdminReport';
+import AdminChallenges from '../components/admin/settings/AdminChallenges';
+import AdminCalendar from '../components/admin/calendar/AdminCalendar';
+import AdminSchool from '../components/admin/school/AdminSchool';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
 
@@ -48,40 +48,7 @@ const AdminDashboard = () => {
     const [dailyVisitStats, setDailyVisitStats] = useState({});
     const [currentLocations, setCurrentLocations] = useState({}); // { userId: locationId }
 
-    useEffect(() => {
-        const storedAdmin = localStorage.getItem('admin_user');
-        if (!storedAdmin) {
-            alert('관리자 권한이 필요합니다.');
-            navigate('/');
-            return;
-        }
-        const admin = JSON.parse(storedAdmin);
-        setCurrentAdmin(admin);
-        fetchData();
-        subscribeToPush(admin.id); // Ask for notification permission
-
-        // Realtime Subscription with Debounce
-        let debounceTimer;
-        const debouncedFetch = () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                fetchData();
-            }, 1000); // 1-second debounce to handle burst updates
-        };
-
-        const subscription = supabase
-            .channel('public:updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, debouncedFetch)
-            .subscribe();
-
-        return () => {
-            clearTimeout(debounceTimer);
-            supabase.removeChannel(subscription);
-        };
-    }, [navigate]);
-
-    const fetchData = async (isFullFetch = false) => {
+    const fetchData = useCallback(async (isFullFetch = false) => {
         // Automatically perform full fetch if currently in statistics or report mode
         const needsFullFetch = isFullFetch || activeMenu === 'STATISTICS' || activeMenu === 'REPORTS';
         if (needsFullFetch) setIsStatsLoading(true);
@@ -171,9 +138,42 @@ const AdminDashboard = () => {
             setLoading(false);
             setIsStatsLoading(false);
         }
-    };
+    }, [activeMenu]);
 
-    const handleForceCheckout = async (userId) => {
+    useEffect(() => {
+        const storedAdmin = localStorage.getItem('admin_user');
+        if (!storedAdmin) {
+            alert('관리자 권한이 필요합니다.');
+            navigate('/');
+            return;
+        }
+        const admin = JSON.parse(storedAdmin);
+        setCurrentAdmin(admin);
+        fetchData();
+        subscribeToPush(admin.id); // Ask for notification permission
+
+        // Realtime Subscription with Debounce
+        let debounceTimer;
+        const debouncedFetch = () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                fetchData();
+            }, 1000); // 1-second debounce to handle burst updates
+        };
+
+        const subscription = supabase
+            .channel('public:updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, debouncedFetch)
+            .subscribe();
+
+        return () => {
+            clearTimeout(debounceTimer);
+            supabase.removeChannel(subscription);
+        };
+    }, [navigate, fetchData]);
+
+    const handleForceCheckout = useCallback(async (userId) => {
         if (!confirm('해당 회원을 강제 퇴실 처리하시겠습니까?')) return;
         try {
             const { error } = await supabase.from('logs').insert([{
@@ -189,9 +189,9 @@ const AdminDashboard = () => {
             console.error(err);
             alert(`퇴실 처리 실패: ${err.message || '알 수 없는 오류'}`);
         }
-    };
+    }, [fetchData]);
 
-    const handleBatchCheckout = async (userIds) => {
+    const handleBatchCheckout = useCallback(async (userIds) => {
         if (userIds.length === 0) return;
         if (!confirm(`현재 입실 중인 ${userIds.length}명 전원을 퇴실 처리하시겠습니까?`)) return;
 
@@ -211,7 +211,7 @@ const AdminDashboard = () => {
             console.error(err);
             alert(`일괄 퇴실 실패: ${err.message}`);
         }
-    };
+    }, [fetchData]);
 
     // Trigger full fetch when entering statistics
     useEffect(() => {
@@ -391,7 +391,7 @@ const AdminDashboard = () => {
                         <AdminMessages users={users} />
                     )}
                     {activeMenu === 'STATISTICS' && (
-                        <AdminStatistics logs={allLogs} schoolLogs={schoolLogs} locations={locations} locationGroups={locationGroups} users={users} notices={notices} responses={responses} isLoading={isStatsLoading} />
+                        <AdminStatistics logs={allLogs} schoolLogs={schoolLogs} locations={locations} locationGroups={locationGroups} users={users} notices={notices} responses={responses} isLoading={isStatsLoading} fetchData={fetchData} />
                     )}
                     {activeMenu === 'LOGS' && (
                         <AdminLogs allLogs={allLogs} schoolLogs={schoolLogs} users={users} locations={locations} notices={notices} fetchData={fetchData} />

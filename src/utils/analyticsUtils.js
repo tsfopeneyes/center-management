@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, isSameDay, parseISO, differenceInMinutes, eachHourOfInterval, eachMonthOfInterval } from 'date-fns';
 import { aggregateVisitSessions } from './visitUtils';
+import { isAdminOrStaff } from './userUtils';
 
 /**
  * Common period filtering logic
@@ -16,15 +17,51 @@ const getPeriodRange = (date, type) => {
 };
 
 /**
+ * Check if a date is a center working day (Closed on Tue, Sat, Sun)
+ */
+export const isWorkingDay = (date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
+    return day !== 0 && day !== 2 && day !== 6;
+};
+
+/**
+ * Check if two dates are "consecutive" in terms of working days.
+ * Returns true if there are no working days between prev and curr.
+ */
+export const isConsecutiveWorkingDay = (prevDate, currDate) => {
+    const prev = new Date(prevDate);
+    const curr = new Date(currDate);
+
+    // Normalize both to start of day for comparison
+    const p = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate());
+    const c = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate());
+
+    // If they are the same day (shouldn't happen with unique dates but for safety)
+    if (p.getTime() === c.getTime()) return true;
+
+    // Check every day between prev and curr
+    let temp = new Date(p);
+    temp.setDate(temp.getDate() + 1);
+
+    while (temp < c) {
+        if (isWorkingDay(temp)) {
+            // Found a working day between them that was missed
+            return false;
+        }
+        temp.setDate(temp.getDate() + 1);
+    }
+
+    return true;
+};
+
+/**
  * Process Raw Logs for Space Analytics
  */
 export const processAnalyticsData = (logs, locations, users, date, type) => {
     const { start, end } = getPeriodRange(date, type);
 
-    // Filter out Admin users from the start
-    const adminIds = new Set(users.filter(u =>
-        u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
-    ).map(u => u.id));
+    const adminIds = new Set(users.filter(isAdminOrStaff).map(u => u.id));
 
     const filteredLogs = logs.filter(l => {
         if (adminIds.has(l.user_id)) return false;
@@ -32,104 +69,82 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
         return d >= start && d <= end;
     });
 
-    // Pre-index users and locations for O(1) lookup
     const userMap = new Map(users.map(u => [u.id, u]));
-    const locationMap = new Map(locations.map(loc => [loc.id, { ...loc, studentDurations: new Map(), guestCount: 0, studentLogs: new Map() }]));
+    const locationMap = new Map(locations.map(loc => [loc.id, { ...loc, studentDurations: new Map(), guestCount: 0 }]));
 
-    // 1. Single Pass Log Processing & Last Known Location Tracking
-    const userCurrentLoc = new Map(); // {userId: lastLocId}
-    const userStartTime = new Map(); // {userId: startTime}
+    // Calculate Core Space Metrics Using Unified Sessions
+    const sessions = aggregateVisitSessions(logs, users, locations, format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
 
-    // To accurately count unique users and visits for the period, 
-    // we need to consider users who were already checked in before the period started.
-    // We'll look at the most recent log BEFORE the start date.
-    const prePeriodLogs = logs.filter(l => new Date(l.created_at) < start);
-    const prePeriodState = new Map(); // {userId: {locId, time}}
-    prePeriodLogs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).forEach(log => {
-        if (log.type === 'CHECKIN' || log.type === 'MOVE') prePeriodState.set(log.user_id, { locId: log.location_id, time: new Date(log.created_at) });
-        else if (log.type === 'CHECKOUT') prePeriodState.delete(log.user_id);
-    });
+    // Reconstruct studentDurations map using the generated sessions
+    sessions.forEach(session => {
+        const userId = session.userId;
+        const durationLogs = session.rawLogs;
 
-    // Initialize state with users already present
-    prePeriodState.forEach((state, userId) => {
-        userCurrentLoc.set(userId, state.locId);
-        userStartTime.set(userId, start); // Count duration FROM the start of the period
+        let currentLocId = session.rawLogs[0]?.location_id;
+        let segmentStart = new Date(session.rawLogs[0].created_at);
 
-        const loc = locationMap.get(state.locId);
-        if (loc) {
-            if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 1 }); // Already present counts as 1 visit for this period
-        }
-    });
-
-    filteredLogs.forEach(log => {
-        const userId = log.user_id;
-        const currentLocId = log.location_id;
-        const logTime = new Date(log.created_at);
-
-        if (log.type === 'GUEST_ENTRY') {
+        // Count visit for the initial location immediately
+        if (currentLocId && locationMap.has(currentLocId)) {
             const loc = locationMap.get(currentLocId);
-            if (loc) loc.guestCount++;
-            return;
+            if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 0 });
+            loc.studentDurations.get(userId).count++;
         }
 
-        // Before updating to new state, handle the previous state
-        const lastLocId = userCurrentLoc.get(userId);
-        const startTime = userStartTime.get(userId);
+        durationLogs.forEach((log) => {
+            if (log.type === 'MOVE') {
+                const logTime = new Date(log.created_at);
+                const duration = differenceInMinutes(logTime, segmentStart);
 
-        if (lastLocId && startTime) {
-            const duration = differenceInMinutes(logTime, startTime);
-            if (duration > 0) {
-                const prevLoc = locationMap.get(lastLocId);
-                if (prevLoc) {
-                    if (!prevLoc.studentDurations.has(userId)) prevLoc.studentDurations.set(userId, { duration: 0, count: 0 });
-                    const stats = prevLoc.studentDurations.get(userId);
-                    stats.duration += duration;
+                if (duration > 0 && currentLocId && locationMap.has(currentLocId)) {
+                    locationMap.get(currentLocId).studentDurations.get(userId).duration += duration;
                 }
-            }
-        }
 
-        // Update state based on current log
-        if (log.type === 'CHECKIN' || log.type === 'MOVE') {
-            userCurrentLoc.set(userId, currentLocId);
-            userStartTime.set(userId, logTime);
+                currentLocId = log.location_id;
+                segmentStart = logTime;
 
-            const loc = locationMap.get(currentLocId);
-            if (loc) {
-                if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 0 });
-                loc.studentDurations.get(userId).count++;
-            }
-        } else if (log.type === 'CHECKOUT') {
-            userCurrentLoc.delete(userId);
-            userStartTime.delete(userId);
-        }
-    });
-
-    // Handle users still checked in at the end of the period
-    const periodEndTime = (end < new Date()) ? end : new Date();
-    userCurrentLoc.forEach((locId, userId) => {
-        const startTime = userStartTime.get(userId);
-        if (startTime) {
-            const duration = differenceInMinutes(periodEndTime, startTime);
-            if (duration > 0) {
-                const loc = locationMap.get(locId);
-                if (loc) {
+                // Count visit for the new location immediately
+                if (currentLocId && locationMap.has(currentLocId)) {
+                    const loc = locationMap.get(currentLocId);
                     if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 0 });
-                    loc.studentDurations.get(userId).duration += duration;
+                    loc.studentDurations.get(userId).count++;
                 }
+            }
+        });
+
+        // Handle the final segment of the session (up to checkout)
+        const lastLog = durationLogs[durationLogs.length - 1];
+        const lastLogTime = new Date(lastLog.created_at);
+        // If the session has a checkout, calculate remaining time for the final segment
+        if (lastLog.type === 'CHECKOUT') {
+            const duration = differenceInMinutes(lastLogTime, segmentStart);
+            if (duration > 0 && currentLocId && locationMap.has(currentLocId)) {
+                locationMap.get(currentLocId).studentDurations.get(userId).duration += duration;
             }
         }
     });
 
-    // 2. Room Analysis calculation
+
+
     const roomAnalysis = Array.from(locationMap.values()).map(loc => {
         let totalDuration = 0;
         let visitCount = 0;
         const userDetailsList = [];
+        let memberCount = 0;
+        let localGuestCount = loc.guestCount; // Start with legacy count
 
         loc.studentDurations.forEach((stats, uid) => {
             const user = userMap.get(uid);
+            const isGuest = user?.user_group === '게스트';
+            
             totalDuration += stats.duration;
             visitCount += stats.count;
+            
+            if (isGuest) {
+                localGuestCount++;
+            } else {
+                memberCount++;
+            }
+
             userDetailsList.push({
                 name: user ? user.name : '알 수 없음',
                 group: user ? user.user_group : '-',
@@ -142,9 +157,9 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
             name: loc.name,
             duration: totalDuration,
             visitCount,
-            uniqueUsers: loc.studentDurations.size + loc.guestCount,
-            memberCount: loc.studentDurations.size,
-            guestCount: loc.guestCount,
+            uniqueUsers: memberCount + localGuestCount,
+            memberCount,
+            guestCount: localGuestCount, // Total guest sessions in this room
             userDetails: userDetailsList.sort((a, b) => b.duration - a.duration)
         };
     });
@@ -189,35 +204,35 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
 
         return {
             date: point.toISOString(),
-            visitCount: pLogs.filter(l => l.type === 'CHECKIN').length,
+            visitCount: pLogs.filter(l => l.type === 'CHECKIN' || l.type === 'GUEST_ENTRY').length,
             totalDuration: pLogs.reduce((acc, l) => acc + (l.duration || 0), 0)
         };
     });
 
     // 5. Summaries
-    const totalVisits = roomAnalysis.reduce((acc, curr) => acc + curr.visitCount, 0);
-    const totalGuests = filteredLogs.filter(l => l.type === 'GUEST_ENTRY').length;
-    const uniqueUsersSet = new Set();
-    roomAnalysis.forEach(r => {
-        r.userDetails.forEach(u => uniqueUsersSet.add(u.name)); // Note: name-based uniqueness as a proxy if user IDs aren't available in userDetails
-    });
-    // Better: use the studentDurations keys across all locations
     const actualUniqueUsers = new Set();
-    const totalDurationSplit = { student: 0, graduate: 0 };
+    const totalDurationSplit = { student: 0, graduate: 0, guest: 0 };
     const totalVisitsSplit = { student: 0, graduate: 0 };
     const studentsSet = new Set();
     const graduatesSet = new Set();
+    let guestSessionsCount = 0;
 
     locationMap.forEach(loc => {
         loc.studentDurations.forEach((stats, uid) => {
-            actualUniqueUsers.add(uid);
             const user = userMap.get(uid);
+            const isGuest = user?.user_group === '게스트';
             const isGraduate = user?.user_group === '졸업생';
-            if (isGraduate) {
+
+            if (isGuest) {
+                totalDurationSplit.guest += stats.duration;
+                guestSessionsCount += stats.count;
+            } else if (isGraduate) {
+                actualUniqueUsers.add(uid);
                 totalDurationSplit.graduate += stats.duration;
                 totalVisitsSplit.graduate += stats.count;
                 graduatesSet.add(uid);
             } else {
+                actualUniqueUsers.add(uid);
                 totalDurationSplit.student += stats.duration;
                 totalVisitsSplit.student += stats.count;
                 studentsSet.add(uid);
@@ -225,28 +240,62 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
         });
     });
 
+    const totalMemberVisits = totalVisitsSplit.student + totalVisitsSplit.graduate;
+    
+    // Count total guest visits (sessions) across all locations
+    let totalGuestVisits = 0;
+    locationMap.forEach(loc => {
+        loc.studentDurations.forEach((stats, uid) => {
+            if (userMap.get(uid)?.user_group === '게스트') {
+                totalGuestVisits += stats.count;
+            }
+        });
+    });
+    
+    const totalGuests = totalGuestVisits;
+
+    // 4.5 Heatmap Data (Day of Week vs Hour of Day)
+    // 0: Sunday, 1: Monday, ..., 6: Saturday
+    // Hours: 0 to 23
+    const heatmapData = Array.from({ length: 7 }, () => Array(24).fill(0));
+    let maxHeatmapValue = 0;
+
+    filteredLogs.forEach(log => {
+        if (log.type === 'CHECKIN' || log.type === 'GUEST_ENTRY') {
+            const d = new Date(log.created_at);
+            const day = d.getDay();
+            const hour = d.getHours();
+            heatmapData[day][hour]++;
+            if (heatmapData[day][hour] > maxHeatmapValue) {
+                maxHeatmapValue = heatmapData[day][hour];
+            }
+        }
+    });
+
     return {
         roomAnalysis,
         memberRanking,
         timeSeries,
-        totalVisits,
+        totalVisits: totalMemberVisits,
         totalGuests,
         uniqueUsers: actualUniqueUsers.size,
         totalDurationSplit,
         totalVisitsSplit,
         uniqueUsersSplit: { student: studentsSet.size, graduate: graduatesSet.size },
-        avgDuration: actualUniqueUsers.size > 0 ? (roomAnalysis.reduce((acc, r) => acc + r.duration, 0) / actualUniqueUsers.size) : 0
+        avgDuration: actualUniqueUsers.size > 0 ? (roomAnalysis.reduce((acc, r) => acc + r.duration, 0) / actualUniqueUsers.size) : 0,
+        heatmapData,
+        maxHeatmapValue
     };
 };
 
-/**
- * Process Program Analytics
- */
 export const processProgramAnalytics = (notices, responses, date, type) => {
     const { start, end } = getPeriodRange(date, type);
     const filteredNotices = notices.filter(n => {
         // Only include posts from the 'PROGRAM' category
         if (n.category !== 'PROGRAM') return false;
+
+        // Only include completed programs in statistics
+        if (n.program_status !== 'COMPLETED') return false;
 
         const d = n.program_date ? new Date(n.program_date) : new Date(n.created_at);
         return d >= start && d <= end;
@@ -275,15 +324,17 @@ export const processUserAnalytics = (users, logs, responses, notices, date, type
     // 1. Filter Notices for the period to calculate Program Stats
     const filteredNotices = notices.filter(n => {
         if (n.category !== 'PROGRAM') return false;
+
+        // Only include completed programs in user statistics
+        if (n.program_status !== 'COMPLETED') return false;
+
         const d = n.program_date ? new Date(n.program_date) : new Date(n.created_at);
         return d >= start && d <= end;
     });
     const noticeIdsInPeriod = new Set(filteredNotices.map(n => n.id));
 
-    // Filter out Admin users
-    const adminIds = new Set(users.filter(u =>
-        u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
-    ).map(u => u.id));
+    const adminIds = new Set(users.filter(isAdminOrStaff).map(u => u.id));
+
     const nonAdminUsers = users.filter(u => !adminIds.has(u.id));
 
     // 2. Prepare User Stats Map
@@ -295,65 +346,38 @@ export const processUserAnalytics = (users, logs, responses, notices, date, type
         attendedCount: 0
     }]));
 
-    // 3. Space Stats Calculation (Session Logic)
-    // Handle initial state: users who were already checked in before the period started
-    const prePeriodLogs = logs.filter(l => new Date(l.created_at) < start);
-    const prePeriodState = new Map(); // {userId: {locId, time}}
-    prePeriodLogs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).forEach(log => {
-        if (log.type === 'CHECKIN' || log.type === 'MOVE') {
-            prePeriodState.set(log.user_id, { locId: log.location_id, time: new Date(log.created_at) });
-        } else if (log.type === 'CHECKOUT') {
-            prePeriodState.delete(log.user_id);
-        }
-    });
+    // 3. Space Stats Calculation Using Unified Sessions
+    const sessions = aggregateVisitSessions(logs, users, notices, format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
 
-    const userCurrentStartTime = new Map(); // {userId: startTime}
-    prePeriodState.forEach((state, userId) => {
-        userCurrentStartTime.set(userId, start); // Start counting duration from period start
-        const stats = userStats.get(userId);
-        if (stats) {
-            stats.spaceCount++; // Already present counts as a visit
-            stats.visitDays.add(format(start, 'yyyy-MM-dd'));
-        }
-    });
-
-    const filteredLogs = logs.filter(l => {
-        const d = new Date(l.created_at);
-        return d >= start && d <= end;
-    });
-
-    filteredLogs.forEach(log => {
-        const userId = log.user_id;
-        const logTime = new Date(log.created_at);
+    sessions.forEach(session => {
+        const userId = session.userId;
         const stats = userStats.get(userId);
         if (!stats) return;
 
-        // Before updating to new state, add duration for the previous session
-        const startTime = userCurrentStartTime.get(userId);
-        if (startTime) {
-            const duration = differenceInMinutes(logTime, startTime);
-            if (duration > 0) stats.spaceDuration += duration;
-        }
+        stats.spaceCount++;
+        stats.visitDays.add(session.date);
 
-        // Update state
-        if (log.type === 'CHECKIN' || log.type === 'MOVE') {
-            userCurrentStartTime.set(userId, logTime);
-            stats.spaceCount++;
-            stats.visitDays.add(format(logTime, 'yyyy-MM-dd'));
-        } else if (log.type === 'CHECKOUT') {
-            userCurrentStartTime.delete(userId);
-        }
-    });
+        const durationLogs = session.rawLogs;
+        if (durationLogs.length < 2) return;
 
-    // Handle users still checked in at the end of the period
-    const periodEndTime = (end < new Date()) ? end : new Date();
-    userCurrentStartTime.forEach((startTime, userId) => {
-        const stats = userStats.get(userId);
-        if (stats) {
-            const duration = differenceInMinutes(periodEndTime, startTime);
+        let segmentStart = new Date(durationLogs[0].created_at);
+        durationLogs.forEach(log => {
+            if (log.type === 'MOVE') {
+                const logTime = new Date(log.created_at);
+                const duration = Math.max(0, differenceInMinutes(logTime, segmentStart));
+                if (duration > 0) stats.spaceDuration += duration;
+                segmentStart = logTime;
+            }
+        });
+
+        const lastLog = durationLogs[durationLogs.length - 1];
+        if (lastLog.type === 'CHECKOUT') {
+            const duration = Math.max(0, differenceInMinutes(new Date(lastLog.created_at), segmentStart));
             if (duration > 0) stats.spaceDuration += duration;
         }
     });
+
+    // 4. Calculate Program Participation
 
     // 4. Calculate Program Participation for responses within the filtered notice period
     responses.forEach(r => {
@@ -382,7 +406,7 @@ export const processUserAnalytics = (users, logs, responses, notices, date, type
     });
 };
 
-export const processSeucheoAnalytics = (schoolLogs, users, periodType, selectedDate) => {
+export const processSeucheoAnalytics = (schoolLogs, users, periodType, selectedDate, regionFilter = 'ALL') => {
     const periodStart = periodType === 'DAILY' ? startOfDay(selectedDate) :
         periodType === 'WEEKLY' ? startOfWeek(selectedDate, { weekStartsOn: 1 }) :
             periodType === 'MONTHLY' ? startOfMonth(selectedDate) :
@@ -395,7 +419,18 @@ export const processSeucheoAnalytics = (schoolLogs, users, periodType, selectedD
 
     const filteredLogs = schoolLogs.filter(log => {
         const logDate = new Date(log.date);
-        return logDate >= periodStart && logDate <= periodEnd;
+        const inPeriod = logDate >= periodStart && logDate <= periodEnd;
+        if (!inPeriod) return false;
+
+        if (regionFilter !== 'ALL') {
+            const hasMatchingStaff = log.facilitator_ids?.some(staffId => {
+                const staffUser = users.find(u => u.id === staffId);
+                return staffUser?.preferences?.seucheoRegion === regionFilter;
+            });
+            return hasMatchingStaff;
+        }
+
+        return true;
     });
 
     const staffStats = {};
@@ -427,6 +462,11 @@ export const processSeucheoAnalytics = (schoolLogs, users, periodType, selectedD
         if (log.facilitator_ids && Array.isArray(log.facilitator_ids)) {
             log.facilitator_ids.forEach(staffId => {
                 const staffUser = users.find(u => u.id === staffId);
+
+                if (regionFilter !== 'ALL' && staffUser?.preferences?.seucheoRegion !== regionFilter) {
+                    return;
+                }
+
                 const name = staffUser ? staffUser.name : 'Unknown';
 
                 if (!staffStats[staffId]) {
@@ -467,6 +507,11 @@ export const processSeucheoAnalytics = (schoolLogs, users, periodType, selectedD
         if (log.facilitator_ids) {
             log.facilitator_ids.forEach(staffId => {
                 const staffUser = users.find(u => u.id === staffId);
+
+                if (regionFilter !== 'ALL' && staffUser?.preferences?.seucheoRegion !== regionFilter) {
+                    return;
+                }
+
                 const name = staffUser ? staffUser.name : 'Unknown';
 
                 if (!timeGrouping[dateKey][name]) timeGrouping[dateKey][name] = 0;
@@ -577,23 +622,32 @@ SCI CENTER DASHBOARD
         const end = endOfDay(endDate);
         const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
 
-        const adminIds = new Set(users.filter(u =>
-            u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
-        ).map(u => u.id));
+        const adminIds = new Set(users.filter(isAdminOrStaff).map(u => u.id));
 
-        const targetUsers = users.filter(u => {
-            if (adminIds.has(u.id)) return false;
-            // Filter by targetGroup
-            if (targetGroup === 'YOUTH') {
-                if (u.user_group === '졸업생' || u.user_group === '일반인') return false;
+
+        const targetUsers = [];
+        const guestUsers = [];
+
+        users.forEach(u => {
+            if (adminIds.has(u.id)) return;
+
+            if (u.user_group === '게스트') {
+                guestUsers.push(u);
+                return;
             }
-            return true;
+
+            // Filter by targetGroup for regular users
+            if (targetGroup === 'YOUTH') {
+                if (u.user_group === '졸업생' || u.user_group === '일반인') return;
+            }
+            targetUsers.push(u);
         });
 
         const targetUserIds = new Set(targetUsers.map(u => u.id));
+        const guestUserIds = new Set(guestUsers.map(u => u.id));
 
         const filteredLogs = logs.filter(l => {
-            if (!targetUserIds.has(l.user_id)) return false;
+            if (!targetUserIds.has(l.user_id) && !guestUserIds.has(l.user_id)) return false;
             const d = new Date(l.created_at);
             return d >= start && d <= end;
         });
@@ -605,6 +659,8 @@ SCI CENTER DASHBOARD
         const userDateVisit = new Set(); // To count "Visits" (max 1 per user per day per location)
         const spaceMetrics = {};
 
+        const guestMetrics = {};
+
         locations.forEach(loc => {
             spaceMetrics[loc.id] = {
                 id: loc.id,
@@ -615,50 +671,94 @@ SCI CENTER DASHBOARD
                 dayCounts: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
                 hourlyOccupancy: Array(24).fill(0).map(() => ({ total: 0, samples: 0 }))
             };
+            guestMetrics[loc.id] = {
+                visitCount: 0,
+                totalDuration: 0,
+                guests: new Map() // { userId: { name, school, phone, visits, duration } }
+            };
         });
 
-        // 1. Calculate Core Space Metrics
         const sessions = aggregateVisitSessions(logs, users, locations, format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
 
-        sessions.forEach(s => {
-            // Find primary location for the session (simplification: use the first one mentioned in usedSpaces or rawLogs)
-            // But since a user can move, we should ideally treat each segment.
-            // For simplicity and matching user request "by space", we use raw logs to be precise.
-        });
+        const segments = []; // To calculate peak hour occupancy correctly
 
-        // Improved precise calculation per space using segments
-        const segments = []; // {userId, locId, start, end, duration}
-        const userCurrent = new Map();
+        // Reconstruct space metrics from sessions to ensure perfect matching with Stats tab
+        sessions.forEach(session => {
+            const userId = session.userId;
+            const u = userMap.get(userId);
+            if (!u) return;
 
-        filteredLogs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).forEach(log => {
-            const userId = log.user_id;
-            const logTime = new Date(log.created_at);
-            const current = userCurrent.get(userId);
+            const isGuest = u.user_group === '게스트';
 
-            if (current) {
-                const duration = differenceInMinutes(logTime, current.time);
-                if (duration > 0 && current.locId) {
-                    segments.push({ userId, locId: current.locId, start: current.time, end: logTime, duration });
+            // Filter by targetGroup for non-guests
+            if (!isGuest && targetGroup === 'YOUTH') {
+                if (u.user_group === '졸업생' || u.user_group === '일반인') return;
+            }
 
-                    const m = spaceMetrics[current.locId];
+            const durationLogs = session.rawLogs;
+            if (durationLogs.length === 0) return;
+
+            let currentLocId = durationLogs[0].location_id;
+            let segmentStart = new Date(durationLogs[0].created_at);
+
+            const recordSegment = (locId, startT, endT) => {
+                const duration = differenceInMinutes(endT, startT);
+                if (duration <= 0 || !locId) return;
+
+                if (!isGuest) {
+                    segments.push({ userId, locId, start: startT, end: endT, duration });
+                    const m = spaceMetrics[locId];
                     if (m) {
                         m.totalDuration += duration;
                         m.uniqueUsers.add(userId);
 
-                        const dateKey = `${userId}_${current.locId}_${format(current.time, 'yyyy-MM-dd')}`;
+                        const dateKey = `${userId}_${locId}_${session.date}`;
                         if (!userDateVisit.has(dateKey)) {
                             userDateVisit.add(dateKey);
                             m.visitCount++;
-                            m.dayCounts[current.time.getDay()]++;
+                            m.dayCounts[new Date(session.date).getDay()]++;
+                        }
+                    }
+                } else {
+                    // Record Guest Segment
+                    const gm = guestMetrics[locId];
+                    if (gm) {
+                        gm.totalDuration += duration;
+                        if (!gm.guests.has(userId)) {
+                            gm.guests.set(userId, {
+                                name: u.name,
+                                school: u.school,
+                                phone: u.phone_back4 || u.phone,
+                                visits: 0,
+                                duration: 0,
+                                visitedDates: new Set()
+                            });
+                        }
+                        const g = gm.guests.get(userId);
+                        g.duration += duration;
+
+                        const dateKey = `${userId}_${locId}_${session.date}`;
+                        if (!g.visitedDates.has(dateKey)) {
+                            g.visitedDates.add(dateKey);
+                            g.visits++;
+                            gm.visitCount++;
                         }
                     }
                 }
-            }
+            };
 
-            if (log.type === 'CHECKIN' || log.type === 'MOVE') {
-                userCurrent.set(userId, { locId: log.location_id, time: logTime });
-            } else if (log.type === 'CHECKOUT') {
-                userCurrent.delete(userId);
+            durationLogs.forEach((log) => {
+                if (log.type === 'MOVE') {
+                    const logTime = new Date(log.created_at);
+                    recordSegment(currentLocId, segmentStart, logTime);
+                    currentLocId = log.location_id;
+                    segmentStart = logTime;
+                }
+            });
+
+            const lastLog = durationLogs[durationLogs.length - 1];
+            if (lastLog.type === 'CHECKOUT') {
+                recordSegment(currentLocId, segmentStart, new Date(lastLog.created_at));
             }
         });
 
@@ -681,6 +781,49 @@ SCI CENTER DASHBOARD
             });
         });
 
+        // Pre-calculate per-space active/retention metrics if monthly
+        const isMonthlyOrMore = diffDays >= 20;
+
+        Object.values(spaceMetrics).forEach(m => {
+            if (isMonthlyOrMore) {
+                const spaceUserVisitDates = new Map();
+                userDateVisit.forEach(key => {
+                    const [userId, locId, dateStr] = key.split('_');
+                    if (locId === m.id) {
+                        if (!spaceUserVisitDates.has(userId)) spaceUserVisitDates.set(userId, new Set());
+                        spaceUserVisitDates.get(userId).add(dateStr);
+                    }
+                });
+
+                const spaceUserWeeklyVisitsStrict = new Map();
+                spaceUserVisitDates.forEach((uniqueDates, userId) => {
+                    spaceUserWeeklyVisitsStrict.set(userId, {});
+                    uniqueDates.forEach(dateStr => {
+                        const weekNum = format(parseISO(dateStr), 'I');
+                        const weeklyCounts = spaceUserWeeklyVisitsStrict.get(userId);
+                        weeklyCounts[weekNum] = (weeklyCounts[weekNum] || 0) + 1;
+                    });
+                });
+
+                let activeUsers = 0;
+                let retainUsers = 0;
+
+                spaceUserVisitDates.forEach((dates, userId) => {
+                    if (dates.size >= 2) retainUsers++;
+                    const weeklyCounts = spaceUserWeeklyVisitsStrict.get(userId);
+                    const activeWeeksCount = Object.values(weeklyCounts).filter(count => count >= 2).length;
+                    if (activeWeeksCount >= 2) activeUsers++;
+                });
+
+                const totalUnique = spaceUserVisitDates.size;
+                m.activeUserRatio = totalUnique > 0 ? ((activeUsers / totalUnique) * 100).toFixed(1) : 0;
+                m.retentionRate = totalUnique > 0 ? ((retainUsers / totalUnique) * 100).toFixed(1) : 0;
+            } else {
+                m.activeUserRatio = null;
+                m.retentionRate = null;
+            }
+        });
+
         const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
         const spaceResults = Object.values(spaceMetrics).map(m => {
@@ -692,6 +835,7 @@ SCI CENTER DASHBOARD
                 curr[1] > max[1] ? curr : max, ['0', 0])[0];
 
             return {
+                id: m.id,
                 name: m.name,
                 uniqueVisitors: m.uniqueUsers.size,
                 visitCount: m.visitCount,
@@ -699,7 +843,9 @@ SCI CENTER DASHBOARD
                 totalDuration: m.totalDuration,
                 avgDuration: m.visitCount > 0 ? Math.round(m.totalDuration / m.visitCount) : 0,
                 mostVisitedDay: dayLabels[mostVisitedDayIdx],
-                peakHour: `${peakHourIdx}:00 ~ ${peakHourIdx + 1}:00`
+                peakHour: `${peakHourIdx}:00 ~ ${peakHourIdx + 1}:00`,
+                activeUserRatio: m.activeUserRatio,
+                retentionRate: m.retentionRate
             };
         });
 
@@ -707,16 +853,35 @@ SCI CENTER DASHBOARD
         let monthlyMetrics = null;
         if (diffDays >= 20) {
             const userVisitDates = new Map(); // {userId: Set of dates}
-            const userVisitWeeks = new Map(); // {userId: Set of week numbers}
+            const userWeeklyVisits = new Map(); // {userId: { weekNum: visitCount }}
 
             userDateVisit.forEach(key => {
                 const [userId, , dateStr] = key.split('_');
+
+                // Track unique dates per user
                 if (!userVisitDates.has(userId)) userVisitDates.set(userId, new Set());
                 userVisitDates.get(userId).add(dateStr);
 
+                // Track visits per week per user
                 const weekNum = format(parseISO(dateStr), 'I'); // ISO week
-                if (!userVisitWeeks.has(userId)) userVisitWeeks.set(userId, new Set());
-                userVisitWeeks.get(userId).add(weekNum);
+                if (!userWeeklyVisits.has(userId)) userWeeklyVisits.set(userId, {});
+
+                const weeklyCounts = userWeeklyVisits.get(userId);
+                // We only count unique days per week since userVisitDates tracks unique center visits per day
+                // But since userDateVisit already includes unique dates per location, we must ensure
+                // we only count 1 per day for the overall center weekly active metric.
+                // An easier way: build userVisitDates first, then process from there.
+            });
+
+            // Re-calculate weekly visits based strictly on unique visit dates for the whole center
+            const userWeeklyVisitsStrict = new Map();
+            userVisitDates.forEach((uniqueDates, userId) => {
+                userWeeklyVisitsStrict.set(userId, {});
+                uniqueDates.forEach(dateStr => {
+                    const weekNum = format(parseISO(dateStr), 'I');
+                    const weeklyCounts = userWeeklyVisitsStrict.get(userId);
+                    weeklyCounts[weekNum] = (weeklyCounts[weekNum] || 0) + 1;
+                });
             });
 
             const totalUniqueVisitors = userVisitDates.size;
@@ -725,14 +890,13 @@ SCI CENTER DASHBOARD
 
             userVisitDates.forEach((dates, userId) => {
                 const visitCount = dates.size;
-                const weekCount = userVisitWeeks.get(userId).size;
-
                 if (visitCount >= 2) retainUsers++;
 
-                // Active: Recently (within 4 weeks) avg 2+/week AND visited 2+ weeks total
-                // Since our period IS the report period, we simplify: avg visit/week >= 2 AND weeks visited >= 2
-                const avgVisitsPerWeek = visitCount / (diffDays / 7);
-                if (avgVisitsPerWeek >= 2 && weekCount >= 2) activeUsers++;
+                // Active: visited 2+ times a week, for at least 2 weeks
+                const weeklyCounts = userWeeklyVisitsStrict.get(userId);
+                const activeWeeksCount = Object.values(weeklyCounts).filter(count => count >= 2).length;
+
+                if (activeWeeksCount >= 2) activeUsers++;
             });
 
             monthlyMetrics = {
@@ -741,8 +905,20 @@ SCI CENTER DASHBOARD
             };
         }
 
+        const guestResults = Object.values(guestMetrics).reduce((acc, gm, idx) => {
+            const locId = Object.keys(guestMetrics)[idx];
+            acc[locId] = {
+                visitCount: gm.visitCount,
+                totalDuration: gm.totalDuration,
+                avgDuration: gm.visitCount > 0 ? Math.round(gm.totalDuration / gm.visitCount) : 0,
+                guests: Array.from(gm.guests.values()).sort((a, b) => b.visits - a.visits)
+            };
+            return acc;
+        }, {});
+
         return {
             spaceResults,
+            guestResults,
             monthlyMetrics,
             totalUnique: new Set(Array.from(userDateVisit).map(k => k.split('_')[0])).size,
             reportTarget: targetGroup
