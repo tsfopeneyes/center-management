@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../supabaseClient';
 import { noticesApi } from '../api/noticesApi';
 import { RESPONSE_STATUS } from '../constants/appConstants';
 
@@ -100,6 +101,19 @@ export const useNotices = (userId) => {
                     await noticesApi.promoteFromWaitlist(noticeId);
                 } catch (promoErr) {
                     console.error('Waitlist promotion failed:', promoErr);
+                }
+            }
+
+            if ((finalStatus === RESPONSE_STATUS.JOIN || finalStatus === RESPONSE_STATUS.WAITLIST) && finalStatus !== oldStatus) {
+                const actionText = finalStatus === RESPONSE_STATUS.WAITLIST ? '대기' : '완료';
+                try {
+                    await supabase.from('app_notifications').insert([{
+                        sender_id: userId,
+                        target_group: `USER_${userId}`,
+                        content: `🎉 [${notice.title}] 프로그램 신청이 ${actionText}되었습니다!`
+                    }]);
+                } catch (notifErr) {
+                    console.error('Failed to send application notification:', notifErr);
                 }
             }
 

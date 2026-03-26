@@ -90,11 +90,19 @@ export const noticesApi = {
             const admin = JSON.parse(localStorage.getItem('admin_user'));
             const adminId = admin?.id || 'd3885f86-f127-448c-8517-578964d509f7'; // Fallback to a known UUID if possible, or just use system-like id
 
+            const promoMessage = `🎉 [알림] 대기 중이던 프로그램 '${nextInLine.notices?.title || '신청하신 프로그램'}'의 자리가 생겨 참석으로 자동 전환되었습니다! 축하드려요!`;
+
             await supabase.from('messages').insert([{
                 sender_id: adminId, // System/Admin message
                 receiver_id: nextInLine.user_id,
-                content: `[알림] 대기 중이던 프로그램 '${nextInLine.notices?.title || '신청하신 프로그램'}'의 자리가 생겨 참석으로 전환되었습니다! 축하드려요! 🎉`,
+                content: promoMessage,
                 is_read: false
+            }]);
+
+            await supabase.from('app_notifications').insert([{
+                sender_id: adminId,
+                target_group: `USER_${nextInLine.user_id}`,
+                content: promoMessage
             }]);
         } catch (msgErr) {
             console.error('Failed to send promotion notification:', msgErr);
@@ -133,6 +141,40 @@ export const noticesApi = {
             .from('notices')
             .update({ program_status: status })
             .eq('id', noticeId);
+        if (error) throw error;
+    },
+
+    async finalizeProgramLogs(noticeId, noticeData) {
+        // 1. Get all JOIN responses
+        const { data: responses, error: respError } = await supabase
+            .from('notice_responses')
+            .select('*')
+            .eq('notice_id', noticeId)
+            .eq('status', 'JOIN');
+            
+        if (respError) throw respError;
+        if (!responses || responses.length === 0) return;
+
+        // 2. Format location_id using pipes: noticeId|title|date|time|location
+        const loc = `${noticeId}|${noticeData.title || ''}|${noticeData.program_date || ''}|${noticeData.program_time || ''}|${noticeData.location || ''}`;
+
+        // 3. Delete existing PRG logs for this program to avoid duplicates
+        await supabase.from('logs').delete().like('location_id', `${noticeId}|%`);
+
+        // 4. Insert new logs based on attendance
+        const logsToInsert = responses.map(r => ({
+            user_id: r.user_id,
+            type: r.is_attended ? 'PRG_ATTENDED' : 'PRG_ABSENT',
+            location_id: loc
+        }));
+
+        const { error: insertError } = await supabase.from('logs').insert(logsToInsert);
+        if (insertError) throw insertError;
+    },
+
+    async revertProgramLogs(noticeId) {
+        // Delete all PRG logs for this program since it was reverted to ACTIVE
+        const { error } = await supabase.from('logs').delete().like('location_id', `${noticeId}|%`);
         if (error) throw error;
     },
 

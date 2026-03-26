@@ -23,13 +23,11 @@ const StudentHomeTab = ({
     visitCount,
     programCount,
     setShowProgramHistory,
-    setActiveTab,
+    handleTabChange,
     homePrograms,
     responses,
     openNoticeDetail,
     homeNotices,
-    homeGallery,
-    galleryNotices,
     locationGroups,
     activeUserCountByGroup,
 }) => {
@@ -210,7 +208,7 @@ const StudentHomeTab = ({
                                 <div key="programs" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                                     <h3 className="font-bold text-gray-800 mb-3 flex justify-between items-center text-sm">
                                         🔥 프로그램 신청
-                                        <button onClick={() => setActiveTab(TAB_NAMES.PROGRAMS)} className="text-[10px] text-blue-500 font-bold">전체보기</button>
+                                        <button onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)} className="text-[10px] text-blue-500 font-bold">더보기</button>
                                     </h3>
                                     <div className="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                                         {homePrograms.slice(0, config.count).map(p => (
@@ -230,7 +228,7 @@ const StudentHomeTab = ({
                                 <div key="notices" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                                     <h3 className="font-bold text-gray-800 mb-3 flex justify-between items-center text-sm">
                                         📢 공지사항
-                                        <button onClick={() => setActiveTab(TAB_NAMES.NOTICES)} className="text-[10px] text-blue-500 font-bold">더보기</button>
+                                        <button onClick={() => handleTabChange(TAB_NAMES.NOTICES)} className="text-[10px] text-blue-500 font-bold">더보기</button>
                                     </h3>
                                     <div className="space-y-4">
                                         {homeNotices.slice(0, config.count).map(n => (
@@ -239,7 +237,7 @@ const StudentHomeTab = ({
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 onClick={() => openNoticeDetail(n)}
-                                                className="bg-gray-50 p-4 rounded-2xl border border-gray-100 btn-tactile cursor-pointer hover:shadow-md"
+                                                className="bg-white p-4 rounded-2xl border-2 border-gray-100 shadow-sm btn-tactile cursor-pointer hover:shadow-md hover:border-blue-200 transition-all"
                                             >
                                                 <div className="flex justify-between items-start mb-3">
                                                     <div className="flex items-center gap-2">
@@ -253,7 +251,7 @@ const StudentHomeTab = ({
                                                     {n.is_recruiting && <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full text-[9px] font-black shrink-0">모집중</span>}
                                                 </div>
                                                 {(n.images?.length > 0 || n.image_url) && (
-                                                    <div className="mb-3 rounded-xl overflow-hidden h-36 bg-gray-200 border border-gray-100 relative shadow-inner">
+                                                    <div className="mb-3 rounded-2xl overflow-hidden aspect-square w-full bg-gray-200 border border-gray-100 relative shadow-inner">
                                                         <img src={n.images?.length > 0 ? n.images[0] : n.image_url} alt="thumbnail" className="w-full h-full object-cover" />
                                                         {n.images?.length > 1 && <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">+{n.images.length - 1}</div>}
                                                     </div>
@@ -266,31 +264,6 @@ const StudentHomeTab = ({
                                             </motion.div>
                                         ))}
                                         {homeNotices.length === 0 && <p className="text-center py-4 text-gray-400 text-[10px]">등록된 공지사항이 없습니다</p>}
-                                    </div>
-                                </div>
-                            );
-                        case 'gallery':
-                            return homeGallery.length > 0 && (
-                                <div key="gallery" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                    <h3 className="font-bold text-gray-800 mb-3 flex justify-between items-center text-sm">
-                                        갤러리
-                                        <button onClick={() => setActiveTab(TAB_NAMES.GALLERY)} className="text-[10px] text-pink-500 font-bold">더보기</button>
-                                    </h3>
-                                    <div className="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
-                                        {homeGallery.slice(0, config.count).map(n => {
-                                            const thumb = n.images?.length > 0 ? n.images[0] : n.image_url;
-                                            if (!thumb) return null;
-                                            return (
-                                                <div key={n.id} onClick={() => openNoticeDetail(n, galleryNotices)} className="relative aspect-[4/5] bg-gray-100 overflow-hidden cursor-pointer group">
-                                                    <img src={thumb} alt={n.title} className="w-full h-full object-cover transition duration-300 group-hover:scale-110" />
-                                                    {n.images?.length > 1 && (
-                                                        <div className="absolute top-1 right-1 bg-black/50 text-white p-0.5 rounded-full">
-                                                            <ImageIcon size={9} />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
                                     </div>
                                 </div>
                             );

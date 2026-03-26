@@ -1,0 +1,96 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../../../supabaseClient';
+import { RESPONSE_STATUS } from '../../../../constants/appConstants';
+
+const useNoticeStats = (filteredNotices, mode) => {
+    const [noticeStats, setNoticeStats] = useState({});
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            if (!filteredNotices || filteredNotices.length === 0) {
+                setNoticeStats({});
+                return;
+            }
+
+            setIsLoading(true);
+            try {
+                const recruitingIds = filteredNotices.filter(n => n.is_recruiting).map(n => n.id);
+                const pollIds = filteredNotices.filter(n => n.is_poll).map(n => n.id);
+                
+                const nStats = {};
+                
+                // 1. Fetch Recruitment Stats
+                if (recruitingIds.length > 0) {
+                    const { data: responses, error: recError } = await supabase
+                        .from('notice_responses')
+                        .select('notice_id, status, is_attended')
+                        .in('notice_id', recruitingIds);
+                        
+                    if (recError) throw recError;
+
+                    recruitingIds.forEach(id => {
+                        nStats[id] = {
+                            ...nStats[id],
+                            [RESPONSE_STATUS.JOIN]: 0,
+                            [RESPONSE_STATUS.DECLINE]: 0,
+                            [RESPONSE_STATUS.UNDECIDED]: 0,
+                            [RESPONSE_STATUS.WAITLIST]: 0,
+                            attendedCount: 0,
+                            is_recruiting: true
+                        };
+                    });
+                    
+                    responses?.forEach(r => {
+                        if (nStats[r.notice_id]) {
+                            nStats[r.notice_id][r.status] = (nStats[r.notice_id][r.status] || 0) + 1;
+                            if (r.is_attended) nStats[r.notice_id].attendedCount += 1;
+                        }
+                    });
+                }
+
+                // 2. Fetch Poll Stats
+                if (pollIds.length > 0) {
+                    const { data: pollResponses, error: pollError } = await supabase
+                        .from('notice_poll_responses')
+                        .select('notice_id, user_id')
+                        .in('notice_id', pollIds);
+                        
+                    if (pollError) throw pollError;
+
+                    pollIds.forEach(id => {
+                        if (!nStats[id]) {
+                            nStats[id] = { is_poll: true, voters: new Set() };
+                        } else {
+                            nStats[id].is_poll = true;
+                            nStats[id].voters = new Set();
+                        }
+                    });
+                    
+                    pollResponses?.forEach(r => {
+                        if (nStats[r.notice_id]) {
+                            nStats[r.notice_id].voters.add(r.user_id);
+                        }
+                    });
+                    
+                    // Convert Set size to count
+                    pollIds.forEach(id => {
+                        nStats[id].pollTotal = nStats[id].voters?.size || 0;
+                    });
+                }
+                
+                setNoticeStats(nStats);
+            } catch (err) {
+                console.error("Failed to fetch notice stats:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        
+        fetchStats();
+    }, [filteredNotices, mode]);
+
+    return { noticeStats, isLoading };
+};
+
+export default useNoticeStats;

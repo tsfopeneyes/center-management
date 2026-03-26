@@ -124,13 +124,13 @@ export const useProfile = (initialUser) => {
                 const fileExt = compressedFile.name.split('.').pop();
                 const fileName = `profile_${user.id}_${Date.now()}.${fileExt}`;
                 const { error: uploadError } = await supabase.storage
-                    .from('notice-images')
+                    .from('avatars')
                     .upload(fileName, compressedFile);
 
                 if (uploadError) throw uploadError;
 
                 const { data: { publicUrl } } = supabase.storage
-                    .from('notice-images')
+                    .from('avatars')
                     .getPublicUrl(fileName);
 
                 imageUrl = publicUrl;

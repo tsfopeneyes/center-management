@@ -367,13 +367,13 @@ const AdminDashboard = () => {
                         <AdminCalendar notices={notices} fetchData={fetchData} />
                     )}
                     {activeMenu === 'PROGRAMS' && (
-                        <AdminBoard mode="PROGRAM" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} />
+                        <AdminBoard mode="PROGRAM" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} setActiveMenu={setActiveMenu} />
                     )}
                     {activeMenu === 'BOARD' && (
-                        <AdminBoard mode="NOTICE" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} />
+                        <AdminBoard mode="NOTICE" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} setActiveMenu={setActiveMenu} />
                     )}
                     {activeMenu === 'GALLERY' && (
-                        <AdminBoard mode="GALLERY" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} />
+                        <AdminBoard mode="GALLERY" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} setActiveMenu={setActiveMenu} />
                     )}
                     {activeMenu === 'GUESTBOOK' && (
                         <AdminGuestbook />

@@ -36,7 +36,7 @@ const ProgramCard = ({ program, onClick }) => {
             className="group bg-white rounded-[2.5rem] overflow-hidden shadow-md hover:shadow-xl border border-gray-100 transition-all duration-300 active:scale-[0.98] cursor-pointer flex flex-col"
         >
             {/* Thumbnail Section */}
-            <div className="relative aspect-video overflow-hidden bg-gray-100">
+            <div className="relative aspect-square overflow-hidden bg-gray-100">
                 {thumb ? (
                     <img
                         src={thumb}
