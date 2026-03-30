@@ -24,7 +24,7 @@ const AdminGuestbook = () => {
     };
 
     const deletePost = async (postId) => {
-        if (!confirm('이 방명록 글을 삭제하시겠습니까? (댓글도 함께 삭제됩니다)')) return;
+        if (!confirm('이 콘텐츠를 삭제하시겠습니까? (댓글도 함께 삭제됩니다)')) return;
 
         try {
             await guestbookApi.deletePost(postId);
@@ -84,12 +84,12 @@ const AdminGuestbook = () => {
                 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300
             `}>
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                    <h2 className="font-bold text-base md:text-lg text-gray-800">방명록 목록 ({posts.length})</h2>
+                    <h2 className="font-bold text-base md:text-lg text-gray-800">콘텐츠 참여 목록 ({posts.length})</h2>
                     <button onClick={fetchPosts} className="text-xs text-blue-500 hover:bg-blue-50 px-2 py-1 rounded-lg transition">새로고침</button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
                     {posts.length === 0 ? (
-                        <div className="text-center py-20 text-gray-400 text-sm">등록된 방명록 글이 없습니다.</div>
+                        <div className="text-center py-20 text-gray-400 text-sm">등록된 콘텐츠 참여 내역이 없습니다.</div>
                     ) : (
                         posts.map(post => (
                             <div

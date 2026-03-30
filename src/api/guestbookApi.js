@@ -11,12 +11,22 @@ export const guestbookApi = {
     },
 
     async createPost(userId, content, imageUrl, images = []) {
-        const { error } = await supabase.from('guest_posts').insert([{
+        const { data, error } = await supabase.from('guest_posts').insert([{
             user_id: userId,
             content: content,
             image_url: imageUrl,
             images: images
-        }]);
+        }]).select('id').single();
+        if (error) throw error;
+        return data;
+    },
+
+    async updatePost(postId, content, images = []) {
+        const { error } = await supabase.from('guest_posts').update({
+            content: content,
+            image_url: images.length > 0 ? images[0] : null,
+            images: images
+        }).eq('id', postId);
         if (error) throw error;
     },
 

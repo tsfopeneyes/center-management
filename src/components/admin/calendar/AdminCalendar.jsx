@@ -193,7 +193,9 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                                 return new Date(a.start) - new Date(b.start);
                                             })
                                             .slice(0, window.innerWidth < 768 ? 4 : 10).map(event => {
-                                                const theme = event.isPublic ? COLOR_THEMES.pink : (COLOR_THEMES[event.color_theme] || COLOR_THEMES.gray);
+                                                const theme = event.isPublic 
+                                                    ? (event.category === 'PROGRAM_SCHOOL' ? COLOR_THEMES.purple : COLOR_THEMES.pink) 
+                                                    : (COLOR_THEMES[event.color_theme] || COLOR_THEMES.gray);
                                                 const isMobile = window.innerWidth < 768;
                                                 const mobileTextColor = theme.color.split(' ').find(c => c.startsWith('text-')) || 'text-gray-700';
 

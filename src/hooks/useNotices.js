@@ -119,6 +119,8 @@ export const useNotices = (userId) => {
 
             if (finalStatus === RESPONSE_STATUS.WAITLIST) {
                 alert('대기 신청이 완료되었습니다.');
+            } else if (finalStatus === RESPONSE_STATUS.JOIN && oldStatus !== RESPONSE_STATUS.WAITLIST) {
+                alert('신청이 완료되었습니다.');
             }
         } catch (err) {
             console.error('Error handling notice response details:', err);

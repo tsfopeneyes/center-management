@@ -13,7 +13,7 @@ const StudentProgramsTab = ({
 
 
 
-            <div className="space-y-4">
+            <div className="space-y-6">
                 {filteredPrograms.length === 0 ? (
                     <div className="text-center py-20 text-gray-400">진행 중인 프로그램이 없습니다.</div>
                 ) : (

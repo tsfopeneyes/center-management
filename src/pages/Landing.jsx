@@ -24,72 +24,24 @@ const LoginForm = ({ navigate }) => {
         try {
             const hashedPassword = await hashPassword(password);
 
-            // 1. Try checking 'password' column (New Logic - Hashed)
-            let { data: users, error } = await supabase
-                .from('users')
-                .select('*')
-                .ilike('name', name) // Case-insensitive login
-                .eq('password', hashedPassword);
+            // 1. Call RPC to get matching users without auth
+            const { data: candidates, error: rpcError } = await supabase
+                .rpc('get_login_candidates', { p_name: name });
 
-            // 1.5. Fallback for existing users with plaintext passwords (Migration Logic)
-            if (!error && (!users || users.length === 0)) {
-                const { data: plaintextUsers, error: plainError } = await supabase
-                    .from('users')
-                    .select('*')
-                    .ilike('name', name)
-                    .eq('password', password);
+            if (rpcError) throw rpcError;
 
-                if (!plainError && plaintextUsers && plaintextUsers.length > 0) {
-                    // Plaintext match found. Update DB to use hashed password for future logins.
-                    const { error: updateError } = await supabase
-                        .from('users')
-                        .update({ password: hashedPassword })
-                        .in('id', plaintextUsers.map(u => u.id));
-
-                    if (!updateError) {
-                        users = plaintextUsers;
-                    }
-                }
+            if (!candidates || candidates.length === 0) {
+                alert('가입된 이름이 없습니다. 이름을 다시 확인해주세요. (에러코드: RPC_NO_USER)');
+                setLoading(false);
+                return;
             }
 
-            // 2. Fallback: If no user found, check 'phone_back4' (Legacy Logic)
-            // This handles cases where SQL update might have failed or for old accounts causing issues
-            if (!error && (!users || users.length === 0)) {
-                // Only try this if input is exactly 4 digits (typical for phone_back4)
-                if (password.length === 4 && /^\d+$/.test(password)) {
-                    const { data: legacyUsers, error: legacyError } = await supabase
-                        .from('users')
-                        .select('*')
-                        .ilike('name', name) // Case-insensitive login
-                        .eq('phone_back4', password);
-
-                    if (!legacyError && legacyUsers && legacyUsers.length > 0) {
-                        // CRITICAL SECURITY FIX:
-                        // Only allow phone_back4 login if the user DOES NOT have a password set.
-                        // If they have a password, they must use it.
-                        const validLegacyUsers = legacyUsers.filter(u => !u.password);
-
-                        if (validLegacyUsers.length > 0) {
-                            users = validLegacyUsers;
-                        } else {
-                            // User exists but has a password set, and the input didn't match that password (Query 1 failed).
-                            // So we explicitly deny this attempt to prevent using phone_back4 as a backdoor.
-                            alert('비밀번호가 설정된 계정입니다. 설정한 비밀번호로 로그인해주세요.');
-                            setLoading(false);
-                            return;
-                        }
-                    }
-                }
-            }
-
-            if (error) throw error;
-
-            if (!users || users.length === 0) {
-                alert('일치하는 회원 정보가 없습니다. 비밀번호를 확인해주세요.');
-            } else if (users.length === 1) {
-                checkTermsAgreement(users[0]);
+            // If there is exactly one matching name, try to login
+            if (candidates.length === 1) {
+                await attemptSupabaseAuth(candidates[0], hashedPassword, password);
             } else {
-                setDuplicates(users);
+                // If there are duplicates, show the modal to let the user select
+                setDuplicates(candidates);
                 setShowModal(true);
             }
         } catch (err) {
@@ -98,6 +50,71 @@ const LoginForm = ({ navigate }) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const attemptSupabaseAuth = async (userCandidate, hashedPw, rawPassword) => {
+        try {
+            let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: userCandidate.email,
+                password: hashedPw
+            });
+
+            // If auth.users password is corrupted or missing (Migration Edge Case)
+            // Validating directly against public.users and forcing sync if it matches.
+            if (authError || !authData.user) {
+                console.log("Auth failed, attempting strict legacy database sync...");
+                
+                // Call secure RPC that checks public.users.password and sets auth.users
+                const { data: syncSuccess, error: syncError } = await supabase.rpc('legacy_login_sync', {
+                    p_name: userCandidate.name,
+                    p_hashed_pw: hashedPw
+                });
+
+                if (syncSuccess) {
+                    console.log("Legacy Sync clear, attempting second sign-in...");
+                    // Try sign-in one more time (now guaranteed to match GoTrue)
+                    const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+                        email: userCandidate.email,
+                        password: hashedPw
+                    });
+                    
+                    authData = retryData;
+                    authError = retryError;
+                }
+
+                if (authError || !authData?.user) {
+                    console.error("Final Auth error:", authError);
+                    alert('비밀번호가 일치하지 않습니다. (에러코드: AUTH_FAIL)');
+                    return false;
+                }
+            }
+
+            // Supabase Auth successful! Fetch the full user details to populate localStorage
+            const { data: fullUserData, error: userError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', userCandidate.id)
+                .single();
+
+            if (userError) throw userError;
+
+            checkTermsAgreement(fullUserData);
+            return true;
+        } catch (err) {
+            console.error("Auth Exception:", err);
+            alert('인증 중 오류가 발생했습니다.');
+            return false;
+        }
+    };
+
+    const handleDuplicateSelect = async (selectedUser) => {
+        setLoading(true);
+        const hashedPw = await hashPassword(password);
+        const success = await attemptSupabaseAuth(selectedUser, hashedPw, password);
+        if (success) {
+            setShowModal(false);
+        }
+        setLoading(false);
     };
 
     const checkTermsAgreement = (user) => {
@@ -136,12 +153,15 @@ const LoginForm = ({ navigate }) => {
     const proceedLogin = (user) => {
         if (user.status === 'pending') {
             alert('관리자의 승인이 필요한 계정입니다. (임시 회원)\n보호자 동의 확인 후 정식 회원으로 승인됩니다.');
+            // Sign out from Supabase Auth since they are not approved yet
+            supabase.auth.signOut();
             return;
         }
 
+        // Keep localStorage sync for legacy compatibility across the app
         localStorage.setItem('user', JSON.stringify(user));
         if (user.role === 'admin') {
-            localStorage.setItem('admin_user', JSON.stringify(user)); // Prepare for admin check
+            localStorage.setItem('admin_user', JSON.stringify(user)); 
             navigate('/admin');
         } else {
             navigate('/student');
@@ -198,7 +218,7 @@ const LoginForm = ({ navigate }) => {
                             {duplicates.map((u) => (
                                 <button
                                     key={u.id}
-                                    onClick={() => checkTermsAgreement(u)}
+                                    onClick={() => handleDuplicateSelect(u)}
                                     className="w-full text-left p-4 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-xl font-semibold transition"
                                 >
                                     {u.school} ({u.birth})

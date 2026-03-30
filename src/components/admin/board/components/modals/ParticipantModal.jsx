@@ -24,7 +24,9 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
         showEntranceList,
         setShowEntranceList,
         lastAddedUser,
-        addWalkIn
+        addWalkIn,
+        addMultipleWalkIns,
+        activeSpaceUsers
     } = useParticipantManagement(notice, onRefresh);
 
     useEffect(() => {
@@ -106,9 +108,12 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
                                     handleUserSearch={handleUserSearch}
                                     searchResults={searchResults}
                                     addWalkIn={addWalkIn}
+                                    addMultipleWalkIns={addMultipleWalkIns}
                                     lastAddedUser={lastAddedUser}
                                     activeUsersCount={participantList.JOIN?.filter(u => u.is_attended).length || 0}
                                     setShowEntranceList={setShowEntranceList}
+                                    activeSpaceUsers={activeSpaceUsers}
+                                    alreadyJoinedUserIds={new Set((participantList.JOIN || []).map(u => u.id))}
                                 />
                             ) : (
                                 <>

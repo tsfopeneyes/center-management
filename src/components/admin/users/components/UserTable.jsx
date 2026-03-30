@@ -29,6 +29,7 @@ const UserTable = ({
                             <th className="p-4">그룹</th>
                             <th className="p-4">학교</th>
                             <th className="p-4">연락처</th>
+                            <th className="p-4 text-center">하이픈</th>
                             <th className="p-4 pr-6 text-right">관리</th>
                         </tr>
                     </thead>
@@ -74,6 +75,7 @@ const UserTable = ({
                                     </td>
                                     <td className="p-4 text-gray-500 align-middle">{user.school}</td>
                                     <td className="p-4 font-mono text-gray-500 text-xs md:text-sm align-middle">{user.phone}</td>
+                                    <td className="p-4 text-center font-bold text-blue-600 align-middle whitespace-nowrap">{user.current_hyphen || 0} H</td>
                                     <td className="p-4 pr-6 align-middle">
                                         <div className="flex items-center justify-end gap-2">
                                             {user.status === 'pending' && (
@@ -129,9 +131,10 @@ const UserTable = ({
                                     {user.status === 'pending' && <span className="bg-red-100 text-red-600 text-[8px] font-black px-1 py-0.5 rounded-full">대기</span>}
                                     {user.memo && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" title="메모 있음" />}
                                 </div>
-                                <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-400">
+                                <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-400 mt-1">
                                     <span className="truncate max-w-[100px]">{user.school}</span>
                                     <span className="font-mono">{user.phone}</span>
+                                    <span className="ml-auto font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md">H {user.current_hyphen || 0}</span>
                                 </div>
                             </div>
                             <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>

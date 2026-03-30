@@ -20,7 +20,8 @@ const INITIAL_NOTICE_STATE = {
     is_poll: false,
     allow_multiple_votes: false,
     poll_deadline: '',
-    poll_options: []
+    poll_options: [],
+    hyphen_reward: 0
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {

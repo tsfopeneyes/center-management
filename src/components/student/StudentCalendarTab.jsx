@@ -30,7 +30,7 @@ const StudentCalendarTab = ({
                         .map(e => {
                             const isProgram = e.category === CATEGORIES.PROGRAM;
                             const cat = calendarCategories.find(c => c.id === e.category_id);
-                            let catName = isProgram ? '프로그램' : cat?.name || '기타';
+                            let catName = isProgram ? (e.program_type === 'SCHOOL_CHURCH' ? '스처 프로그램' : '센터 프로그램') : cat?.name || '기타';
                             let baseTitle = e.title;
 
                             if (cat?.name === '휴관') {
@@ -43,7 +43,8 @@ const StudentCalendarTab = ({
                                 } catch (err) { }
                             }
 
-                            const start = startOfDay(new Date(e.start_date || e.program_date));
+                            const rawDate = new Date(e.start_date || e.program_date);
+                            const start = isProgram ? rawDate : startOfDay(rawDate);
                             const end = isProgram ? start : startOfDay(new Date(e.end_date || e.start_date));
 
                             return {
@@ -87,7 +88,7 @@ const StudentCalendarTab = ({
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight ${event.type === 'PROGRAM' ? 'bg-pink-100 text-pink-600' :
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight ${event.type === 'PROGRAM' ? (event.program_type === 'SCHOOL_CHURCH' ? 'bg-purple-100 text-purple-600' : 'bg-pink-100 text-pink-600') :
                                         event.catName === '휴관' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
                                         }`}>
                                         {event.catName}

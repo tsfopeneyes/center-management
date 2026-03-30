@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import { noticesApi } from '../../../../api/noticesApi';
+import { hyphenApi } from '../../../../api/hyphenApi';
+import { startOfDay } from 'date-fns';
 
 const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const [participantList, setParticipantList] = useState({ JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] });
@@ -60,6 +62,18 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         if (!selectedNotice) return;
         try {
             await noticesApi.updateAttendance(selectedNotice.id, userId, !currentAttended);
+            
+            // Hyphen Reward Logic
+            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+                const admin = JSON.parse(localStorage.getItem('admin_user'));
+                const adminId = admin?.id || 'admin';
+                if (!currentAttended) {
+                    await hyphenApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                } else {
+                    await hyphenApi.revokeProgramReward(userId, selectedNotice.title);
+                }
+            }
+
             setParticipantList(prev => {
                 const next = { ...prev };
                 next.JOIN = next.JOIN.map(u => u.id === userId ? { ...u, is_attended: !currentAttended } : u);
@@ -94,6 +108,23 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         if (!window.confirm('모든 신청 인원을 참석 처리하시겠습니까?')) return;
         try {
             await noticesApi.markAllAttended(selectedNotice.id);
+
+            // Hyphen Reward Logic (Bulk)
+            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+                const admin = JSON.parse(localStorage.getItem('admin_user'));
+                const adminId = admin?.id || 'admin';
+                const newlyAttendedUsers = participantList.JOIN.filter(u => !u.is_attended);
+                
+                // Process sequentially to avoid slamming the DB (or use Promise.all if preferred, but sequential is safer for now)
+                for (const u of newlyAttendedUsers) {
+                    try {
+                        await hyphenApi.grantProgramReward(u.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                    } catch (e) {
+                        console.error('Bulk reward error for user', u.id, e);
+                    }
+                }
+            }
+
             setParticipantList(prev => {
                 const next = { ...prev };
                 next.JOIN = next.JOIN.map(u => ({ ...u, is_attended: true }));
@@ -105,18 +136,25 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         }
     };
 
-    const handleUserSearch = async (val) => {
+    const searchTimeoutRef = useRef(null);
+
+    const handleUserSearch = (val) => {
         setSearchQuery(val);
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
         if (val.length < 2) {
             setSearchResults([]);
             return;
         }
-        try {
-            const users = await noticesApi.searchUsers(val);
-            setSearchResults(users || []);
-        } catch (err) {
-            console.error(err);
-        }
+        
+        searchTimeoutRef.current = setTimeout(async () => {
+            try {
+                const users = await noticesApi.searchUsers(val);
+                setSearchResults(users || []);
+            } catch (err) {
+                console.error(err);
+            }
+        }, 300);
     };
 
     const addWalkIn = async (user) => {
@@ -124,6 +162,13 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         try {
             await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
             await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
+
+            // Hyphen Reward Logic (Walk-in)
+            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+                const admin = JSON.parse(localStorage.getItem('admin_user'));
+                const adminId = admin?.id || 'admin';
+                await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+            }
 
             // Optimistic Update & Immediate Feedback
             const newUser = { ...user, is_attended: true };
@@ -146,6 +191,97 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         }
     };
 
+    const addMultipleWalkIns = async (users) => {
+        if (!selectedNotice || !users.length) return;
+        try {
+            // Process sequentially to be safe
+            for (const user of users) {
+                await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
+                await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
+                
+                if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+                    const admin = JSON.parse(localStorage.getItem('admin_user'));
+                    const adminId = admin?.id || 'admin';
+                    try {
+                        await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                    } catch (e) {
+                         console.error('Walk-in reward error for user', user.id, e);
+                    }
+                }
+            }
+
+            setParticipantList(prev => {
+                const next = { ...prev };
+                const newJoins = [];
+                users.forEach(user => {
+                    if (!next.JOIN.some(u => u.id === user.id)) {
+                        newJoins.push({ ...user, is_attended: true });
+                    }
+                });
+                next.JOIN = [...newJoins, ...next.JOIN];
+                return next;
+            });
+            
+            setSearchQuery('');
+            setSearchResults([]);
+            setLastAddedUser({ name: `${users[0].name} 등 ${users.length}명` });
+            setTimeout(() => setLastAddedUser(null), 3000);
+
+            await fetchParticipants(selectedNotice);
+            if (onRefreshData) onRefreshData();
+            
+        } catch (err) {
+            console.error(err);
+            alert('다중 추가 실패: ' + err.message);
+        }
+    };
+
+    const [activeSpaceUsers, setActiveSpaceUsers] = useState([]);
+
+    const fetchActiveUsersInSpace = useCallback(async () => {
+        try {
+            const todayStartsStr = startOfDay(new Date()).toISOString();
+            const { data: logsData, error } = await supabase
+                .from('logs')
+                .select(`
+                    type, 
+                    user_id,
+                    location_id,
+                    users (id, name, school, phone_back4, profile_image_url)
+                `)
+                .gte('created_at', todayStartsStr)
+                .order('created_at', { ascending: true });
+                
+            if (error) throw error;
+            
+            const activeMap = new Map();
+            logsData?.forEach(log => {
+                if (!log.users) return;
+                
+                // Only consider logs from actual center spaces, or general IN/OUT
+                if (log.location_id && String(log.location_id).includes('|')) return; // Probably program verification logs like 'notice_id|program_title'
+                
+                if (['CHECKIN', 'IN', 'MOVE'].includes(log.type)) {
+                    activeMap.set(log.user_id, log.users);
+                } else if (['CHECKOUT', 'OUT'].includes(log.type)) {
+                    activeMap.delete(log.user_id);
+                }
+            });
+            
+            setActiveSpaceUsers(Array.from(activeMap.values()));
+        } catch (err) {
+            console.error('Failed to fetch active users in space:', err);
+            setActiveSpaceUsers([]);
+        }
+    }, []);
+
+    // Fetch active users when entrance list is opened
+    useEffect(() => {
+        if (showEntranceList) {
+            fetchActiveUsersInSpace();
+        }
+    }, [showEntranceList, fetchActiveUsersInSpace]);
+
     return {
         participantList,
         pollModalResults,
@@ -162,7 +298,9 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         showEntranceList,
         setShowEntranceList,
         lastAddedUser,
-        addWalkIn
+        addWalkIn,
+        addMultipleWalkIns,
+        activeSpaceUsers
     };
 };
 

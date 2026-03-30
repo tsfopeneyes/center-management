@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Trash2, Edit2, Download, Copy, ExternalLink, Calendar, MapPin, CheckCircle, RefreshCw, Eye, MessageCircle, FileText, X, School, Flame, LayoutGrid, LayoutList, CheckCircle2, User, Users, ChevronRight, ChevronLeft, Grid, List, Star, Heart, Columns, Settings, ClipboardList, Save, Clock, Cookie } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
+import TemplateManager from '../../messages/TemplateManager';
 
 const LogFormModal = ({ school, onClose, onSave, staffList }) => {
     const [formData, setFormData] = useState({
@@ -75,8 +76,8 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-8 space-y-6 md:space-y-8">
                     {/* Date & Time */}
-                    <div className="grid grid-cols-3 gap-2 md:gap-4">
-                        <div className="space-y-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-4">
+                        <div className="col-span-2 sm:col-span-1 space-y-1">
                             <label className="text-[10px] font-black text-gray-400 uppercase ml-1 flex items-center gap-1.5">
                                 <Calendar size={12} /> 날짜
                             </label>
@@ -128,7 +129,7 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
                                 />
                             </div>
                         </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 md:gap-2 max-h-[140px] md:max-h-[160px] overflow-y-auto no-scrollbar p-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 md:gap-2 max-h-[140px] md:max-h-[160px] overflow-y-auto no-scrollbar p-1">
                             {filteredStudents.map(student => (
                                 <button
                                     key={student.id}

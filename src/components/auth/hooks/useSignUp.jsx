@@ -87,9 +87,8 @@ export const useSignUp = (onSuccess) => {
 
             if (existing) {
                 const isTemporary = existing.user_group === '게스트' || existing.preferences?.is_temporary === true;
-                const isMatch = existing.name.includes(formData.name) && existing.school === formData.school;
 
-                if (isTemporary && isMatch) {
+                if (isTemporary) {
                     targetUserId = existing.id;
                     isAutoMerge = true;
                 } else {
@@ -115,9 +114,28 @@ export const useSignUp = (onSuccess) => {
             };
 
             if (isAutoMerge) {
-                const { error: updateError } = await supabase.from('users').update(userData).eq('id', targetUserId);
-                if (updateError) throw updateError;
+                // Keep the exact same UUID. Bypasses the need for foreign key migrations!
+                userData.id = targetUserId;
+                const { error: upgradeError } = await supabase.rpc('upgrade_guest_account', {
+                    p_user_id: targetUserId,
+                    p_user_data: userData,
+                    p_hashed_password: hashedPassword
+                });
+                if (upgradeError) throw upgradeError;
             } else {
+                const fakeEmail = `${formData.phone.replace(/[^0-9]/g, '')}@youth-access.app`;
+
+                // 1. Natively register the user into Supabase Auth!
+                const { data: authData, error: authError } = await supabase.auth.signUp({
+                    email: fakeEmail,
+                    password: hashedPassword
+                });
+
+                if (authError) throw authError;
+
+                const newUserId = authData.user.id;
+                userData.id = newUserId;
+
                 const { error: insertError } = await supabase.from('users').insert([userData]);
                 if (insertError) throw insertError;
             }

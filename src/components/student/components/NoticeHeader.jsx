@@ -22,23 +22,10 @@ const NoticeHeader = ({
                 </div>
             </div>
             
-            {isAdmin && fromAdmin && (
+            {isAdmin && fromAdmin && isEditing && (
                 <div className="flex items-center gap-2">
-                    {isEditing ? (
-                        <>
-                            <button onClick={() => setIsEditing(false)} className="text-gray-500 text-sm font-medium px-2 py-1">취소</button>
-                            <button onClick={handleSave} className="text-blue-600 font-bold text-sm px-3 py-1 bg-blue-50 rounded-lg">저장</button>
-                        </>
-                    ) : (
-                        <>
-                            <button onClick={() => setIsEditing(true)} className="p-2 text-gray-600 hover:bg-gray-50 rounded-full">
-                                <Edit2 size={18} />
-                            </button>
-                            <button onClick={() => handleDelete(noticeId)} className="p-2 text-red-500 hover:bg-red-50 rounded-full">
-                                <Trash2 size={18} />
-                            </button>
-                        </>
-                    )}
+                    <button onClick={() => setIsEditing(false)} className="text-gray-500 text-sm font-medium px-2 py-1">취소</button>
+                    <button onClick={handleSave} className="text-blue-600 font-bold text-sm px-3 py-1 bg-blue-50 rounded-lg">저장</button>
                 </div>
             )}
         </div>

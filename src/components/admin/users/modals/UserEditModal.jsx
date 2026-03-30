@@ -13,6 +13,8 @@ const UserEditModal = ({
         status: 'approved', guardian_name: '', guardian_phone: '', guardian_relation: '',
         is_leader: false, is_master: false, terms_agreed: false, is_school_church: false
     });
+    
+    const [activeTab, setActiveTab] = useState('INFO');
 
     useEffect(() => {
         if (editingUser) {
@@ -72,7 +74,12 @@ const UserEditModal = ({
                         <button onClick={() => setEditingUser(null)}><X size={20} className="text-gray-400" /></button>
                     </div>
                 </div>
-                <div className="overflow-y-auto">
+                <div className="flex border-b border-gray-100 bg-white shrink-0 px-2 mt-2">
+                    <div className="flex-1 py-3 text-sm font-bold border-b-2 border-blue-500 text-blue-600 text-center">
+                        기본 정보
+                    </div>
+                </div>
+                <div className="overflow-y-auto custom-scrollbar flex-1">
                     <div className="p-4 flex flex-col items-center border-b border-gray-50 bg-gray-50/30">
                         {editingUser.profile_image_url ? (
                             <button onClick={() => setViewerImage(editingUser.profile_image_url)} title="프로필 사진 크게 보기" className="active:scale-95 transition-transform focus:outline-none">
@@ -194,7 +201,7 @@ const UserEditModal = ({
                             </div>
                         )}
                     </div>
-                    <div className="p-6 pt-0 space-y-3">
+                    <div className="p-6 pt-0 space-y-3 mt-4">
                         {(editingUser.user_group === '게스트' || editingUser.preferences?.is_temporary) && (
                             <button
                                 onClick={() => setIsMergeModalOpen(true)}
@@ -203,10 +210,10 @@ const UserEditModal = ({
                                 <RefreshCw size={18} /> 정식 계정으로 데이터 병합
                             </button>
                         )}
-                        <button onClick={handleSaveUser} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl">
+                        <button onClick={handleSaveUser} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl mt-3">
                             <Save size={20} /> 수정사항 저장
                         </button>
-                    </div>
+                        </div>
                 </div>
             </div>
         </div>

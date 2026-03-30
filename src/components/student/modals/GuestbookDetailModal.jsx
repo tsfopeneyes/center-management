@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, Trash, Send } from 'lucide-react';
+import { Trash2, Trash, Send, Edit2 } from 'lucide-react';
 import UserAvatar from '../../common/UserAvatar';
 
 const GuestbookDetailModal = ({ 
@@ -12,7 +12,8 @@ const GuestbookDetailModal = ({
     handleGuestCommentSubmit,
     fetchGuestCommentsData,
     setGuestComments,
-    setSelectedGuestPost
+    setSelectedGuestPost,
+    onEditPost
 }) => {
     const [newGuestComment, setNewGuestComment] = useState('');
 
@@ -44,7 +45,10 @@ const GuestbookDetailModal = ({
                                 <span className="font-bold text-gray-700">{selectedGuestPost.users?.name}</span>
                             </div>
                             {selectedGuestPost.user_id === user?.id && (
-                                <button onClick={() => onDeleteGuestPost(selectedGuestPost.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition"><Trash2 size={18} /></button>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => onEditPost(selectedGuestPost)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition"><Edit2 size={18} /></button>
+                                    <button onClick={() => onDeleteGuestPost(selectedGuestPost.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition"><Trash2 size={18} /></button>
+                                </div>
                             )}
                         </div>
                         <div className="flex-1 overflow-y-auto pb-20">

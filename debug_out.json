@@ -1,0 +1,15 @@
+{
+  "rpcData": [
+    {
+      "id": "8c3f2876-efe2-4275-bd68-6e31e8473168",
+      "name": "admin",
+      "school": null,
+      "birth": null,
+      "role": "user",
+      "is_leader": false,
+      "status": "approved",
+      "email": "8c3f2876-efe2-4275-bd68-6e31e8473168@youth-access.app"
+    }
+  ],
+  "rpcError": null
+}

@@ -158,6 +158,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel }) => 
                 content: finalContent,
                 category: mode,
                 is_sticky: formData.is_sticky,
+                send_push: formData.send_push || false,
                 images: uploadedUrls,
                 image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : null,
                 is_recruiting: formData.is_recruiting,
@@ -186,6 +187,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel }) => 
                 noticeData.program_type = formData.program_type;
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;
                 noticeData.is_leader_only = formData.is_leader_only;
+                noticeData.hyphen_reward = formData.hyphen_reward ? parseInt(formData.hyphen_reward, 10) : 0;
 
                 if (!editNoticeId && !noticeData.program_status) {
                     noticeData.program_status = 'ACTIVE';

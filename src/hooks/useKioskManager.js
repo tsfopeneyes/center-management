@@ -24,6 +24,7 @@ export const useKioskManager = (navigate) => {
     const [pendingKioskUser, setPendingKioskUser] = useState(null);
     const [pendingCheckoutUser, setPendingCheckoutUser] = useState(null);
     const [checkoutVisitDate, setCheckoutVisitDate] = useState('');
+    const [checkoutHyphenMsg, setCheckoutHyphenMsg] = useState('');
 
     // Scanner Settings
     const [facingMode, setFacingMode] = useState('environment'); // 'environment' (back) or 'user' (front)
@@ -267,9 +268,55 @@ export const useKioskManager = (navigate) => {
                 sub = '이동 완료';
                 color = 'bg-blue-600';
             } else if (nextType === 'CHECKOUT') {
+                // 2-Hour Stay Check
+                let earnedMsg = '';
+                try {
+                    const todayStart = new Date();
+                    todayStart.setHours(0, 0, 0, 0);
+                    
+                    const { data: firstCheckin } = await supabase
+                        .from('logs')
+                        .select('created_at')
+                        .eq('user_id', user.id)
+                        .eq('type', 'CHECKIN')
+                        .gte('created_at', todayStart.toISOString())
+                        .order('created_at', { ascending: true })
+                        .limit(1);
+
+                    if (firstCheckin && firstCheckin.length > 0) {
+                        const checkinTime = new Date(firstCheckin[0].created_at).getTime();
+                        const checkoutTime = new Date().getTime();
+                        const durationHours = (checkoutTime - checkinTime) / (1000 * 60 * 60);
+
+                        if (durationHours >= 2) {
+                            const { data: existingPoints } = await supabase
+                                .from('hyphen_transactions')
+                                .select('id')
+                                .eq('user_id', user.id)
+                                .eq('source_description', '공간 체류 (2시간 이상)')
+                                .gte('created_at', todayStart.toISOString())
+                                .limit(1);
+
+                            if (!existingPoints || existingPoints.length === 0) {
+                                await supabase.from('hyphen_transactions').insert([{
+                                    user_id: user.id,
+                                    amount: 1,
+                                    transaction_type: 'EARN',
+                                    source_type: 'KIOSK',
+                                    source_description: '공간 체류 (2시간 이상)'
+                                }]);
+                                earnedMsg = '🎉 2시간 이상 체류하여 1 하이픈이 적립되었습니다!';
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to grant checkout hyphen', err);
+                }
+
                 // Intercept Checkout to ask for purpose
                 setPendingCheckoutUser(user);
                 setCheckoutVisitDate(getKSTDateString(new Date()));
+                setCheckoutHyphenMsg(earnedMsg);
                 setStatus('REQUIRE_PURPOSE');
                 setPincode('');
                 setMatchingUsers([]);
@@ -395,14 +442,15 @@ export const useKioskManager = (navigate) => {
 
             setResult({
                 type: 'SUCCESS',
-                message: '오늘도 즐거웠어요✨',
-                subMessage: '퇴실 완료 | 방문 목적이 저장되었습니다.',
-                color: 'bg-orange-500'
+                message: checkoutHyphenMsg ? '오늘도 즐거웠어요✨ +1H' : '오늘도 즐거웠어요✨',
+                subMessage: checkoutHyphenMsg ? `퇴실 완료 | 방문 목적 저장됨\n${checkoutHyphenMsg}` : '퇴실 완료 | 방문 목적이 저장되었습니다.',
+                color: checkoutHyphenMsg ? 'bg-blue-500' : 'bg-orange-500'
             });
 
             // Reset all kiosk states
             setPendingCheckoutUser(null);
             setCheckoutVisitDate('');
+            setCheckoutHyphenMsg('');
             setStatus('IDLE');
             setPincode('');
             setMatchingUsers([]);

@@ -40,7 +40,9 @@ const NotificationsModal = ({ notifications, setShowNotificationsModal, markNoti
                                             <div key={idx} className="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <span className="text-[10px] uppercase font-black tracking-widest text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md">
-                                                        {notif.target_group === '전체' ? '공지' : notif.target_group}
+                                                        {notif.target_group === '전체' ? '공지' : 
+                                                         notif.target_group?.startsWith('USER_') ? '알림' : 
+                                                         notif.target_group}
                                                     </span>
                                                     <span className="text-[10px] text-gray-400 font-bold">
                                                         {new Date(notif.created_at).toLocaleDateString()}

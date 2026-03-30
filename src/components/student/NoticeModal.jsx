@@ -98,7 +98,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                     ) : (
                         <>
                             <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-4">{notice.title}</h1>
-                            <div className="prose max-w-none text-gray-800 leading-relaxed mb-6 overflow-hidden">
+                            <div className="prose max-w-none text-gray-800 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden">
                                 <div dangerouslySetInnerHTML={{ __html: notice.content }} />
                                 {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                             </div>

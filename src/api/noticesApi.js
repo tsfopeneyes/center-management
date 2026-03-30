@@ -112,9 +112,12 @@ export const noticesApi = {
     },
 
     async update(id, updates) {
+        const payload = { ...updates };
+        delete payload.send_push; // Prevent schema error
+        
         const { error } = await supabase
             .from('notices')
-            .update(updates)
+            .update(payload)
             .eq('id', id);
         if (error) throw error;
     },
@@ -128,11 +131,42 @@ export const noticesApi = {
     },
 
     async create(notice) {
+        const payload = { ...notice };
+        const shouldSendPush = payload.send_push;
+        delete payload.send_push; // Prevent schema error if column doesn't exist
+        
         const { data, error } = await supabase
             .from('notices')
-            .insert([notice])
+            .insert([payload])
             .select();
         if (error) throw error;
+        
+        // 체크박스 '푸시 알림 발송'이 활성화된 경우에만 푸쉬 전송
+        if (shouldSendPush) {
+            try {
+                const notificationTitle = notice.category === 'PROGRAM' ? '🎯 새 프로그램 안내!' : '📢 새 공지사항!';
+                const notificationBody = `[${notice.title}] 등록되었습니다. 앱에서 확인해보세요!`;
+                
+                const { error: pushError } = await supabase.functions.invoke('send-push', {
+                    body: {
+                        title: notificationTitle,
+                        body: notificationBody
+                    }
+                });
+                if (pushError) console.error("푸쉬 알림 전송 에러:", pushError);
+
+                const adminInfo = JSON.parse(localStorage.getItem('admin_user')) || { id: 'd3885f86-f127-448c-8517-578964d509f7' };
+                await supabase.from('app_notifications').insert([{
+                    sender_id: adminInfo.id,
+                    target_group: '전체',
+                    content: notificationBody
+                }]);
+
+            } catch (ex) {
+                console.error("푸쉬 알림 API 호출 실패:", ex);
+            }
+        }
+        
         return data[0];
     },
 

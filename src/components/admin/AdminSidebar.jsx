@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, MessageSquare, Users, BarChart2, FileText, Settings, LogOut, User, Calendar, School, Trophy } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Users, BarChart2, FileText, Settings, LogOut, User, Calendar, School, Trophy, Store } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, isPinned, setIsPinned }) => {
@@ -21,6 +21,7 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
                 { id: 'PROGRAMS', label: '프로그램 관리', icon: <Users size={20} /> },
                 { id: 'CHALLENGES', label: '챌린지 관리', icon: <Trophy size={20} /> },
                 { id: 'BOARD', label: '공지사항', icon: <MessageSquare size={20} /> },
+                { id: 'STORE', label: '하이픈 포인트', icon: <Store size={20} /> },
             ]
         },
         {

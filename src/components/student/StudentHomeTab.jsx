@@ -30,6 +30,7 @@ const StudentHomeTab = ({
     homeNotices,
     locationGroups,
     activeUserCountByGroup,
+    handleLogout
 }) => {
     return (
         <>
@@ -111,7 +112,7 @@ const StudentHomeTab = ({
                                 <Settings size={20} className="text-white" />
                             </button>
                             <button
-                                onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('admin_user'); navigate('/'); }}
+                                onClick={handleLogout}
                                 className="flex-1 h-10 flex items-center justify-center bg-white/10 hover:bg-red-500/30 rounded-xl transition-all btn-tactile border border-white/5 group backdrop-blur-md"
                             >
                                 <LogOut size={20} className="text-white/80 group-hover:text-white" />
@@ -211,11 +212,12 @@ const StudentHomeTab = ({
                                         <button onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)} className="text-[10px] text-blue-500 font-bold">더보기</button>
                                     </h3>
                                     <div className="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                        {homePrograms.slice(0, config.count).map(p => (
-                                            <div key={p.id} className="min-w-[240px] w-[240px] snap-center">
+                                        {homePrograms.slice(0, config.count || 10).map(p => (
+                                            <div key={p.id} className="min-w-[160px] w-[160px] snap-start">
                                                 <ProgramCard
                                                     program={{ ...p, responseStatus: responses[p.id] }}
                                                     onClick={openNoticeDetail}
+                                                    compact={true}
                                                 />
                                             </div>
                                         ))}

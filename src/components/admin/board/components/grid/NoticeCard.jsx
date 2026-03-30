@@ -92,9 +92,32 @@ const NoticeCard = ({
 
                     <h3 onClick={() => onViewDetails(notice)} className={`${titleClass} ${!isActive ? 'text-gray-400' : 'text-gray-800'}`}>
                         {viewMode === 'list' && notice.is_sticky && <span className="mr-2 text-orange-500 shrink-0">📌</span>}
+                        {(() => {
+                            if (mode === CATEGORIES.PROGRAM) {
+                                const targets = notice.target_regions || [];
+                                if (targets.length === 0 || (targets.includes('강동') && targets.includes('강서'))) {
+                                    return <span className="text-blue-600 mr-1 font-bold">[All]</span>;
+                                } else if (targets.includes('강동')) {
+                                    return <span className="text-purple-600 mr-1 font-bold">[강동]</span>;
+                                } else if (targets.includes('강서')) {
+                                    return <span className="text-pink-600 mr-1 font-bold">[강서]</span>;
+                                }
+                            }
+                            return null;
+                        })()}
                         {notice.title}
                     </h3>
-                    <p className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">{new Date(notice.created_at).toLocaleDateString()}</p>
+                    
+                    {mode === CATEGORIES.PROGRAM && notice.program_date ? (
+                        <div className="mt-1 flex flex-col">
+                            <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1">
+                                📅 {new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span className="text-[9px] font-bold text-gray-300 mt-0.5">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
+                        </div>
+                    ) : (
+                        <p className="text-[10px] font-bold text-gray-300 uppercase tracking-wider mt-1">{new Date(notice.created_at).toLocaleDateString()}</p>
+                    )}
                 </div>
             </div>
 

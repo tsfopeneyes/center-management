@@ -66,7 +66,7 @@ const ProgramInfoSection = ({ formData, updateField }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50/30 p-4 rounded-2xl border border-blue-100/50">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-blue-50/30 p-4 rounded-2xl border border-blue-100/50">
                 <div>
                     <label className="block text-xs font-bold text-blue-600 mb-1 ml-1">날짜 / 시간 *</label>
                     <div className="flex flex-col gap-2">
@@ -115,6 +115,17 @@ const ProgramInfoSection = ({ formData, updateField }) => {
                         onChange={e => updateField('program_location', e.target.value)}
                         className="w-full p-3 bg-white border border-blue-100 rounded-xl outline-none focus:border-blue-500 transition text-sm h-[46px]"
                         required
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-blue-600 mb-1 ml-1">지급 하이픈 (포인트)</label>
+                    <input
+                        type="number"
+                        placeholder="예: 5"
+                        min="0"
+                        value={formData.hyphen_reward}
+                        onChange={e => updateField('hyphen_reward', e.target.value)}
+                        className="w-full p-3 bg-white border border-blue-100 rounded-xl outline-none focus:border-blue-500 transition text-sm h-[46px]"
                     />
                 </div>
             </div>

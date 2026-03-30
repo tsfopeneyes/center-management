@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Home, Calendar, BookOpen, Award } from 'lucide-react';
+import { Home, Calendar, BookOpen, Award, Store } from 'lucide-react';
 import { TAB_NAMES } from '../constants/appConstants';
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
 
@@ -14,6 +14,8 @@ import StudentGuestbookTab from '../components/student/StudentGuestbookTab';
 import StudentCalendarTab from '../components/student/StudentCalendarTab';
 import CommunityTab from '../components/community/CommunityTab';
 import StudentChat from '../components/student/StudentChat';
+import StudentHyphenTab from '../components/student/StudentHyphenTab';
+import { userApi } from '../api/userApi';
 
 // Extracted Modals
 import NoticeModal from '../components/student/NoticeModal';
@@ -24,10 +26,15 @@ import GuestbookDetailModal from '../components/student/modals/GuestbookDetailMo
 import NotificationsModal from '../components/student/modals/NotificationsModal';
 import ProgramHistoryModal from '../components/student/modals/ProgramHistoryModal';
 import QRModal from '../components/student/modals/QRModal';
+import VerificationWriteModal from '../components/student/modals/VerificationWriteModal';
+import { useFCM } from '../hooks/useFCM';
 
 const StudentDashboard = () => {
     const hookData = useStudentDashboard();
     
+    // 푸쉬 알림 권한 획득 및 토큰 저장 훅 실행
+    useFCM(hookData.user);
+
     // Destructure everything used in the JSX
     const {
         loading, user, activeTab, setActiveTab,
@@ -38,9 +45,9 @@ const StudentDashboard = () => {
         showEnlargedQr, setShowEnlargedQr,
         showNotificationsModal, setShowNotificationsModal,
         selectedBadge, setSelectedBadge,
-        selectedNotice, setSelectedNotice, noticeContext, setNoticeContext,
+        noticeContext, setNoticeContext, selectedNotice, setSelectedNotice,
         comments, newComment, setNewComment, handlePostComment, handleDeleteComment,
-        handleShare, handleTabChange, openNoticeDetail, markNotificationsAsRead,
+        handleShare, handleTabChange, openNoticeDetail, markNotificationsAsRead, handleLogout,
         notices, responses, handleResponse, filteredNotices, filteredPrograms,
         homeNotices, homePrograms, studentRegion, locationGroups, activeUserCountByGroup,
         totalHours, visitCount, programCount, attendedProgramsList,
@@ -50,7 +57,29 @@ const StudentDashboard = () => {
         guestPosts, uploadingGuest, handleCreatePost, fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestPost, handleDeleteGuestComment
     } = hookData;
 
+    const [showVerificationWrite, setShowVerificationWrite] = useState(false);
+    const [editVerificationPost, setEditVerificationPost] = useState(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
     const navigate = useNavigate();
+
+    const openGuestPostDetail = async (post) => {
+        hookData.setSelectedGuestPost(post);
+        const data = await hookData.fetchGuestCommentsData(post.id);
+        hookData.setGuestComments(data);
+    };
+
+    const handleDeletePostWrapper = async (postId) => {
+        if (!window.confirm("정말로 삭제하시겠습니까? 지급된 하이픈도 반환됩니다.")) return;
+        const success = await hookData.handleDeleteGuestPost(postId);
+        if (success) {
+            hookData.setSelectedGuestPost(null);
+            userApi.fetchUser(user.id).then(u => {
+                if (u) hookData.setUser(prev => ({ ...prev, ...u }));
+            });
+            setRefreshTrigger(prev => prev + 1);
+        }
+    };
 
     if (loading || !user) {
         return (
@@ -66,6 +95,25 @@ const StudentDashboard = () => {
     return (
         <div className="w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 pb-20 font-sans">
             <div className="p-4 pt-4"></div>
+
+            {/* Verification Write Modal */}
+            {showVerificationWrite && (
+                <VerificationWriteModal
+                    setShowVerificationWrite={setShowVerificationWrite}
+                    handleCreatePost={hookData.handleCreatePost}
+                    handleUpdatePost={hookData.handleUpdatePost}
+                    uploadingGuest={hookData.uploadingGuest}
+                    editPost={editVerificationPost}
+                    onSuccess={() => {
+                        setEditVerificationPost(null);
+                        setShowVerificationWrite(false);
+                        userApi.fetchUser(user.id).then(u => {
+                            if (u) hookData.setUser(prev => ({ ...prev, ...u }));
+                        });
+                        setRefreshTrigger(prev => prev + 1);
+                    }}
+                />
+            )}
 
             {/* Modals & Overlays */}
             <AnimatePresence>
@@ -113,15 +161,20 @@ const StudentDashboard = () => {
 
                 {selectedGuestPost && (
                     <GuestbookDetailModal 
-                        selectedGuestPost={selectedGuestPost}
+                        selectedGuestPost={hookData.selectedGuestPost}
                         guestComments={hookData.guestComments || []}
-                        fetchGuestCommentsData={fetchGuestCommentsData}
+                        fetchGuestCommentsData={hookData.fetchGuestCommentsData}
                         user={user}
-                        onDeleteGuestPost={handleDeleteGuestPost}
-                        onDeleteGuestComment={handleDeleteGuestComment}
-                        handleGuestCommentSubmit={handleGuestCommentSubmit}
-                        setGuestComments={() => {}} 
-                        setSelectedGuestPost={setSelectedGuestPost}
+                        onDeleteGuestPost={handleDeletePostWrapper}
+                        onDeleteGuestComment={hookData.handleDeleteGuestComment}
+                        handleGuestCommentSubmit={hookData.handleGuestCommentSubmit}
+                        setGuestComments={hookData.setGuestComments} 
+                        setSelectedGuestPost={hookData.setSelectedGuestPost}
+                        onEditPost={(post) => {
+                            hookData.setSelectedGuestPost(null);
+                            setEditVerificationPost(post);
+                            setShowVerificationWrite(true);
+                        }}
                     />
                 )}
 
@@ -165,6 +218,7 @@ const StudentDashboard = () => {
                     programCount={programCount}
                     setShowProgramHistory={setShowProgramHistory}
                     handleTabChange={handleTabChange}
+                    handleLogout={handleLogout}
                     homePrograms={homePrograms}
                     responses={responses}
                     openNoticeDetail={openNoticeDetail}
@@ -225,13 +279,33 @@ const StudentDashboard = () => {
                 <CommunityTab user={user} />
             )}
 
+            {activeTab === TAB_NAMES.HYPHEN && (
+                <StudentHyphenTab 
+                    user={user} 
+                    handleCreatePost={hookData.handleCreatePost}
+                    handleUpdatePost={hookData.handleUpdatePost}
+                    handleDeleteGuestPost={hookData.handleDeleteGuestPost}
+                    uploadingGuest={hookData.uploadingGuest}
+                    openGuestPostDetail={openGuestPostDetail}
+                    setShowVerificationWrite={setShowVerificationWrite}
+                    setEditVerificationPost={setEditVerificationPost}
+                    refreshTrigger={refreshTrigger}
+                    notifyParentRefresh={() => {
+                        userApi.fetchUser(user.id).then(u => {
+                            if (u) hookData.setUser(prev => ({ ...prev, ...u }));
+                        });
+                    }}
+                />
+            )}
+
             {/* Bottom Navigation */}
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 flex justify-around items-center px-4 py-3 z-[120] safe-area-bottom shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-[2.5rem]">
                 {[
                     { id: TAB_NAMES.HOME, icon: Home, label: '홈' },
-                    { id: TAB_NAMES.CALENDAR, icon: Calendar, label: '캘린더' },
-                    { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '프로그램', activeColor: 'text-blue-600' },
                     { id: TAB_NAMES.CHALLENGES, icon: Award, label: '챌린지' },
+                    { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '프로그램', activeColor: 'text-blue-600' },
+                    { id: TAB_NAMES.CALENDAR, icon: Calendar, label: '캘린더' },
+                    { id: TAB_NAMES.HYPHEN, icon: Store, label: '하이픈' },
                 ].map((tab) => (
                     <motion.button
                         key={tab.id}

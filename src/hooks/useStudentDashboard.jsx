@@ -55,7 +55,7 @@ export const useStudentDashboard = () => {
     const { user, setUser, totalHours, visitCount, programCount, fetchStats, updateProfile, loading: profileLoadingState } = useProfile(null);
     const { notices, responses, fetchNotices, handleResponse } = useNotices(user?.id);
     const { messages, unreadCount, markAsRead } = useMessaging(user?.id);
-    const { guestPosts, uploading: uploadingGuest, handleCreatePost, fetchComments: fetchGuestCommentsData, handlePostComment: handleGuestCommentSubmit, handleDeletePost: handleDeleteGuestPost, handleDeleteComment: handleDeleteGuestComment } = useGuestbook(user?.id);
+    const { guestPosts, uploading: uploadingGuest, handleCreatePost, handleUpdatePost, fetchComments: fetchGuestCommentsData, handlePostComment: handleGuestCommentSubmit, handleDeletePost: handleDeleteGuestPost, handleDeleteComment: handleDeleteGuestComment } = useGuestbook(user?.id);
 
     // UI-Specific State (Not in hooks)
     const [selectedNotice, setSelectedNotice] = useState(null);
@@ -94,10 +94,10 @@ export const useStudentDashboard = () => {
     const [calendarCategories, setCalendarCategories] = useState([]);
     const [dashboardConfig, setDashboardConfig] = useState([
         { id: 'stats', label: '활동 통계', isVisible: true, count: 3 },
-        { id: 'programs', label: '프로그램 신청', isVisible: true, count: 3 },
+        { id: 'programs', label: '프로그램 신청', isVisible: true, count: 10 },
         { id: 'space_status', isVisible: true, count: 0 }, // Add space_status below programs
-        { id: 'notices', label: '공지사항', isVisible: true, count: 3 },
-        { id: 'gallery', label: '갤러리', isVisible: true, count: 6 }
+        { id: 'notices', label: '공지사항', isVisible: true, count: 5 },
+        { id: 'gallery', label: '갤러리', isVisible: true, count: 10 }
     ]);
 
     const handleTabChange = (tabName) => {
@@ -535,7 +535,7 @@ export const useStudentDashboard = () => {
     });
 
     const homeNotices = filteredNotices.slice(0, 3);
-    const homePrograms = filteredPrograms.slice(0, 3);
+    const homePrograms = filteredPrograms.slice(0, 10);
 
 
     const handleProfileImageSelect = (e) => {
@@ -594,11 +594,21 @@ export const useStudentDashboard = () => {
             alert('프로필 저장 실패: ' + result.error);
         }
     };
+    const handleLogout = async () => {
+        if (window.confirm("로그아웃 하시겠습니까?")) {
+            await supabase.auth.signOut();
+            localStorage.removeItem('user');
+            localStorage.removeItem('admin_user');
+            navigate('/');
+        }
+    };
+
     return {
         // Core State
         loading,
         user, setUser,
         activeTab,
+        handleLogout,
         
         // Modals Traps
         showProfileSettings, setShowProfileSettings,
@@ -633,7 +643,7 @@ export const useStudentDashboard = () => {
         updateProfile, profileLoadingState,
         
         // Guestbook Hooks
-        guestPosts, uploadingGuest, handleCreatePost,
+        guestPosts, uploadingGuest, handleCreatePost, handleUpdatePost, handleDeleteGuestPost,
         fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestPost, handleDeleteGuestComment
     };
 };

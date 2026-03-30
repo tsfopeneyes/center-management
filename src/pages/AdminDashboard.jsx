@@ -17,11 +17,11 @@ import AdminLogs from '../components/admin/dashboard/AdminLogs';
 import AdminSettings from '../components/admin/settings/AdminSettings';
 import AdminStatistics from '../components/admin/statistics/AdminStatistics';
 import AdminMessages from '../components/admin/messages/AdminMessages';
-import AdminGuestbook from '../components/admin/board/AdminGuestbook';
 import AdminReport from '../components/admin/statistics/AdminReport';
 import AdminChallenges from '../components/admin/settings/AdminChallenges';
 import AdminCalendar from '../components/admin/calendar/AdminCalendar';
 import AdminSchool from '../components/admin/school/AdminSchool';
+import AdminStore from '../components/admin/store/AdminStore';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
 
@@ -297,8 +297,9 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         if (confirm("로그아웃 하시겠습니까?")) {
+            await supabase.auth.signOut();
             localStorage.removeItem('admin_user');
             localStorage.removeItem('user');
             navigate('/');
@@ -375,8 +376,8 @@ const AdminDashboard = () => {
                     {activeMenu === 'GALLERY' && (
                         <AdminBoard mode="GALLERY" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} setActiveMenu={setActiveMenu} />
                     )}
-                    {activeMenu === 'GUESTBOOK' && (
-                        <AdminGuestbook />
+                    {activeMenu === 'STORE' && (
+                        <AdminStore />
                     )}
                     {activeMenu === 'USERS' && (
                         <AdminUsers users={users} allLogs={allLogs} locations={locations} fetchData={fetchData} />

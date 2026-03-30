@@ -34,8 +34,16 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
         filters, 
         updateFilter: handleFilterChange, 
         resetFilters, 
-        filteredNotices 
+        filteredNotices,
+        activePrograms,
+        completedPrograms
     } = useNoticeFiltering(notices, mode);
+
+    const [programTab, setProgramTab] = useState('ACTIVE');
+
+    const displayNotices = mode === CATEGORIES.PROGRAM 
+        ? (programTab === 'ACTIVE' ? activePrograms : completedPrograms)
+        : filteredNotices;
 
     const { noticeStats } = useNoticeStats(filteredNotices, mode);
 
@@ -143,8 +151,25 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                     onResetFilters={resetFilters}
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
-                    resultCount={filteredNotices.length}
+                    resultCount={displayNotices.length}
                 />
+            )}
+
+            {!showWriteForm && mode === CATEGORIES.PROGRAM && (
+                <div className="flex gap-2.5 mb-2 pl-2">
+                    <button 
+                        onClick={() => setProgramTab('ACTIVE')}
+                        className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all duration-300 ${programTab === 'ACTIVE' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'}`}
+                    >
+                        진행 중 / 예정 <span className="ml-1.5 opacity-80 text-xs px-1.5 py-0.5 rounded-md bg-white/20">{activePrograms.length}</span>
+                    </button>
+                    <button 
+                        onClick={() => setProgramTab('COMPLETED')}
+                        className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all duration-300 ${programTab === 'COMPLETED' ? 'bg-gray-800 text-white shadow-lg shadow-gray-300' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'}`}
+                    >
+                        종료 / 취소 <span className="ml-1.5 opacity-80 text-xs px-1.5 py-0.5 rounded-md bg-white/20">{completedPrograms.length}</span>
+                    </button>
+                </div>
             )}
 
             <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 min-h-[500px] relative">
@@ -161,7 +186,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                         <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin shadow-lg"></div>
                         <p className="mt-4 font-bold text-gray-500 animate-pulse">데이터를 불러오는 중입니다...</p>
                     </div>
-                ) : filteredNotices.length === 0 ? (
+                ) : displayNotices.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-[400px] text-gray-400">
                         <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
                             <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -173,7 +198,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                     </div>
                 ) : (
                     <NoticeGrid 
-                        notices={filteredNotices}
+                        notices={displayNotices}
                         viewMode={viewMode}
                         mode={mode}
                         noticeStats={noticeStats}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { guestbookApi } from '../api/guestbookApi';
+import { hyphenApi } from '../api/hyphenApi';
 import { compressImage } from '../utils/imageUtils';
 
 export const useGuestbook = (userId) => {
@@ -20,7 +21,7 @@ export const useGuestbook = (userId) => {
         }
     }, []);
 
-    const handleCreatePost = async (content, imageFiles = []) => {
+    const handleCreatePost = async (content, imageFiles = [], category = '방명록 작성') => {
         if (!content && (!imageFiles || imageFiles.length === 0)) return;
         setUploading(true);
         try {
@@ -46,7 +47,11 @@ export const useGuestbook = (userId) => {
 
             // image_url is the first one for backward compatibility, images is the full array
             const mainImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
-            await guestbookApi.createPost(userId, content, mainImageUrl, imageUrls);
+            const newPost = await guestbookApi.createPost(userId, content, mainImageUrl, imageUrls);
+            
+            // Trigger hyphen reward for content verification
+            await hyphenApi.grantContentVerificationReward(userId, category, newPost.id);
+            
             fetchGuestPosts();
             return true;
         } catch (err) {
@@ -80,9 +85,47 @@ export const useGuestbook = (userId) => {
         }
     };
 
+    const handleUpdatePost = async (postId, content, imageFiles = [], existingImages = []) => {
+        if (!content && (!imageFiles || imageFiles.length === 0) && (!existingImages || existingImages.length === 0)) return false;
+        setUploading(true);
+        try {
+            const imageUrls = [...existingImages];
+
+            for (const file of imageFiles) {
+                const compressedFile = await compressImage(file);
+                const fileExt = compressedFile.name.split('.').pop();
+                const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+                const { error: uploadError } = await supabase.storage
+                    .from('notice-images')
+                    .upload(`guest/${fileName}`, compressedFile);
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('notice-images')
+                    .getPublicUrl(`guest/${fileName}`);
+
+                imageUrls.push(publicUrl);
+            }
+
+            await guestbookApi.updatePost(postId, content, imageUrls);
+            fetchGuestPosts();
+            return true;
+        } catch (err) {
+            console.error('Error updating guest post:', err);
+            alert('업데이트 실패: ' + err.message);
+            return false;
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handleDeletePost = async (postId) => {
         try {
             await guestbookApi.deletePost(postId);
+            // Delete associated hyphen record if possible
+            await hyphenApi.revokeContentVerificationReward(userId, postId);
+
             fetchGuestPosts();
             return true;
         } catch (err) {
@@ -113,6 +156,7 @@ export const useGuestbook = (userId) => {
         uploading,
         fetchGuestPosts,
         handleCreatePost,
+        handleUpdatePost,
         fetchComments,
         handlePostComment,
         handleDeletePost,

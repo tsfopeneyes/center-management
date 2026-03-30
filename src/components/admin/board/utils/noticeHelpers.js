@@ -54,8 +54,9 @@ export const prepareNoticeForEdit = (notice) => {
     const { duration, location, cleanContent } = extractProgramInfo(notice.content);
 
     const localProgramDate = notice.program_date ? formatToLocalISO(notice.program_date) : '';
+    // We retain the full string (e.g., 'YYYY-MM-DDTHH:mm') for program_date 
+    // because splitDateTime in downstream components expects the full string to extract the time properly.
     const pDateFull = localProgramDate ? localProgramDate.split('T') : ['', '12:00'];
-    const pDate = pDateFull[0];
     const pTime = pDateFull[1] ? pDateFull[1].substring(0, 5) : '12:00';
 
     return {
@@ -67,7 +68,7 @@ export const prepareNoticeForEdit = (notice) => {
         category: notice.category,
         recruitment_deadline: notice.recruitment_deadline ? formatToLocalISO(notice.recruitment_deadline) : '',
         max_capacity: notice.max_capacity || '',
-        program_date: pDate,
+        program_date: localProgramDate,
         program_time: pTime,
         program_duration: duration || notice.program_duration || '',
         program_location: location,
@@ -77,6 +78,7 @@ export const prepareNoticeForEdit = (notice) => {
         is_poll: notice.is_poll || false,
         allow_multiple_votes: notice.allow_multiple_votes || false,
         poll_deadline: notice.poll_deadline ? formatToLocalISO(notice.poll_deadline) : '',
-        poll_options: notice.poll_options || []
+        poll_options: notice.poll_options || [],
+        hyphen_reward: notice.hyphen_reward || 0
     };
 };

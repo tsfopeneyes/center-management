@@ -98,7 +98,7 @@ const TemplateManager = ({ type, currentContent, onSelect, currentAdmin }) => {
                                     handleSave(e);
                                 }
                             }}
-                            className="flex-1 px-4 py-2 bg-white border border-gray-100 rounded-xl text-xs outline-none focus:border-blue-500 font-bold shadow-inner"
+                            className="flex-1 min-w-0 px-4 py-2 bg-white border border-gray-100 rounded-xl text-xs outline-none focus:border-blue-500 font-bold shadow-inner"
                         />
                         <button
                             type="button"

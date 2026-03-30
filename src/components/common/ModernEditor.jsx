@@ -30,10 +30,34 @@ const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
     </button>
 );
 
+import { Extension } from '@tiptap/core';
+
+const SwapEnter = Extension.create({
+    name: 'swapEnter',
+    addKeyboardShortcuts() {
+        return {
+            'Enter': () => {
+                // If it's a list item, we keep the default Tiptap behavior (split list item)
+                if (this.editor.isActive('listItem')) {
+                    return false; 
+                }
+                return this.editor.commands.setHardBreak();
+            },
+            'Shift-Enter': () => {
+                if (this.editor.isActive('listItem')) {
+                    return false;
+                }
+                return this.editor.commands.splitBlock();
+            },
+        };
+    },
+});
+
 const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세요...' }) => {
     const [isCodeView, setIsCodeView] = React.useState(false);
     const editor = useEditor({
         extensions: [
+            SwapEnter,
             StarterKit,
             Underline,
             Link.configure({
@@ -63,7 +87,7 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
         },
         editorProps: {
             attributes: {
-                class: 'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-5 focus:outline-none min-h-[300px] max-w-none text-gray-800',
+                class: 'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 leading-snug m-5 focus:outline-none min-h-[300px] max-w-none text-gray-800',
             },
         },
     });
