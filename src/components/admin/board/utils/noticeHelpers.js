@@ -61,6 +61,7 @@ export const prepareNoticeForEdit = (notice) => {
 
     return {
         title: notice.title,
+        short_description: notice.short_description || '',
         content: cleanContent,
         is_recruiting: notice.is_recruiting,
         is_sticky: notice.is_sticky || false,
@@ -79,6 +80,7 @@ export const prepareNoticeForEdit = (notice) => {
         allow_multiple_votes: notice.allow_multiple_votes || false,
         poll_deadline: notice.poll_deadline ? formatToLocalISO(notice.poll_deadline) : '',
         poll_options: notice.poll_options || [],
-        hyphen_reward: notice.hyphen_reward || 0
+        hyphen_reward: notice.hyphen_reward || 0,
+        is_review_required: notice.is_review_required || false
     };
 };

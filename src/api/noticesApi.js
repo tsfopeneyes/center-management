@@ -8,13 +8,40 @@ export const noticesApi = {
             .order('is_sticky', { ascending: false })
             .order('created_at', { ascending: false });
         if (error) throw error;
-        return data;
+
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        return data.sort((a, b) => {
+            // 1. is_sticky always highest priority
+            if (a.is_sticky && !b.is_sticky) return -1;
+            if (!a.is_sticky && b.is_sticky) return 1;
+
+            // 2. Program-specific sorting
+            if (a.category === 'PROGRAM' && b.category === 'PROGRAM') {
+                const dateA = new Date(a.program_date || a.created_at);
+                const dateB = new Date(b.program_date || b.created_at);
+                const isPastA = dateA < now;
+                const isPastB = dateB < now;
+
+                if (!isPastA && !isPastB) {
+                    return dateA - dateB; // Both future: ascending (nearest first)
+                } else if (isPastA && isPastB) {
+                    return dateB - dateA; // Both past: descending (latest first)
+                } else {
+                    return isPastA ? 1 : -1; // Future before past
+                }
+            }
+
+            // 3. Fallback to created_at descending
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
     },
 
     async fetchResponses(userId) {
         const { data, error } = await supabase
             .from('notice_responses')
-            .select('notice_id, status')
+            .select('notice_id, status, is_attended')
             .eq('user_id', userId);
         if (error) throw error;
         return data;
@@ -233,7 +260,7 @@ export const noticesApi = {
     async searchUsers(query) {
         const { data, error } = await supabase
             .from('users')
-            .select('id, name, school, phone_back4')
+            .select('id, name, school, phone_back4, is_leader, profile_image_url')
             .or(`name.ilike.%${query}%,phone_back4.ilike.%${query}%`)
             .limit(10);
         if (error) throw error;
@@ -274,7 +301,7 @@ export const noticesApi = {
     async fetchPollResponses(noticeId) {
         const { data, error } = await supabase
             .from('notice_poll_responses')
-            .select('user_id, option_id, users(id, name, school)')
+            .select('user_id, option_id, users(id, name, school, is_leader)')
             .eq('notice_id', noticeId);
         if (error) throw error;
         return data;

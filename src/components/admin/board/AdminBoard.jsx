@@ -134,26 +134,28 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
     return (
         <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-10 space-y-6 md:space-y-8 animate-fade-in custom-scrollbar">
             
-            <AdminBoardHeader 
-                mode={mode} 
-                showWriteForm={showWriteForm} 
-                onToggleWriteForm={() => {
-                    if (showWriteForm) handleFormCancel();
-                    else setShowWriteForm(true);
-                }} 
-            />
-
-            {!showWriteForm && (
-                <FilterBar 
-                    mode={mode}
-                    filters={filters}
-                    onFilterChange={handleFilterChange}
-                    onResetFilters={resetFilters}
-                    viewMode={viewMode}
-                    onViewModeChange={setViewMode}
-                    resultCount={displayNotices.length}
+            <div className="bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                <AdminBoardHeader 
+                    mode={mode} 
+                    showWriteForm={showWriteForm} 
+                    onToggleWriteForm={() => {
+                        if (showWriteForm) handleFormCancel();
+                        else setShowWriteForm(true);
+                    }} 
                 />
-            )}
+
+                {!showWriteForm && (
+                    <FilterBar 
+                        mode={mode}
+                        filters={filters}
+                        onFilterChange={handleFilterChange}
+                        onResetFilters={resetFilters}
+                        viewMode={viewMode}
+                        onViewModeChange={setViewMode}
+                        resultCount={displayNotices.length}
+                    />
+                )}
+            </div>
 
             {!showWriteForm && mode === CATEGORIES.PROGRAM && (
                 <div className="flex gap-2.5 mb-2 pl-2">
@@ -197,17 +199,22 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                         <p className="text-sm font-bold text-gray-400 mt-2">상단의 추가 버튼을 눌러 새로운 내용을 작성해보세요</p>
                     </div>
                 ) : (
-                    <NoticeGrid 
-                        notices={displayNotices}
-                        viewMode={viewMode}
-                        mode={mode}
-                        noticeStats={noticeStats}
-                        onViewDetails={handleViewDetails}
-                        onOpenParticipants={handleOpenParticipants}
-                        onStatusChange={handleProgramStatusChange}
-                        onEdit={handleEditNotice}
-                        onDelete={handleDeleteNotice}
-                    />
+                    <>
+                        <NoticeGrid 
+                            notices={displayNotices}
+                            viewMode={viewMode}
+                            mode={mode}
+                            noticeStats={noticeStats}
+                            onViewDetails={handleViewDetails}
+                            onOpenParticipants={handleOpenParticipants}
+                            onStatusChange={handleProgramStatusChange}
+                            onEdit={handleEditNotice}
+                            onDelete={handleDeleteNotice}
+                        />
+                        <div className="text-center mt-8 mb-4 text-[11px] md:text-xs font-bold text-gray-400">
+                            총 {displayNotices.length}개의 {mode === CATEGORIES.PROGRAM ? '일정' : '게시글'}
+                        </div>
+                    </>
                 )}
             </div>
 

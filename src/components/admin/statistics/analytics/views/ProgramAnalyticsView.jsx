@@ -3,8 +3,35 @@ import { Calendar, Users, Clock, MapPin, Award, ArrowUp, ArrowDown, Search } fro
 import { format, parseISO } from 'date-fns';
 import { ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Line } from 'recharts';
 import { getKSTWeekOfMonth } from '../../../../../utils/dateUtils';
+import { supabase } from '../../../../../supabaseClient';
+import ProgramFeedbackDetailModal from '../modals/ProgramFeedbackDetailModal';
+import { feedbackApi } from '../../../../../api/feedbackApi';
 
 const ProgramAnalyticsView = ({ hookData, users, schoolLogs }) => {
+    const [allFeedbacks, setAllFeedbacks] = React.useState({});
+    const [selectedFeedbackProgram, setSelectedFeedbackProgram] = React.useState(null);
+
+    React.useEffect(() => {
+        // Fetch all program feedbacks on mount
+        const fetchFeedbacks = async () => {
+            try {
+                const { data } = await supabase
+                    .from('program_feedback')
+                    .select('*, users(name, school)');
+                if (data) {
+                    const grouped = {};
+                    data.forEach(f => {
+                        if (!grouped[f.notice_id]) grouped[f.notice_id] = [];
+                        grouped[f.notice_id].push(f);
+                    });
+                    setAllFeedbacks(grouped);
+                }
+            } catch (err) {
+                console.error('Failed to fetch program feedbacks:', err);
+            }
+        };
+        fetchFeedbacks();
+    }, []);
     const { selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, selectedDay, setSelectedDay, periodType, setPeriodType, selectedLocationGroupId, setSelectedLocationGroupId, viewMode, setViewMode, showGuestModal, setShowGuestModal, seucheoRegion, setSeucheoRegion, isManagerModalOpen, setIsManagerModalOpen, selectedMemberForCalendar, setSelectedMemberForCalendar, selectedRoomDetails, setSelectedRoomDetails, userSort, setUserSort, userSearch, setUserSearch, programFilter, setProgramFilter, filteredLocations, filteredLogsForSpace, spaceData, rawProgramData, programData, rawUserData, userData, handleSort } = hookData;
 
     if (!hookData) return null;
@@ -26,6 +53,7 @@ const ProgramAnalyticsView = ({ hookData, users, schoolLogs }) => {
                                     <th className="p-4 text-center">신청 인원</th>
                                     <th className="p-4 text-center">출석 인원</th>
                                     <th className="p-4 text-center">출석률</th>
+                                    <th className="p-4 text-center">만족도/리뷰</th>
                                     <th className="p-4 text-center">상태</th>
                                     <th className="p-4 text-right">실행일</th>
                                 </tr>
@@ -65,6 +93,24 @@ const ProgramAnalyticsView = ({ hookData, users, schoolLogs }) => {
                                                     <span className="text-gray-300">-</span>
                                                 )}
                                             </td>
+                                            <td className="p-4 text-center whitespace-nowrap">
+                                                {allFeedbacks[p.id] && allFeedbacks[p.id].length > 0 ? (
+                                                    <button
+                                                        onClick={() => setSelectedFeedbackProgram({ program: p, feedbacks: allFeedbacks[p.id] })}
+                                                        className="flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-xl transition-colors mx-auto group"
+                                                    >
+                                                        <div className="flex items-center gap-1 text-yellow-500 mb-0.5">
+                                                            <Award size={12} className="fill-current" />
+                                                            <span className="font-black text-xs text-gray-700">
+                                                                {(allFeedbacks[p.id].reduce((sum, f) => sum + (f.q3_satisfaction || 0), 0) / allFeedbacks[p.id].length).toFixed(1)}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-blue-600 group-hover:underline">리뷰 {allFeedbacks[p.id].length}개 조회</span>
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">리뷰 없음</span>
+                                                )}
+                                            </td>
                                             <td className="p-4 text-center">
                                                 <span className={`px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap inline-block ${p.program_status === 'ACTIVE' ? 'bg-blue-100 text-blue-600' : p.program_status === 'CANCELLED' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
                                                     {p.program_status === 'ACTIVE' ? '진행중' : p.program_status === 'CANCELLED' ? '취소됨' : '종료됨'}
@@ -80,6 +126,14 @@ const ProgramAnalyticsView = ({ hookData, users, schoolLogs }) => {
                         </table>
                     </div>
                 </div>
+
+                {selectedFeedbackProgram && (
+                    <ProgramFeedbackDetailModal
+                        program={selectedFeedbackProgram.program}
+                        feedbacks={selectedFeedbackProgram.feedbacks}
+                        onClose={() => setSelectedFeedbackProgram(null)}
+                    />
+                )}
         </>
     );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import PinchZoomImage from '../../common/PinchZoomImage';
 
 const NoticeCarousel = ({ allImages }) => {
     const bannerScrollRef = useRef(null);
@@ -55,7 +56,7 @@ const NoticeCarousel = ({ allImages }) => {
             >
                 {allImages.map((img, idx) => (
                     <div key={idx} className="flex-shrink-0 w-full snap-center flex items-center justify-center bg-gray-50 relative group/img">
-                        <img src={img} className="w-full h-auto object-contain max-h-[70vh] pointer-events-none" alt={`Slide ${idx}`} />
+                        <PinchZoomImage src={img} className="w-full h-auto max-h-[70vh]" imageClassName="w-full h-auto object-contain max-h-[70vh] pointer-events-auto" alt={`Slide ${idx}`} />
                     </div>
                 ))}
             </div>

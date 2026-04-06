@@ -225,17 +225,20 @@ const StudentChat = ({ currentUser, onRefreshUnread }) => {
     // View: Chat List
     if (!selectedMatch && !isNewChat) {
         return (
-            <div className="animate-fade-in pb-20 p-2.5">
-                <div className="flex justify-between items-center mb-6 px-1.5">
-                    <h2 className="text-3xl font-black text-gray-800 flex items-center gap-2">메시지 💬</h2>
+            <div className="animate-fade-in pb-20 relative min-h-screen">
+                <div className="px-5 pt-5 pb-4 sticky top-0 bg-gray-50/95 backdrop-blur-xl z-20 border-b border-gray-100/50 mb-6 shadow-sm flex justify-between items-center">
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-1.5">
+                        메시지 <span className="text-2xl">💬</span>
+                    </h2>
                     <button
                         onClick={() => setIsNewChat(true)}
                         className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 transition active:scale-95"
                     >
-                        선생님께 메시지 보내기
+                        새 메시지
                     </button>
                 </div>
 
+                <div className="px-5">
                 {matches.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                         <MessageCircle size={48} className="mb-4 text-gray-200" />
@@ -269,6 +272,7 @@ const StudentChat = ({ currentUser, onRefreshUnread }) => {
                         ))}
                     </div>
                 )}
+                </div>
             </div>
         );
     }
@@ -276,15 +280,15 @@ const StudentChat = ({ currentUser, onRefreshUnread }) => {
     // View: New Chat Selection
     if (isNewChat && !selectedMatch) {
         return (
-            <div className="animate-fade-in pb-20 p-2.5">
-                <div className="flex items-center gap-3 mb-6 px-1.5">
-                    <button onClick={() => setIsNewChat(false)} className="p-2 hover:bg-gray-100 rounded-full">
+            <div className="animate-fade-in pb-20 relative min-h-screen">
+                <div className="px-5 pt-5 pb-4 sticky top-0 bg-gray-50/95 backdrop-blur-xl z-20 border-b border-gray-100/50 mb-6 shadow-sm flex items-center gap-3">
+                    <button onClick={() => setIsNewChat(false)} className="p-2 bg-white hover:bg-gray-100 rounded-full shadow-sm">
                         <ArrowLeft size={24} className="text-gray-600" />
                     </button>
-                    <h2 className="text-3xl font-black text-gray-800">선생님 선택</h2>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-1.5">선생님 선택</h2>
                 </div>
 
-                <div className="space-y-3">
+                <div className="px-5 space-y-3">
                     {staffList.length === 0 ? (
                         <div className="text-center py-20 text-gray-400">등록된 선생님이 없습니다.</div>
                     ) : (

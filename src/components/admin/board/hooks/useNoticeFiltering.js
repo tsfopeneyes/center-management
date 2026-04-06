@@ -30,12 +30,12 @@ const useNoticeFiltering = (notices, categoryMode) => {
             // 1. Category Filter
             if (n.category !== categoryMode) return false;
 
-            // 2. Title Filter
-            if (filters.title && !n.title.toLowerCase().includes(filters.title.toLowerCase())) return false;
-
-            // 3. Location Filter (for Programs)
-            if (categoryMode === 'PROGRAM' && filters.location) {
-                if (!n.content.toLowerCase().includes(filters.location.toLowerCase())) return false;
+            // 2. Title / Location (Content) Filter
+            if (filters.title) {
+                const term = filters.title.toLowerCase();
+                const matchesTitle = n.title.toLowerCase().includes(term);
+                const matchesContentLocation = categoryMode === 'PROGRAM' ? (n.content && n.content.toLowerCase().includes(term)) : false;
+                if (!matchesTitle && !matchesContentLocation) return false;
             }
 
             // 4. Date Range Filter

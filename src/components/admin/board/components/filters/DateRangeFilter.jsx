@@ -7,30 +7,31 @@ const DateRangeFilter = ({ mode, filters, onFilterChange, onReset }) => {
     const hasActiveFilters = filters.title || filters.location || filters.startDate || filters.endDate || (mode === CATEGORIES.PROGRAM && filters.programType !== 'ALL');
 
     return (
-        <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-3 flex-wrap">
-            <div className="flex items-center gap-2 w-full sm:w-auto p-1.5 md:p-2 bg-gray-50 rounded-xl border border-gray-100">
-                <Calendar size={14} className="text-gray-400 ml-2 hidden sm:block" />
+        <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 p-1 bg-gray-50 rounded-lg border border-gray-100 h-[30px]">
+                <Calendar size={12} className="text-gray-400 ml-1 hidden sm:block" />
                 <input
                     type="date"
                     value={filters.startDate}
                     onChange={(e) => onFilterChange('startDate', e.target.value)}
-                    className="flex-1 sm:w-[130px] p-2 bg-white border border-gray-200 rounded-lg outline-none text-xs text-gray-600 focus:border-blue-400"
+                    className="w-[90px] sm:w-[100px] p-0.5 bg-transparent border-none outline-none text-[11px] text-gray-600 focus:text-blue-600 cursor-pointer"
                 />
-                <span className="text-gray-400 text-xs font-bold">~</span>
+                <span className="text-gray-400 text-[10px] font-bold">~</span>
                 <input
                     type="date"
                     value={filters.endDate}
                     onChange={(e) => onFilterChange('endDate', e.target.value)}
-                    className="flex-1 sm:w-[130px] p-2 bg-white border border-gray-200 rounded-lg outline-none text-xs text-gray-600 focus:border-blue-400"
+                    className="w-[90px] sm:w-[100px] p-0.5 bg-transparent border-none outline-none text-[11px] text-gray-600 focus:text-blue-600 cursor-pointer"
                 />
             </div>
 
             {hasActiveFilters && (
                 <button
                     onClick={onReset}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl flex items-center justify-center gap-2 transition text-sm font-bold border border-gray-200 shrink-0"
+                    className="h-[30px] px-2 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-lg flex items-center justify-center transition border border-gray-100 shrink-0"
+                    title="초기화"
                 >
-                    <RefreshCw size={14} /> <span>초기화</span>
+                    <RefreshCw size={12} />
                 </button>
             )}
         </div>

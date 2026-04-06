@@ -4,8 +4,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { GoogleAuth } from "npm:google-auth-library";
 
-// Load the Service Account configuration
-import { serviceAccount } from "./service-account.ts";
+// Load the Service Account configuration from Environment Variables
+// (e.g. Deno.env.get('FIREBASE_SERVICE_ACCOUNT'))
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,8 +20,15 @@ serve(async (req) => {
   try {
     const { title, body, userIds } = await req.json()
 
+    // 1. 보안을 위해 환경변수에서 Firebase 키를 가져옵니다.
+    const serviceAccountStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
+    if (!serviceAccountStr) {
+      throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is not set.");
+    }
+    const serviceAccount = JSON.parse(serviceAccountStr);
+
     if (!serviceAccount || !serviceAccount.project_id || !serviceAccount.client_email) {
-      throw new Error("Firebase Service Account is not configured properly in service-account.ts");
+      throw new Error("Firebase Service Account is not configured properly");
     }
 
     // Instantiate Supabase client to fetch FCM tokens

@@ -257,6 +257,34 @@ export const useKioskManager = (navigate) => {
                 }]);
             }
 
+            // E. Hyphen Point Logic (1 per day for CHECKIN)
+            let earnedCheckinMsg = '';
+            if (nextType === 'CHECKIN') {
+                try {
+                    const todayStart = new Date();
+                    todayStart.setHours(0, 0, 0, 0);
+                    const { data: existingPoints } = await supabase
+                        .from('hyphen_transactions')
+                        .select('id')
+                        .eq('user_id', user.id)
+                        .eq('source_description', '공간 방문 (1일 1회)')
+                        .gte('created_at', todayStart.toISOString())
+                        .limit(1);
+
+                    if (!existingPoints || existingPoints.length === 0) {
+                        await supabase.from('hyphen_transactions').insert([{
+                            user_id: user.id,
+                            amount: 1,
+                            transaction_type: 'EARN',
+                            source_description: '공간 방문 (1일 1회)'
+                        }]);
+                        earnedCheckinMsg = ' (+1 하이픈)';
+                    }
+                } catch (err) {
+                    console.error('Failed to grant checkin hyphen', err);
+                }
+            }
+
             // D. Set Feedback Content
             let msg = `${user.name}님 반가워요 👋`;
             let sub = '입실 완료';
@@ -302,7 +330,6 @@ export const useKioskManager = (navigate) => {
                                     user_id: user.id,
                                     amount: 1,
                                     transaction_type: 'EARN',
-                                    source_type: 'KIOSK',
                                     source_description: '공간 체류 (2시간 이상)'
                                 }]);
                                 earnedMsg = '🎉 2시간 이상 체류하여 1 하이픈이 적립되었습니다!';
@@ -343,6 +370,10 @@ export const useKioskManager = (navigate) => {
                     sub = `잠시 후 [${activeProgram.title}] 시작! 📅`;
                 } else if (streakCount > 1) {
                     sub = `${streakCount}일 연속 출석 중! 🔥`;
+                }
+                
+                if (earnedCheckinMsg) {
+                    sub += earnedCheckinMsg;
                 }
             }
 

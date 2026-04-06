@@ -3,6 +3,7 @@ import { CATEGORIES, PROGRAM_TYPES } from '../utils/constants';
 
 const INITIAL_NOTICE_STATE = {
     title: '',
+    short_description: '',
     content: '',
     is_recruiting: false,
     is_sticky: false,

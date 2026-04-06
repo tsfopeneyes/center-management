@@ -52,7 +52,10 @@ const AttendanceSection = ({
                     {participantList.JOIN?.length > 0 ? (
                         participantList.JOIN.map(user => (
                             <div key={user.id} className="grid grid-cols-4 md:grid-cols-5 p-3 items-center hover:bg-gray-50 transition text-sm">
-                                <div className="col-span-1 font-bold text-gray-800 truncate pr-2">{user.name}</div>
+                                <div className="col-span-1 font-bold text-gray-800 truncate pr-2 flex items-center gap-1">
+                                    {user.name}
+                                    {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                </div>
                                 <div className="col-span-2 md:col-span-2 flex flex-col justify-center">
                                     <span className="text-xs text-gray-600 truncate">{user.school}</span>
                                     <span className="text-[10px] text-gray-400 font-medium tracking-wider">{user.phone_back4}</span>
@@ -93,7 +96,10 @@ const AttendanceSection = ({
                     <div className="space-y-1">
                         {participantList.WAITLIST?.map((u, i) => (
                             <div key={i} className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] text-gray-600 font-bold truncate">{u.name}</span>
+                                <span className="text-[10px] text-gray-600 font-bold truncate flex items-center gap-1">
+                                    {u.name}
+                                    {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                </span>
                                 <button 
                                     onClick={() => onDeleteParticipant(u.id, u.name)}
                                     className="p-1 text-gray-400 hover:text-red-500 transition-colors"
@@ -111,8 +117,16 @@ const AttendanceSection = ({
                     <h4 className="font-bold text-gray-500 mb-2 flex justify-between text-[10px] uppercase tracking-wider">
                         미참석 <span className="bg-white px-2 rounded-full">{participantList.JOIN.filter(u => !u.is_attended).length}</span>
                     </h4>
-                    <p className="text-[10px] text-gray-400 truncate">
-                        {participantList.JOIN.filter(u => !u.is_attended).map(u => u.name).join(', ') || '-'}
+                    <p className="text-[10px] text-gray-400 truncate flex flex-wrap gap-1">
+                        {participantList.JOIN.filter(u => !u.is_attended).length > 0 
+                            ? participantList.JOIN.filter(u => !u.is_attended).map((u, idx, arr) => (
+                                <span key={u.id} className="flex items-center">
+                                    {u.name}
+                                    {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-0.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                    {idx < arr.length - 1 ? ', ' : ''}
+                                </span>
+                            ))
+                            : '-'}
                     </p>
                 </div>
             </div>

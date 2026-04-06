@@ -1,0 +1,19 @@
+[
+  {
+    "id": 20,
+    "user_id": "adf1d37e-4c68-4496-9305-6b16f9f32a47",
+    "content": "사랑합니다",
+    "image_url": null,
+    "created_at": "2026-04-01T08:04:04.85599+00:00",
+    "images": [],
+    "category": "QT나눔",
+    "metadata": {},
+    "users": {
+      "name": "Rok",
+      "school": "더작은재단",
+      "user_group": "STAFF",
+      "profile_image_url": "https://erecqalsxoxrufggvmcc.supabase.co/storage/v1/object/public/notice-images/admin_adf1d37e-4c68-4496-9305-6b16f9f32a47_1768925331026.jpg"
+    },
+    "guest_post_likes": []
+  }
+]

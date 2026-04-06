@@ -1,39 +1,22 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Search, MapPin } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { CATEGORIES } from '../../utils/constants';
 
 const SearchInputs = ({ mode, filters, onFilterChange }) => {
     return (
-        <>
-            <div className="relative flex-1 md:min-w-[200px]">
-                <div className="absolute inset-y-0 left-0 pl-3 md:pl-4 flex items-center pointer-events-none text-gray-400">
-                    <Search size={16} className="md:w-5 md:h-5" />
-                </div>
-                <input
-                    type="text"
-                    placeholder="제목으로 검색..."
-                    value={filters.title}
-                    onChange={(e) => onFilterChange('title', e.target.value)}
-                    className="w-full pl-10 md:pl-12 pr-4 py-3 md:py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 transition shadow-sm text-sm"
-                />
+        <div className="relative shrink-0 flex-1 min-w-[120px] max-w-[220px]">
+            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
+                <Search size={14} />
             </div>
-            
-            {mode === CATEGORIES.PROGRAM && (
-                <div className="relative flex-1 md:min-w-[200px]">
-                    <div className="absolute inset-y-0 left-0 pl-3 md:pl-4 flex items-center pointer-events-none text-gray-400">
-                        <MapPin size={16} className="md:w-5 md:h-5" />
-                    </div>
-                    <input
-                        type="text"
-                        placeholder="장소로 검색... (예: 멀티룸)"
-                        value={filters.location}
-                        onChange={(e) => onFilterChange('location', e.target.value)}
-                        className="w-full pl-10 md:pl-12 pr-4 py-3 md:py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 transition shadow-sm text-sm"
-                    />
-                </div>
-            )}
-        </>
+            <input
+                type="text"
+                placeholder={mode === CATEGORIES.PROGRAM ? "제목/장소 겁색" : "제목 검색"}
+                value={filters.title}
+                onChange={(e) => onFilterChange('title', e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:border-blue-500 transition shadow-sm text-[11px] font-medium placeholder-gray-400"
+            />
+        </div>
     );
 };
 

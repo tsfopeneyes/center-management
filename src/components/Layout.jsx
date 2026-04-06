@@ -20,7 +20,7 @@ const Layout = () => {
                 </div>
             </header>
 
-            <main className="flex-1 max-w-4xl mx-auto w-full p-4">
+            <main className="flex-1 max-w-4xl mx-auto w-full">
                 <Outlet />
             </main>
 

@@ -25,8 +25,8 @@ function App() {
             <BrowserRouter>
                 <Routes>
                     <Route path="/" element={<Landing />} />
+                    <Route path="student" element={<StudentDashboard />} />
                     <Route element={<Layout />}>
-                        <Route path="student" element={<StudentDashboard />} />
                         {/* Legacy or unused routes can be kept or removed */}
                         <Route path="dashboard" element={<Dashboard />} />
                     </Route>

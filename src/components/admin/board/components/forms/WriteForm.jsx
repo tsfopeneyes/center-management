@@ -155,6 +155,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel }) => 
 
             const noticeData = {
                 title: formData.title,
+                short_description: formData.short_description || '',
                 content: finalContent,
                 category: mode,
                 is_sticky: formData.is_sticky,
@@ -188,6 +189,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel }) => 
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;
                 noticeData.is_leader_only = formData.is_leader_only;
                 noticeData.hyphen_reward = formData.hyphen_reward ? parseInt(formData.hyphen_reward, 10) : 0;
+                noticeData.is_review_required = formData.is_review_required || false;
 
                 if (!editNoticeId && !noticeData.program_status) {
                     noticeData.program_status = 'ACTIVE';
@@ -217,8 +219,10 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel }) => 
                 <BasicInfoSection 
                     mode={mode} 
                     title={formData.title} 
+                    shortDescription={formData.short_description}
                     content={formData.content} 
                     onTitleChange={(v) => updateField('title', v)} 
+                    onShortDescChange={(v) => updateField('short_description', v)}
                     onContentChange={(v) => updateField('content', v)} 
                 />
 

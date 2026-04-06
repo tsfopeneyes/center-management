@@ -13,11 +13,13 @@ const compressImageLocal = async (file) => {
 const StoreItems = () => {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [selectedCategory, setSelectedCategory] = useState('전체');
+    const categories = ['전체', '음료', '간식', '사용', '대관', '기타'];
     const [editingItem, setEditingItem] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
 
     const [formData, setFormData] = useState({
-        name: '', amount: 1, item_type: 'SPEND', requires_approval: false, image_url: '', is_active: true
+        name: '', amount: 1, item_type: 'SPEND', requires_approval: false, image_url: '', is_active: true, category: '기타'
     });
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -51,7 +53,8 @@ const StoreItems = () => {
             item_type: item.item_type,
             requires_approval: item.requires_approval,
             image_url: item.image_url || '',
-            is_active: item.is_active
+            is_active: item.is_active,
+            category: item.category || '기타'
         });
         setImagePreview(item.image_url);
         setImageFile(null);
@@ -60,7 +63,7 @@ const StoreItems = () => {
     const handleCreateNew = () => {
         setEditingItem('NEW');
         setFormData({
-            name: '', amount: 1, item_type: 'SPEND', requires_approval: false, image_url: '', is_active: true
+            name: '', amount: 1, item_type: 'SPEND', requires_approval: false, image_url: '', is_active: true, category: '기타'
         });
         setImagePreview(null);
         setImageFile(null);
@@ -108,7 +111,8 @@ const StoreItems = () => {
                 item_type: formData.item_type,
                 requires_approval: formData.requires_approval,
                 image_url: finalImageUrl,
-                is_active: formData.is_active
+                is_active: formData.is_active,
+                category: formData.category
             };
 
             if (editingItem === 'NEW') {
@@ -144,7 +148,7 @@ const StoreItems = () => {
         <div className="flex flex-col md:flex-row h-full">
             {/* List Section */}
             <div className={`flex-1 md:w-1/2 p-6 border-r border-gray-100 ${editingItem ? 'hidden md:block opacity-50 pointer-events-none' : 'block'}`}>
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-black text-gray-800">등록된 항목</h3>
                     <button 
                         onClick={handleCreateNew}
@@ -154,18 +158,38 @@ const StoreItems = () => {
                     </button>
                 </div>
 
+                <div className="flex gap-2 mb-6 overflow-x-auto [&::-webkit-scrollbar]:hidden pb-1 -mx-2 px-2 mask-edges">
+                    {categories.map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${
+                                selectedCategory === cat 
+                                ? 'bg-gray-800 text-white shadow-sm' 
+                                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                        >
+                            {cat}
+                        </button>
+                    ))}
+                </div>
+
                 {loading ? (
                     <div className="py-10 text-center text-gray-400 font-bold">항목을 불러오는 중...</div>
                 ) : (
                     <div className="space-y-3">
-                        {['SPEND', 'EARN'].map(groupType => {
-                            const groupItems = items.filter(i => i.item_type === groupType);
-                            if (groupItems.length === 0) return null;
+                        {(() => {
+                            const groupItems = items.filter(i => {
+                                if (i.item_type !== 'SPEND') return false;
+                                if (selectedCategory !== '전체') return i.category === selectedCategory;
+                                return true;
+                            });
+                            if (groupItems.length === 0) return <div className="text-gray-400 text-sm">등록된 항목이 없습니다.</div>;
 
                             return (
-                                <div key={groupType} className="mb-6">
-                                    <h4 className={`text-xs font-black uppercase tracking-widest mb-3 ${groupType === 'SPEND' ? 'text-orange-500' : 'text-blue-500'}`}>
-                                        {groupType === 'SPEND' ? '소모품 (스토어)' : '적립 수단 (미션)'}
+                                <div className="mb-6">
+                                    <h4 className="text-xs font-black uppercase tracking-widest mb-3 text-orange-500">
+                                        소모품 (스토어)
                                     </h4>
                                     <div className="space-y-2">
                                         {groupItems.map(item => (
@@ -189,8 +213,8 @@ const StoreItems = () => {
                                                             {item.name}
                                                             {item.requires_approval && <ShieldAlert size={12} className="text-red-500" title="승인 필요" />}
                                                         </h5>
-                                                        <p className={`font-black text-xs ${item.item_type === 'EARN' ? 'text-blue-600' : 'text-orange-600'}`}>
-                                                            {item.item_type === 'EARN' ? '+' : '-'}{item.amount} H
+                                                        <p className="font-black text-xs text-orange-600">
+                                                            -{item.amount} H
                                                         </p>
                                                     </div>
                                                 </div>
@@ -200,7 +224,7 @@ const StoreItems = () => {
                                     </div>
                                 </div>
                             );
-                        })}
+                        })()}
                     </div>
                 )}
             </div>
@@ -220,14 +244,17 @@ const StoreItems = () => {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">유형</label>
+                                <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">카테고리</label>
                                 <select 
-                                    value={formData.item_type}
-                                    onChange={e => setFormData({...formData, item_type: e.target.value})}
+                                    value={formData.category}
+                                    onChange={e => setFormData({...formData, category: e.target.value})}
                                     className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold"
                                 >
-                                    <option value="SPEND">소모품 (학생이 구매)</option>
-                                    <option value="EARN">적립수단 (학생이 획득)</option>
+                                    <option value="음료">음료</option>
+                                    <option value="간식">간식</option>
+                                    <option value="사용">사용 (쿠폰, 상품권 등)</option>
+                                    <option value="대관">대관 (공간 이용)</option>
+                                    <option value="기타">기타</option>
                                 </select>
                             </div>
 

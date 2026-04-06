@@ -20,25 +20,25 @@ const KioskInputSection = ({
         <AnimatePresence mode="wait">
             {status === 'IDLE' && (
                 <motion.div key="idle" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="w-full max-w-xl bg-white rounded-[2rem] sm:rounded-[3rem] shadow-2xl border border-gray-100 p-6 sm:p-10 flex flex-col items-center">
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-800 mb-4 sm:mb-8">휴대폰 뒤 4자리 입력</h2>
-                    <div className="flex gap-2 sm:gap-4 mb-6 sm:mb-10">
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-800 mb-2 sm:mb-6">휴대폰 뒤 4자리 입력</h2>
+                    <div className="flex gap-2 sm:gap-4 mb-4 sm:mb-8">
                         {[0, 1, 2, 3].map(i => (
-                            <div key={i} className={`w-12 h-16 sm:w-16 sm:h-24 rounded-2xl sm:rounded-3xl flex items-center justify-center text-3xl sm:text-5xl font-black transition-all ${pincode[i] ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-slate-50 text-slate-200 border-2 border-dashed border-slate-200'}`}>
+                            <div key={i} className={`w-[clamp(3rem,8vw,4.5rem)] h-[clamp(4rem,10vh,6.5rem)] rounded-2xl flex items-center justify-center text-[clamp(1.875rem,6vh,3rem)] font-black transition-all ${pincode[i] ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-slate-50 text-slate-200 border-2 border-dashed border-slate-200'}`}>
                                 {pincode[i] || ''}
-                                {!pincode[i] && i === pincode.length && <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1 h-8 sm:w-1.5 sm:h-12 bg-blue-300 rounded-full" />}
+                                {!pincode[i] && i === pincode.length && <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1 h-8 sm:h-[4vh] bg-blue-300 rounded-full" />}
                             </div>
                         ))}
                     </div>
-                    <div className="grid grid-cols-3 gap-3 sm:gap-5 w-full">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4 w-full">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                            <button key={num} onClick={() => handleNumberClick(num.toString())} className="h-16 sm:h-24 bg-slate-50 rounded-2xl sm:rounded-[2rem] text-2xl sm:text-4xl font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all shadow-sm border border-slate-100">{num}</button>
+                            <button key={num} onClick={() => handleNumberClick(num.toString())} className="h-[clamp(3.5rem,10vh,6rem)] bg-slate-50 rounded-2xl text-[clamp(1.5rem,4vh,2.5rem)] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all shadow-sm border border-slate-100">{num}</button>
                         ))}
-                        <button onClick={() => setStatus('SCANNING')} className="h-16 sm:h-24 bg-indigo-50 text-indigo-500 rounded-2xl sm:rounded-[2rem] flex flex-col items-center justify-center gap-1 hover:bg-indigo-100 active:scale-95 transition-all border border-indigo-100">
-                            <Scan size={20} className="sm:w-6 sm:h-6" />
-                            <span className="text-[8px] sm:text-[10px] font-black tracking-widest uppercase">QR SCAN</span>
+                        <button onClick={() => setStatus('SCANNING')} className="h-[clamp(3.5rem,10vh,6rem)] bg-indigo-50 text-indigo-500 rounded-2xl flex flex-col items-center justify-center gap-1 hover:bg-indigo-100 active:scale-95 transition-all border border-indigo-100">
+                            <Scan size={20} className="w-[clamp(1.25rem,4vh,1.5rem)] h-[clamp(1.25rem,4vh,1.5rem)]" />
+                            <span className="text-[clamp(8px,1vh,10px)] font-black tracking-widest uppercase">QR SCAN</span>
                         </button>
-                        <button onClick={() => handleNumberClick('0')} className="h-16 sm:h-24 bg-slate-50 rounded-2xl sm:rounded-[2rem] text-2xl sm:text-4xl font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all shadow-sm border border-slate-100">0</button>
-                        <button onClick={() => setPincode(prev => prev.slice(0, -1))} className="h-16 sm:h-24 bg-slate-50 text-slate-300 rounded-2xl sm:rounded-[2rem] flex items-center justify-center hover:bg-slate-100 active:scale-95 transition-all border border-slate-100"><Delete size={24} className="sm:w-8 sm:h-8" /></button>
+                        <button onClick={() => handleNumberClick('0')} className="h-[clamp(3.5rem,10vh,6rem)] bg-slate-50 rounded-2xl text-[clamp(1.5rem,4vh,2.5rem)] font-black text-slate-700 hover:bg-slate-100 active:scale-95 transition-all shadow-sm border border-slate-100">0</button>
+                        <button onClick={() => setPincode(prev => prev.slice(0, -1))} className="h-[clamp(3.5rem,10vh,6rem)] bg-slate-50 text-slate-300 rounded-2xl flex items-center justify-center hover:bg-slate-100 active:scale-95 transition-all border border-slate-100"><Delete size={24} className="w-[clamp(1.5rem,4vh,2rem)] h-[clamp(1.5rem,4vh,2rem)]" /></button>
                     </div>
                 </motion.div>
             )}

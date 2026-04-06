@@ -67,18 +67,44 @@ export const hyphenApi = {
         if (error) throw error;
     },
 
-    async grantContentVerificationReward(userId, category = '방명록 작성', sourceId = null) {
+    async grantContentVerificationReward(userId, category = 'QT나눔', sourceId = null) {
+        const descMatch = `[콘텐츠 인증] ${category}`;
+        
+        let startDate = new Date();
+        startDate.setHours(0,0,0,0);
+        
+        // 위클리 퀘스천은 '이번 주 월요일' 자정부터 기준
+        if (category === '위클리 퀘스천') {
+            const day = startDate.getDay();
+            const diff = startDate.getDate() - day + (day === 0 ? -6 : 1);
+            startDate = new Date(startDate.setDate(diff));
+            startDate.setHours(0,0,0,0);
+        }
+        
+        const { data: countData, error: countErr } = await supabase
+            .from('hyphen_transactions')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('transaction_type', 'EARN')
+            .eq('source_description', descMatch)
+            .gte('created_at', startDate.toISOString());
+            
+        if (!countErr && countData && countData.length >= 1) {
+            return { granted: false, reason: 'DAILY_LIMIT_REACHED' };
+        }
+        
         const { error } = await supabase
             .from('hyphen_transactions')
             .insert([{
                 user_id: userId,
                 amount: 1,
                 transaction_type: 'EARN',
-                source_description: `[콘텐츠 인증] ${category}`,
+                source_description: descMatch,
                 source_id: sourceId
             }]);
 
         if (error) throw error;
+        return { granted: true };
     },
 
     async revokeContentVerificationReward(userId, sourceId, category = null) {
@@ -102,7 +128,7 @@ export const hyphenApi = {
     },
 
     // ---- Admin Store & Approval Logic ----
-    async createOrder(userId, itemId, amount, requiresApproval, itemName) {
+    async createOrder(userId, itemId, amount, requiresApproval, itemName, itemType = 'SPEND') {
         // 1. Insert into store_orders
         const { error: orderError } = await supabase
             .from('store_orders')
@@ -115,18 +141,19 @@ export const hyphenApi = {
 
         if (orderError) throw orderError;
 
-        // 2. If it DOES NOT require approval, immediately deduct from balance
+        // 2. If it DOES NOT require approval, immediately update balance
         if (!requiresApproval) {
-            const { error: deductError } = await supabase
+            const isEarn = itemType === 'EARN';
+            const { error: txError } = await supabase
                 .from('hyphen_transactions')
                 .insert([{
                     user_id: userId,
-                    amount: -Math.abs(amount),
-                    transaction_type: 'SPEND',
-                    source_description: `[스토어 교환] ${itemName}`
+                    amount: isEarn ? Math.abs(amount) : -Math.abs(amount),
+                    transaction_type: isEarn ? 'EARN' : 'SPEND',
+                    source_description: isEarn ? `[스토어 적립] ${itemName}` : `[스토어 교환] ${itemName}`
                 }]);
 
-            if (deductError) throw deductError;
+            if (txError) throw txError;
         }
     },
 
@@ -145,7 +172,7 @@ export const hyphenApi = {
         return data;
     },
 
-    async processOrder(orderId, userId, amount, isApproved, adminId, itemName) {
+    async processOrder(orderId, userId, amount, isApproved, adminId, itemName, itemType = 'SPEND') {
         const newStatus = isApproved ? 'APPROVED' : 'REJECTED';
         
         // 1. Update order status
@@ -156,19 +183,20 @@ export const hyphenApi = {
 
         if (updateErr) throw updateErr;
 
-        // 2. If approved, deduct points. (If pending, points weren't deducted yet, or maybe they were locked? Let's deduct on APPROVED).
+        // 2. If approved, add or deduct points according to item_type
         if (isApproved) {
-            const { error: deductErr } = await supabase
+            const isEarn = itemType === 'EARN';
+            const { error: txErr } = await supabase
                 .from('hyphen_transactions')
                 .insert([{
                     user_id: userId,
-                    amount: -Math.abs(amount),
-                    transaction_type: 'SPEND',
-                    source_description: `[스토어 교환] ${itemName}`,
+                    amount: isEarn ? Math.abs(amount) : -Math.abs(amount),
+                    transaction_type: isEarn ? 'EARN' : 'SPEND',
+                    source_description: isEarn ? `[스토어 적립] ${itemName}` : `[스토어 교환] ${itemName}`,
                     admin_id: adminId
                 }]);
             
-            if (deductErr) throw deductErr;
+            if (txErr) throw txErr;
         }
     },
 

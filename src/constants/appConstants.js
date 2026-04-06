@@ -51,7 +51,8 @@ export const TAB_NAMES = {
     GUESTBOOK: 'guestbook',
     CALENDAR: 'calendar',
     COMMUNITY: 'community',
-    HYPHEN: 'hyphen'
+    HYPHEN: 'hyphen',
+    AZIT: 'azit'
 };
 
 export const COMMUNITY_CATEGORIES = [

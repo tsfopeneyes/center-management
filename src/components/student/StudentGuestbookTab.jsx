@@ -10,11 +10,17 @@ const StudentGuestbookTab = ({
     setShowGuestWrite
 }) => {
     return (
-        <div className="p-2.5 pt-8 pb-32 relative min-h-screen">
-            <h1 className="text-3xl font-black text-gray-800 mb-2">방명록 👋</h1>
-            <p className="text-gray-500 text-sm mb-6">자유롭게 글과 사진을 남겨주세요</p>
+        <div className="animate-fade-in pb-32 relative min-h-screen">
+            <div className="px-5 pt-5 pb-4 sticky top-0 bg-gray-50/95 backdrop-blur-xl z-20 border-b border-gray-100/50 mb-6 shadow-sm">
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-1.5">
+                        방명록 <span className="text-2xl">👋</span>
+                    </h2>
+                    <p className="text-gray-500 text-xs font-medium">자유롭게 글과 사진을 남겨주세요</p>
+                </div>
+            </div>
 
-            <div className="space-y-6">
+            <div className="px-5 space-y-6">
                 {guestPosts.map(post => (
                     <div key={post.id} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100" onClick={() => openGuestPostDetail(post)}>
                         <div className="flex items-center gap-3 mb-3">

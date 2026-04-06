@@ -38,6 +38,10 @@ import { userApi } from '../api/userApi';
 
 import { parseISO, isWithinInterval, startOfDay, eachDayOfInterval, isSameDay } from 'date-fns';
 import { getBadgeProgress } from '../components/student/BadgeComponents';
+import { useDashboardNotifications } from './dashboard/useDashboardNotifications';
+import { useRealtimePresence } from './dashboard/useRealtimePresence';
+import { useDashboardChallenges } from './dashboard/useDashboardChallenges';
+import { useDashboardCalendar } from './dashboard/useDashboardCalendar';
 
 export const useStudentDashboard = () => {
     const navigate = useNavigate();
@@ -45,17 +49,15 @@ export const useStudentDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [studentRegion, setStudentRegion] = useState(null);
 
-    // Real-time Status State
-    const [locationGroups, setLocationGroups] = useState([]);
-    const [locations, setLocations] = useState([]);
-    const [allUsers, setAllUsers] = useState([]);
-    const [activeUserCountByGroup, setActiveUserCountByGroup] = useState({});
+    // Real-time Status State (Hook)
+    const { locationGroups, locations, allUsers, activeUserCountByGroup, fetchRealtimeStatusData } = useRealtimePresence();
 
     // Hooks
     const { user, setUser, totalHours, visitCount, programCount, fetchStats, updateProfile, loading: profileLoadingState } = useProfile(null);
-    const { notices, responses, fetchNotices, handleResponse } = useNotices(user?.id);
+    const { notices, responses, responseDetails, fetchNotices, handleResponse } = useNotices(user?.id);
     const { messages, unreadCount, markAsRead } = useMessaging(user?.id);
     const { guestPosts, uploading: uploadingGuest, handleCreatePost, handleUpdatePost, fetchComments: fetchGuestCommentsData, handlePostComment: handleGuestCommentSubmit, handleDeletePost: handleDeleteGuestPost, handleDeleteComment: handleDeleteGuestComment } = useGuestbook(user?.id);
+    const { notifications, unreadNotificationCount, showNotificationsModal, setShowNotificationsModal, fetchNotifications, markNotificationsAsRead } = useDashboardNotifications(user);
 
     // UI-Specific State (Not in hooks)
     const [selectedNotice, setSelectedNotice] = useState(null);
@@ -85,13 +87,10 @@ export const useStudentDashboard = () => {
     const [showProgramHistory, setShowProgramHistory] = useState(false);
     const [attendedProgramsList, setAttendedProgramsList] = useState([]);
     const [showEnlargedQr, setShowEnlargedQr] = useState(false);
-    const [challengeCategories, setChallengeCategories] = useState([]);
-    const [dynamicChallenges, setDynamicChallenges] = useState([]);
-    const [challengesLoading, setChallengesLoading] = useState(false);
+    const { challengeCategories, dynamicChallenges, challengesLoading, fetchChallengeData } = useDashboardChallenges();
     const [specialStats, setSpecialStats] = useState({ isBirthdayVisited: false, uniqueLocationsCount: 0, maxConsecutiveDays: 0 });
     const [selectedBadge, setSelectedBadge] = useState(null);
-    const [adminSchedules, setAdminSchedules] = useState([]);
-    const [calendarCategories, setCalendarCategories] = useState([]);
+    const { adminSchedules, calendarCategories, fetchSchedules } = useDashboardCalendar();
     const [dashboardConfig, setDashboardConfig] = useState([
         { id: 'stats', label: '활동 통계', isVisible: true, count: 3 },
         { id: 'programs', label: '프로그램 신청', isVisible: true, count: 10 },
@@ -128,64 +127,7 @@ export const useStudentDashboard = () => {
         }
     };
 
-    const [notifications, setNotifications] = useState([]);
-    const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
-    const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-
-    const fetchNotifications = async (currentUser) => {
-        if (!currentUser) return;
-        try {
-            const groups = ['전체', currentUser.user_group, `USER_${currentUser.id}`];
-            if (currentUser.role === 'admin' || currentUser.user_group === 'STAFF') groups.push('STAFF');
-
-            const { data: notifs, error: notifErr } = await supabase
-                .from('app_notifications')
-                .select('*')
-                .in('target_group', groups)
-                .order('created_at', { ascending: false });
-
-            if (notifErr) throw notifErr;
-
-            const { data: reads, error: readErr } = await supabase
-                .from('user_notification_reads')
-                .select('notification_id')
-                .eq('user_id', currentUser.id);
-
-            if (readErr) throw readErr;
-
-            const readNotifIds = new Set(reads.map(r => r.notification_id));
-            const unreadCount = (notifs || []).filter(n => !readNotifIds.has(n.id)).length;
-
-            setNotifications(notifs || []);
-            setUnreadNotificationCount(unreadCount);
-        } catch (err) {
-            console.error('Error fetching notifications:', err);
-        }
-    };
-
-    const markNotificationsAsRead = async () => {
-        if (!user || unreadNotificationCount === 0) return;
-        try {
-            const { data: reads } = await supabase
-                .from('user_notification_reads')
-                .select('notification_id')
-                .eq('user_id', user.id);
-            const readNotifIds = new Set((reads || []).map(r => r.notification_id));
-
-            const unreadNotifs = notifications.filter(n => !readNotifIds.has(n.id));
-            if (unreadNotifs.length === 0) return;
-
-            const inserts = unreadNotifs.map(n => ({
-                user_id: user.id,
-                notification_id: n.id
-            }));
-
-            await supabase.from('user_notification_reads').insert(inserts);
-            setUnreadNotificationCount(0);
-        } catch (err) {
-            console.error('Error marking notifications read:', err);
-        }
-    };
+    // Notifications managed by useDashboardNotifications hook
 
     const handleShare = async () => {
         if (navigator.share) {
@@ -260,89 +202,9 @@ export const useStudentDashboard = () => {
 
         setLoading(false);
 
-        // Realtime Subscription for Logs (Status Update)
-        let debounceTimer;
-        const debouncedFetchStatus = () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                fetchRealtimeStatusData();
-            }, 1000);
-        };
+    }, [navigate, fetchStats, fetchChallengeData, fetchNotifications, fetchSchedules]); // Removed dependencies that cause loops
 
-        const subscription = supabase
-            .channel('public:logs_student_dashboard')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, debouncedFetchStatus)
-            .subscribe();
-
-        return () => {
-            clearTimeout(debounceTimer);
-            supabase.removeChannel(subscription);
-        };
-    }, [navigate, fetchStats]); // Removed user/setUser from deps to avoid identity loops
-
-    const fetchRealtimeStatusData = async () => {
-        try {
-            const [usersRes, locRes, groupRes, logsRes] = await Promise.all([
-                supabase.from('users').select('id, name, user_group, role'),
-                supabase.from('locations').select('id, group_id'),
-                supabase.from('location_groups').select('id, name'),
-                supabase.from('logs').select('user_id, location_id, type').order('created_at', { ascending: false }).limit(3000)
-            ]);
-
-            const fetchedUsers = usersRes.data || [];
-            const fetchedLocations = locRes.data || [];
-            const fetchedGroups = groupRes.data || [];
-            const fetchedLogs = logsRes.data ? [...logsRes.data].reverse() : [];
-
-            setAllUsers(fetchedUsers);
-            setLocations(fetchedLocations);
-            setLocationGroups(fetchedGroups);
-
-            const adminIdsSet = new Set(fetchedUsers.filter(u =>
-                u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
-            ).map(u => u.id));
-
-            const userCurrentLocation = {};
-            fetchedLogs.forEach(log => {
-                if (log.type === 'CHECKIN' || log.type === 'MOVE') userCurrentLocation[log.user_id] = log.location_id;
-                else if (log.type === 'CHECKOUT') userCurrentLocation[log.user_id] = null;
-            });
-
-            const groupCounts = {};
-            fetchedGroups.forEach(g => { groupCounts[g.id] = 0; });
-            groupCounts['unassigned'] = 0; // fallback
-
-            Object.entries(userCurrentLocation).forEach(([uid, locId]) => {
-                if (locId && !adminIdsSet.has(uid)) {
-                    const loc = fetchedLocations.find(l => l.id === locId);
-                    if (loc && loc.group_id) {
-                        if (groupCounts[loc.group_id] !== undefined) {
-                            groupCounts[loc.group_id]++;
-                        }
-                    } else if (loc) {
-                        groupCounts['unassigned']++;
-                    }
-                }
-            });
-
-            setActiveUserCountByGroup(groupCounts);
-        } catch (err) {
-            console.error('Error fetching realtime status:', err);
-        }
-    };
-
-    const fetchSchedules = async () => {
-        try {
-            const [catRes, schRes] = await Promise.all([
-                supabase.from('calendar_categories').select('*'),
-                supabase.from('admin_schedules').select('*')
-            ]);
-            if (catRes.data) setCalendarCategories(catRes.data);
-            if (schRes.data) setAdminSchedules(schRes.data);
-        } catch (err) {
-            console.error('Error fetching schedules:', err);
-        }
-    };
+    // Handled by useRealtimePresence and useDashboardCalendar
 
     useEffect(() => {
         const fetchDashboardConfig = async () => {
@@ -365,21 +227,7 @@ export const useStudentDashboard = () => {
         fetchDashboardConfig();
     }, []);
 
-    const fetchChallengeData = async () => {
-        setChallengesLoading(true);
-        try {
-            const [cats, chs] = await Promise.all([
-                challengesApi.fetchCategories(),
-                challengesApi.fetchChallenges()
-            ]);
-            setChallengeCategories(cats);
-            setDynamicChallenges(chs);
-        } catch (error) {
-            console.error('Challenge fetch error:', error);
-        } finally {
-            setChallengesLoading(false);
-        }
-    };
+    // Handled by useDashboardChallenges
 
     // Deep-linking: Open notice from URL query param
     useEffect(() => {
@@ -518,20 +366,19 @@ export const useStudentDashboard = () => {
         n.category === CATEGORIES.NOTICE
     );
 
-    const filteredPrograms = notices.filter(n => {
+    const allPrograms = notices.filter(n => {
         if (n.category !== CATEGORIES.PROGRAM) return false;
-        if (n.program_date && new Date(n.program_date) < startOfDay(new Date())) return false;
-
-        // Region matching logic
         const targets = n.target_regions || [];
-        if (targets.length === 0 || targets.length === 2) return true; // Empty array or both Gangdong and Gangseo selected -> Visible to all
-
-        // If targets is length 1 and we don't know the student's region yet, maybe hide or show? Hide to be safe, or just show. 
-        // For admin/staff, studentRegion might be null or they can see all. let's let admins see all.
+        if (targets.length === 0 || targets.length === 2) return true;
         if (user?.role === 'admin' || user?.user_group === '관리자') return true;
-
         if (!studentRegion) return false;
         return targets.includes(studentRegion);
+    });
+
+    const filteredPrograms = allPrograms.filter(n => {
+        if (n.program_status === 'CANCELLED' || n.program_status === 'COMPLETED') return false;
+        if (n.program_date && new Date(n.program_date) < startOfDay(new Date())) return false;
+        return true;
     });
 
     const homeNotices = filteredNotices.slice(0, 3);
@@ -631,8 +478,8 @@ export const useStudentDashboard = () => {
         markNotificationsAsRead,
         
         // Mapped Data For Tabs & Dashboard
-        notices, responses, handleResponse,
-        filteredNotices, filteredPrograms,
+        notices, responses, responseDetails, handleResponse,
+        filteredNotices, filteredPrograms, allPrograms,
         homeNotices, homePrograms,
         studentRegion, locationGroups, locations, allUsers, activeUserCountByGroup,
         totalHours, visitCount, programCount,
@@ -644,6 +491,6 @@ export const useStudentDashboard = () => {
         
         // Guestbook Hooks
         guestPosts, uploadingGuest, handleCreatePost, handleUpdatePost, handleDeleteGuestPost,
-        fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestPost, handleDeleteGuestComment
+        fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestComment
     };
 };

@@ -4,7 +4,7 @@ import { X, RefreshCw, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import PurchaseReceiptModal from './PurchaseReceiptModal';
 
-const HyphenHistoryModal = ({ user, onClose }) => {
+const HyphenHistoryModal = ({ user, onClose, storeItems = [] }) => {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [receiptData, setReceiptData] = useState(null);
@@ -84,7 +84,14 @@ const HyphenHistoryModal = ({ user, onClose }) => {
                                     </div>
                                     {item.amount < 0 && item.source_description.includes('[스토어 교환]') && (
                                         <button 
-                                            onClick={() => setReceiptData(item)}
+                                            onClick={() => {
+                                                const itemName = item.source_description.replace('[스토어 교환] ', '').trim();
+                                                const matchedItem = storeItems.find(s => s.name === itemName);
+                                                setReceiptData({
+                                                    ...item,
+                                                    image_url: matchedItem ? matchedItem.image_url : null
+                                                });
+                                            }}
                                             className="mt-2 w-full py-2.5 bg-indigo-50 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-100 transition-colors"
                                         >
                                             교환권 확인하기

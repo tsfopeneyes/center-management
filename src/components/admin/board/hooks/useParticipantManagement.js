@@ -24,7 +24,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             // Fetch normal RSVPs
             const { data, error } = await supabase
                 .from('notice_responses')
-                .select('status, is_attended, users(id, name, school, phone_back4)')
+                .select('status, is_attended, users(id, name, school, phone_back4, is_leader)')
                 .eq('notice_id', notice.id);
                 
             if (error) throw error;
@@ -68,7 +68,9 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
                 const adminId = admin?.id || 'admin';
                 if (!currentAttended) {
-                    await hyphenApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                    if (!selectedNotice.is_review_required) {
+                        await hyphenApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                    }
                 } else {
                     await hyphenApi.revokeProgramReward(userId, selectedNotice.title);
                 }
@@ -110,7 +112,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             await noticesApi.markAllAttended(selectedNotice.id);
 
             // Hyphen Reward Logic (Bulk)
-            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
                 const adminId = admin?.id || 'admin';
                 const newlyAttendedUsers = participantList.JOIN.filter(u => !u.is_attended);
@@ -164,7 +166,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
 
             // Hyphen Reward Logic (Walk-in)
-            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
                 const adminId = admin?.id || 'admin';
                 await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
@@ -199,7 +201,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
                 await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
                 
-                if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+                if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
                     const admin = JSON.parse(localStorage.getItem('admin_user'));
                     const adminId = admin?.id || 'admin';
                     try {
@@ -247,7 +249,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     type, 
                     user_id,
                     location_id,
-                    users (id, name, school, phone_back4, profile_image_url)
+                    users (id, name, school, phone_back4, profile_image_url, is_leader)
                 `)
                 .gte('created_at', todayStartsStr)
                 .order('created_at', { ascending: true });

@@ -11,18 +11,25 @@ const StudentCalendarTab = ({
     openNoticeDetail
 }) => {
     return (
-        <div className="p-5 pt-6 pb-32 bg-white rounded-t-[30px] shadow-sm mt-2 min-h-[calc(100vh-80px)]">
-            <h1 className="text-3xl font-black text-gray-800 mb-2">캘린더 📅</h1>
-            <p className="text-gray-500 text-[15px] mb-6 font-medium">센터의 전체 일정을 한눈에 확인하세요</p>
-
-            <div className="mb-6 p-4 rounded-2xl bg-red-50/80 border border-red-100 flex items-center gap-3">
-                <Info size={20} className="text-red-500 shrink-0" />
-                <p className="text-sm font-bold text-red-700">
-                    매주 <span className="font-black underline decoration-red-300 decoration-2 underline-offset-2">화, 토, 일</span>은 센터 정기 휴관일입니다.
-                </p>
+        <div className="animate-fade-in pb-32 relative min-h-screen">
+            <div className="px-5 pt-5 pb-4 sticky top-0 bg-gray-50/95 backdrop-blur-xl z-20 border-b border-gray-100/50 mb-6 shadow-sm">
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-1.5">
+                        캘린더 <span className="text-2xl">📅</span>
+                    </h2>
+                    <p className="text-gray-500 text-xs font-medium">센터의 전체 일정을 한눈에 확인하세요</p>
+                </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="px-5">
+                <div className="mb-6 p-4 rounded-2xl bg-red-50/80 border border-red-100 flex items-center gap-3">
+                    <Info size={20} className="text-red-500 shrink-0" />
+                    <p className="text-sm font-bold text-red-700">
+                        매주 <span className="font-black underline decoration-red-300 decoration-2 underline-offset-2">화, 토, 일</span>은 센터 정기 휴관일입니다.
+                    </p>
+                </div>
+
+            <div className="space-y-2.5">
                 {/* Group schedules by date or simple list for now, 
                 but a list of upcoming events is often better for mobile */}
                 {(() => {
@@ -77,7 +84,7 @@ const StudentCalendarTab = ({
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.05 }}
-                            className="p-4 bg-white rounded-[1.5rem] border border-gray-100 shadow-sm flex gap-4 items-center group active:scale-[0.98] transition-all"
+                            className="px-4 py-3 bg-white rounded-[1.25rem] border border-gray-100 shadow-sm flex gap-3 items-center group active:scale-[0.98] transition-all"
                             onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
                         >
                             <div className="flex flex-col items-center justify-center min-w-[70px] py-1 border-r border-gray-50 pr-4">
@@ -101,6 +108,7 @@ const StudentCalendarTab = ({
                         </motion.div>
                     ));
                 })()}
+            </div>
             </div>
         </div>
     );

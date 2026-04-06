@@ -54,8 +54,10 @@ const PollResultsSection = ({
                                 <div className="mt-2 pt-2 border-t border-gray-50">
                                     <div className="flex flex-wrap gap-1">
                                         {respondents.map((user, i) => (
-                                            <span key={i} className="text-[10px] bg-gray-50 text-gray-500 px-2 py-1 rounded-md">
-                                                {user.name} ({user.school || '소속없음'})
+                                            <span key={i} className="text-[10px] bg-gray-50 text-gray-500 px-2 py-1 rounded-md flex items-center gap-1 w-fit">
+                                                {user.name}
+                                                {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                                <span>({user.school || '소속없음'})</span>
                                             </span>
                                         ))}
                                     </div>

@@ -19,13 +19,21 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
     const formatDate = (dateString) => {
         if (!dateString) return '일정 미정';
         const date = new Date(dateString);
-        return date.toLocaleDateString('ko-KR', {
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-        });
+        
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        const dayOfWeek = days[date.getDay()];
+        
+        let hours = date.getHours();
+        const minutes = date.getMinutes();
+        const ampm = hours >= 12 ? '오후' : '오전';
+        
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        
+        const minuteStr = minutes > 0 ? ` ${minutes}분` : '';
+        return `${month}/${day}(${dayOfWeek}) ${ampm} ${hours}시${minuteStr}`;
     };
 
     const isPast = program.program_date && new Date(program.program_date) < startOfDay(new Date());
@@ -72,9 +80,15 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
 
             {/* Content Section */}
             <div className={compact ? "p-4 flex flex-col flex-1" : "p-6 pb-4"}>
-                <h3 className={`font-extrabold text-gray-900 line-clamp-2 ${compact ? 'text-sm leading-snug mb-3' : 'text-xl leading-tight mb-4'}`}>
+                <h3 className={`font-extrabold text-gray-900 line-clamp-2 ${compact ? 'text-sm leading-snug ' + (program.short_description ? 'mb-1' : 'mb-3') : 'text-xl leading-tight ' + (program.short_description ? 'mb-2' : 'mb-4')}`}>
                     {program.title}
                 </h3>
+                
+                {program.short_description && (
+                    <p className={`text-gray-500 font-bold break-keep whitespace-normal ${compact ? 'text-[11px] mb-3 leading-snug' : 'text-[15px] mb-6 leading-relaxed'}`}>
+                        {program.short_description}
+                    </p>
+                )}
 
                 <div className={compact ? "space-y-1.5 mb-3 flex-1" : "space-y-3 mb-6"}>
                     <div className={`flex items-center text-gray-400 ${compact ? 'gap-2' : 'gap-3'}`}>
@@ -95,19 +109,19 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                     )}
                     <div className={`flex items-center text-gray-400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
                         <Users size={compact ? 14 : 18} className="shrink-0 text-gray-300" />
-                        <span className={`font-bold text-gray-600 ${compact ? 'text-[11px]' : 'text-sm'}`}>
-                            모집: {program.max_capacity > 0 ? `${program.max_capacity}명` : '제한 없음'}
-                        </span>
+                        <div className={`font-bold flex items-center gap-[3px] ${compact ? 'text-[11px]' : 'text-sm'}`}>
+                            <span className="text-gray-600">모집: </span>
+                            <span className="text-blue-500 font-extrabold tracking-tight">
+                                {program.current_applicants || 0}
+                            </span>
+                            <span className="text-gray-400 font-semibold tracking-tight">
+                                {program.max_capacity > 0 ? `/ ${program.max_capacity}명` : '명 (제한 없음)'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                <div className={compact ? "flex items-end justify-end mb-3 mt-auto" : "mb-6 text-right"}>
-                    <span className={compact ? "text-[9px] font-bold text-gray-400 border-t border-gray-100 pt-2 w-full text-right" : "text-[11px] font-bold text-gray-500"}>
-                        신청인원: <span className="text-blue-600">{program.current_applicants || 0}</span>명
-                    </span>
-                </div>
-
-                <button className={`w-full font-black transition-colors active:scale-95 shadow-sm border border-transparent ${compact ? 'py-2.5 rounded-xl text-xs' : 'py-4 rounded-full text-base shadow-lg'} ${program.responseStatus === 'JOIN' ? 'bg-gray-50 border-gray-100 text-gray-400' : (program.responseStatus === 'WAITLIST' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-600 text-white shadow-blue-200/50 hover:bg-blue-700')}`}>
+                <button className={`w-full font-black transition-colors active:scale-95 shadow-sm border border-transparent ${compact ? 'py-2.5 rounded-xl text-xs mt-auto' : 'py-4 rounded-full text-base shadow-lg mt-auto'} ${program.responseStatus === 'JOIN' ? 'bg-gray-50 border-gray-100 text-gray-400' : (program.responseStatus === 'WAITLIST' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-600 text-white shadow-blue-200/50 hover:bg-blue-700')}`}>
                     {program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '신청하기')}
                 </button>
             </div>

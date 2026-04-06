@@ -8,10 +8,14 @@ const StudentNoticesTab = ({
     openNoticeDetail
 }) => {
     return (
-        <div className="p-2.5 pt-8 pb-32">
-            <h1 className="text-3xl font-black text-gray-800 mb-6">공지사항 📢</h1>
+        <div className="animate-fade-in pb-32">
+            <div className="px-5 pt-5 pb-4 sticky top-0 bg-gray-50/95 backdrop-blur-xl z-20 border-b border-gray-100/50 mb-6 shadow-sm">
+                <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-1.5">
+                    공지사항 <span className="text-2xl">📢</span>
+                </h2>
+            </div>
 
-            <div className="space-y-4">
+            <div className="px-5 space-y-4">
                 {filteredNotices.length === 0 ? (
                     <div className="text-center py-20 text-gray-400">등록된 공지사항이 없습니다.</div>
                 ) : (

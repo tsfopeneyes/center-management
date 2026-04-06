@@ -6,6 +6,7 @@ import { RESPONSE_STATUS } from '../constants/appConstants';
 export const useNotices = (userId) => {
     const [notices, setNotices] = useState([]);
     const [responses, setResponses] = useState({});
+    const [responseDetails, setResponseDetails] = useState({});
     const [loading, setLoading] = useState(false);
 
     const fetchNotices = useCallback(async () => {
@@ -25,8 +26,13 @@ export const useNotices = (userId) => {
             if (userId) {
                 const resData = await noticesApi.fetchResponses(userId);
                 const resMap = {};
-                resData?.forEach(r => resMap[r.notice_id] = r.status);
+                const resDetailsMap = {};
+                resData?.forEach(r => {
+                    resMap[r.notice_id] = r.status;
+                    resDetailsMap[r.notice_id] = r;
+                });
                 setResponses(resMap);
+                setResponseDetails(resDetailsMap);
             }
         } catch (err) {
             console.error('Error fetching notices:', err);
@@ -135,6 +141,7 @@ export const useNotices = (userId) => {
     return {
         notices,
         responses,
+        responseDetails,
         loading,
         fetchNotices,
         handleResponse

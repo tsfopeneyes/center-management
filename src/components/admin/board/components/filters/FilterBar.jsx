@@ -15,26 +15,24 @@ const FilterBar = ({
     resultCount 
 }) => {
     return (
-        <div className="bg-white rounded-[2rem] p-4 md:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col gap-4 animate-fade-in-up">
-            <div className="flex flex-col xl:flex-row gap-4">
-                <div className="flex-1 flex flex-col sm:flex-row gap-3">
+        <div className="px-4 py-3 md:px-6 md:py-4 lg:px-8 lg:py-5 flex flex-col gap-3 animate-fade-in-up">
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-row items-center gap-2 overflow-x-auto no-scrollbar pb-1 w-full justify-start">
                     <SearchInputs 
                         mode={mode} 
                         filters={filters} 
                         onFilterChange={onFilterChange} 
                     />
-                </div>
-                
-                <div className="flex flex-col sm:flex-row items-center gap-3">
+                    
                     {mode === CATEGORIES.PROGRAM && (
                         <select 
                             value={filters.programType} 
                             onChange={(e) => onFilterChange('programType', e.target.value)}
-                            className="w-full sm:w-auto p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-blue-500 transition text-sm font-bold text-gray-700"
+                            className="h-[30px] px-2 bg-gray-50 border border-gray-100 rounded-lg outline-none focus:bg-white focus:border-blue-500 transition text-[11px] font-bold text-gray-700 shrink-0 cursor-pointer"
                         >
-                            <option value={PROGRAM_TYPES.ALL}>전체 프로그램</option>
-                            <option value={PROGRAM_TYPES.CENTER}>센터 프로그램 (수/목)</option>
-                            <option value={PROGRAM_TYPES.SCHOOL_CHURCH}>스처 프로그램 (금)</option>
+                            <option value={PROGRAM_TYPES.ALL}>전체</option>
+                            <option value={PROGRAM_TYPES.CENTER}>센터</option>
+                            <option value={PROGRAM_TYPES.SCHOOL_CHURCH}>스처</option>
                         </select>
                     )}
                     
@@ -50,12 +48,6 @@ const FilterBar = ({
                         onViewModeChange={onViewModeChange}
                     />
                 </div>
-            </div>
-
-            <div className="flex justify-between items-center px-2 py-1 bg-gray-50 rounded-xl border border-gray-100">
-                <p className="text-[11px] md:text-xs font-bold text-gray-400">
-                    총 <span className="text-blue-500 font-black px-1.5 py-0.5 bg-blue-100 rounded-md mx-1">{resultCount}</span>개의 {mode === CATEGORIES.PROGRAM ? '일정' : '게시글'}
-                </p>
             </div>
         </div>
     );

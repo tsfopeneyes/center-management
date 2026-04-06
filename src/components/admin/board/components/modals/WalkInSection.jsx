@@ -93,7 +93,10 @@ const WalkInSection = ({
                                             )}
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className={`font-bold text-sm ${isJoined ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{user.name}</span>
+                                            <span className={`font-bold text-sm flex items-center gap-1 ${isJoined ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                                                {user.name}
+                                                {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                            </span>
                                             <span className="text-[10px] text-gray-500">{user.school} | {user.phone_back4}</span>
                                         </div>
                                     </div>
@@ -167,8 +170,9 @@ const WalkInSection = ({
                                                 )}
                                             </div>
                                             <div className="flex flex-col flex-1 min-w-0">
-                                                <span className={`font-bold text-xs truncate ${isJoined ? 'text-gray-500 line-through' : isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
+                                                <span className={`font-bold text-xs truncate flex items-center gap-1 ${isJoined ? 'text-gray-500 line-through' : isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
                                                     {user.name}
+                                                    {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                                 </span>
                                                 <span className="text-[9px] text-gray-500 truncate">{user.school}</span>
                                             </div>

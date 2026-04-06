@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Share2, Bell, ShieldCheck, Settings, LogOut, AlertCircle, ChevronRight, User, Image as ImageIcon, Pin, QrCode } from 'lucide-react';
+import { Share2, Bell, ShieldCheck, Settings, LogOut, AlertCircle, ChevronRight, User, Image as ImageIcon, Pin, QrCode, Home } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import UserAvatar from '../common/UserAvatar';
 import ProgramCard from './ProgramCard';
 import { startOfDay } from 'date-fns';
@@ -34,6 +35,18 @@ const StudentHomeTab = ({
 }) => {
     return (
         <>
+            <div className="bg-white p-4 sticky top-0 z-[100] shadow-sm">
+                <div className="max-w-4xl mx-auto flex justify-between items-center">
+                    <Link
+                        to="/"
+                        className="text-xl font-bold text-blue-600 flex items-center gap-2"
+                    >
+                        <Home size={24} />
+                        SCI CENTER
+                    </Link>
+                </div>
+            </div>
+
             {/* Compact Integrated Header */}
             {/* [COMPACT EFFICIENCY UI] - 여백을 최소화하여 데이터 밀도를 높임 */}
             <header className="bg-primary-gradient p-5 pt-7 pb-5 text-white rounded-b-[2.5rem] shadow-2xl relative overflow-hidden mb-0 gpu-accelerated">
