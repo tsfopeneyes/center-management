@@ -43,7 +43,7 @@ const KioskWelcomeSection = ({ setShowSignupForm, setShowGuestForm }) => {
             {/* App Install Section */}
             <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8 bg-white/40 backdrop-blur-md p-6 sm:p-8 rounded-[3rem] border border-white/60 shadow-lg mb-20 lg:mb-0">
                 <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 shrink-0">
-                    <QRCodeSVG value="https://centerpass.netlify.app/" size={96} level="H" />
+                    <QRCodeSVG value="https://app.schoolchurchimpact.org" size={96} level="H" />
                 </div>
                 <div className="text-center sm:text-left">
                     <h3 className="text-lg sm:text-xl font-black text-slate-800 mb-1 flex items-center justify-center sm:justify-start gap-2">

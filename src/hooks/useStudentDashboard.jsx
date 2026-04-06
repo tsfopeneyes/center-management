@@ -135,7 +135,7 @@ export const useStudentDashboard = () => {
                 await navigator.share({
                     title: 'SCI CENTER 학생앱',
                     text: '학생앱에 접속해보세요!',
-                    url: 'https://centerpass.netlify.app/',
+                    url: 'https://app.schoolchurchimpact.org',
                 });
             } catch (err) {
                 console.error('Share failed:', err);
