@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Trash2, X, Save, School, ShieldAlert, KeyRound } from 'lucide-react';
+import { RefreshCw, Trash2, X, Save, School, ShieldAlert, KeyRound, Shield } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
 import UserAvatar from '../../../common/UserAvatar';
 
@@ -208,6 +208,14 @@ const UserEditModal = ({
                                 className="w-full py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-bold hover:bg-amber-100 transition flex items-center justify-center gap-2 shadow-sm mb-3"
                             >
                                 <RefreshCw size={18} /> 정식 계정으로 데이터 병합
+                            </button>
+                        )}
+                        {editingUser.user_group === 'STAFF' && (adminUser?.is_master || adminUser?.name === 'Rok') && (
+                            <button
+                                onClick={() => handleToggleAdminRole(editingUser)}
+                                className={`w-full py-3 border rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-sm mb-3 ${editingUser.role === 'admin' ? 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                            >
+                                <Shield size={18} /> {editingUser.role === 'admin' ? '관리자 권한 해제' : '관리자 권한 부여'}
                             </button>
                         )}
                         <button onClick={handleSaveUser} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl mt-3">

@@ -34,7 +34,8 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         handleBulkUpdateGroup,
         handleDeleteUser,
         handleResetPassword,
-        handleApproveUser
+        handleApproveUser,
+        handleToggleAdminRole
     } = hookData;
 
     return (
@@ -76,6 +77,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 setEditingUser={setEditingUser}
                 handleDeleteUser={handleDeleteUser}
                 handleResetPassword={handleResetPassword}
+                handleToggleAdminRole={handleToggleAdminRole}
                 userStats={editingUser ? getUserStats(editingUser.id) : null}
                 fetchData={fetchData}
                 setIsMergeModalOpen={setIsMergeModalOpen}
