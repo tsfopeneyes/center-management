@@ -160,7 +160,10 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             if (error) throw error;
             alert(`관리자 권한이 ${action}되었습니다.`);
             fetchData();
-        } catch (err) { alert('권한 변경 실패'); }
+        } catch (err) { 
+            console.error('권한 변경 에러:', err);
+            alert(`권한 변경 실패: ${err.message}`); 
+        }
     };
 
     const handleApproveUser = async (user) => {
