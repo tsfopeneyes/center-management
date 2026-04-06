@@ -5,7 +5,7 @@ import UserAvatar from '../../../common/UserAvatar';
 
 const UserEditModal = ({
     editingUser, setEditingUser,
-    handleDeleteUser, handleResetPassword,
+    handleDeleteUser, handleResetPassword, handleToggleAdminRole,
     userStats, fetchData, setIsMergeModalOpen, setViewerImage
 }) => {
     const [editFormData, setEditFormData] = useState({
