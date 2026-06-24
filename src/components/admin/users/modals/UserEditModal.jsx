@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Trash2, X, Save, School, ShieldAlert, KeyRound, Shield } from 'lucide-react';
+import { RefreshCw, Trash2, X, Save, School, ShieldAlert, KeyRound, Shield, MessageSquare, Star } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
+import { feedbackApi } from '../../../../api/feedbackApi';
+import { extractProgramInfo } from '../../../../utils/textUtils';
 import UserAvatar from '../../../common/UserAvatar';
 
 const UserEditModal = ({
@@ -9,18 +11,114 @@ const UserEditModal = ({
     userStats, fetchData, setIsMergeModalOpen, setViewerImage
 }) => {
     const [editFormData, setEditFormData] = useState({
-        name: '', school: '', phone: '', user_group: '재학생', memo: '',
+        name: '', school: '', church: '', phone: '', user_group: '재학생', memo: '',
         status: 'approved', guardian_name: '', guardian_phone: '', guardian_relation: '',
         is_leader: false, is_master: false, terms_agreed: false, is_school_church: false
     });
     
     const [activeTab, setActiveTab] = useState('INFO');
 
+    const [participatedPrograms, setParticipatedPrograms] = useState([]);
+    const [userFeedbacks, setUserFeedbacks] = useState([]);
+    const [programTotalHours, setProgramTotalHours] = useState(0);
+    const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
+
+    useEffect(() => {
+        const fetchPrograms = async () => {
+            if (!editingUser) {
+                setParticipatedPrograms([]);
+                setProgramTotalHours(0);
+                return;
+            }
+            setIsLoadingPrograms(true);
+            try {
+                const { data, error } = await supabase
+                    .from('notice_responses')
+                    .select(`
+                        status,
+                        is_attended,
+                        notices (
+                            id,
+                            title,
+                            category,
+                            program_date,
+                            content
+                        )
+                    `)
+                    .eq('user_id', editingUser.id)
+                    .eq('status', 'JOIN');
+
+                if (error) throw error;
+
+                let totalMins = 0;
+                const progs = [];
+                
+                (data || []).forEach(r => {
+                    const notice = r.notices;
+                    if (!notice) return;
+                    
+                    // Case-insensitive check for prior data
+                    if (String(notice.category).toUpperCase() !== 'PROGRAM') return;
+                    
+                    // Extract duration from content
+                    const programInfo = extractProgramInfo(notice.content);
+                    const extDuration = programInfo.duration;
+                    
+                    let mins = 0;
+                    if (extDuration) {
+                        const durationStr = extDuration.replace(/\s+/g, '');
+                        const hourMatch = durationStr.match(/(\d+(?:\.\d+)?)(?:시간|h|hr)/i);
+                        const minMatch = durationStr.match(/(\d+(?:\.\d+)?)(?:분|m)/i);
+                        
+                        if (hourMatch) mins += parseFloat(hourMatch[1]) * 60;
+                        if (minMatch) mins += parseFloat(minMatch[1]);
+                        
+                        if (!hourMatch && !minMatch) {
+                            const num = parseFloat(durationStr);
+                            if (!isNaN(num)) {
+                                mins += (num <= 10 ? num * 60 : num); // Assume <= 10 is hours, else minutes
+                            }
+                        }
+                    }
+                    
+                    // Only count and show programs that they ACTUALLY attended, 
+                    // to match Student "나의 참여 내역" logic:
+                    if (r.is_attended) {
+                        totalMins += mins;
+                        progs.push({
+                            ...notice,
+                            is_attended: r.is_attended,
+                            mins
+                        });
+                    }
+                });
+
+                // Fetch Feedbacks for these notices
+                const feedbacks = await feedbackApi.fetchUserFeedbacks(editingUser.id);
+                setUserFeedbacks(feedbacks || []);
+
+                // Sort by date descending
+                progs.sort((a, b) => new Date(b.program_date || 0) - new Date(a.program_date || 0));
+
+                setParticipatedPrograms(progs);
+                setProgramTotalHours(totalMins / 60);
+            } catch (err) {
+                console.error('Failed to fetch user programs:', err);
+            } finally {
+                setIsLoadingPrograms(false);
+            }
+        };
+
+        fetchPrograms();
+    }, [editingUser]);
+
+
     useEffect(() => {
         if (editingUser) {
             setEditFormData({
                 name: editingUser.name || '',
                 school: editingUser.school || '',
+                church: editingUser.church || '',
                 phone: editingUser.phone || editingUser.phone_back4 || '',
                 user_group: editingUser.user_group || '재학생',
                 memo: editingUser.memo || '',
@@ -42,6 +140,7 @@ const UserEditModal = ({
             const { error } = await supabase.from('users').update({
                 name: editFormData.name,
                 school: editFormData.school,
+                church: editFormData.church,
                 phone: editFormData.phone,
                 user_group: editFormData.user_group,
                 memo: editFormData.memo,
@@ -108,6 +207,13 @@ const UserEditModal = ({
                                 <label className="text-[10px] font-bold text-gray-500 block mb-1">학교</label>
                                 <input type="text" value={editFormData.school} onChange={(e) => setEditFormData({ ...editFormData, school: e.target.value })} className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold text-sm" />
                             </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-gray-500 block mb-1">출석교회</label>
+                                <input type="text" value={editFormData.church} onChange={(e) => setEditFormData({ ...editFormData, church: e.target.value })} className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold text-sm" />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 divide-y divide-transparent">
                             <div>
                                 <label className="text-[10px] font-bold text-gray-500 block mb-1">연락처</label>
                                 <input type="text" value={editFormData.phone} onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold font-mono text-sm" />
@@ -190,13 +296,69 @@ const UserEditModal = ({
                         <div><label className="text-[10px] font-bold text-gray-500 block mb-1">메모 (관리자용)</label><textarea value={editFormData.memo} onChange={(e) => setEditFormData({ ...editFormData, memo: e.target.value })} className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 resize-none h-14 text-sm" placeholder="특이사항 입력" /></div>
 
                         {userStats && (
-                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mt-4">
                                 <h4 className="text-xs font-bold text-blue-400 uppercase mb-3">Activity Stats</h4>
-                                <div className="grid grid-cols-4 gap-2 text-center">
+                                <div className="grid grid-cols-4 gap-2 text-center mb-4">
                                     <div className="bg-white p-2 rounded-lg shadow-sm"><span className="text-[10px] text-gray-400 block">주간</span><span className="font-bold text-blue-600 text-sm">{userStats.weekly}h</span></div>
                                     <div className="bg-white p-2 rounded-lg shadow-sm"><span className="text-[10px] text-gray-400 block">월간</span><span className="font-bold text-blue-600 text-sm">{userStats.monthly}h</span></div>
                                     <div className="bg-white p-2 rounded-lg shadow-sm"><span className="text-[10px] text-gray-400 block">전체</span><span className="font-bold text-blue-600 text-sm">{userStats.total}h</span></div>
                                     <div className="bg-white p-2 rounded-lg shadow-sm"><span className="text-[10px] text-gray-400 block">최다</span><span className="font-bold text-gray-800 text-xs truncate block">{userStats.topLocation}</span></div>
+                                </div>
+                                
+                                <div className="border-t border-blue-100/50 pt-4 mt-2">
+                                    <div className="flex justify-between items-end mb-2">
+                                        <h5 className="text-[11px] font-bold text-gray-600">참여 프로그램</h5>
+                                        <span className="text-[11px] font-bold text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-full">
+                                            총 {programTotalHours > 0 ? (Number.isInteger(programTotalHours) ? programTotalHours : programTotalHours.toFixed(1)) : 0}h
+                                        </span>
+                                    </div>
+                                    
+                                    {isLoadingPrograms ? (
+                                        <div className="text-center py-4 text-xs text-blue-400 animate-pulse">명단 확인중...</div>
+                                    ) : participatedPrograms.length > 0 ? (
+                                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                            {participatedPrograms.map(p => {
+                                                const feedback = userFeedbacks.find(f => f.notice_id === p.id);
+                                                return (
+                                                    <div key={p.id} className="bg-white p-2.5 rounded-lg shadow-sm border border-blue-50 flex flex-col gap-2">
+                                                        <div className="flex justify-between items-start gap-2">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="text-xs font-bold text-gray-800 truncate" title={p.title}>{p.title}</div>
+                                                                <div className="text-[10px] text-gray-400 mt-0.5">
+                                                                    {p.program_date ? new Date(p.program_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) : '일정미정'} 
+                                                                    {extractProgramInfo(p.content).duration ? ` • ${extractProgramInfo(p.content).duration}` : ''}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-[10px] font-bold px-2 py-1 rounded-md shrink-0 bg-emerald-50 text-emerald-600">
+                                                                출석완료
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {feedback ? (
+                                                            <div className="bg-gray-50 rounded-md p-2 text-[10px] space-y-1">
+                                                                <div className="flex items-center gap-1 font-bold text-yellow-600">
+                                                                    <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                                                    <span>만족도: {feedback.q3_satisfaction}점</span>
+                                                                </div>
+                                                                <div className="text-gray-600 leading-snug break-all line-clamp-2">
+                                                                    "{feedback.q8_additional_comments || feedback.q2_experience || '남긴 코멘트가 없습니다.'}"
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1 text-[10px] text-gray-400 pl-1">
+                                                                <MessageSquare size={10} />
+                                                                <span>작성된 리뷰 없음</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4 text-xs text-gray-400 bg-white/50 rounded-lg">
+                                            참여한 프로그램이 없습니다.
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

@@ -59,12 +59,17 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
 
                 {/* Status Badges Overlaid */}
                 <div className={`absolute flex flex-col items-start ${compact ? 'top-2.5 left-2.5 gap-1.5' : 'top-4 left-4 gap-2'}`}>
-                    {program.is_recruiting && !isClosingSoon && !isPast && (
-                        <div className={`flex items-center bg-blue-500 text-white font-black shadow-md uppercase tracking-wider ${compact ? 'gap-1 px-2.5 py-1 rounded-full text-[9px]' : 'gap-1.5 px-3 py-1.5 rounded-full text-[10px]'}`}>
-                            <Clock size={compact ? 10 : 12} strokeWidth={3} /> 모집중
+                    {!program.is_recruiting && !isPast && (
+                        <div className={`flex items-center bg-teal-500 text-white font-black shadow-md uppercase tracking-wider ${compact ? 'gap-1 px-2.5 py-1 rounded-full text-[9px]' : 'gap-1.5 px-3 py-1.5 rounded-full text-[10px]'}`}>
+                            <Users size={compact ? 10 : 12} strokeWidth={3} /> 오픈 프로그램
                         </div>
                     )}
-                    {isClosingSoon && !isPast && (
+                    {program.is_recruiting && !isClosingSoon && !isPast && (
+                        <div className={`flex items-center bg-blue-500 text-white font-black shadow-md uppercase tracking-wider ${compact ? 'gap-1 px-2.5 py-1 rounded-full text-[9px]' : 'gap-1.5 px-3 py-1.5 rounded-full text-[10px]'}`}>
+                            <Clock size={compact ? 10 : 12} strokeWidth={3} /> 신청 프로그램
+                        </div>
+                    )}
+                    {program.is_recruiting && isClosingSoon && !isPast && (
                         <div className={`flex items-center bg-gray-700 text-white font-black shadow-md uppercase tracking-wider ${compact ? 'gap-1 px-2.5 py-1 rounded-full text-[9px]' : 'gap-1.5 px-3 py-1.5 rounded-full text-[10px]'}`}>
                             <CheckCircle2 size={compact ? 10 : 12} strokeWidth={3} /> 마감임박
                         </div>
@@ -107,23 +112,31 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                             <span className={`font-bold text-gray-600 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{program.program_location}</span>
                         </div>
                     )}
-                    <div className={`flex items-center text-gray-400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
-                        <Users size={compact ? 14 : 18} className="shrink-0 text-gray-300" />
-                        <div className={`font-bold flex items-center gap-[3px] ${compact ? 'text-[11px]' : 'text-sm'}`}>
-                            <span className="text-gray-600">모집: </span>
-                            <span className="text-blue-500 font-extrabold tracking-tight">
-                                {program.current_applicants || 0}
-                            </span>
-                            <span className="text-gray-400 font-semibold tracking-tight">
-                                {program.max_capacity > 0 ? `/ ${program.max_capacity}명` : '명 (제한 없음)'}
-                            </span>
+                    {program.is_recruiting && (
+                        <div className={`flex items-center text-gray-400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
+                            <Users size={compact ? 14 : 18} className="shrink-0 text-gray-300" />
+                            <div className={`font-bold flex items-center gap-[3px] ${compact ? 'text-[11px]' : 'text-sm'}`}>
+                                <span className="text-gray-600">모집: </span>
+                                <span className="text-blue-500 font-extrabold tracking-tight">
+                                    {program.current_applicants || 0}
+                                </span>
+                                <span className="text-gray-400 font-semibold tracking-tight">
+                                    {program.max_capacity > 0 ? `/ ${program.max_capacity}명` : '명 (제한 없음)'}
+                                </span>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
-                <button className={`w-full font-black transition-colors active:scale-95 shadow-sm border border-transparent ${compact ? 'py-2.5 rounded-xl text-xs mt-auto' : 'py-4 rounded-full text-base shadow-lg mt-auto'} ${program.responseStatus === 'JOIN' ? 'bg-gray-50 border-gray-100 text-gray-400' : (program.responseStatus === 'WAITLIST' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-600 text-white shadow-blue-200/50 hover:bg-blue-700')}`}>
-                    {program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '신청하기')}
-                </button>
+                {!program.is_recruiting ? (
+                    <button className={`w-full font-black transition-colors shadow-sm border border-transparent ${compact ? 'py-2.5 rounded-xl text-xs mt-auto' : 'py-4 rounded-full text-sm shadow-lg mt-auto'} bg-teal-50 text-teal-700 border-teal-100 hover:bg-teal-100 pointer-events-none`}>
+                        신청 없이 언제든지 와서 함께할 수 있어요!
+                    </button>
+                ) : (
+                    <button className={`w-full font-black transition-colors active:scale-95 shadow-sm border border-transparent ${compact ? 'py-2.5 rounded-xl text-xs mt-auto' : 'py-4 rounded-full text-base shadow-lg mt-auto'} ${program.responseStatus === 'JOIN' ? 'bg-gray-50 border-gray-100 text-gray-400' : (program.responseStatus === 'WAITLIST' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-600 text-white shadow-blue-200/50 hover:bg-blue-700')}`}>
+                        {program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '미리 신청하고 정해진 시간에 만나요!')}
+                    </button>
+                )}
             </div>
         </div>
     );

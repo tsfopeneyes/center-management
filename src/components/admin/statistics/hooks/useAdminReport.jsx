@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { analyticsUtils } from '../../../../utils/analyticsUtils';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
-export const useAdminReport = (allLogs, users, locations) => {
+export const useAdminReport = (allLogs, users, locations, notices = [], responses = []) => {
     const [loading, setLoading] = useState(false);
     const [report, setReport] = useState(null);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedDay, setSelectedDay] = useState(new Date().getDate());
     const [periodType, setPeriodType] = useState('MONTHLY'); // 'MONTHLY', 'YEARLY', 'WEEKLY', 'DAILY'
-    const [targetGroup, setTargetGroup] = useState('YOUTH'); // 'ALL', 'YOUTH'
+    const [targetGroup, setTargetGroup] = useState('ALL'); // 'ALL', 'YOUTH', 'GRADUATE', 'LEADER_YOUTH', 'NON_LEADER_YOUTH'
 
     const [selectedGuestSpace, setSelectedGuestSpace] = useState(null);
 
@@ -33,7 +33,7 @@ export const useAdminReport = (allLogs, users, locations) => {
                 end = new Date(selectedYear, 11, 31, 23, 59, 59, 999);
             }
 
-            const result = analyticsUtils.processOperationReport(allLogs, users, locations, start, end, targetGroup);
+            const result = analyticsUtils.processOperationReport(allLogs, users, locations, notices, responses, start, end, targetGroup);
             setReport(result);
         } catch (err) {
             console.error(err);

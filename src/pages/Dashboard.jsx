@@ -17,7 +17,7 @@ const Dashboard = () => {
         try {
             const { data, error } = await supabase.from('locations').select('*');
             if (error) throw error;
-            setLocations(data || []);
+            setLocations((data || []).filter(l => l.is_active !== false));
         } catch (error) {
             console.error('Error fetching locations:', error.message);
         } finally {

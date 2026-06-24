@@ -11,19 +11,23 @@ export const useRealtimePresence = () => {
         try {
             const [usersRes, locRes, groupRes, logsRes] = await Promise.all([
                 supabase.from('users').select('id, name, user_group, role'),
-                supabase.from('locations').select('id, group_id'),
+                supabase.from('locations').select('id, group_id, name, is_active'),
                 supabase.from('location_groups').select('id, name'),
                 supabase.from('logs').select('user_id, location_id, type').order('created_at', { ascending: false }).limit(3000)
             ]);
 
             const fetchedUsers = usersRes.data || [];
-            const fetchedLocations = locRes.data || [];
+            const fetchedLocations = (locRes.data || []).filter(l => l.is_active !== false);
             const fetchedGroups = groupRes.data || [];
             const fetchedLogs = logsRes.data ? [...logsRes.data].reverse() : [];
 
+            const activeGroups = fetchedGroups.filter(g =>
+                fetchedLocations.some(l => l.group_id === g.id)
+            );
+
             setAllUsers(fetchedUsers);
             setLocations(fetchedLocations);
-            setLocationGroups(fetchedGroups);
+            setLocationGroups(activeGroups);
 
             const adminIdsSet = new Set(fetchedUsers.filter(u =>
                 u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'

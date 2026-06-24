@@ -3,6 +3,7 @@ import { Plus, Trash2, Edit2, ChevronRight, Trophy } from 'lucide-react';
 import { useAdminChallenges } from './hooks/useAdminChallenges';
 import ChallengeItem from './components/ChallengeItem';
 import ChallengeModals from './components/ChallengeModals';
+import ChallengeAwardModal from './components/ChallengeAwardModal';
 
 const AdminChallenges = () => {
     const {
@@ -10,12 +11,17 @@ const AdminChallenges = () => {
         expandedCategory, setExpandedCategory,
         showCategoryForm, setShowCategoryForm,
         showChallengeForm, setShowChallengeForm,
+        showAwardModal, setShowAwardModal,
+        awardingChallenge,
+        awardedUserIds,
+        studentUsers,
         editingCategory, setEditingCategory,
         editingChallenge, setEditingChallenge,
         uploading,
         handleSaveCategory, handleDeleteCategory,
         handleSaveChallenge, handleDeleteChallenge,
-        handleImageUpload, openCategoryModal, openChallengeModal
+        handleImageUpload, openCategoryModal, openChallengeModal,
+        openAwardModal, handleSaveAwards
     } = useAdminChallenges();
 
     if (loading && categories.length === 0) {
@@ -104,6 +110,7 @@ const AdminChallenges = () => {
                                         ch={ch}
                                         onEdit={() => openChallengeModal(ch)}
                                         onDelete={() => handleDeleteChallenge(ch.id)}
+                                        onAward={() => openAwardModal(ch)}
                                     />
                                 ))}
                                 {challenges.filter(c => c.category_id === expandedCategory).length === 0 && (
@@ -128,6 +135,15 @@ const AdminChallenges = () => {
                 handleSaveChallenge={handleSaveChallenge}
                 handleImageUpload={handleImageUpload}
                 uploading={uploading}
+            />
+
+            <ChallengeAwardModal
+                isOpen={showAwardModal}
+                onClose={() => setShowAwardModal(false)}
+                challenge={awardingChallenge}
+                studentUsers={studentUsers}
+                initialAwardedUserIds={awardedUserIds}
+                onSave={handleSaveAwards}
             />
         </div>
     );

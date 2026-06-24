@@ -10,6 +10,8 @@ import ProfileSettings from './components/ProfileSettings';
 import LocationManager from './components/LocationManager';
 import IntegrationConfig from './components/IntegrationConfig';
 import LayoutDesigner from './components/LayoutDesigner';
+import DutyChecklistSettings from './components/DutyChecklistSettings';
+import OperatingHoursSettings from './components/OperatingHoursSettings';
 
 const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, fetchData, users, allLogs, responses = [], schoolLogs = [] }) => {
     const isMaster = currentAdmin?.is_master || currentAdmin?.name === 'Rok' || currentAdmin?.name === 'admin';
@@ -38,13 +40,17 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
         selectedGroupIdForLocation, setSelectedGroupIdForLocation,
         tempLocationName, setTempLocationName,
         editLocationId, setEditLocationId,
-        handleAddGroup, handleUpdateGroup, handleDeleteGroup,
+        handleAddGroup, handleUpdateGroup, handleDeleteGroup, handleToggleGroupStatus,
         handleAddLocation, handleUpdateLocation, handleDeleteLocation,
+        handleToggleLocationStatus,
 
-        dashboardConfig, sidebarConfig,
-        configLoading, sidebarConfigLoading,
+        dashboardConfig, sidebarConfig, tabConfig,
+        configLoading, sidebarConfigLoading, tabConfigLoading,
         handleMoveConfig, handleUpdateConfig, handleSaveDashboardConfig,
-        handleMoveSidebarConfig, handleUpdateSidebarConfig, handleSaveSidebarConfig
+        handleMoveSidebarConfig, handleUpdateSidebarConfig, handleSaveSidebarConfig,
+        handleMoveTabConfig, handleUpdateTabConfig, handleSaveTabConfig,
+        operatingHours, hoursLoading,
+        handleUpdateOperatingHours, handleSaveOperatingHours
     } = useAdminSettings({
         currentAdmin, locations, locationGroups, fetchData, users, allLogs, responses, schoolLogs, notices
     });
@@ -85,6 +91,7 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                     setEditGroupId={setEditGroupId}
                     handleUpdateGroup={handleUpdateGroup}
                     handleDeleteGroup={handleDeleteGroup}
+                    handleToggleGroupStatus={handleToggleGroupStatus}
                     selectedGroupIdForLocation={selectedGroupIdForLocation}
                     setSelectedGroupIdForLocation={setSelectedGroupIdForLocation}
                     tempLocationName={tempLocationName}
@@ -94,11 +101,22 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                     setEditLocationId={setEditLocationId}
                     handleUpdateLocation={handleUpdateLocation}
                     handleDeleteLocation={handleDeleteLocation}
+                    handleToggleLocationStatus={handleToggleLocationStatus}
                 />
             </div>
 
             {isMaster && (
-                <>
+                <OperatingHoursSettings
+                    operatingHours={operatingHours}
+                    handleUpdateOperatingHours={handleUpdateOperatingHours}
+                    handleSaveOperatingHours={handleSaveOperatingHours}
+                    hoursLoading={hoursLoading}
+                />
+            )}
+
+            {isMaster && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <DutyChecklistSettings isMaster={isMaster} />
                     <IntegrationConfig
                         gsWebhookUrl={gsWebhookUrl}
                         setGsWebhookUrl={setGsWebhookUrl}
@@ -115,20 +133,27 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                         handleGoogleSheetsBackup={handleGoogleSheetsBackup}
                         handleNotionUpload={handleNotionUpload}
                     />
+                </div>
+            )}
 
-                    <LayoutDesigner
-                        dashboardConfig={dashboardConfig}
-                        sidebarConfig={sidebarConfig}
-                        configLoading={configLoading}
-                        sidebarConfigLoading={sidebarConfigLoading}
-                        handleMoveConfig={handleMoveConfig}
-                        handleUpdateConfig={handleUpdateConfig}
-                        handleSaveDashboardConfig={handleSaveDashboardConfig}
-                        handleMoveSidebarConfig={handleMoveSidebarConfig}
-                        handleUpdateSidebarConfig={handleUpdateSidebarConfig}
-                        handleSaveSidebarConfig={handleSaveSidebarConfig}
-                    />
-                </>
+            {isMaster && (
+                <LayoutDesigner
+                    dashboardConfig={dashboardConfig}
+                    sidebarConfig={sidebarConfig}
+                    tabConfig={tabConfig}
+                    configLoading={configLoading}
+                    sidebarConfigLoading={sidebarConfigLoading}
+                    tabConfigLoading={tabConfigLoading}
+                    handleMoveConfig={handleMoveConfig}
+                    handleUpdateConfig={handleUpdateConfig}
+                    handleSaveDashboardConfig={handleSaveDashboardConfig}
+                    handleMoveSidebarConfig={handleMoveSidebarConfig}
+                    handleUpdateSidebarConfig={handleUpdateSidebarConfig}
+                    handleSaveSidebarConfig={handleSaveSidebarConfig}
+                    handleMoveTabConfig={handleMoveTabConfig}
+                    handleUpdateTabConfig={handleUpdateTabConfig}
+                    handleSaveTabConfig={handleSaveTabConfig}
+                />
             )}
 
             {/* Cropper Modal */}

@@ -32,7 +32,7 @@ const KioskLocationSelector = ({
                 <h1 className="text-3xl font-black text-slate-800 mb-2">키오스크 위치 설정</h1>
                 <p className="text-slate-400 mb-10 font-bold">현재 기기가 배치된 장소를 선택해 주세요.</p>
                 <div className="grid grid-cols-2 gap-4">
-                    {locations.map(loc => (
+                    {locations.filter(loc => loc.is_active !== false).map(loc => (
                         <button key={loc.id} onClick={() => handleSetLocation(loc)} className="p-8 bg-slate-50 rounded-3xl text-xl font-black text-slate-700 hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 border border-slate-100">
                             {loc.name}
                         </button>

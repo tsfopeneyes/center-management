@@ -2,7 +2,7 @@ import React from 'react';
 import { BarChart } from 'lucide-react';
 import AnalyticsTab from '../../AnalyticsTab';
 
-const AdminStatistics = ({ logs, schoolLogs, locations, locationGroups, users, notices, responses, isLoading, fetchData }) => {
+const AdminStatistics = ({ logs, schoolLogs, locations, locationGroups, users, notices, responses, feedbacks, visitNotes, isLoading, fetchData }) => {
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">
             <div className="p-4 md:p-10 bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-4 lg:gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-blue-50/20">
@@ -11,10 +11,10 @@ const AdminStatistics = ({ logs, schoolLogs, locations, locationGroups, users, n
                         <BarChart className="text-blue-600" size={24} md:size={32} />
                         통계 분석
                     </h2>
-                    <p className="hidden md:block text-gray-500 text-sm font-medium mt-1">센터 및 프로그램 이용 관련 상세 통계 지표</p>
+                    <p className="hidden md:block text-gray-500 text-sm font-medium mt-1">센터 및 프로그램 이용 관련 상세 지표 및 리뷰 분석</p>
                 </div>
             </div>
-            <AnalyticsTab logs={logs} schoolLogs={schoolLogs} locations={locations} locationGroups={locationGroups} users={users} notices={notices} responses={responses} isLoading={isLoading} fetchData={fetchData} />
+            <AnalyticsTab logs={logs} schoolLogs={schoolLogs} locations={locations} locationGroups={locationGroups} users={users} notices={notices} responses={responses} feedbacks={feedbacks} visitNotes={visitNotes} isLoading={isLoading} fetchData={fetchData} />
         </div>
     );
 };

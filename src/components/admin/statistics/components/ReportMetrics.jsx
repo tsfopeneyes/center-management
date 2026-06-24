@@ -117,6 +117,121 @@ const ReportMetrics = ({ report, setSelectedGuestSpace }) => {
                     </motion.div>
                 ))}
             </div>
+
+            {/* Program By Target Group Analysis */}
+            {report.programStats && (report.programStats.totalCount > 0) && (
+                <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-gray-100 shadow-sm mt-6">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h3 className="text-xl font-black text-gray-800">프로그램 진행 및 참여 내역</h3>
+                            <p className="text-xs font-bold text-gray-400 mt-1">선택된 타겟 그룹({report.reportTarget})의 해당 기간 누적 참여자 수입니다.</p>
+                        </div>
+                        <div className="bg-indigo-100 px-3 py-1.5 rounded-lg text-xs font-black text-indigo-700">
+                            총 {report.programStats.totalCount}개 진행 / {report.programStats.totalParticipants} 누적 참여
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Center Programs */}
+                        <div className="border border-blue-100 bg-blue-50/30 rounded-2xl overflow-hidden shadow-sm">
+                            <div className="p-4 md:p-5 border-b border-blue-100 flex justify-between items-center bg-blue-50/50">
+                                <h4 className="font-black text-blue-800 flex items-center gap-2">센터 프로그램</h4>
+                                <div className="text-xs font-bold text-blue-600 flex gap-3">
+                                    <span>진행: {report.programStats.center.count}개</span>
+                                    <span>누적 참여: {report.programStats.center.participants}명</span>
+                                </div>
+                            </div>
+                            <div className="max-h-60 overflow-y-auto custom-scrollbar p-0 bg-white">
+                                {report.programStats.center.details.length === 0 ? (
+                                    <p className="text-center text-xs font-bold text-gray-400 py-6">진행된 내역이 없습니다.</p>
+                                ) : (
+                                    <table className="w-full text-left text-xs text-gray-600">
+                                        <thead className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold sticky top-0">
+                                            <tr>
+                                                <th className="p-3">프로그램명</th>
+                                                <th className="p-3">날짜</th>
+                                                <th className="p-3 text-center whitespace-nowrap">참여 / 신청</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {report.programStats.center.details.map((p, i) => {
+                                                const targets = p.target_regions || [];
+                                                let badge = <span className="text-blue-600 mr-1 font-bold">[All]</span>;
+                                                if (targets.length > 0 && targets.includes('강동') && !targets.includes('강서')) badge = <span className="text-purple-600 mr-1 font-bold">[강동]</span>;
+                                                if (targets.length > 0 && targets.includes('강서') && !targets.includes('강동')) badge = <span className="text-pink-600 mr-1 font-bold">[강서]</span>;
+                                                
+                                                return (
+                                                <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                                                    <td className="p-3 font-bold text-gray-700 truncate max-w-[150px]" title={p.title}>
+                                                        {badge}
+                                                        {p.title}
+                                                    </td>
+                                                    <td className="p-3 whitespace-nowrap">{new Date(p.date).toLocaleDateString()}</td>
+                                                    <td className="p-3 text-center font-black">
+                                                        <span className="text-blue-600">{p.targetAttendCount}</span> 
+                                                        <span className="text-gray-400 mx-1">/</span> 
+                                                        <span className="text-gray-500">{p.targetJoinCount}</span>
+                                                    </td>
+                                                </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* School Church Programs */}
+                        <div className="border border-emerald-100 bg-emerald-50/30 rounded-2xl overflow-hidden shadow-sm">
+                            <div className="p-4 md:p-5 border-b border-emerald-100 flex justify-between items-center bg-emerald-50/50">
+                                <h4 className="font-black text-emerald-800 flex items-center gap-2">스처 프로그램</h4>
+                                <div className="text-xs font-bold text-emerald-600 flex gap-3">
+                                    <span>진행: {report.programStats.schoolChurch.count}개</span>
+                                    <span>누적 참여: {report.programStats.schoolChurch.participants}명</span>
+                                </div>
+                            </div>
+                            <div className="max-h-60 overflow-y-auto custom-scrollbar p-0 bg-white">
+                                {report.programStats.schoolChurch.details.length === 0 ? (
+                                    <p className="text-center text-xs font-bold text-gray-400 py-6">진행된 내역이 없습니다.</p>
+                                ) : (
+                                    <table className="w-full text-left text-xs text-gray-600">
+                                        <thead className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold sticky top-0">
+                                            <tr>
+                                                <th className="p-3">프로그램명</th>
+                                                <th className="p-3">날짜</th>
+                                                <th className="p-3 text-center whitespace-nowrap">참여 / 신청</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {report.programStats.schoolChurch.details.map((p, i) => {
+                                                const targets = p.target_regions || [];
+                                                let badge = <span className="text-emerald-600 mr-1 font-bold">[All]</span>;
+                                                if (targets.length > 0 && targets.includes('강동') && !targets.includes('강서')) badge = <span className="text-purple-600 mr-1 font-bold">[강동]</span>;
+                                                if (targets.length > 0 && targets.includes('강서') && !targets.includes('강동')) badge = <span className="text-pink-600 mr-1 font-bold">[강서]</span>;
+                                                
+                                                return (
+                                                <tr key={i} className="hover:bg-emerald-50/30 transition-colors">
+                                                    <td className="p-3 font-bold text-gray-700 truncate max-w-[150px]" title={p.title}>
+                                                        {badge}
+                                                        {p.title}
+                                                    </td>
+                                                    <td className="p-3 whitespace-nowrap">{new Date(p.date).toLocaleDateString()}</td>
+                                                    <td className="p-3 text-center font-black">
+                                                        <span className="text-emerald-600">{p.targetAttendCount}</span> 
+                                                        <span className="text-gray-400 mx-1">/</span> 
+                                                        <span className="text-gray-500">{p.targetJoinCount}</span>
+                                                    </td>
+                                                </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

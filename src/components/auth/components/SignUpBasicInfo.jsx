@@ -59,6 +59,24 @@ const SignUpBasicInfo = ({ formData, setFormData, handleChange, handlePhoneChang
                     />
                 </div>
 
+                {/* Church */}
+                <div className="relative border-b border-gray-200">
+                    <User className={`absolute left-4 top-1/2 -translate-y-1/2 ${isKiosk ? 'text-slate-300' : 'text-gray-400'}`} size={isKiosk ? 22 : 20} />
+                    <input
+                        type="text" name="church"
+                        value={formData.church} onChange={handleChange}
+                        placeholder="출석교회 (00교회)"
+                        className={`w-full pl-12 pr-16 py-3 bg-transparent outline-none ${isKiosk ? 'sm:py-4 font-bold' : ''}`}
+                    />
+                    <button 
+                        type="button" 
+                        onClick={() => setFormData(prev => ({ ...prev, church: '없음' }))} 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-[11px] font-bold hover:bg-gray-200 transition-colors"
+                    >
+                        없음
+                    </button>
+                </div>
+
                 {/* Birth Date */}
                 <div className="relative border-b border-gray-200">
                     <Calendar className={`absolute left-4 top-1/2 -translate-y-1/2 ${isKiosk ? 'text-slate-300' : 'text-gray-400'}`} size={isKiosk ? 22 : 20} />

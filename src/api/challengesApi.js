@@ -73,5 +73,35 @@ export const challengesApi = {
                 .eq('id', ch.id)
         );
         await Promise.all(promises);
+    },
+
+    // Award manual challenges
+    fetchAwardedUsers: async (challengeId) => {
+        const { data, error } = await supabase
+            .from('user_challenges')
+            .select('user_id')
+            .eq('challenge_id', challengeId);
+        if (error) throw error;
+        return data.map(d => d.user_id);
+    },
+
+    saveAwardedUsers: async (challengeId, userIds) => {
+        // Simple transaction-like flow: delete existing, insert new
+        const { error: deleteError } = await supabase
+            .from('user_challenges')
+            .delete()
+            .eq('challenge_id', challengeId);
+        if (deleteError) throw deleteError;
+
+        if (userIds.length > 0) {
+            const inserts = userIds.map(userId => ({
+                challenge_id: challengeId,
+                user_id: userId
+            }));
+            const { error: insertError } = await supabase
+                .from('user_challenges')
+                .insert(inserts);
+            if (insertError) throw insertError;
+        }
     }
 };

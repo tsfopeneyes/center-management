@@ -67,6 +67,42 @@ const ProgramInfoSection = ({ formData, updateField }) => {
                 </div>
             </div>
 
+            {/* Participation Type (Open vs Application) */}
+            <div className="flex flex-wrap md:flex-nowrap gap-4 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 items-center animate-fade-in">
+                <span className="text-sm font-black text-indigo-800 mr-2">운영 방식</span>
+                
+                <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                    <input
+                        type="radio"
+                        name="participation_type"
+                        checked={formData.is_recruiting === false}
+                        onChange={() => {
+                            updateField('is_recruiting', false);
+                            updateField('max_capacity', '');
+                        }}
+                        className="w-4 h-4 text-indigo-600"
+                    />
+                    <div className="flex flex-col">
+                        <span className="text-sm font-bold text-gray-800">오픈 프로그램</span>
+                        <span className="text-[10px] text-gray-500 font-medium">신청 없이 누구나 참여 가능</span>
+                    </div>
+                </label>
+                
+                <label className="flex items-center gap-2 cursor-pointer shrink-0 md:ml-4">
+                    <input
+                        type="radio"
+                        name="participation_type"
+                        checked={formData.is_recruiting === true}
+                        onChange={() => updateField('is_recruiting', true)}
+                        className="w-4 h-4 text-indigo-600"
+                    />
+                    <div className="flex flex-col">
+                        <span className="text-sm font-bold text-gray-800">신청 프로그램</span>
+                        <span className="text-[10px] text-gray-500 font-medium">사전 신청 필수 (인원 제한)</span>
+                    </div>
+                </label>
+            </div>
+
             <div className="border border-blue-200 rounded-2xl bg-white overflow-hidden focus-within:border-blue-500 transition-colors shadow-sm">
                 
                 {/* Row 1: Date & Time */}

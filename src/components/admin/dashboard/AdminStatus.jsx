@@ -10,6 +10,7 @@ import ZoneDetailModal from './components/ZoneDetailModal';
 const AdminStatus = ({
     users,
     locations,
+    locationGroups = [],
     zoneStats,
     currentLocations,
     handleForceCheckout,
@@ -29,7 +30,7 @@ const AdminStatus = ({
         totalActive,
         activeUsersList,
         handleZoneClick
-    } = useAdminStatus({ users, locations, zoneStats, currentLocations, dailyVisitStats });
+    } = useAdminStatus({ users, locations, locationGroups, zoneStats, currentLocations, dailyVisitStats });
 
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">

@@ -160,7 +160,7 @@ const ManualEntryModal = ({ hookData, users, locations }) => {
                                 required
                             >
                                 <option value="">장소 선택...</option>
-                                {locations.map(loc => (
+                                {locations.filter(loc => loc.is_active !== false).map(loc => (
                                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                                 ))}
                             </select>

@@ -14,6 +14,9 @@ const ProfileSettingsModal = ({
     const [profilePreview, setProfilePreview] = useState(null);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [school, setSchool] = useState(user?.school || '');
+    const [church, setChurch] = useState(user?.church || '');
+    const [isSchoolChurch, setIsSchoolChurch] = useState(user?.preferences?.is_school_church ?? false);
 
     const [showCropModal, setShowCropModal] = useState(false);
     const [photoURL, setPhotoURL] = useState(null);
@@ -64,6 +67,12 @@ const ProfileSettingsModal = ({
             updates.password = newPassword;
         }
 
+        if (school !== user?.school) updates.school = school;
+        if (church !== user?.church) updates.church = church;
+        if (isSchoolChurch !== (user?.preferences?.is_school_church ?? false)) {
+            updates.preferences = { ...(user?.preferences || {}), is_school_church: isSchoolChurch };
+        }
+
         const result = await updateProfile(updates, profileImage);
 
         if (result.success) {
@@ -107,7 +116,37 @@ const ProfileSettingsModal = ({
                         </div>
                         <p className="text-sm text-gray-400">프로필 사진을 변경하려면 카메라 아이콘을 누르세요</p>
                     </div>
+
                     <div className="space-y-4">
+                        <h4 className="font-bold text-gray-800 border-b pb-2">소속 정보</h4>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">학교</label>
+                            <input type="text" value={school} onChange={(e) => setSchool(e.target.value)} placeholder="학교 이름을 입력하세요 (예: 00고등학교)" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base font-bold" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">출석교회</label>
+                            <input type="text" value={church} onChange={(e) => setChurch(e.target.value)} placeholder="교회 이름을 입력하세요 (예: 00교회)" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base font-bold" />
+                        </div>
+                        <div className="pt-2">
+                            <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">지금 스쿨처치에 참여하고 있나요?</label>
+                            <div className="flex bg-gray-100 p-1.5 rounded-2xl">
+                                <button
+                                    onClick={() => setIsSchoolChurch(true)}
+                                    className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${isSchoolChurch ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    네
+                                </button>
+                                <button
+                                    onClick={() => setIsSchoolChurch(false)}
+                                    className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${!isSchoolChurch ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    아니요
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 pb-6">
                         <h4 className="font-bold text-gray-800 border-b pb-2">비밀번호 변경</h4>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">새 비밀번호 (4자리 이상)</label>

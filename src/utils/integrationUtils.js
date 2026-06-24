@@ -145,6 +145,7 @@ export const performFullSyncToGoogleSheets = async ({
     locations,
     visitNotes,
     schoolLogs,
+    feedbacks,
     processUserAnalytics,
     processProgramAnalytics,
     processAnalyticsData,
@@ -288,6 +289,35 @@ export const performFullSyncToGoogleSheets = async ({
         };
     });
 
+    // 9. 리뷰분석 (Feedback Logs)
+    const calculateAge = (birth) => {
+        if (!birth || birth.length < 2) return '-';
+        const yy = parseInt(birth.substring(0, 2));
+        if (isNaN(yy)) return '-';
+        const fullYear = yy > 50 ? 1900 + yy : 2000 + yy;
+        return new Date().getFullYear() - fullYear + 1;
+    };
+
+    const feedbackRows = (feedbacks || []).filter(fb => !adminIds.has(fb.user_id)).map((fb, idx) => {
+        return {
+            '번호': idx + 1,
+            '날짜': format(new Date(fb.created_at), 'yyyy-MM-dd'),
+            '프로그램명': fb.notices?.title || '-',
+            '프로그램구분': fb.notices?.program_type || '-',
+            '이름': fb.users?.name || '-',
+            '학교': fb.users?.school || '-',
+            '나이': calculateAge(fb.users?.birth),
+            '만족도': fb.q3_satisfaction || '-',
+            '재참여의사': fb.q6_would_rejoin || '-',
+            '참여이유': fb.q1_reason || '-',
+            '경험': fb.q2_experience || '-',
+            '좋았던점': fb.q4_best_moment || '-',
+            '아쉬웠던점': fb.q5_disappointments || '-',
+            '재참여(망설이는)이유': fb.q7_rejoin_reason || '-',
+            '기타': fb.q8_additional_comments || '-'
+        };
+    });
+
     const payloads = [
         { tabName: '회원정보', rows: userRows, headers: ['ID', '이름', '그룹', '학교', '연락처', '생년월일', '가입일', '최근방문'] },
         { tabName: '회원통계', rows: userStatRows, headers: ['그룹', '학교', '이름', '누적 이용시간(분)', '공간 방문 횟수', '방문 일수', '프로그램 신청', '실제 참석'] },
@@ -296,6 +326,7 @@ export const performFullSyncToGoogleSheets = async ({
         { tabName: '프로그램로그', rows: prgDetailRows, headers: ['프로그램날짜', '프로그램명', '이름', '학교', '신청상태', '출석여부', '신청일시'] },
         { tabName: '학생방문일지', rows: visitRows, headers: ['주차', '날짜', '요일', '학교', '이름', '시작', '종료', '공간', '체류시간', '방문목적', '비고'] },
         { tabName: '학생만남일지', rows: schoolLogRows, headers: ['ID', '주차', '날짜', '시간', '장소', '학교', '참여자', '참여인원', '담당자', '내용'] },
+        { tabName: '리뷰분석', rows: feedbackRows, headers: ['번호', '날짜', '프로그램명', '프로그램구분', '이름', '학교', '나이', '만족도', '재참여의사', '참여이유', '경험', '좋았던점', '아쉬웠던점', '재참여(망설이는)이유', '기타'] },
         { tabName: '일별운영지표', rows: dailyRows, headers: ['날짜', '요일', '방문 횟수', '총 이용시간(분)'] }
     ].filter(p => p.rows.length > 0);
 

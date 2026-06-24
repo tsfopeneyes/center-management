@@ -30,6 +30,17 @@ const ProgramLogTable = ({ hookData }) => {
                                 <td className="p-4">
                                     <div className="flex flex-col items-start justify-center gap-0.5">
                                         <span className="font-bold text-gray-700 truncate max-w-[180px] leading-tight">
+                                            {(() => {
+                                                const targets = summary.target_regions || [];
+                                                if (targets.length === 0 || (targets.includes('강동') && targets.includes('강서'))) {
+                                                    return <span className="text-blue-600 mr-1 font-bold">[All]</span>;
+                                                } else if (targets.includes('강동')) {
+                                                    return <span className="text-purple-600 mr-1 font-bold">[강동]</span>;
+                                                } else if (targets.includes('강서')) {
+                                                    return <span className="text-pink-600 mr-1 font-bold">[강서]</span>;
+                                                }
+                                                return <span className="text-blue-600 mr-1 font-bold">[All]</span>;
+                                            })()}
                                             {summary.prgTitle}
                                         </span>
                                         {summary.prgLocation && (

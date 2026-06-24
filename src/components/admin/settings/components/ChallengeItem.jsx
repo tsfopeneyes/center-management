@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Image as ImageIcon, Edit2, Trash2 } from 'lucide-react';
+import { Image as ImageIcon, Edit2, Trash2, Award } from 'lucide-react';
 
-const ChallengeItem = ({ ch, onEdit, onDelete }) => {
+const ChallengeItem = ({ ch, onEdit, onDelete, onAward }) => {
     const [imgError, setImgError] = useState(false);
 
     return (
@@ -29,6 +29,13 @@ const ChallengeItem = ({ ch, onEdit, onDelete }) => {
                 </div>
             </div>
             <div className="flex gap-1 md:gap-2 flex-shrink-0 ml-2">
+                <button
+                    onClick={onAward}
+                    className="p-2 md:p-3 bg-gray-50 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg md:rounded-xl transition-all"
+                    title="뱃지 지급"
+                >
+                    <Award size={16} />
+                </button>
                 <button onClick={onEdit} className="p-2 md:p-3 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg md:rounded-xl transition-all"><Edit2 size={16} /></button>
                 <button onClick={onDelete} className="p-2 md:p-3 bg-gray-50 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg md:rounded-xl transition-all"><Trash2 size={16} /></button>
             </div>

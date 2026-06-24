@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Home, Calendar, BookOpen, Award, Store, MessageSquareHeart } from 'lucide-react';
+import { Home, Calendar, BookOpen, Award, Store, MessageSquareHeart, Menu, X, Settings, ShieldCheck, LogOut, Bell, Share2, QrCode } from 'lucide-react';
 import { TAB_NAMES } from '../constants/appConstants';
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
 
@@ -17,6 +17,7 @@ import StudentChat from '../components/student/StudentChat';
 import StudentHyphenTab from '../components/student/StudentHyphenTab';
 import StudentAzitTab from '../components/student/StudentAzitTab';
 import { userApi } from '../api/userApi';
+import UserAvatar from '../components/common/UserAvatar';
 
 // Extracted Modals
 import NoticeModal from '../components/student/NoticeModal';
@@ -53,7 +54,7 @@ const StudentDashboard = () => {
         homeNotices, homePrograms, studentRegion, locationGroups, activeUserCountByGroup,
         totalHours, visitCount, programCount, attendedProgramsList,
         challengeCategories, dynamicChallenges, specialStats,
-        adminSchedules, calendarCategories, dashboardConfig,
+        adminSchedules, calendarCategories, dashboardConfig, tabConfig,
         notifications, unreadNotificationCount, updateProfile, profileLoadingState,
         guestPosts, uploadingGuest, handleCreatePost, fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestPost, handleDeleteGuestComment
     } = hookData;
@@ -61,6 +62,7 @@ const StudentDashboard = () => {
     const [showVerificationWrite, setShowVerificationWrite] = useState(false);
     const [editVerificationPost, setEditVerificationPost] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [showMenuDrawer, setShowMenuDrawer] = useState(false);
 
     const navigate = useNavigate();
 
@@ -71,14 +73,43 @@ const StudentDashboard = () => {
     const [touchStartY, setTouchStartY] = useState(null);
     const [touchEndY, setTouchEndY] = useState(null);
 
-    const TAB_SEQUENCE = [
-        TAB_NAMES.HOME,
-        TAB_NAMES.CHALLENGES,
-        TAB_NAMES.PROGRAMS,
-        TAB_NAMES.CALENDAR,
-        TAB_NAMES.AZIT, // 커뮤니티 (Azit)
-        TAB_NAMES.HYPHEN // 하이픈
+    const activeVisibleTabs = (tabConfig || []).filter(t => t.isVisible);
+    const TAB_SEQUENCE = activeVisibleTabs.length > 0 
+        ? activeVisibleTabs.map(t => t.id)
+        : [TAB_NAMES.HOME, TAB_NAMES.CHALLENGES, TAB_NAMES.PROGRAMS, TAB_NAMES.CALENDAR, TAB_NAMES.AZIT, TAB_NAMES.HYPHEN];
+
+    const tabIconMap = {
+        [TAB_NAMES.HOME]: { icon: Home, defaultLabel: '홈' },
+        [TAB_NAMES.CHALLENGES]: { icon: Award, defaultLabel: '챌린지' },
+        [TAB_NAMES.PROGRAMS]: { icon: BookOpen, defaultLabel: '프로그램', activeColor: 'text-blue-600' },
+        [TAB_NAMES.CALENDAR]: { icon: Calendar, defaultLabel: '캘린더' },
+        [TAB_NAMES.AZIT]: { icon: MessageSquareHeart, defaultLabel: '커뮤니티' },
+        [TAB_NAMES.HYPHEN]: { icon: Store, defaultLabel: '하이픈' }
+    };
+    const visibleTabs = (tabConfig || [])
+        .filter(t => t.isVisible)
+        .map(t => {
+            const mapItem = tabIconMap[t.id];
+            if (!mapItem) return null;
+            return {
+                id: t.id,
+                icon: mapItem.icon,
+                label: t.label || mapItem.defaultLabel,
+                activeColor: mapItem.activeColor
+            };
+        })
+        .filter(Boolean);
+
+    const defaultTabsList = [
+        { id: TAB_NAMES.HOME, icon: Home, label: '홈' },
+        { id: TAB_NAMES.CHALLENGES, icon: Award, label: '챌린지' },
+        { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '프로그램', activeColor: 'text-blue-600' },
+        { id: TAB_NAMES.CALENDAR, icon: Calendar, label: '캘린더' },
+        { id: TAB_NAMES.AZIT, icon: MessageSquareHeart, label: '커뮤니티' },
+        { id: TAB_NAMES.HYPHEN, icon: Store, label: '하이픈' }
     ];
+
+    const navigationTabs = visibleTabs.length > 0 ? visibleTabs : defaultTabsList;
 
     const handleTabNavigation = (newTab) => {
         if (newTab === activeTab) return;
@@ -190,11 +221,55 @@ const StudentDashboard = () => {
 
     return (
         <div 
-            className="w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 pb-20 font-sans pt-[max(env(safe-area-inset-top),10px)]"
+            className={`w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 pb-20 font-sans transition-all duration-300 ${
+                activeTab === TAB_NAMES.HOME ? '' : 'pt-[max(env(safe-area-inset-top),10px)]'
+            }`}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
+            {activeTab === TAB_NAMES.HOME && (
+                <div className="sticky top-0 z-[100] bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),8px)] pb-2 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setShowMenuDrawer(true)}
+                            className="p-0.5 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                            <Menu size={24} />
+                        </motion.button>
+                        <span className="text-lg font-black text-blue-600 tracking-tight select-none">
+                            SCI CENTER
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setShowNotificationsModal(true)}
+                            className="p-1 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-50 transition-colors relative animate-fade-in"
+                        >
+                            <Bell size={20} />
+                            {unreadNotificationCount > 0 && (
+                                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white" />
+                            )}
+                        </motion.button>
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={handleShare}
+                            className="p-1 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-50 transition-colors"
+                        >
+                            <Share2 size={20} />
+                        </motion.button>
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setShowEnlargedQr(true)}
+                            className="p-1 text-blue-600 hover:text-blue-700 rounded-full hover:bg-blue-50 transition-colors"
+                        >
+                            <QrCode size={20} />
+                        </motion.button>
+                    </div>
+                </div>
+            )}
             
             {/* Verification Write Modal */}
             {showVerificationWrite && (
@@ -299,6 +374,129 @@ const StudentDashboard = () => {
                         setShowProgramHistory={setShowProgramHistory}
                     />
                 )}
+
+                {showMenuDrawer && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            key="menu-drawer-backdrop"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowMenuDrawer(false)}
+                            className="fixed inset-0 bg-black/40 z-[200] backdrop-blur-[2px]"
+                        />
+
+                        {/* Drawer Panel */}
+                        <motion.div
+                            key="menu-drawer-panel"
+                            initial={{ x: '-100%' }}
+                            animate={{ x: 0 }}
+                            exit={{ x: '-100%' }}
+                            transition={{ type: 'tween', duration: 0.25, ease: 'easeInOut' }}
+                            className="fixed top-0 bottom-0 left-0 md:left-[calc(50vw-256px)] w-64 bg-white z-[210] shadow-2xl flex flex-col pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),16px)] border-r border-gray-100"
+                        >
+                            {/* Drawer Header */}
+                            <div className="p-4 border-b border-gray-50 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <Home size={16} />
+                                    </div>
+                                    <span className="font-black text-blue-600 tracking-tight text-sm select-none">SCI CENTER</span>
+                                </div>
+                                <motion.button
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => setShowMenuDrawer(false)}
+                                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    <X size={20} />
+                                </motion.button>
+                            </div>
+
+                            {/* Mini Profile */}
+                            <div className="p-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 flex items-center gap-3">
+                                <div className="shrink-0 ring-2 ring-white shadow-sm rounded-full">
+                                    <UserAvatar user={user} size="w-12 h-12" textSize="text-md" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[10px] text-gray-400 font-bold tracking-wider uppercase mb-0.5">{user?.school || 'WELCOME'}</p>
+                                    <h3 className="font-black text-gray-800 text-sm flex items-center gap-1">
+                                        {user?.name} 님
+                                        {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                    </h3>
+                                </div>
+                            </div>
+
+                            {/* Menu Body */}
+                            <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                                <p className="px-4 py-1 text-[10px] text-gray-400 font-bold tracking-wider uppercase">바로가기</p>
+                                
+                                {navigationTabs.map((tab) => {
+                                    const IconComponent = tab.icon;
+                                    const isActive = activeTab === tab.id;
+                                    return (
+                                        <button
+                                            key={`drawer-tab-${tab.id}`}
+                                            onClick={() => {
+                                                handleTabNavigation(tab.id);
+                                                setShowMenuDrawer(false);
+                                            }}
+                                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-black text-sm transition-all ${
+                                                isActive
+                                                    ? 'bg-blue-50 text-blue-600'
+                                                    : 'text-gray-600 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <IconComponent size={18} className={isActive ? 'text-blue-600' : 'text-gray-400'} />
+                                            <span>{tab.label}</span>
+                                        </button>
+                                    );
+                                })}
+
+                                <div className="h-px bg-gray-100 my-2" />
+                                <p className="px-4 py-1 text-[10px] text-gray-400 font-bold tracking-wider uppercase">사용자 설정</p>
+
+                                <button
+                                    onClick={() => {
+                                        setShowProfileSettings(true);
+                                        setShowMenuDrawer(false);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-black text-sm text-gray-600 hover:bg-gray-50 transition-all"
+                                >
+                                    <Settings size={18} className="text-gray-400" />
+                                    <span>설정</span>
+                                </button>
+
+                                {user?.role === 'admin' && (
+                                    <button
+                                        onClick={() => {
+                                            navigate('/admin');
+                                            setShowMenuDrawer(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-black text-sm text-blue-600 hover:bg-blue-50/50 transition-all"
+                                    >
+                                        <ShieldCheck size={18} className="text-blue-500" />
+                                        <span>관리자 페이지</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Menu Footer */}
+                            <div className="p-4 border-t border-gray-50">
+                                <button
+                                    onClick={() => {
+                                        setShowMenuDrawer(false);
+                                        handleLogout();
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 border border-red-100 text-red-500 rounded-xl font-black text-sm hover:bg-red-50 transition-colors"
+                                >
+                                    <LogOut size={16} />
+                                    <span>로그아웃</span>
+                                </button>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
             </AnimatePresence>
 
             <AnimatePresence mode="wait" custom={direction}>
@@ -339,6 +537,8 @@ const StudentDashboard = () => {
                     homeNotices={homeNotices}
                     locationGroups={locationGroups}
                     activeUserCountByGroup={activeUserCountByGroup}
+                    dynamicChallenges={dynamicChallenges}
+                    specialStats={specialStats}
                 />
             )}
 
@@ -422,14 +622,7 @@ const StudentDashboard = () => {
 
             {/* Bottom Navigation */}
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 flex justify-around items-center px-4 py-3 z-[120] safe-area-bottom shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-[2.5rem]">
-                {[
-                    { id: TAB_NAMES.HOME, icon: Home, label: '홈' },
-                    { id: TAB_NAMES.CHALLENGES, icon: Award, label: '챌린지' },
-                    { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '프로그램', activeColor: 'text-blue-600' },
-                    { id: TAB_NAMES.CALENDAR, icon: Calendar, label: '캘린더' },
-                    { id: TAB_NAMES.AZIT, icon: MessageSquareHeart, label: '커뮤니티' },
-                    { id: TAB_NAMES.HYPHEN, icon: Store, label: '하이픈' },
-                ].map((tab) => (
+                {navigationTabs.map((tab) => (
                     <motion.button
                         key={tab.id}
                         whileTap={{ scale: 0.9 }}

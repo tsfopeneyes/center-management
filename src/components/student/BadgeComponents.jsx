@@ -8,7 +8,10 @@ export const getBadgeProgress = (badge, stats) => {
     let current = 0;
     let target = badge.threshold || 1;
 
-    if (badge.type === 'VISIT') {
+    if (specialStats?.earnedChallengeIds?.includes(badge.id)) {
+        earned = true;
+        current = target;
+    } else if (badge.type === 'VISIT') {
         current = visitCount;
         earned = visitCount >= target;
     } else if (badge.type === 'PROGRAM') {

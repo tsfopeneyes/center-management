@@ -41,7 +41,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 (user.school && user.school.includes(searchTerm)) ||
                 (age && age === searchTerm) || matchesAge;
 
-            const isGuestOrTemp = user.user_group === '게스트' || user.preferences?.is_temporary === true;
+            const isGuestOrTemp = user.user_group === '게스트' || user.user_group === '미가입' || user.preferences?.is_temporary === true;
 
             const matchesGroup = filterGroup === 'ALL'
                 ? !isGuestOrTemp
@@ -49,7 +49,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
                     ? user.is_leader === true
                     : filterGroup === 'TEMP_GUEST'
                         ? isGuestOrTemp
-                        : user.user_group === filterGroup;
+                        : user.user_group === filterGroup && !isGuestOrTemp;
 
             const isExcludedLeader = excludeLeaders && user.is_leader === true;
             const isNonSchoolChurchFilter = showOnlyNonSchoolChurch && user.preferences?.is_school_church === true;

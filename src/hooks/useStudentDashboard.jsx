@@ -88,7 +88,7 @@ export const useStudentDashboard = () => {
     const [attendedProgramsList, setAttendedProgramsList] = useState([]);
     const [showEnlargedQr, setShowEnlargedQr] = useState(false);
     const { challengeCategories, dynamicChallenges, challengesLoading, fetchChallengeData } = useDashboardChallenges();
-    const [specialStats, setSpecialStats] = useState({ isBirthdayVisited: false, uniqueLocationsCount: 0, maxConsecutiveDays: 0 });
+    const [specialStats, setSpecialStats] = useState({ isBirthdayVisited: false, uniqueLocationsCount: 0, maxConsecutiveDays: 0, earnedChallengeIds: [] });
     const [selectedBadge, setSelectedBadge] = useState(null);
     const { adminSchedules, calendarCategories, fetchSchedules } = useDashboardCalendar();
     const [dashboardConfig, setDashboardConfig] = useState([
@@ -97,6 +97,14 @@ export const useStudentDashboard = () => {
         { id: 'space_status', isVisible: true, count: 0 }, // Add space_status below programs
         { id: 'notices', label: '공지사항', isVisible: true, count: 5 },
         { id: 'gallery', label: '갤러리', isVisible: true, count: 10 }
+    ]);
+    const [tabConfig, setTabConfig] = useState([
+        { id: 'home', label: '홈', isVisible: true },
+        { id: 'challenges', label: '챌린지', isVisible: true },
+        { id: 'programs', label: '프로그램', isVisible: true },
+        { id: 'calendar', label: '캘린더', isVisible: true },
+        { id: 'azit', label: '커뮤니티', isVisible: true },
+        { id: 'hyphen', label: '하이픈', isVisible: true }
     ]);
 
     const handleTabChange = (tabName) => {
@@ -224,22 +232,68 @@ export const useStudentDashboard = () => {
                 }
             }
         };
+
+        const fetchTabConfig = async () => {
+            const { data } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STUDENT_TAB_CONFIG')
+                .maybeSingle();
+
+            if (data && data.content) {
+                try {
+                    const parsed = JSON.parse(data.content);
+                    if (Array.isArray(parsed)) {
+                        const defaultTabs = [
+                            { id: 'home', label: '홈', isVisible: true },
+                            { id: 'challenges', label: '챌린지', isVisible: true },
+                            { id: 'programs', label: '프로그램', isVisible: true },
+                            { id: 'calendar', label: '캘린더', isVisible: true },
+                            { id: 'azit', label: '커뮤니티', isVisible: true },
+                            { id: 'hyphen', label: '하이픈', isVisible: true }
+                        ];
+                        const merged = defaultTabs.map(def => {
+                            const found = parsed.find(p => p.id === def.id);
+                            return found ? { ...def, ...found } : def;
+                        });
+                        const ordered = [
+                            ...parsed.map(p => merged.find(m => m.id === p.id)).filter(Boolean),
+                            ...merged.filter(m => !parsed.find(p => p.id === m.id))
+                        ];
+                        setTabConfig(ordered);
+                    }
+                } catch (e) {
+                    console.error('Failed to parse tab config', e);
+                }
+            }
+        };
+
         fetchDashboardConfig();
+        fetchTabConfig();
     }, []);
 
     // Handled by useDashboardChallenges
 
-    // Deep-linking: Open notice from URL query param
+    // Deep-linking: Open notice from URL query param or localStorage intent
     useEffect(() => {
         if (notices.length > 0) {
             const params = new URLSearchParams(window.location.search);
-            const noticeId = params.get('noticeId');
-            if (noticeId) {
-                const target = notices.find(n => n.id === noticeId);
+            const queryNoticeId = params.get('noticeId');
+            const pendingNoticeId = localStorage.getItem('pendingProgramJoin');
+            const targetId = queryNoticeId || pendingNoticeId;
+            
+            if (targetId) {
+                const target = notices.find(n => n.id === targetId);
                 if (target) {
-                    openNoticeDetail(target);
-                    // Clear the query param without refresh to keep URL clean
-                    window.history.replaceState({}, '', window.location.pathname);
+                    openNoticeDetail(target, 'all Programs'); // Open specifically
+                    // Clear both
+                    if (queryNoticeId) {
+                        window.history.replaceState({}, '', window.location.pathname);
+                    }
+                    if (pendingNoticeId) {
+                        localStorage.removeItem('pendingProgramJoin');
+                    }
                 }
             }
         }
@@ -485,7 +539,7 @@ export const useStudentDashboard = () => {
         totalHours, visitCount, programCount,
         attendedProgramsList,
         challengeCategories, dynamicChallenges, specialStats,
-        adminSchedules, calendarCategories, dashboardConfig,
+        adminSchedules, calendarCategories, dashboardConfig, tabConfig,
         notifications, unreadNotificationCount,
         updateProfile, profileLoadingState,
         

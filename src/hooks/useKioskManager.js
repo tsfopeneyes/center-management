@@ -35,7 +35,7 @@ export const useKioskManager = (navigate) => {
     useEffect(() => {
         const fetchLocs = async () => {
             const { data } = await supabase.from('locations').select('*').order('name');
-            if (data) setLocations(data);
+            if (data) setLocations(data.filter(l => l.is_active !== false));
         };
         fetchLocs();
 

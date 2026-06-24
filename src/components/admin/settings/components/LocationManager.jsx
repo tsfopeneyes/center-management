@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Edit2, Trash2 } from 'lucide-react';
+import { Settings, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
 
 const LocationManager = ({
     isMaster,
@@ -20,7 +20,9 @@ const LocationManager = ({
     editLocationId,
     setEditLocationId,
     handleUpdateLocation,
-    handleDeleteLocation
+    handleDeleteLocation,
+    handleToggleLocationStatus,
+    handleToggleGroupStatus
 }) => {
     if (!isMaster) {
         return (
@@ -73,16 +75,20 @@ const LocationManager = ({
                     const groupLocations = locations.filter(l => l.group_id === group.id);
                     return (
                         <div key={group.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                            <div className="bg-gray-100 p-3 md:p-4 flex items-center justify-between group hover:bg-gray-200 transition">
+                            <div className={`bg-gray-100 p-3 md:p-4 flex items-center justify-between group/grp hover:bg-gray-200 transition ${group.is_active === false ? 'opacity-50 grayscale' : ''}`}>
                                 {editGroupId === group.id ? (
                                     <input defaultValue={group.name} autoFocus onBlur={(e) => handleUpdateGroup(group.id, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleUpdateGroup(group.id, e.currentTarget.value)} className="flex-1 bg-white border border-gray-400 rounded px-2 py-1 outline-none text-sm font-bold" />
                                 ) : (
                                     <span className="text-sm md:text-base text-gray-800 font-extrabold flex items-center gap-2">
                                         {group.name}
+                                        {group.is_active === false && <span className="text-[10px] bg-gray-300 text-gray-600 px-1.5 py-0.5 rounded-sm">숨김</span>}
                                         <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full font-bold">{groupLocations.length}</span>
                                     </span>
                                 )}
                                 <div className="flex gap-1">
+                                    <button onClick={() => handleToggleGroupStatus(group.id, group.is_active)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-white rounded-lg transition" title={group.is_active === false ? "표시하기" : "숨기기"}>
+                                        {group.is_active === false ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    </button>
                                     <button onClick={() => setEditGroupId(group.id)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded-lg transition"><Edit2 size={14} /></button>
                                     <button onClick={() => handleDeleteGroup(group.id)} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-white rounded-lg transition"><Trash2 size={14} /></button>
                                 </div>
@@ -93,13 +99,19 @@ const LocationManager = ({
                                     <div className="p-4 text-xs text-center text-gray-400 font-bold">등록된 공간이 없습니다.</div>
                                 ) : (
                                     groupLocations.map(loc => (
-                                        <div key={loc.id} className="flex items-center justify-between p-3 pl-6 hover:bg-blue-50/50 transition group/loc">
+                                        <div key={loc.id} className={`flex items-center justify-between p-3 pl-6 hover:bg-blue-50/50 transition group/loc ${loc.is_active === false ? 'opacity-50 grayscale' : ''}`}>
                                             {editLocationId === loc.id ? (
                                                 <input defaultValue={loc.name} autoFocus onBlur={(e) => handleUpdateLocation(loc.id, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleUpdateLocation(loc.id, e.currentTarget.value)} className="flex-1 bg-white border border-blue-300 rounded px-2 py-1 outline-none text-sm font-bold" />
                                             ) : (
-                                                <span className="text-sm text-gray-600 font-bold">{loc.name}</span>
+                                                <span className="text-sm text-gray-600 font-bold flex items-center gap-2">
+                                                    {loc.name}
+                                                    {loc.is_active === false && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-sm">숨김</span>}
+                                                </span>
                                             )}
                                             <div className="flex gap-1 opacity-0 group-hover/loc:opacity-100 transition">
+                                                <button onClick={() => handleToggleLocationStatus(loc.id, loc.is_active)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title={loc.is_active === false ? "표시하기" : "숨기기"}>
+                                                    {loc.is_active === false ? <EyeOff size={14} /> : <Eye size={14} />}
+                                                </button>
                                                 <button onClick={() => setEditLocationId(loc.id)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg"><Edit2 size={14} /></button>
                                                 <button onClick={() => handleDeleteLocation(loc.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
                                             </div>
@@ -120,13 +132,19 @@ const LocationManager = ({
                         </div>
                         <div className="bg-white divide-y divide-gray-50">
                             {locations.filter(l => !l.group_id).map(loc => (
-                                <div key={loc.id} className="flex items-center justify-between p-3 pl-6 hover:bg-orange-50/50 transition group/loc">
+                                <div key={loc.id} className={`flex items-center justify-between p-3 pl-6 hover:bg-orange-50/50 transition group/loc ${loc.is_active === false ? 'opacity-50 grayscale' : ''}`}>
                                     {editLocationId === loc.id ? (
                                         <input defaultValue={loc.name} autoFocus onBlur={(e) => handleUpdateLocation(loc.id, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleUpdateLocation(loc.id, e.currentTarget.value)} className="flex-1 bg-white border border-orange-300 rounded px-2 py-1 outline-none text-sm font-bold" />
                                     ) : (
-                                        <span className="text-sm text-gray-600 font-bold">{loc.name}</span>
+                                        <span className="text-sm text-gray-600 font-bold flex items-center gap-2">
+                                            {loc.name}
+                                            {loc.is_active === false && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-sm">숨김</span>}
+                                        </span>
                                     )}
                                     <div className="flex gap-1 opacity-0 group-hover/loc:opacity-100 transition">
+                                        <button onClick={() => handleToggleLocationStatus(loc.id, loc.is_active)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title={loc.is_active === false ? "표시하기" : "숨기기"}>
+                                            {loc.is_active === false ? <EyeOff size={14} /> : <Eye size={14} />}
+                                        </button>
                                         <button onClick={() => setEditLocationId(loc.id)} className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-100 rounded-lg"><Edit2 size={14} /></button>
                                         <button onClick={() => handleDeleteLocation(loc.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
                                     </div>

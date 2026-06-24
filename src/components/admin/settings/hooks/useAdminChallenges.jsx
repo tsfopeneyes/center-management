@@ -11,6 +11,10 @@ export const useAdminChallenges = () => {
     const [expandedCategory, setExpandedCategory] = useState(null);
     const [showCategoryForm, setShowCategoryForm] = useState(false);
     const [showChallengeForm, setShowChallengeForm] = useState(false);
+    const [showAwardModal, setShowAwardModal] = useState(false);
+    const [awardingChallenge, setAwardingChallenge] = useState(null);
+    const [awardedUserIds, setAwardedUserIds] = useState([]);
+    const [studentUsers, setStudentUsers] = useState([]);
 
     const [editingCategory, setEditingCategory] = useState({ name: '', description: '' });
     const [editingChallenge, setEditingChallenge] = useState({
@@ -25,12 +29,18 @@ export const useAdminChallenges = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [catData, chData] = await Promise.all([
+            const [catData, chData, { data: uData }] = await Promise.all([
                 challengesApi.fetchCategories(),
-                challengesApi.fetchChallenges()
+                challengesApi.fetchChallenges(),
+                supabase.from('users')
+                    .select('id, name, school, user_group, role')
+                    .neq('role', 'admin')
+                    .neq('user_group', 'STAFF')
+                    .order('name')
             ]);
             setCategories(catData);
             setChallenges(chData);
+            setStudentUsers(uData || []);
             if (catData.length > 0 && !expandedCategory) {
                 setExpandedCategory(catData[0].id);
             }
@@ -125,16 +135,47 @@ export const useAdminChallenges = () => {
         setShowChallengeForm(true);
     };
 
+    const openAwardModal = async (challenge) => {
+        setAwardingChallenge(challenge);
+        setShowAwardModal(true);
+        try {
+            const userIds = await challengesApi.fetchAwardedUsers(challenge.id);
+            setAwardedUserIds(userIds);
+        } catch (error) {
+            console.error('Error fetching awarded users:', error);
+            alert('뱃지 획득 학생 목록을 가져오는 데 실패했습니다.');
+        }
+    };
+
+    const handleSaveAwards = async (userIds) => {
+        if (!awardingChallenge) return;
+        try {
+            await challengesApi.saveAwardedUsers(awardingChallenge.id, userIds);
+            setAwardedUserIds(userIds);
+            setShowAwardModal(false);
+            setAwardingChallenge(null);
+            alert('뱃지 수여 내역이 저장되었습니다.');
+        } catch (error) {
+            console.error('Error saving awards:', error);
+            alert('뱃지 수여 저장 실패: ' + error.message);
+        }
+    };
+
     return {
         categories, challenges, loading,
         expandedCategory, setExpandedCategory,
         showCategoryForm, setShowCategoryForm,
         showChallengeForm, setShowChallengeForm,
+        showAwardModal, setShowAwardModal,
+        awardingChallenge, setAwardingChallenge,
+        awardedUserIds, setAwardedUserIds,
+        studentUsers,
         editingCategory, setEditingCategory,
         editingChallenge, setEditingChallenge,
         uploading,
         handleSaveCategory, handleDeleteCategory,
         handleSaveChallenge, handleDeleteChallenge,
-        handleImageUpload, openCategoryModal, openChallengeModal
+        handleImageUpload, openCategoryModal, openChallengeModal,
+        openAwardModal, handleSaveAwards
     };
 };

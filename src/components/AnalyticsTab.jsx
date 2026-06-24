@@ -10,6 +10,7 @@ import RoomMemberDetailModal from './admin/statistics/analytics/modals/RoomMembe
 import GuestVisitDetailModal from './admin/statistics/analytics/modals/GuestVisitDetailModal';
 import SeucheoTimeAnalytics from './admin/statistics/analytics/SeucheoTimeAnalytics';
 import ManagerAssignmentModal from './admin/statistics/analytics/ManagerAssignmentModal';
+import ReviewAnalyticsView from './admin/statistics/analytics/views/ReviewAnalyticsView';
 
 const Skeleton = () => (
     <div className="space-y-6">
@@ -54,8 +55,8 @@ const Skeleton = () => (
     </div>
 );
 
-const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, isLoading, fetchData }) => {
-    const hookData = useAnalytics({ logs, schoolLogs, locations, locationGroups, users, notices, responses });
+const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, feedbacks, visitNotes, isLoading, fetchData }) => {
+    const hookData = useAnalytics({ logs, schoolLogs, locations, locationGroups, users, notices, responses, feedbacks, visitNotes });
     const { 
         selectedYear, selectedMonth, selectedDay, periodType, viewMode, 
         showGuestModal, setShowGuestModal, seucheoRegion, isManagerModalOpen, setIsManagerModalOpen, 
@@ -68,7 +69,7 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
         <div className="space-y-6">
             <AnalyticsFilter hookData={hookData} />
             
-            {viewMode !== 'SEUCHEO' && <AnalyticsKPICards hookData={hookData} users={users} />}
+            {viewMode !== 'SEUCHEO' && viewMode !== 'REVIEW' && <AnalyticsKPICards hookData={hookData} users={users} />}
 
             {viewMode === 'SPACE' && <SpaceAnalyticsView hookData={hookData} />}
             {viewMode === 'PROGRAM' && <ProgramAnalyticsView hookData={hookData} />}
@@ -82,11 +83,16 @@ const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users,
                 />
             )}
             {viewMode === 'USER' && <UserAnalyticsView hookData={hookData} />}
+            {viewMode === 'REVIEW' && <ReviewAnalyticsView hookData={hookData} feedbacks={feedbacks} />}
 
             {selectedMemberForCalendar && (
                 <MemberActivityModal
                     member={selectedMemberForCalendar}
                     logs={logs}
+                    locations={locations}
+                    notices={notices}
+                    responses={responses}
+                    users={users}
                     year={selectedYear}
                     month={selectedMonth}
                     onClose={() => setSelectedMemberForCalendar(null)}

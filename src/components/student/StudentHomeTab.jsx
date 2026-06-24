@@ -1,13 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Share2, Bell, ShieldCheck, Settings, LogOut, AlertCircle, ChevronRight, User, Image as ImageIcon, Pin, QrCode, Home } from 'lucide-react';
+import { Share2, Bell, ShieldCheck, Settings, LogOut, AlertCircle, ChevronRight, User, Image as ImageIcon, Pin, QrCode, Home, Trophy, Calendar as LucideCalendar, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import UserAvatar from '../common/UserAvatar';
 import ProgramCard from './ProgramCard';
 import { startOfDay } from 'date-fns';
 import { TAB_NAMES, CATEGORIES } from '../../constants/appConstants';
 import { stripHtml } from '../../utils/textUtils';
+import TodayOperatingWidget from './components/TodayOperatingWidget';
 
 const StudentHomeTab = ({
     user,
@@ -31,105 +32,78 @@ const StudentHomeTab = ({
     homeNotices,
     locationGroups,
     activeUserCountByGroup,
-    handleLogout
-}) => {
+    handleLogout,
+    dynamicChallenges,
+    specialStats}) => {
+    // 뱃지 관련 로직 제거됨
+
     return (
         <>
-            <div className="bg-white p-4 sticky top-0 z-[100] shadow-sm">
-                <div className="max-w-4xl mx-auto flex justify-between items-center">
-                    <Link
-                        to="/"
-                        className="text-xl font-bold text-blue-600 flex items-center gap-2"
-                    >
-                        <Home size={24} />
-                        SCI CENTER
-                    </Link>
-                </div>
-            </div>
-
-            {/* Compact Integrated Header */}
-            {/* [COMPACT EFFICIENCY UI] - 여백을 최소화하여 데이터 밀도를 높임 */}
-            <header className="bg-primary-gradient p-5 pt-7 pb-5 text-white rounded-b-[2.5rem] shadow-2xl relative overflow-hidden mb-0 gpu-accelerated">
+            {/* Premium Integrated Profile Card */}
+            <header className="bg-primary-gradient px-3.5 py-4 text-white rounded-b-[2rem] shadow-2xl relative overflow-hidden mb-0 gpu-accelerated">
                 {/* Subtle Decorative Elements */}
                 <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-[60px] animate-float" />
                 <div className="absolute bottom-[-10%] left-[-5%] w-48 h-48 bg-indigo-500/20 rounded-full blur-[50px] animate-float [animation-delay:-5s]" />
 
-                <div className="relative z-10 max-w-sm mx-auto">
-                    {/* Compact Content Wrapper */}
-                    <div className="flex flex-col gap-4">
-                        {/* Top: Info & QR Row */}
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <motion.div
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => setShowProfileSettings(true)}
-                                    className="cursor-pointer p-0.5 bg-white/20 backdrop-blur-md rounded-full shadow-lg ring-2 ring-white/5 shrink-0"
-                                >
-                                    <UserAvatar user={user} size="w-16 h-16" textSize="text-xl" />
-                                </motion.div>
-                                <div className="flex flex-col min-w-0">
-                                    <p className="text-white/60 text-[10px] font-black tracking-widest uppercase mb-0.5">{user?.school || 'WELCOME'}</p>
-                                    <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-tight text-white whitespace-nowrap flex items-center gap-2">
-                                        {user?.name} 님!
-                                        {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                <div className="relative z-10 max-w-sm sm:max-w-md mx-auto">
+                    {/* Top Section: Avatar + Profile Info + 2x2 Stats Grid (가로 1열 고정 구조) */}
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                            {/* Profile Left: Avatar & Info */}
+                            <div className="flex items-center gap-3">
+                                <div className="relative shrink-0">
+                                    <motion.div
+                                        whileHover={{ scale: 1.03 }}
+                                        whileTap={{ scale: 0.97 }}
+                                        onClick={() => setShowProfileSettings(true)}
+                                        className="cursor-pointer p-0.5 bg-white/20 backdrop-blur-md rounded-full shadow-lg ring-2 ring-white/10"
+                                    >
+                                        <UserAvatar user={user} size="w-14 h-14 sm:w-16 sm:h-16" textSize="text-lg sm:text-xl" />
+                                    </motion.div>
+                                </div>
+                                <div className="flex flex-col min-w-0 justify-center">
+                                    <p className="text-white/95 text-[10px] sm:text-[11px] font-black tracking-wider uppercase mb-0.5 select-none leading-none opacity-90">{user?.school || '더작은재단'}</p>
+                                    <h1 className="text-[17px] sm:text-[20px] font-black tracking-tight leading-tight text-white whitespace-nowrap flex items-center gap-1">
+                                        {user?.name} 님
+                                        {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                     </h1>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
-                                <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => setShowNotificationsModal(true)}
-                                    className="bg-white/10 hover:bg-white/20 p-2.5 rounded-full backdrop-blur-md transition-colors relative"
+                            {/* Profile Right: Actions */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                {/* Hyphen Badge */}
+                                <button 
+                                    onClick={() => handleTabChange(TAB_NAMES.HYPHEN)}
+                                    className="flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors backdrop-blur-md px-2.5 py-1 rounded-full border border-white/30 shadow-sm"
                                 >
-                                    <Bell size={18} className="text-white" />
-                                    {unreadNotificationCount > 0 && (
-                                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-indigo-500" />
-                                    )}
-                                </motion.button>
-                                <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={handleShare}
-                                    className="bg-white/10 hover:bg-white/20 p-2.5 rounded-full backdrop-blur-md transition-colors"
+                                    <div className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white text-[9px] font-black shadow-sm leading-none shrink-0 border border-amber-300">H</div>
+                                    <span className="font-extrabold text-[13px] sm:text-[14px] text-white tracking-tight">{user?.current_hyphen || 0}</span>
+                                </button>
+                                
+                                {/* Settings Icon */}
+                                <button 
+                                    onClick={() => setShowProfileSettings(true)}
+                                    className="p-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full backdrop-blur-md border border-white/10 text-white/90 shadow-sm"
                                 >
-                                    <Share2 size={18} className="text-white" />
-                                </motion.button>
-                                <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => setShowEnlargedQr(true)}
-                                    className="bg-white p-2.5 rounded-full shadow-lg flex items-center justify-center cursor-pointer border-2 border-white/20"
+                                    <Settings size={16} />
+                                </button>
+
+                                {/* Logout Icon */}
+                                <button 
+                                    onClick={handleLogout}
+                                    className="p-1.5 bg-white/10 hover:bg-red-500/80 transition-colors rounded-full backdrop-blur-md border border-white/10 text-white/90 hover:text-white shadow-sm"
                                 >
-                                    <QrCode size={18} className="text-blue-600" />
-                                </motion.button>
+                                    <LogOut size={16} />
+                                </button>
                             </div>
                         </div>
 
-                        {/* Bottom: Compact Action Buttons */}
-                        <div className="flex gap-2">
-                            {user?.role === 'admin' && (
-                                <button
-                                    onClick={() => navigate('/admin')}
-                                    className="flex-1 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl transition-all btn-tactile border border-white/5 backdrop-blur-md"
-                                >
-                                    <ShieldCheck size={20} className="text-white" />
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setShowProfileSettings(true)}
-                                className="flex-1 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl transition-all btn-tactile border border-white/5 backdrop-blur-md"
-                            >
-                                <Settings size={20} className="text-white" />
-                            </button>
-                            <button
-                                onClick={handleLogout}
-                                className="flex-1 h-10 flex items-center justify-center bg-white/10 hover:bg-red-500/30 rounded-xl transition-all btn-tactile border border-white/5 group backdrop-blur-md"
-                            >
-                                <LogOut size={20} className="text-white/80 group-hover:text-white" />
-                            </button>
+                        {/* Bottom Section: Text Summary (Compact) */}
+                        <div className="flex items-center justify-center text-center -mt-3 mb-2.5">
+                            <span className="text-white/95 text-[13.5px] sm:text-[14.5px] font-bold tracking-tight">
+                                그동안 센터에서 <span className="text-yellow-300 font-black">{visitCount}번</span> 만났고, <span className="text-emerald-300 font-black">{programCount}개</span>의 활동을 함께했어요!
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -177,51 +151,25 @@ const StudentHomeTab = ({
                 );
             })()}
 
+            {/* Today Operating Widget */}
+            <div className="px-3.5 mt-4">
+                <TodayOperatingWidget />
+            </div>
+
             <div className="p-2.5 pt-2.5 pb-10 space-y-2.5 relative z-0">
                 {dashboardConfig.map((config) => {
                     if (!config.isVisible) return null;
 
                     switch (config.id) {
                         case 'stats':
-                            return (
-                                <div key="stats" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-around mb-2">
-                                    <div className="flex flex-col items-center flex-1">
-                                        <p className="text-gray-400 text-[9px] mb-1 font-black uppercase tracking-wider">이용시간</p>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-2xl font-black text-blue-600 tracking-tighter">{totalHours}</span>
-                                            <span className="text-blue-300 text-[9px] font-black">시간</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="w-px h-8 bg-gray-100" />
-
-                                    <div className="flex flex-col items-center flex-1">
-                                        <p className="text-gray-400 text-[9px] mb-1 font-black uppercase tracking-wider">방문 수</p>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-2xl font-black text-indigo-600 tracking-tighter">{visitCount}</span>
-                                            <span className="text-indigo-200 text-[9px] font-black">일</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="w-px h-8 bg-gray-100" />
-
-                                    <button onClick={() => setShowProgramHistory(true)} className="flex flex-col items-center flex-1 group active:scale-95 transition-transform">
-                                        <p className="text-gray-400 text-[9px] mb-1 font-black uppercase tracking-wider flex items-center gap-1 group-hover:text-pink-400 transition-colors">
-                                            프로그램 <ChevronRight size={8} />
-                                        </p>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-2xl font-black text-pink-500 tracking-tighter">{programCount}</span>
-                                            <span className="text-pink-200 text-[9px] font-black">회</span>
-                                        </div>
-                                    </button>
-                                </div>
-                            );
+                            // 통계는 이제 헤더 영역(프로필 카드 내부)에 통합되어 표시됩니다.
+                            return null;
 
                         case 'programs':
                             return (
                                 <div key="programs" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                                     <h3 className="font-bold text-gray-800 mb-3 flex justify-between items-center text-sm">
-                                        🔥 프로그램 신청
+                                        <span className="flex items-center gap-1">🔥 {config.label || '프로그램 신청'}</span>
                                         <button onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)} className="text-[10px] text-blue-500 font-bold">더보기</button>
                                     </h3>
                                     <div className="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -242,7 +190,7 @@ const StudentHomeTab = ({
                             return (
                                 <div key="notices" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                                     <h3 className="font-bold text-gray-800 mb-3 flex justify-between items-center text-sm">
-                                        📢 공지사항
+                                        <span className="flex items-center gap-1">📢 {config.label || '공지사항'}</span>
                                         <button onClick={() => handleTabChange(TAB_NAMES.NOTICES)} className="text-[10px] text-blue-500 font-bold">더보기</button>
                                     </h3>
                                     <div className="space-y-4">
@@ -290,25 +238,33 @@ const StudentHomeTab = ({
                 {/* Real-time Space Status (공간현황) placed below everything */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-2 mt-2">
                     <h3 className="font-bold text-gray-800 mb-3 flex items-center text-sm gap-2">
-                        🟢 실시간 공간 현황
+                        🟢 {dashboardConfig.find(c => c.id === 'space_status')?.label || '실시간 공간 현황'}
                     </h3>
                     <div className="flex justify-around items-center">
-                        {locationGroups.map((group, idx) => (
-                            <React.Fragment key={group.id}>
-                                <div className="flex flex-col items-center flex-1">
-                                    <p className="text-gray-400 text-[9px] mb-1 font-black uppercase tracking-wider">{group.name}</p>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-2xl font-black text-blue-600 tracking-tighter">
-                                            {activeUserCountByGroup[group.id] || 0}
-                                        </span>
-                                        <span className="text-blue-300 text-[9px] font-black">명</span>
+                        {locationGroups
+                            .filter(group => group && group.name && group.is_active !== false)
+                            .sort((a, b) => {
+                                const order = { '하이픈': 1, '이높플레이스': 2 };
+                                const orderA = order[a.name] || 999;
+                                const orderB = order[b.name] || 999;
+                                return orderA - orderB;
+                            })
+                            .map((group, idx, filteredArr) => (
+                                <React.Fragment key={group.id}>
+                                    <div className="flex flex-col items-center flex-1">
+                                        <p className="text-gray-400 text-[9px] mb-1 font-black uppercase tracking-wider">{group.name}</p>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-2xl font-black text-blue-600 tracking-tighter">
+                                                {activeUserCountByGroup[group.id] || 0}
+                                            </span>
+                                            <span className="text-blue-300 text-[9px] font-black">명</span>
+                                        </div>
                                     </div>
-                                </div>
-                                {idx < locationGroups.length - 1 && (
-                                    <div className="w-px h-8 bg-gray-100" />
-                                )}
-                            </React.Fragment>
-                        ))}
+                                    {idx < filteredArr.length - 1 && (
+                                        <div className="w-px h-8 bg-gray-100" />
+                                    )}
+                                </React.Fragment>
+                            ))}
                     </div>
                 </div>
             </div >

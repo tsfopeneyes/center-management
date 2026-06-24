@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { performFullSyncToGoogleSheets } from '../utils/integrationUtils';
 import { processAnalyticsData, processUserAnalytics, processProgramAnalytics } from '../utils/analyticsUtils';
 import { aggregateVisitSessions } from '../utils/visitUtils';
+import { feedbackApi } from '../api/feedbackApi';
 
 // Components
 import AdminSidebar from '../components/admin/AdminSidebar';
@@ -22,6 +23,7 @@ import AdminChallenges from '../components/admin/settings/AdminChallenges';
 import AdminCalendar from '../components/admin/calendar/AdminCalendar';
 import AdminSchool from '../components/admin/school/AdminSchool';
 import AdminStore from '../components/admin/store/AdminStore';
+import AdminDuty from '../components/admin/duty/AdminDuty';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
 
@@ -44,9 +46,11 @@ const AdminDashboard = () => {
     const [allLogs, setAllLogs] = useState([]);
     const [schoolLogs, setSchoolLogs] = useState([]);
     const [responses, setResponses] = useState([]);
+    const [feedbacks, setFeedbacks] = useState([]);
     const [zoneStats, setZoneStats] = useState({});
     const [dailyVisitStats, setDailyVisitStats] = useState({});
     const [currentLocations, setCurrentLocations] = useState({}); // { userId: locationId }
+    const [visitNotes, setVisitNotes] = useState([]);
 
     const fetchData = useCallback(async (isFullFetch = false) => {
         // Automatically perform full fetch if currently in statistics or report mode
@@ -69,6 +73,17 @@ const AdminDashboard = () => {
 
             const { data: responseData } = await supabase.from('notice_responses').select('*');
             setResponses(responseData || []);
+
+            let feedbackData = [];
+            try {
+                feedbackData = await feedbackApi.fetchAllFeedbacks();
+            } catch (fbErr) {
+                console.error("Failed to fetch feedbacks", fbErr);
+            }
+            setFeedbacks(feedbackData || []);
+
+            const { data: vNotesData } = await supabase.from('visit_notes').select('*');
+            setVisitNotes(vNotesData || []);
 
             // Stats Calculation - Increase limit for initial load and allow full fetch for statistics
             const logLimit = isFullFetch ? 10000 : 3000;
@@ -131,7 +146,7 @@ const AdminDashboard = () => {
             const { data: sLogs } = await supabase.from('school_logs').select('*, users(name), schools(name)').order('date', { ascending: false });
             setSchoolLogs(sLogs || []);
 
-            return { users: userData || [], locations: locData || [], locationGroups: lgData || [], notices: noticeData || [], responses: responseData || [], allLogs: logs || [], schoolLogs: sLogs || [] };
+            return { users: userData || [], locations: locData || [], locationGroups: lgData || [], notices: noticeData || [], responses: responseData || [], allLogs: logs || [], schoolLogs: sLogs || [], feedbacks: feedbackData || [] };
 
         } catch (error) { console.error(error); }
         finally {
@@ -239,10 +254,10 @@ const AdminDashboard = () => {
     }, []);
 
     // Weekday 10PM Auto Sync Scheduler
-    const syncDataRef = React.useRef({ users, allLogs, responses, notices, locations, schoolLogs });
+    const syncDataRef = React.useRef({ users, allLogs, responses, notices, locations, schoolLogs, feedbacks });
     useEffect(() => {
-        syncDataRef.current = { users, allLogs, responses, notices, locations, schoolLogs };
-    }, [users, allLogs, responses, notices, locations, schoolLogs]);
+        syncDataRef.current = { users, allLogs, responses, notices, locations, schoolLogs, feedbacks };
+    }, [users, allLogs, responses, notices, locations, schoolLogs, feedbacks]);
 
     useEffect(() => {
         const checkAutoSync = () => {
@@ -273,7 +288,7 @@ const AdminDashboard = () => {
         try {
             // Need latest visit notes for the sync
             const { data: vNotes } = await supabase.from('visit_notes').select('*');
-            const { users, allLogs, responses, notices, locations, schoolLogs } = syncDataRef.current;
+            const { users, allLogs, responses, notices, locations, schoolLogs, feedbacks } = syncDataRef.current;
 
             await performFullSyncToGoogleSheets({
                 webhookUrl,
@@ -283,6 +298,7 @@ const AdminDashboard = () => {
                 notices,
                 locations,
                 schoolLogs,
+                feedbacks,
                 visitNotes: vNotes,
                 processUserAnalytics,
                 processProgramAnalytics,
@@ -322,6 +338,7 @@ const AdminDashboard = () => {
                 setIsOpen={setIsMenuOpen}
                 isPinned={isSidebarPinned}
                 setIsPinned={setIsSidebarPinned}
+                notices={notices}
             />
 
             {/* Main Content */}
@@ -354,6 +371,7 @@ const AdminDashboard = () => {
                         <AdminStatus
                             users={users}
                             locations={locations}
+                            locationGroups={locationGroups}
                             zoneStats={zoneStats}
                             currentLocations={currentLocations}
                             handleBatchCheckout={handleBatchCheckout}
@@ -379,6 +397,9 @@ const AdminDashboard = () => {
                     {activeMenu === 'STORE' && (
                         <AdminStore />
                     )}
+                    {activeMenu === 'DUTY' && (
+                        <AdminDuty currentAdmin={currentAdmin} users={users} />
+                    )}
                     {activeMenu === 'USERS' && (
                         <AdminUsers users={users} allLogs={allLogs} locations={locations} fetchData={fetchData} />
                     )}
@@ -392,13 +413,25 @@ const AdminDashboard = () => {
                         <AdminMessages users={users} />
                     )}
                     {activeMenu === 'STATISTICS' && (
-                        <AdminStatistics logs={allLogs} schoolLogs={schoolLogs} locations={locations} locationGroups={locationGroups} users={users} notices={notices} responses={responses} isLoading={isStatsLoading} fetchData={fetchData} />
+                        <AdminStatistics 
+                            logs={allLogs} 
+                            schoolLogs={schoolLogs} 
+                            locations={locations} 
+                            locationGroups={locationGroups} 
+                            users={users} 
+                            notices={notices} 
+                            responses={responses} 
+                            feedbacks={feedbacks}
+                            visitNotes={visitNotes}
+                            isLoading={isStatsLoading} 
+                            fetchData={fetchData} 
+                        />
                     )}
                     {activeMenu === 'LOGS' && (
                         <AdminLogs allLogs={allLogs} schoolLogs={schoolLogs} users={users} locations={locations} notices={notices} fetchData={fetchData} />
                     )}
                     {activeMenu === 'REPORTS' && (
-                        <AdminReport allLogs={allLogs} users={users} locations={locations} notices={notices} />
+                        <AdminReport allLogs={allLogs} users={users} locations={locations} notices={notices} responses={responses} />
                     )}
                     {activeMenu === 'SETTINGS' && (
                         <AdminSettings currentAdmin={currentAdmin} locations={locations} locationGroups={locationGroups} notices={notices} fetchData={fetchData} users={users} allLogs={allLogs} responses={responses} schoolLogs={schoolLogs} />

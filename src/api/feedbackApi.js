@@ -16,10 +16,27 @@ export const feedbackApi = {
             .select(`
                 *,
                 users (
-                    id, name, school
+                    id, name, school, birth
                 )
             `)
             .eq('notice_id', noticeId)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data;
+    },
+
+    async fetchAllFeedbacks() {
+        const { data, error } = await supabase
+            .from('program_feedback')
+            .select(`
+                *,
+                users (
+                    id, name, school, birth
+                ),
+                notices (
+                    title, program_type
+                )
+            `)
             .order('created_at', { ascending: false });
         if (error) throw error;
         return data;

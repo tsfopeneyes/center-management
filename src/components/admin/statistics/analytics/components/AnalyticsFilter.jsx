@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Users, Clock, MapPin } from 'lucide-react';
+import { Calendar, Users, Clock, MapPin, Star } from 'lucide-react';
 import { getKSTWeekOfMonth } from '../../../../../utils/dateUtils';
 
 const AnalyticsFilter = ({ hookData }) => {
@@ -145,6 +145,12 @@ const AnalyticsFilter = ({ hookData }) => {
                         className={`flex-1 lg:flex-none px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold border transition h-[40px] flex items-center justify-center gap-1.5 whitespace-nowrap ${viewMode === 'SEUCHEO' ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                     >
                         <Clock size={16} /> 스처타임
+                    </button>
+                    <button
+                        onClick={() => setViewMode('REVIEW')}
+                        className={`flex-1 lg:flex-none px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold border transition h-[40px] flex items-center justify-center gap-1.5 whitespace-nowrap ${viewMode === 'REVIEW' ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        <Star size={16} /> 리뷰 분석
                     </button>
                 </div>
             </div>

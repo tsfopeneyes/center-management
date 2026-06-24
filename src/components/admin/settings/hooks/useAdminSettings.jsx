@@ -57,8 +57,30 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         { id: 'REPORTS', label: '운영 리포트', isVisible: true },
         { id: 'SETTINGS', label: '설정', isVisible: true }
     ]);
+    const [tabConfig, setTabConfig] = useState([
+        { id: 'home', label: '홈', isVisible: true },
+        { id: 'challenges', label: '챌린지', isVisible: true },
+        { id: 'programs', label: '프로그램', isVisible: true },
+        { id: 'calendar', label: '캘린더', isVisible: true },
+        { id: 'azit', label: '커뮤니티', isVisible: true },
+        { id: 'hyphen', label: '하이픈', isVisible: true }
+    ]);
     const [configLoading, setConfigLoading] = useState(false);
     const [sidebarConfigLoading, setSidebarConfigLoading] = useState(false);
+    const [tabConfigLoading, setTabConfigLoading] = useState(false);
+
+    // 5. Operating Hours State
+    const defaultHours = {
+        monday: { isOpen: false, open: '10:00', close: '19:00', label: '월요일' },
+        tuesday: { isOpen: true, open: '10:00', close: '19:00', label: '화요일' },
+        wednesday: { isOpen: true, open: '10:00', close: '19:00', label: '수요일' },
+        thursday: { isOpen: true, open: '10:00', close: '19:00', label: '목요일' },
+        friday: { isOpen: true, open: '10:00', close: '19:00', label: '금요일' },
+        saturday: { isOpen: true, open: '10:00', close: '19:00', label: '토요일' },
+        sunday: { isOpen: false, open: '10:00', close: '19:00', label: '일요일' }
+    };
+    const [operatingHours, setOperatingHours] = useState(defaultHours);
+    const [hoursLoading, setHoursLoading] = useState(false);
 
     // --- EFFECT: Load Layout Configurations ---
     useEffect(() => {
@@ -100,6 +122,51 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                         ];
                         setSidebarConfig(ordered.filter(c => c.id !== 'GALLERY'));
                     }
+                } catch (e) { console.error(e); }
+            }
+
+            const { data: tabData } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STUDENT_TAB_CONFIG')
+                .maybeSingle();
+
+            if (tabData?.content) {
+                try {
+                    const parsed = JSON.parse(tabData.content);
+                    if (Array.isArray(parsed)) {
+                        const defaultTabs = [
+                            { id: 'home', label: '홈', isVisible: true },
+                            { id: 'challenges', label: '챌린지', isVisible: true },
+                            { id: 'programs', label: '프로그램', isVisible: true },
+                            { id: 'calendar', label: '캘린더', isVisible: true },
+                            { id: 'azit', label: '커뮤니티', isVisible: true },
+                            { id: 'hyphen', label: '하이픈', isVisible: true }
+                        ];
+                        const merged = defaultTabs.map(def => {
+                            const found = parsed.find(p => p.id === def.id);
+                            return found ? { ...def, ...found } : def;
+                        });
+                        const ordered = [
+                            ...parsed.map(p => merged.find(m => m.id === p.id)).filter(Boolean),
+                            ...merged.filter(m => !parsed.find(p => p.id === m.id))
+                        ];
+                        setTabConfig(ordered);
+                    }
+                } catch (e) { console.error(e); }
+            }
+            const { data: hoursData } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'OPERATING_HOURS_CONFIG')
+                .maybeSingle();
+
+            if (hoursData?.content) {
+                try {
+                    const parsed = JSON.parse(hoursData.content);
+                    setOperatingHours(prev => ({ ...prev, ...parsed }));
                 } catch (e) { console.error(e); }
             }
         };
@@ -206,6 +273,15 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         } catch (err) { alert('그룹 삭제 실패: ' + err.message); }
     };
 
+    const handleToggleGroupStatus = async (id, currentStatus) => {
+        try {
+            const newStatus = currentStatus === false ? true : false;
+            const { error } = await supabase.from('location_groups').update({ is_active: newStatus }).eq('id', id);
+            if (error) throw error;
+            fetchData();
+        } catch (err) { alert('그룹 상태 변경 실패: ' + err.message); }
+    };
+
     const handleAddLocation = async () => {
         if (!tempLocationName || !selectedGroupIdForLocation) {
             alert('공간 이름과 소속 그룹을 모두 입력해주세요.');
@@ -236,6 +312,15 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
             if (error) throw error;
             fetchData();
         } catch (err) { alert('삭제 실패: ' + err.message); }
+    };
+
+    const handleToggleLocationStatus = async (id, currentStatus) => {
+        try {
+            const newStatus = currentStatus === false ? true : false;
+            const { error } = await supabase.from('locations').update({ is_active: newStatus }).eq('id', id);
+            if (error) throw error;
+            fetchData();
+        } catch (err) { alert('상태 변경 실패: ' + err.message); }
     };
 
     // --- Integration Logics ---
@@ -405,6 +490,93 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         }
     };
 
+    const handleMoveTabConfig = (index, direction) => {
+        const newConfig = [...tabConfig];
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= newConfig.length) return;
+        const temp = newConfig[index];
+        newConfig[index] = newConfig[targetIndex];
+        newConfig[targetIndex] = temp;
+        setTabConfig(newConfig);
+    };
+
+    const handleUpdateTabConfig = (id, field, value) => {
+        setTabConfig(prev => prev.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ));
+    };
+
+    const handleSaveTabConfig = async () => {
+        setTabConfigLoading(true);
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STUDENT_TAB_CONFIG')
+                .maybeSingle();
+
+            const payload = {
+                title: 'STUDENT_TAB_CONFIG',
+                content: JSON.stringify(tabConfig),
+                category: CATEGORIES.SYSTEM,
+                is_sticky: false,
+                is_recruiting: false
+            };
+
+            if (existing) {
+                await supabase.from('notices').update(payload).eq('id', existing.id);
+            } else {
+                await supabase.from('notices').insert([payload]);
+            }
+            alert('학생 하단 탭 메뉴 설정이 저장되었습니다.');
+        } catch (err) {
+            console.error(err);
+            alert('저장 실패');
+        } finally {
+            setTabConfigLoading(false);
+        }
+    };
+
+    const handleUpdateOperatingHours = (day, field, value) => {
+        setOperatingHours(prev => ({
+            ...prev,
+            [day]: { ...prev[day], [field]: value }
+        }));
+    };
+
+    const handleSaveOperatingHours = async () => {
+        setHoursLoading(true);
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'OPERATING_HOURS_CONFIG')
+                .maybeSingle();
+
+            const payload = {
+                title: 'OPERATING_HOURS_CONFIG',
+                content: JSON.stringify(operatingHours),
+                category: CATEGORIES.SYSTEM,
+                is_sticky: false,
+                is_recruiting: false
+            };
+
+            if (existing) {
+                await supabase.from('notices').update(payload).eq('id', existing.id);
+            } else {
+                await supabase.from('notices').insert([payload]);
+            }
+            alert('기본 운영 시간 설정이 저장되었습니다.');
+        } catch (err) {
+            console.error(err);
+            alert('운영 시간 저장 실패');
+        } finally {
+            setHoursLoading(false);
+        }
+    };
+
     return {
         profileImage, setProfileImage,
         profilePreview, setProfilePreview,
@@ -431,13 +603,18 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         selectedGroupIdForLocation, setSelectedGroupIdForLocation,
         tempLocationName, setTempLocationName,
         editLocationId, setEditLocationId,
-        handleAddGroup, handleUpdateGroup, handleDeleteGroup,
+        handleAddGroup, handleUpdateGroup, handleDeleteGroup, handleToggleGroupStatus,
         handleAddLocation, handleUpdateLocation, handleDeleteLocation,
+        handleToggleLocationStatus,
 
-        dashboardConfig, sidebarConfig,
-        configLoading, sidebarConfigLoading,
+        dashboardConfig, sidebarConfig, tabConfig,
+        configLoading, sidebarConfigLoading, tabConfigLoading,
         handleMoveConfig, handleUpdateConfig, handleSaveDashboardConfig,
-        handleMoveSidebarConfig, handleUpdateSidebarConfig, handleSaveSidebarConfig
+        handleMoveSidebarConfig, handleUpdateSidebarConfig, handleSaveSidebarConfig,
+        handleMoveTabConfig, handleUpdateTabConfig, handleSaveTabConfig,
+
+        operatingHours, hoursLoading,
+        handleUpdateOperatingHours, handleSaveOperatingHours
     };
 };
 

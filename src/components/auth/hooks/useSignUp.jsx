@@ -5,7 +5,7 @@ import { hashPassword } from '../../../utils/hashUtils';
 
 export const useSignUp = (onSuccess) => {
     const [formData, setFormData] = useState({
-        name: '', gender: '', school: '', birth: '', phone: '', user_group: '청소년',
+        name: '', gender: '', school: '', church: '', birth: '', phone: '', user_group: '청소년',
         password: '', confirmPassword: '',
         guardianName: '', guardianPhone: '', guardianRelation: '',
         isSchoolChurch: true
@@ -86,7 +86,7 @@ export const useSignUp = (onSuccess) => {
             let isAutoMerge = false;
 
             if (existing) {
-                const isTemporary = existing.user_group === '게스트' || existing.preferences?.is_temporary === true;
+                const isTemporary = existing.user_group === '게스트' || existing.user_group === '미가입' || existing.preferences?.is_temporary === true;
 
                 if (isTemporary) {
                     targetUserId = existing.id;
@@ -102,7 +102,7 @@ export const useSignUp = (onSuccess) => {
             const hashedPassword = await hashPassword(formData.password);
 
             const userData = {
-                name: formData.name, gender: formData.gender, school: formData.school,
+                name: formData.name, gender: formData.gender, school: formData.school, church: formData.church,
                 birth: formData.birth, phone: formData.phone, phone_back4: back4,
                 user_group: formData.user_group, password: hashedPassword,
                 role: 'user', status: under14 ? 'pending' : 'approved',

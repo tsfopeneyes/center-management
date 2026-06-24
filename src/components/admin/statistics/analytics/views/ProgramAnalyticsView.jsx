@@ -65,6 +65,17 @@ const ProgramAnalyticsView = ({ hookData, users, schoolLogs }) => {
                                     programData.map((p) => (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition border-b border-gray-50 last:border-0">
                                             <td className="p-4 font-bold text-gray-700 max-w-[240px] leading-snug break-keep">
+                                                {(() => {
+                                                    const targets = p.target_regions || [];
+                                                    if (targets.length === 0 || (targets.includes('강동') && targets.includes('강서'))) {
+                                                        return <span className="text-blue-600 mr-1 font-bold">[All]</span>;
+                                                    } else if (targets.includes('강동')) {
+                                                        return <span className="text-purple-600 mr-1 font-bold">[강동]</span>;
+                                                    } else if (targets.includes('강서')) {
+                                                        return <span className="text-pink-600 mr-1 font-bold">[강서]</span>;
+                                                    }
+                                                    return <span className="text-blue-600 mr-1 font-bold">[All]</span>;
+                                                })()}
                                                 {p.title}
                                             </td>
                                             <td className="p-4 text-center">

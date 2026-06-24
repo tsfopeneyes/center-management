@@ -58,7 +58,7 @@ export const isConsecutiveWorkingDay = (prevDate, currDate) => {
 /**
  * Process Raw Logs for Space Analytics
  */
-export const processAnalyticsData = (logs, locations, users, date, type) => {
+export const processAnalyticsData = (logs, locations, users, date, type, visitNotes = []) => {
     const { start, end } = getPeriodRange(date, type);
 
     const adminIds = new Set(users.filter(isAdminOrStaff).map(u => u.id));
@@ -69,8 +69,28 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
         return d >= start && d <= end;
     });
 
+    const visitNotesMap = new Map();
+    if (visitNotes && visitNotes.length > 0) {
+        visitNotes.forEach(vn => {
+            const key = `${vn.user_id}_${vn.visit_date}`;
+            visitNotesMap.set(key, vn.purpose);
+        });
+    }
+
     const userMap = new Map(users.map(u => [u.id, u]));
-    const locationMap = new Map(locations.map(loc => [loc.id, { ...loc, studentDurations: new Map(), guestCount: 0 }]));
+    const locationMap = new Map(locations.map(loc => [loc.id, { 
+        ...loc, 
+        studentDurations: new Map(), 
+        guestCount: 0,
+        purposeCounts: {
+            '개인 할 일': 0,
+            '프로그램 참여': 0,
+            '교제 및 휴식': 0,
+            '스처쌤 만남': 0,
+            '미선택': 0
+        },
+        processedUserDatesForPurposes: new Set()
+    }]));
 
     // Calculate Core Space Metrics Using Unified Sessions
     const sessions = aggregateVisitSessions(logs, users, locations, format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
@@ -78,17 +98,17 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
     // Reconstruct studentDurations map using the generated sessions
     sessions.forEach(session => {
         const userId = session.userId;
+        const user = userMap.get(userId);
+        const isGuestOrUnregistered = user?.user_group === '게스트' || user?.user_group === '미가입';
+        
         const durationLogs = session.rawLogs;
 
         let currentLocId = session.rawLogs[0]?.location_id;
         let segmentStart = new Date(session.rawLogs[0].created_at);
+        const locIdsVisited = new Set();
+        if (currentLocId) locIdsVisited.add(currentLocId);
 
-        // Count visit for the initial location immediately
-        if (currentLocId && locationMap.has(currentLocId)) {
-            const loc = locationMap.get(currentLocId);
-            if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 0 });
-            loc.studentDurations.get(userId).count++;
-        }
+        const validVisitLocs = new Set();
 
         durationLogs.forEach((log) => {
             if (log.type === 'MOVE') {
@@ -96,18 +116,16 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
                 const duration = differenceInMinutes(logTime, segmentStart);
 
                 if (duration > 0 && currentLocId && locationMap.has(currentLocId)) {
-                    locationMap.get(currentLocId).studentDurations.get(userId).duration += duration;
+                    const loc = locationMap.get(currentLocId);
+                    if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 0 });
+                    loc.studentDurations.get(userId).duration += duration;
+                    validVisitLocs.add(currentLocId);
                 }
 
                 currentLocId = log.location_id;
                 segmentStart = logTime;
-
-                // Count visit for the new location immediately
-                if (currentLocId && locationMap.has(currentLocId)) {
-                    const loc = locationMap.get(currentLocId);
-                    if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 0 });
-                    loc.studentDurations.get(userId).count++;
-                }
+                
+                if (currentLocId) locIdsVisited.add(currentLocId);
             }
         });
 
@@ -118,8 +136,61 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
         if (lastLog.type === 'CHECKOUT') {
             const duration = differenceInMinutes(lastLogTime, segmentStart);
             if (duration > 0 && currentLocId && locationMap.has(currentLocId)) {
-                locationMap.get(currentLocId).studentDurations.get(userId).duration += duration;
+                const loc = locationMap.get(currentLocId);
+                if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 0 });
+                loc.studentDurations.get(userId).duration += duration;
+                validVisitLocs.add(currentLocId);
             }
+        }
+        
+        // Count visit for locations visited in this session
+        locIdsVisited.forEach(locId => {
+            if (validVisitLocs.has(locId) || isGuestOrUnregistered) {
+                if (locationMap.has(locId)) {
+                    const loc = locationMap.get(locId);
+                    if (!loc.studentDurations.has(userId)) loc.studentDurations.set(userId, { duration: 0, count: 0 });
+                    loc.studentDurations.get(userId).count++;
+                }
+            }
+        });
+        
+        // Map purposes to visited locations in this session
+        const purposeString = visitNotesMap.get(`${userId}_${session.date}`);
+        if (purposeString) {
+            const purposes = purposeString.split(',').map(s => s.trim());
+            locIdsVisited.forEach(locId => {
+                if (validVisitLocs.has(locId) || isGuestOrUnregistered) {
+                    const loc = locationMap.get(locId);
+                    if (loc) {
+                        const userDateLocKey = `${userId}_${session.date}_${locId}`;
+                        if (!loc.processedUserDatesForPurposes.has(userDateLocKey)) {
+                            loc.processedUserDatesForPurposes.add(userDateLocKey);
+                            purposes.forEach(p => {
+                                if (p === '') return;
+                                if (loc.purposeCounts[p] !== undefined) {
+                                    loc.purposeCounts[p]++;
+                                } else {
+                                    loc.purposeCounts[p] = 1;
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+        } else {
+            // Count as '미선택' if no purpose string was found
+            locIdsVisited.forEach(locId => {
+                if (validVisitLocs.has(locId) || isGuestOrUnregistered) {
+                    const loc = locationMap.get(locId);
+                    if (loc) {
+                        const userDateLocKey = `${userId}_${session.date}_${locId}`;
+                        if (!loc.processedUserDatesForPurposes.has(userDateLocKey)) {
+                            loc.processedUserDatesForPurposes.add(userDateLocKey);
+                            loc.purposeCounts['미선택'] = (loc.purposeCounts['미선택'] || 0) + 1;
+                        }
+                    }
+                }
+            });
         }
     });
 
@@ -133,6 +204,8 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
         let localGuestCount = loc.guestCount; // Start with legacy count
 
         loc.studentDurations.forEach((stats, uid) => {
+            if (stats.count === 0) return; // Ignore if count is 0
+
             const user = userMap.get(uid);
             const isGuest = user?.user_group === '게스트';
             
@@ -160,9 +233,10 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
             uniqueUsers: memberCount + localGuestCount,
             memberCount,
             guestCount: localGuestCount, // Total guest sessions in this room
-            userDetails: userDetailsList.sort((a, b) => b.duration - a.duration)
+            userDetails: userDetailsList.sort((a, b) => b.duration - a.duration),
+            purposeCounts: loc.purposeCounts
         };
-    });
+    }).filter(r => r.visitCount > 0 || r.guestCount > 0 || r.duration > 0 || r.uniqueUsers > 0);
 
     // 3. Member Ranking (Simplified O(N) approach)
     const userCheckinCounts = new Map();
@@ -219,6 +293,8 @@ export const processAnalyticsData = (logs, locations, users, date, type) => {
 
     locationMap.forEach(loc => {
         loc.studentDurations.forEach((stats, uid) => {
+            if (stats.count === 0) return; // Ignore if count is 0
+
             const user = userMap.get(uid);
             const isGuest = user?.user_group === '게스트';
             const isGraduate = user?.user_group === '졸업생';
@@ -349,31 +425,41 @@ export const processUserAnalytics = (users, logs, responses, notices, date, type
     // 3. Space Stats Calculation Using Unified Sessions
     const sessions = aggregateVisitSessions(logs, users, notices, format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
 
+    const userMap = new Map(users.map(u => [u.id, u]));
+
     sessions.forEach(session => {
         const userId = session.userId;
         const stats = userStats.get(userId);
         if (!stats) return;
 
-        stats.spaceCount++;
-        stats.visitDays.add(session.date);
+        const user = userMap.get(userId);
+        const isGuestOrUnregistered = user?.user_group === '게스트' || user?.user_group === '미가입';
 
         const durationLogs = session.rawLogs;
-        if (durationLogs.length < 2) return;
+        let sessionDuration = 0;
 
-        let segmentStart = new Date(durationLogs[0].created_at);
-        durationLogs.forEach(log => {
-            if (log.type === 'MOVE') {
-                const logTime = new Date(log.created_at);
-                const duration = Math.max(0, differenceInMinutes(logTime, segmentStart));
-                if (duration > 0) stats.spaceDuration += duration;
-                segmentStart = logTime;
+        if (durationLogs.length >= 2) {
+            let segmentStart = new Date(durationLogs[0].created_at);
+            durationLogs.forEach(log => {
+                if (log.type === 'MOVE') {
+                    const logTime = new Date(log.created_at);
+                    const duration = Math.max(0, differenceInMinutes(logTime, segmentStart));
+                    if (duration > 0) sessionDuration += duration;
+                    segmentStart = logTime;
+                }
+            });
+
+            const lastLog = durationLogs[durationLogs.length - 1];
+            if (lastLog.type === 'CHECKOUT') {
+                const duration = Math.max(0, differenceInMinutes(new Date(lastLog.created_at), segmentStart));
+                if (duration > 0) sessionDuration += duration;
             }
-        });
+        }
 
-        const lastLog = durationLogs[durationLogs.length - 1];
-        if (lastLog.type === 'CHECKOUT') {
-            const duration = Math.max(0, differenceInMinutes(new Date(lastLog.created_at), segmentStart));
-            if (duration > 0) stats.spaceDuration += duration;
+        if (sessionDuration > 0 || isGuestOrUnregistered) {
+            stats.spaceCount++;
+            stats.visitDays.add(session.date);
+            stats.spaceDuration += sessionDuration;
         }
     });
 
@@ -617,7 +703,7 @@ SCI CENTER DASHBOARD
         `.trim();
     },
 
-    processOperationReport(logs, users, locations, startDate, endDate, targetGroup = 'ALL') {
+    processOperationReport(logs, users, locations, notices, responses, startDate, endDate, targetGroup = 'ALL') {
         const start = startOfDay(startDate);
         const end = endOfDay(endDate);
         const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
@@ -626,28 +712,41 @@ SCI CENTER DASHBOARD
 
 
         const targetUsers = [];
-        const guestUsers = [];
+        const guestUsers = []; // We keep guests in a separate array if needed, but for filtering we treat them according to targetGroup
 
         users.forEach(u => {
             if (adminIds.has(u.id)) return;
 
-            if (u.user_group === '게스트') {
-                guestUsers.push(u);
+            const isGuest = u.user_group === '게스트' || u.user_group === '미가입';
+
+            if (isGuest) {
+                if (targetGroup === 'ALL' || targetGroup === 'YOUTH' || targetGroup === 'NON_LEADER_YOUTH') {
+                    guestUsers.push(u);
+                }
                 return;
             }
 
-            // Filter by targetGroup for regular users
             if (targetGroup === 'YOUTH') {
                 if (u.user_group === '졸업생' || u.user_group === '일반인') return;
+            } else if (targetGroup === 'GRADUATE') {
+                if (u.user_group !== '졸업생') return;
+            } else if (targetGroup === 'LEADER_YOUTH') {
+                if (u.user_group === '졸업생' || u.user_group === '일반인') return;
+                if (u.is_leader !== true) return;
+            } else if (targetGroup === 'NON_LEADER_YOUTH') {
+                if (u.user_group === '졸업생' || u.user_group === '일반인') return;
+                if (u.is_leader === true) return;
             }
+            
             targetUsers.push(u);
         });
 
         const targetUserIds = new Set(targetUsers.map(u => u.id));
         const guestUserIds = new Set(guestUsers.map(u => u.id));
+        const allTargetUserIds = new Set([...targetUserIds, ...guestUserIds]);
 
         const filteredLogs = logs.filter(l => {
-            if (!targetUserIds.has(l.user_id) && !guestUserIds.has(l.user_id)) return false;
+            if (!allTargetUserIds.has(l.user_id)) return false;
             const d = new Date(l.created_at);
             return d >= start && d <= end;
         });
@@ -688,12 +787,8 @@ SCI CENTER DASHBOARD
             const u = userMap.get(userId);
             if (!u) return;
 
-            const isGuest = u.user_group === '게스트';
-
-            // Filter by targetGroup for non-guests
-            if (!isGuest && targetGroup === 'YOUTH') {
-                if (u.user_group === '졸업생' || u.user_group === '일반인') return;
-            }
+            if (!allTargetUserIds.has(userId)) return;
+            const isGuest = guestUserIds.has(userId);
 
             const durationLogs = session.rawLogs;
             if (durationLogs.length === 0) return;
@@ -916,12 +1011,56 @@ SCI CENTER DASHBOARD
             return acc;
         }, {});
 
+        // --- Program Statistics Logic ---
+        const programStats = {
+            center: { count: 0, participants: 0, details: [] },
+            schoolChurch: { count: 0, participants: 0, details: [] },
+            totalCount: 0,
+            totalParticipants: 0
+        };
+
+        const filteredNotices = notices.filter(n => {
+            if (n.category !== 'PROGRAM') return false;
+            // Include programs inside the date range. program_date might be missing, then use created_at.
+            const d = n.program_date ? new Date(n.program_date) : new Date(n.created_at);
+            return startOfDay(d) >= startOfDay(start) && startOfDay(d) <= endOfDay(end);
+        });
+
+        filteredNotices.forEach(n => {
+            // Include responses for target users only
+            const nResponses = responses.filter(r => r.notice_id === n.id && allTargetUserIds.has(r.user_id));
+            const attendedCount = nResponses.filter(r => r.is_attended).length;
+            const joinCount = nResponses.filter(r => r.status === 'JOIN').length;
+            
+            const detail = {
+                id: n.id,
+                title: n.title,
+                target_regions: n.target_regions,
+                date: n.program_date || n.created_at,
+                targetAttendCount: attendedCount,
+                targetJoinCount: joinCount
+            };
+
+            if (n.program_type === 'SCHOOL_CHURCH') {
+                programStats.schoolChurch.count++;
+                programStats.schoolChurch.participants += attendedCount;
+                programStats.schoolChurch.details.push(detail);
+            } else {
+                programStats.center.count++;
+                programStats.center.participants += attendedCount;
+                programStats.center.details.push(detail);
+            }
+            programStats.totalCount++;
+            programStats.totalParticipants += attendedCount;
+        });
+
         return {
             spaceResults,
             guestResults,
             monthlyMetrics,
             totalUnique: new Set(Array.from(userDateVisit).map(k => k.split('_')[0])).size,
-            reportTarget: targetGroup
+            reportTarget: targetGroup,
+            programStats
         };
     }
 };

@@ -24,20 +24,17 @@ const ReportHeader = ({
 
             <div className="flex flex-col gap-3 w-full xl:w-auto">
                 <div className="flex flex-wrap gap-2 items-center justify-end">
-                    <div className="flex bg-white border border-gray-200 rounded-xl overflow-x-auto p-1 gap-1 scrollbar-hide shrink-0">
-                        <button
-                            onClick={() => setTargetGroup('ALL')}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition whitespace-nowrap ${targetGroup === 'ALL' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
-                        >
-                            전체 (청소년+졸업생)
-                        </button>
-                        <button
-                            onClick={() => setTargetGroup('YOUTH')}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition whitespace-nowrap ${targetGroup === 'YOUTH' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
-                        >
-                            청소년만
-                        </button>
-                    </div>
+                    <select
+                        value={targetGroup}
+                        onChange={(e) => setTargetGroup(e.target.value)}
+                        className="p-2 border border-blue-200 text-blue-800 rounded-xl text-xs md:text-sm font-bold outline-none focus:border-blue-500 bg-blue-50/50 transition-colors cursor-pointer shadow-sm"
+                    >
+                        <option value="ALL">전체 (모든 이용자)</option>
+                        <option value="YOUTH">청소년 (리더 포함)</option>
+                        <option value="GRADUATE">졸업생</option>
+                        <option value="LEADER_YOUTH">리더 청소년</option>
+                        <option value="NON_LEADER_YOUTH">일반 청소년 (리더 제외)</option>
+                    </select>
                 </div>
 
                 <div className="flex flex-wrap gap-2 items-center justify-end">

@@ -6,6 +6,7 @@ import VisitorsChart from './components/VisitorsChart';
 import DurationChart from './components/DurationChart';
 import TrendChart from './components/TrendChart';
 import HeatmapChart from './components/HeatmapChart';
+import SpacePurposeChart from './components/SpacePurposeChart';
 
 const SpaceAnalyticsView = ({ hookData }) => {
     const { 
@@ -30,6 +31,13 @@ const SpaceAnalyticsView = ({ hookData }) => {
                 spaceData={spaceData} 
                 setSelectedRoomDetails={setSelectedRoomDetails} 
             />
+            
+            <SpacePurposeChart 
+                spaceData={spaceData} 
+            />
+            
+            {/* Empty space for unified layout on the second row */}
+            <div className="hidden md:block"></div>
 
             {(!showTrend || !showHeatmap) && (
                 <div className="md:col-span-2 flex flex-col md:flex-row justify-center items-center gap-3 py-4">

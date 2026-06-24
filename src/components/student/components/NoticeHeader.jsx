@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Edit2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, Share } from 'lucide-react';
 
 const NoticeHeader = ({
     onClose,
@@ -22,12 +22,28 @@ const NoticeHeader = ({
                 </div>
             </div>
             
-            {isAdmin && fromAdmin && isEditing && (
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setIsEditing(false)} className="text-gray-500 text-sm font-medium px-2 py-1">취소</button>
-                    <button onClick={handleSave} className="text-blue-600 font-bold text-sm px-3 py-1 bg-blue-50 rounded-lg">저장</button>
-                </div>
-            )}
+            <div className="flex items-center gap-2">
+                {!isEditing && noticeId && (
+                    <button 
+                        onClick={() => {
+                            const link = `${window.location.origin}/p/${noticeId}`;
+                            navigator.clipboard.writeText(link)
+                                .then(() => alert('공유 링크가 클립보드에 복사되었습니다!'))
+                                .catch(() => alert('링크 복사에 실패했습니다.'));
+                        }} 
+                        className="p-2 hover:bg-gray-50 rounded-full transition text-gray-500"
+                        title="공유하기"
+                    >
+                        <Share size={20} />
+                    </button>
+                )}
+                {isAdmin && fromAdmin && isEditing && (
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setIsEditing(false)} className="text-gray-500 text-sm font-medium px-2 py-1">취소</button>
+                        <button onClick={handleSave} className="text-blue-600 font-bold text-sm px-3 py-1 bg-blue-50 rounded-lg">저장</button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

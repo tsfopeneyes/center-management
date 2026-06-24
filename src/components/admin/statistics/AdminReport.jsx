@@ -7,7 +7,7 @@ import ReportHeader from './components/ReportHeader';
 import ReportMetrics from './components/ReportMetrics';
 import GuestListModal from './components/GuestListModal';
 
-const AdminReport = ({ allLogs, users, locations, notices }) => {
+const AdminReport = ({ allLogs, users, locations, notices, responses }) => {
     const {
         loading, report,
         selectedYear, setSelectedYear,
@@ -17,7 +17,7 @@ const AdminReport = ({ allLogs, users, locations, notices }) => {
         targetGroup, setTargetGroup,
         selectedGuestSpace, setSelectedGuestSpace,
         generateReport
-    } = useAdminReport(allLogs, users, locations);
+    } = useAdminReport(allLogs, users, locations, notices, responses);
 
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">

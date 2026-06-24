@@ -36,7 +36,7 @@ const SchoolLogsView = ({ school, logs, staffList, allUsers, hookData }) => {
                                         onClick={() => setIsLogFormOpen(true)}
                                         className="px-6 py-4 md:py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-sm md:text-xs shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 active:scale-95"
                                     >
-                                        <Plus size={18} /> 새로운 사역일지 입력
+                                        <Plus size={18} /> 학생 만남 일지
                                     </button>
                                 </div>
 

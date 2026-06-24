@@ -1,8 +1,8 @@
-import React from 'react';
-import { LayoutDashboard, MessageSquare, Users, BarChart2, FileText, Settings, LogOut, User, Calendar, School, Trophy, Store } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { LayoutDashboard, MessageSquare, Users, BarChart2, FileText, Settings, LogOut, User, Calendar, School, Trophy, Store, ClipboardCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, isPinned, setIsPinned }) => {
+const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, isPinned, setIsPinned, notices = [] }) => {
     const navigate = useNavigate();
     const [winWidth, setWinWidth] = React.useState(window.innerWidth);
 
@@ -12,7 +12,7 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const menuGroups = [
+    const baseMenuGroups = [
         {
             title: "센터 운영",
             items: [
@@ -22,6 +22,7 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
                 { id: 'CHALLENGES', label: '챌린지 관리', icon: <Trophy size={20} /> },
                 { id: 'BOARD', label: '공지사항', icon: <MessageSquare size={20} /> },
                 { id: 'STORE', label: '하이픈 포인트', icon: <Store size={20} /> },
+                { id: 'DUTY', label: '당직 관리', icon: <ClipboardCheck size={20} /> },
             ]
         },
         {
@@ -45,6 +46,61 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
             ]
         }
     ];
+
+    const menuGroups = useMemo(() => {
+        const configNotice = notices.find(n => n.category === 'SYSTEM' && n.title === 'ADMIN_SIDEBAR_CONFIG');
+        let configMap = {};
+        let configOrder = [];
+        if (configNotice?.content) {
+            try {
+                const parsed = JSON.parse(configNotice.content);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(item => {
+                        configMap[item.id] = item;
+                        configOrder.push(item.id);
+                    });
+                }
+            } catch (e) { console.error('Failed to parse sidebar config', e); }
+        }
+
+        const newGroups = baseMenuGroups.map(group => {
+            let newItems = group.items.map(item => {
+                const conf = configMap[item.id];
+                if (conf) {
+                    return { ...item, label: conf.label || item.label, isVisible: conf.isVisible !== false };
+                }
+                return { ...item, isVisible: true };
+            });
+
+            // If we have an order defined, let's try to sort within the group. 
+            // Better yet, just apply visibility and label changes since moving across groups is complex.
+            // Wait, the config is a flat list! AdminSidebar uses groups.
+            // For now, we will sort items within each group based on the flat order if they exist in the order list.
+            if (configOrder.length > 0) {
+                newItems.sort((a, b) => {
+                    const idxA = configOrder.indexOf(a.id);
+                    const idxB = configOrder.indexOf(b.id);
+                    if (idxA === -1 && idxB === -1) return 0;
+                    if (idxA === -1) return 1;
+                    if (idxB === -1) return -1;
+                    return idxA - idxB;
+                });
+            }
+
+            return { ...group, items: newItems.filter(item => item.isVisible) };
+        });
+
+        // Reorder groups based on the first item's index in the configOrder (simple approximation)
+        if (configOrder.length > 0) {
+            newGroups.sort((a, b) => {
+                const idxA = a.items.length > 0 ? configOrder.indexOf(a.items[0].id) : Infinity;
+                const idxB = b.items.length > 0 ? configOrder.indexOf(b.items[0].id) : Infinity;
+                return (idxA === -1 ? Infinity : idxA) - (idxB === -1 ? Infinity : idxB);
+            });
+        }
+
+        return newGroups.filter(g => g.items.length > 0);
+    }, [notices]);
 
     // Helper to handle menu click and auto-close if in overlay mode
     const handleMenuClick = (menuId) => {

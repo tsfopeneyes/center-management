@@ -12,29 +12,19 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
         location: '',
         participant_ids: [],
         facilitator_ids: [],
-        content: ''
+        content: `1.근황나눔 (학교, 교회, 가정, 친구, 고민)
+- 
+2. 신앙상태 (하나님과의 관계, 신앙 습관)
+- 
+3.스쿨처치 (모임, 리더십, 역할정검)
+- 
+4. 기도제목 (개인, 모임)
+- 
+5. 추후 사역 방향 (만남 계획, 필요지원)
+- `
     });
     const [searchTerm, setSearchTerm] = useState('');
     const [facilitatorSearchTerm, setFacilitatorSearchTerm] = useState('');
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            const { selectionStart, selectionEnd, value } = e.target;
-            const newValue = value.substring(0, selectionStart) + '\n* ' + value.substring(selectionEnd);
-
-            setFormData(prev => ({
-                ...prev,
-                content: newValue
-            }));
-
-            // Cursor positioning after state update (using timeout to ensure DOM update)
-            setTimeout(() => {
-                e.target.selectionStart = e.target.selectionEnd = selectionStart + 3;
-            }, 0);
-        }
-    };
-
     const filteredStudents = school.students.filter(s =>
         s.name.includes(searchTerm) || s.phone?.includes(searchTerm)
     );
@@ -66,7 +56,7 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
                         <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
                             <Plus size={20} />
                         </div>
-                        <h3 className="text-xl font-black text-gray-800 tracking-tighter">새 사역일지 작성</h3>
+                        <h3 className="text-xl font-black text-gray-800 tracking-tighter">학생 만남 일지</h3>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
                         <X size={24} />
@@ -268,10 +258,9 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
                         </label>
                         <textarea
                             value={formData.content}
-                            onKeyDown={handleKeyDown}
                             onChange={e => setFormData({ ...formData, content: e.target.value })}
-                            className="w-full h-[300px] md:h-[400px] p-5 md:p-6 bg-gray-50 border border-gray-100 rounded-[1.5rem] md:rounded-[2rem] font-bold text-gray-700 outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner resize-none text-base md:text-[13px] leading-relaxed"
-                            placeholder={`여기에 내용을 입력하세요...\n* 엔터 입력 시 불렛 자동 생성\n* 쉬프트+엔터로 일반 줄바꿈`}
+                            className="w-full h-[300px] md:h-[400px] p-5 md:p-6 bg-gray-50 border border-gray-100 rounded-[1.5rem] md:rounded-[2rem] text-gray-700 outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner resize-none text-base md:text-[13px] leading-relaxed"
+                            placeholder="사역 내용을 입력하세요..."
                         />
                     </div>
                 </div>

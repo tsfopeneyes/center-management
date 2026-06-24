@@ -195,6 +195,7 @@ export const useAdminLogs = ({ allLogs, schoolLogs, users, locations, notices, f
                 groups[groupKey] = {
                     id: groupKey, prgId, prgTitle: prgTitle || notice?.title || '삭제된 프로그램',
                     prgLocation: location || info?.location || '', prgType: notice?.program_type || 'CENTER',
+                    target_regions: notice?.target_regions || [],
                     displayTime: formatShortTime(actualDate, actualTime, log.created_at),
                     sortTime, type: (log.type === 'PRG_CANCELLED' || log.type === 'PRG_CANCEL_SYSTEM') ? 'CANCELLED' : 'COMPLETED',
                     attendees: [], absentees: [], cancelled: [], logIds: []

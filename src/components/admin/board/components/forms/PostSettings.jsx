@@ -25,15 +25,17 @@ const PostSettings = ({ formData, updateField, mode }) => {
                     <span className="text-[12px] sm:text-sm font-bold text-gray-700 tracking-tight leading-tight">고정 공지</span>
                 </label>
 
-                <label className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-2 px-2 py-3 sm:py-2.5 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100 text-center sm:text-left">
-                    <input 
-                        type="checkbox" 
-                        checked={formData.is_recruiting} 
-                        onChange={e => updateField('is_recruiting', e.target.checked)} 
-                        className="w-4 h-4 text-blue-600 rounded" 
-                    />
-                    <span className="text-[12px] sm:text-sm font-bold text-gray-700 tracking-tight leading-tight">참석여부 모집</span>
-                </label>
+                {mode !== CATEGORIES.PROGRAM && (
+                    <label className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-2 px-2 py-3 sm:py-2.5 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100 text-center sm:text-left">
+                        <input 
+                            type="checkbox" 
+                            checked={formData.is_recruiting} 
+                            onChange={e => updateField('is_recruiting', e.target.checked)} 
+                            className="w-4 h-4 text-blue-600 rounded" 
+                        />
+                        <span className="text-[12px] sm:text-sm font-bold text-gray-700 tracking-tight leading-tight">참석여부 모집</span>
+                    </label>
+                )}
 
                 <label className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-2 px-2 py-3 sm:py-2.5 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition border border-gray-100 text-center sm:text-left">
                     <input 

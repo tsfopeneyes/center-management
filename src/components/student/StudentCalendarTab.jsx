@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Info, Clock, ChevronRight } from 'lucide-react';
 import { startOfDay, isSameDay } from 'date-fns';
 import { CATEGORIES } from '../../constants/appConstants';
+import TodayOperatingWidget from './components/TodayOperatingWidget';
 
 const StudentCalendarTab = ({
     adminSchedules,
@@ -22,12 +23,11 @@ const StudentCalendarTab = ({
             </div>
 
             <div className="px-5">
-                <div className="mb-6 p-4 rounded-2xl bg-red-50/80 border border-red-100 flex items-center gap-3">
-                    <Info size={20} className="text-red-500 shrink-0" />
-                    <p className="text-sm font-bold text-red-700">
-                        매주 <span className="font-black underline decoration-red-300 decoration-2 underline-offset-2">화, 토, 일</span>은 센터 정기 휴관일입니다.
-                    </p>
+                <div className="mb-4">
+                    <TodayOperatingWidget />
                 </div>
+                
+
 
             <div className="space-y-2.5">
                 {/* Group schedules by date or simple list for now, 
@@ -65,10 +65,10 @@ const StudentCalendarTab = ({
                         })
                         .filter(e => e.end >= startOfDay(new Date()))
                         .filter(e => {
-                            // Hide regular recurring closures (Tuesday=2, Saturday=6, Sunday=0) to prevent clutter
+                            // Hide regular recurring closures (Saturday=6, Sunday=0) to prevent clutter
                             if (e.catName === '휴관') {
                                 const day = e.start.getDay();
-                                if (day === 0 || day === 2 || day === 6) {
+                                if (day === 0 || day === 6) {
                                     return false;
                                 }
                             }

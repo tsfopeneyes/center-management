@@ -7,6 +7,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import StudentDashboard from './pages/StudentDashboard'
 import Kiosk from './pages/Kiosk'
 import SplashScreen from './components/common/SplashScreen'
+import PublicProgramDetail from './pages/PublicProgramDetail'
 
 function App() {
     const [isLoading, setIsLoading] = useState(() => {
@@ -25,6 +26,7 @@ function App() {
             <BrowserRouter>
                 <Routes>
                     <Route path="/" element={<Landing />} />
+                    <Route path="/p/:id" element={<PublicProgramDetail />} />
                     <Route path="student" element={<StudentDashboard />} />
                     <Route element={<Layout />}>
                         {/* Legacy or unused routes can be kept or removed */}

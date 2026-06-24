@@ -98,13 +98,21 @@ export const useProfile = (initialUser) => {
                 }
             }
 
+            // Fetch earned manual challenges
+            const { data: earnedChallenges } = await supabase
+                .from('user_challenges')
+                .select('challenge_id')
+                .eq('user_id', userId);
+            const earnedChallengeIds = earnedChallenges?.map(ec => ec.challenge_id) || [];
+
             return {
                 attendedPrograms: responses?.map(r => r.notices?.title).filter(Boolean) || [],
                 specialStats: {
                     isBirthdayVisited,
                     uniqueLocationsCount: visitedLocations.size,
                     totalLocationsCount: totalLocationsCount || 0,
-                    maxConsecutiveDays
+                    maxConsecutiveDays,
+                    earnedChallengeIds
                 }
             };
 

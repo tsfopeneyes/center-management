@@ -26,6 +26,7 @@
     "@use-gesture/react": "^10.3.1",
     "@yudiel/react-qr-scanner": "^2.5.0",
     "canvas-confetti": "^1.9.4",
+    "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.3.1",
     "emoji-picker-react": "^4.18.0",

@@ -156,7 +156,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             )}
 
                             {/* RSVP */}
-                            {notice.is_recruiting && (
+                            {notice.is_recruiting ? (
                                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm mb-8">
                                     <div className="flex justify-between items-center mb-6">
                                         <div className="flex flex-col">
@@ -173,7 +173,12 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                         {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
                                     </button>
                                 </div>
-                            )}
+                            ) : notice.category === 'PROGRAM' ? (
+                                <div className="bg-teal-50 p-6 rounded-[2rem] border border-teal-100 shadow-sm mb-8 flex flex-col items-center justify-center text-center">
+                                    <p className="text-sm font-black text-teal-800 mb-1">🎉 오픈 프로그램입니다!</p>
+                                    <p className="text-xs text-teal-600 font-bold">사전 신청 없이 일정에 맞춰 자유롭게 참여하세요.</p>
+                                </div>
+                            ) : null}
                         </>
                     )}
                 </div>
