@@ -13,7 +13,6 @@ import useImageUpload from '../../hooks/useImageUpload';
 // Sections
 import BasicInfoSection from './BasicInfoSection';
 import ProgramInfoSection from './ProgramInfoSection';
-import RecruitmentSection from './RecruitmentSection';
 import PollBuilder from './PollBuilder';
 import PostSettings from './PostSettings';
 
@@ -22,7 +21,7 @@ import ImageUploader from '../images/ImageUploader';
 import ImagePreviewList from '../images/ImagePreviewList';
 import ImageCropModal from '../images/ImageCropModal';
 
-const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel }) => {
+const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat = false }) => {
     const [isSaving, setIsSaving] = useState(false);
 
     const {
@@ -213,7 +212,14 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel }) => 
     };
 
     return (
-        <form onSubmit={handleSaveNotice} className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] animate-fade-in-up">
+        <form 
+            id="write-form"
+            onSubmit={handleSaveNotice} 
+            className={flat 
+                ? "animate-fade-in-up space-y-6 md:space-y-8" 
+                : "bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] animate-fade-in-up space-y-6 md:space-y-8"
+            }
+        >
             <div className="space-y-6 md:space-y-8">
                 
                 <BasicInfoSection 
@@ -227,10 +233,8 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel }) => 
                 />
 
                 {mode === CATEGORIES.PROGRAM && (
-                    <ProgramInfoSection formData={formData} updateField={updateField} />
+                    <ProgramInfoSection formData={formData} updateField={updateField} flat={flat} />
                 )}
-
-                <RecruitmentSection formData={formData} updateField={updateField} mode={mode} />
                 
                 <PollBuilder formData={formData} updateField={updateField} />
 
@@ -301,7 +305,8 @@ WriteForm.propTypes = {
     editNoticeId: PropTypes.string,
     existingNotice: PropTypes.object,
     onSave: PropTypes.func.isRequired,
-    onCancel: PropTypes.func.isRequired
+    onCancel: PropTypes.func.isRequired,
+    flat: PropTypes.bool
 };
 
 export default React.memo(WriteForm);

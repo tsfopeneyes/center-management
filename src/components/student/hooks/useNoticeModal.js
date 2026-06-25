@@ -46,7 +46,7 @@ const useNoticeModal = ({ notice, user, context, responses }) => {
             const now = new Date();
             const deadline = new Date(notice.recruitment_deadline);
             if (deadline < now) {
-                setTimeLeft('마감됨');
+                setTimeLeft('신청이 마감되었습니다.');
                 return;
             }
             const diff = deadline - now;
@@ -55,9 +55,9 @@ const useNoticeModal = ({ notice, user, context, responses }) => {
             const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            let timeStr = '';
+            let timeStr = '신청 마감까지 ';
             if (days > 0) timeStr += `${days}일 `;
-            timeStr += `${hours}시간 ${minutes}분 ${seconds}초 후 종료`;
+            timeStr += `${hours}시간 ${minutes}분 ${seconds}초 남았어요!`;
             setTimeLeft(timeStr);
         };
         updateTimer();

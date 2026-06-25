@@ -157,7 +157,7 @@ const AdminDuty = ({ currentAdmin, users }) => {
     };
 
     return (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-120px)]">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
             {/* Header */}
             <div className="p-3 md:p-4 border-b border-gray-100 flex flex-row justify-between items-center gap-2 bg-white z-10">
                 <div className="flex items-center gap-2">
@@ -210,9 +210,9 @@ const AdminDuty = ({ currentAdmin, users }) => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50/30">
+            <div className="flex-1 p-4 md:p-6 bg-gray-50/30">
                 {loading ? (
-                    <div className="flex items-center justify-center h-full text-gray-400 font-bold">로딩 중...</div>
+                    <div className="flex items-center justify-center py-20 text-gray-400 font-bold">로딩 중...</div>
                 ) : (
                     <div className="max-w-4xl mx-auto">
                         {activeTab === 'START' && (

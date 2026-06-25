@@ -4,18 +4,22 @@ import { motion } from 'framer-motion';
 import ModernEditor from '../common/ModernEditor';
 import UserAvatar from '../common/UserAvatar';
 import LinkPreview from '../common/LinkPreview';
-import { formatToLocalISO } from '../../utils/dateUtils';
-import { extractUrls } from '../../utils/textUtils';
+import { formatToLocalISO, formatProgramSchedule } from '../../utils/dateUtils';
+import { extractUrls, extractProgramInfo } from '../../utils/textUtils';
 import useNoticeModal from './hooks/useNoticeModal';
 
 // Components
 import NoticeCarousel from './components/NoticeCarousel';
 import NoticeHeader from './components/NoticeHeader';
+import WriteForm from '../admin/board/components/forms/WriteForm';
 
 const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, onResponse, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
     const [zoomedImage, setZoomedImage] = useState(null);
+
+    const { cleanContent, duration, location } = extractProgramInfo(notice.content);
+    const formattedSchedule = formatProgramSchedule(notice.program_date, notice.program_duration || duration);
 
     const isAdmin = user?.role === 'admin';
 
@@ -75,31 +79,47 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                     {!isEditing && <NoticeCarousel allImages={allImages} />}
 
                     {isEditing ? (
-                        <div className="space-y-6">
-                            <input
-                                type="text"
-                                value={editedNotice.title}
-                                onChange={(e) => setEditedNotice({ ...editedNotice, title: e.target.value })}
-                                className="w-full text-2xl font-bold border-none outline-none placeholder:text-gray-200"
-                                placeholder="제목 없음"
+                        <div className="py-2 animate-fade-in-up">
+                            <WriteForm
+                                mode={notice.category}
+                                editNoticeId={notice.id}
+                                existingNotice={notice}
+                                onSave={(savedData) => {
+                                    onUpdate({ ...savedData, id: notice.id });
+                                    setIsEditing(false);
+                                }}
+                                onCancel={() => setIsEditing(false)}
+                                flat={true}
                             />
-                            <div className="space-y-4 border-y border-gray-50 py-6">
-                                <div className="flex items-center gap-4 text-sm">
-                                    <div className="w-24 text-gray-400 flex items-center gap-2"><CalendarIcon size={14} /><span>마감일</span></div>
-                                    <input type="datetime-local" value={editedNotice.recruitment_deadline ? formatToLocalISO(editedNotice.recruitment_deadline) : ''} onChange={(e) => setEditedNotice({ ...editedNotice, recruitment_deadline: e.target.value })} className="flex-1 bg-transparent border-none outline-none font-medium text-base" />
-                                </div>
-                                <div className="flex items-center gap-4 text-sm">
-                                    <div className="w-24 text-gray-400 flex items-center gap-2"><User size={14} /><span>정원</span></div>
-                                    <input type="number" value={editedNotice.max_capacity || 0} onChange={(e) => setEditedNotice({ ...editedNotice, max_capacity: parseInt(e.target.value) })} className="flex-1 bg-transparent border-none outline-none font-medium text-base" />
-                                </div>
-                            </div>
-                            <ModernEditor content={editedNotice.content} onChange={(content) => setEditedNotice({ ...editedNotice, content })} />
                         </div>
                     ) : (
                         <>
                             <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-4">{notice.title}</h1>
+                            {notice.category === 'PROGRAM' && (
+                                <>
+                                    <hr className="border-gray-100 my-6" />
+                                    <div className="bg-[#f8fafc] border border-gray-100 rounded-2xl p-5 space-y-3 mb-6">
+                                        <div className="flex text-sm">
+                                            <span className="w-12 text-gray-500 font-bold shrink-0">일정</span>
+                                            <span className="text-gray-800 font-extrabold">{formattedSchedule}</span>
+                                        </div>
+                                        <div className="flex text-sm">
+                                            <span className="w-12 text-gray-500 font-bold shrink-0">장소</span>
+                                            <span className="text-gray-800 font-extrabold">{notice.program_location || location || '미정'}</span>
+                                        </div>
+                                        <div className="flex text-sm">
+                                            <span className="w-12 text-gray-500 font-bold shrink-0">인원</span>
+                                            <span className="text-gray-800 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                                        </div>
+                                    </div>
+                                    <hr className="border-gray-100 my-6" />
+                                </>
+                            )}
+                            {notice.category === 'PROGRAM' && (
+                                <h3 className="text-[15px] font-black text-blue-600 mb-3">프로그램 소개</h3>
+                            )}
                             <div className="prose max-w-none text-gray-800 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden">
-                                <div dangerouslySetInnerHTML={{ __html: notice.content }} />
+                                <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
                                 {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                             </div>
 
@@ -156,29 +176,26 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             )}
 
                             {/* RSVP */}
-                            {notice.is_recruiting ? (
-                                <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm mb-8">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <div className="flex flex-col">
-                                            <p className="text-sm font-black text-blue-600">참여 여부 선택</p>
-                                            {notice.recruitment_deadline && <p className="text-[11px] font-bold text-red-500">{timeLeft}</p>}
+                            {notice.category !== 'PROGRAM' && (
+                                notice.is_recruiting ? (
+                                    <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm mb-8">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div className="flex flex-col">
+                                                <p className="text-sm font-black text-blue-600">참여 여부 선택</p>
+                                                {notice.recruitment_deadline && <p className="text-[11px] font-bold text-red-500">{timeLeft}</p>}
+                                            </div>
+                                            {notice.max_capacity > 0 && <div className="bg-green-100 text-green-600 px-3 py-1.5 rounded-xl text-xs font-black">{joinCount} / {notice.max_capacity}명</div>}
                                         </div>
-                                        {notice.max_capacity > 0 && <div className="bg-green-100 text-green-600 px-3 py-1.5 rounded-xl text-xs font-black">{joinCount} / {notice.max_capacity}명</div>}
+                                        <button
+                                            disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
+                                            onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
+                                            className={`w-full py-4 rounded-full font-black text-white transition transform active:scale-95 ${(responses[notice.id] ? 'bg-gray-400' : 'bg-blue-600 shadow-lg shadow-blue-200')}`}
+                                        >
+                                            {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
+                                        </button>
                                     </div>
-                                    <button
-                                        disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
-                                        onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
-                                        className={`w-full py-4 rounded-full font-black text-white transition transform active:scale-95 ${(responses[notice.id] ? 'bg-gray-400' : 'bg-blue-600 shadow-lg shadow-blue-200')}`}
-                                    >
-                                        {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
-                                    </button>
-                                </div>
-                            ) : notice.category === 'PROGRAM' ? (
-                                <div className="bg-teal-50 p-6 rounded-[2rem] border border-teal-100 shadow-sm mb-8 flex flex-col items-center justify-center text-center">
-                                    <p className="text-sm font-black text-teal-800 mb-1">🎉 오픈 프로그램입니다!</p>
-                                    <p className="text-xs text-teal-600 font-bold">사전 신청 없이 일정에 맞춰 자유롭게 참여하세요.</p>
-                                </div>
-                            ) : null}
+                                ) : null
+                            )}
                         </>
                     )}
                 </div>
@@ -205,19 +222,66 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             </div>
                         </div>
                     ))}
+                    
+                    {/* Inline Comment Input for Program Notices */}
+                    {notice.category === 'PROGRAM' && (
+                        <div className="p-4 bg-white border-t border-gray-50">
+                            <form onSubmit={(e) => { e.preventDefault(); onPostComment(e); }} className="flex items-center gap-3">
+                                <UserAvatar user={user} size="w-8 h-8" />
+                                <div className="flex-1 bg-gray-100 rounded-full px-4 py-2 flex items-center">
+                                    <input type="text" value={newComment || ''} onChange={(e) => setNewComment(e.target.value)} placeholder="댓글 달기..." className="bg-transparent text-sm w-full outline-none py-1.5" />
+                                    {newComment?.trim() && <button type="submit" className="text-blue-600 text-sm font-bold ml-2">게시</button>}
+                                </div>
+                            </form>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Comment Input */}
-            <div className="p-3 border-t border-gray-100 bg-white sticky bottom-0 z-50">
-                <form onSubmit={(e) => { e.preventDefault(); onPostComment(e); }} className="flex items-center gap-3">
-                    <UserAvatar user={user} size="w-8 h-8" />
-                    <div className="flex-1 bg-gray-100 rounded-full px-4 py-2 flex items-center">
-                        <input type="text" value={newComment || ''} onChange={(e) => setNewComment(e.target.value)} placeholder="댓글 달기..." className="bg-transparent text-sm w-full outline-none py-1.5" />
-                        {newComment?.trim() && <button type="submit" className="text-blue-600 text-sm font-bold ml-2">게시</button>}
-                    </div>
-                </form>
-            </div>
+            {/* Program Notice Fixed Bottom Action Bar */}
+            {notice.category === 'PROGRAM' && !isEditing && (
+                <div className="bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] z-[60]">
+                    {notice.is_recruiting && notice.recruitment_deadline && (
+                        <div className="bg-black text-center py-2.5 px-4 text-xs font-bold text-yellow-400 tracking-tight">
+                            {timeLeft}
+                        </div>
+                    )}
+                    {notice.is_recruiting ? (
+                        <div className="p-4 flex gap-3">
+                            <button
+                                disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
+                                onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
+                                className={`flex-1 py-4 rounded-xl font-black text-white text-base transition transform active:scale-95 shadow-md ${
+                                    responses[notice.id] 
+                                        ? 'bg-gray-400' 
+                                        : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
+                                            ? 'bg-orange-500 shadow-orange-100' 
+                                            : 'bg-blue-600 shadow-blue-100 hover:bg-blue-700')
+                                }`}
+                            >
+                                {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="p-4 bg-teal-50 text-center">
+                            <p className="text-sm font-black text-teal-800">🎉 오픈 프로그램입니다! 자유롭게 참여하세요.</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Comment Input for Non-Program Notices */}
+            {notice.category !== 'PROGRAM' && (
+                <div className="p-3 border-t border-gray-100 bg-white sticky bottom-0 z-50">
+                    <form onSubmit={(e) => { e.preventDefault(); onPostComment(e); }} className="flex items-center gap-3">
+                        <UserAvatar user={user} size="w-8 h-8" />
+                        <div className="flex-1 bg-gray-100 rounded-full px-4 py-2 flex items-center">
+                            <input type="text" value={newComment || ''} onChange={(e) => setNewComment(e.target.value)} placeholder="댓글 달기..." className="bg-transparent text-sm w-full outline-none py-1.5" />
+                            {newComment?.trim() && <button type="submit" className="text-blue-600 text-sm font-bold ml-2">게시</button>}
+                        </div>
+                    </form>
+                </div>
+            )}
 
             {/* Zoom Overlay (Banner/Carousel & Poll Options) */}
             {zoomedImage && (

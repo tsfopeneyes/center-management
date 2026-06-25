@@ -134,7 +134,7 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                     </button>
                 ) : (
                     <button className={`w-full font-black transition-colors active:scale-95 shadow-sm border border-transparent ${compact ? 'py-2.5 rounded-xl text-xs mt-auto' : 'py-4 rounded-full text-base shadow-lg mt-auto'} ${program.responseStatus === 'JOIN' ? 'bg-gray-50 border-gray-100 text-gray-400' : (program.responseStatus === 'WAITLIST' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-600 text-white shadow-blue-200/50 hover:bg-blue-700')}`}>
-                        {program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '미리 신청하고 정해진 시간에 만나요!')}
+                        {program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '신청하기')}
                     </button>
                 )}
             </div>

@@ -532,7 +532,7 @@ export const useStudentDashboard = () => {
         markNotificationsAsRead,
         
         // Mapped Data For Tabs & Dashboard
-        notices, responses, responseDetails, handleResponse,
+        notices, responses, responseDetails, handleResponse, fetchNotices,
         filteredNotices, filteredPrograms, allPrograms,
         homeNotices, homePrograms,
         studentRegion, locationGroups, locations, allUsers, activeUserCountByGroup,

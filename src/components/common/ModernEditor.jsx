@@ -53,11 +53,49 @@ const SwapEnter = Extension.create({
     },
 });
 
+const LineHeight = Extension.create({
+    name: 'lineHeight',
+    addGlobalAttributes() {
+        return [
+            {
+                types: ['paragraph', 'heading'],
+                attributes: {
+                    lineHeight: {
+                        default: null,
+                        parseHTML: element => element.style.lineHeight || null,
+                        renderHTML: attributes => {
+                            if (!attributes.lineHeight) {
+                                return {};
+                            }
+                            return {
+                                style: `line-height: ${attributes.lineHeight}`,
+                            };
+                        },
+                    },
+                },
+            },
+        ];
+    },
+    addCommands() {
+        return {
+            setLineHeight: (lineHeight) => ({ commands }) => {
+                return commands.updateAttributes('paragraph', { lineHeight }) &&
+                       commands.updateAttributes('heading', { lineHeight });
+            },
+            unsetLineHeight: () => ({ commands }) => {
+                return commands.updateAttributes('paragraph', { lineHeight: null }) &&
+                       commands.updateAttributes('heading', { lineHeight: null });
+            },
+        };
+    },
+});
+
 const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세요...' }) => {
     const [isCodeView, setIsCodeView] = React.useState(false);
     const editor = useEditor({
         extensions: [
             SwapEnter,
+            LineHeight,
             StarterKit,
             Underline,
             Link.configure({
@@ -151,6 +189,30 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
                     <MenuButton onClick={() => editor.chain().focus().setTextAlign('left').run()} isActive={editor.isActive({ textAlign: 'left' })} disabled={isCodeView} title="왼쪽 정렬"><AlignLeft size={18} /></MenuButton>
                     <MenuButton onClick={() => editor.chain().focus().setTextAlign('center').run()} isActive={editor.isActive({ textAlign: 'center' })} disabled={isCodeView} title="가운데 정렬"><AlignCenter size={18} /></MenuButton>
                     <MenuButton onClick={() => editor.chain().focus().setTextAlign('right').run()} isActive={editor.isActive({ textAlign: 'right' })} disabled={isCodeView} title="오른쪽 정렬"><AlignRight size={18} /></MenuButton>
+                </div>
+
+                <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
+                    <select
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'default') {
+                                editor.chain().focus().unsetLineHeight().run();
+                            } else {
+                                editor.chain().focus().setLineHeight(val).run();
+                            }
+                        }}
+                        disabled={isCodeView}
+                        className="bg-transparent text-xs font-bold text-gray-500 hover:text-gray-900 border border-gray-200 rounded-lg p-1.5 outline-none cursor-pointer"
+                        title="행간 조절"
+                        value={editor.getAttributes('paragraph').lineHeight || editor.getAttributes('heading').lineHeight || 'default'}
+                    >
+                        <option value="default">행간 (기본)</option>
+                        <option value="1.2">1.2 (좁게)</option>
+                        <option value="1.5">1.5 (보통)</option>
+                        <option value="1.8">1.8 (넓게)</option>
+                        <option value="2.0">2.0 (아주 넓게)</option>
+                        <option value="2.4">2.4 (최대)</option>
+                    </select>
                 </div>
 
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">

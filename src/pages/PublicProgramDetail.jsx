@@ -4,8 +4,8 @@ import { supabase } from '../supabaseClient';
 import { Calendar, User, ArrowLeft, Share, AlertCircle } from 'lucide-react';
 import NoticeCarousel from '../components/student/components/NoticeCarousel';
 import LinkPreview from '../components/common/LinkPreview';
-import { extractUrls } from '../utils/textUtils';
-import { formatToLocalISO } from '../utils/dateUtils';
+import { extractUrls, extractProgramInfo } from '../utils/textUtils';
+import { formatToLocalISO, formatProgramSchedule } from '../utils/dateUtils';
 import { TAB_NAMES } from '../constants/appConstants';
 
 const PublicProgramDetail = () => {
@@ -137,6 +137,9 @@ const PublicProgramDetail = () => {
         allImages.push(notice.image_url);
     }
 
+    const { cleanContent, duration, location } = extractProgramInfo(notice.content);
+    const formattedSchedule = formatProgramSchedule(notice.program_date, notice.program_duration || duration);
+
     return (
         <div className="w-full md:max-w-lg mx-auto min-h-screen bg-white relative pb-24 shadow-2xl">
             {/* Header */}
@@ -164,25 +167,51 @@ const PublicProgramDetail = () => {
 
                 <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-4">{notice.title}</h1>
                 
+                {notice.category === 'PROGRAM' && (
+                    <>
+                        <hr className="border-gray-100 my-6" />
+                        <div className="bg-[#f8fafc] border border-gray-100 rounded-2xl p-5 space-y-3 mb-6">
+                            <div className="flex text-sm">
+                                <span className="w-12 text-gray-500 font-bold shrink-0">일정</span>
+                                <span className="text-gray-800 font-extrabold">{formattedSchedule}</span>
+                            </div>
+                            <div className="flex text-sm">
+                                <span className="w-12 text-gray-500 font-bold shrink-0">장소</span>
+                                <span className="text-gray-800 font-extrabold">{notice.program_location || location || '미정'}</span>
+                            </div>
+                            <div className="flex text-sm">
+                                <span className="w-12 text-gray-500 font-bold shrink-0">인원</span>
+                                <span className="text-gray-800 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                            </div>
+                        </div>
+                        <hr className="border-gray-100 my-6" />
+                    </>
+                )}
+
                 {/* Information Tags */}
-                <div className="flex flex-wrap gap-2 mb-6">
-                    {notice.program_date && (
-                        <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg">
-                            <Calendar size={14} />
-                            {new Date(notice.program_date).toLocaleDateString()} 진행
-                        </div>
-                    )}
-                    {notice.max_capacity > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                            <User size={14} />
-                            선착순 {notice.max_capacity}명
-                        </div>
-                    )}
-                </div>
+                {notice.category !== 'PROGRAM' && (notice.program_date || notice.max_capacity > 0) && (
+                    <div className="flex flex-wrap gap-2 mb-6">
+                        {notice.program_date && (
+                            <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg">
+                                <Calendar size={14} />
+                                {new Date(notice.program_date).toLocaleDateString()} 진행
+                            </div>
+                        )}
+                        {notice.max_capacity > 0 && (
+                            <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                                <User size={14} />
+                                선착순 {notice.max_capacity}명
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Body Content */}
+                {notice.category === 'PROGRAM' && (
+                    <h3 className="text-[15px] font-black text-blue-600 mb-3">프로그램 소개</h3>
+                )}
                 <div className="prose max-w-none text-gray-800 leading-snug mb-8">
-                    <div dangerouslySetInnerHTML={{ __html: notice.content }} />
+                    <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
                     {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                 </div>
 

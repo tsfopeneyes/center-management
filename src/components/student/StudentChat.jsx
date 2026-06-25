@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import LinkPreview from '../common/LinkPreview';
 import { extractUrls } from '../../utils/linkUtils';
 
-const StudentChat = ({ currentUser, onRefreshUnread }) => {
+const StudentChat = ({ currentUser, onRefreshUnread, onSubViewToggle }) => {
     // State
     const [matches, setMatches] = useState([]); // List of 'other' users we have talked to
     const [selectedMatch, setSelectedMatch] = useState(null); // The user we are currently chatting with
@@ -83,6 +83,12 @@ const StudentChat = ({ currentUser, onRefreshUnread }) => {
             console.error('Error fetching staff:', err);
         }
     };
+
+    useEffect(() => {
+        if (onSubViewToggle) {
+            onSubViewToggle(!!selectedMatch || isNewChat);
+        }
+    }, [selectedMatch, isNewChat, onSubViewToggle]);
 
     // Initial Fetch & Real-time Subscription
     useEffect(() => {

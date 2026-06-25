@@ -3,197 +3,507 @@ import PropTypes from 'prop-types';
 import IntuitiveTimePicker from '../../../../common/IntuitiveTimePicker';
 import { splitDateTime, joinDateTime } from '../../utils/noticeHelpers';
 import { PROGRAM_TYPES } from '../../utils/constants';
-import { Calendar, Clock, MapPin, Gift, CheckSquare } from 'lucide-react';
+import { Calendar, Clock, MapPin, Gift, CheckSquare, Users } from 'lucide-react';
 
-const ProgramInfoSection = ({ formData, updateField }) => {
+const HYPHEN_DETAILS = [
+    'B1F STAGE',
+    '2F SQUARE',
+    '3F ROUND',
+    '4F CONNECT 1',
+    '4F CONNECT 2',
+    '4F CONNECT 3',
+    '4F CONNECT ROOM',
+    '6F LOUNGE'
+];
+
+const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
+    // Local state to keep track of selection category without losing state when parent is empty
+    const [localMain, setLocalMain] = React.useState(() => {
+        const locationStr = formData.program_location || '';
+        if (locationStr === '이높플레이스') return '이높플레이스';
+        if (locationStr.startsWith('하이픈 ')) {
+            const detail = locationStr.substring(4);
+            if (HYPHEN_DETAILS.includes(detail)) return '하이픈';
+        }
+        if (locationStr) return '기타';
+        return '';
+    });
+
+    const [selectedDetail, setSelectedDetail] = React.useState(() => {
+        const locationStr = formData.program_location || '';
+        if (locationStr.startsWith('하이픈 ')) {
+            const detail = locationStr.substring(4);
+            if (HYPHEN_DETAILS.includes(detail)) return detail;
+        }
+        return '';
+    });
+
+    const [customVal, setCustomVal] = React.useState(() => {
+        const locationStr = formData.program_location || '';
+        if (locationStr && locationStr !== '이높플레이스' && !locationStr.startsWith('하이픈 ')) {
+            return locationStr;
+        }
+        return '';
+    });
+
+    // Derive what the location string should be based on local states
+    let expectedLocationStr = '';
+    if (localMain === '이높플레이스') {
+        expectedLocationStr = '이높플레이스';
+    } else if (localMain === '하이픈') {
+        expectedLocationStr = selectedDetail ? `하이픈 ${selectedDetail}` : '';
+    } else if (localMain === '기타') {
+        expectedLocationStr = customVal;
+    }
+
+    // Sync local state if parent changes externally (initial load, reset, etc.)
+    const parentLocation = formData.program_location || '';
+    React.useEffect(() => {
+        if (parentLocation !== expectedLocationStr) {
+            if (parentLocation === '이높플레이스') {
+                setLocalMain('이높플레이스');
+            } else if (parentLocation.startsWith('하이픈 ')) {
+                setLocalMain('하이픈');
+                const detail = parentLocation.substring(4);
+                if (HYPHEN_DETAILS.includes(detail)) {
+                    setSelectedDetail(detail);
+                } else {
+                    setLocalMain('기타');
+                    setCustomVal(parentLocation);
+                }
+            } else if (parentLocation) {
+                setLocalMain('기타');
+                setCustomVal(parentLocation);
+            } else {
+                setLocalMain('');
+                setSelectedDetail('');
+                setCustomVal('');
+            }
+        }
+    }, [parentLocation, expectedLocationStr]);
+
+    const handleMainChange = (e) => {
+        const mainVal = e.target.value;
+        setLocalMain(mainVal);
+        if (mainVal === '이높플레이스') {
+            updateField('program_location', '이높플레이스');
+        } else if (mainVal === '하이픈') {
+            setSelectedDetail('B1F STAGE');
+            updateField('program_location', '하이픈 B1F STAGE');
+        } else {
+            setCustomVal('');
+            updateField('program_location', '');
+        }
+    };
+
+    const handleDetailChange = (e) => {
+        const detailVal = e.target.value;
+        setSelectedDetail(detailVal);
+        updateField('program_location', `하이픈 ${detailVal}`);
+    };
+
+    const handleCustomChange = (e) => {
+        const val = e.target.value;
+        setCustomVal(val);
+        updateField('program_location', val);
+    };
+
     return (
-        <div className="space-y-4">
-            <div className="flex flex-wrap md:flex-nowrap gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 items-center">
-                <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                    <input
-                        type="radio"
-                        name="program_type"
-                        checked={formData.program_type === PROGRAM_TYPES.CENTER || !formData.program_type}
-                        onChange={() => updateField('program_type', PROGRAM_TYPES.CENTER)}
-                        className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm font-bold text-gray-700">센터 프로그램</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                    <input
-                        type="radio"
-                        name="program_type"
-                        checked={formData.program_type === PROGRAM_TYPES.SCHOOL_CHURCH}
-                        onChange={() => updateField('program_type', PROGRAM_TYPES.SCHOOL_CHURCH)}
-                        className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm font-bold text-gray-700">스처 프로그램</span>
-                </label>
+        <div className="space-y-6">
+            {/* Top Config: Program Type & Tags */}
+            <div className={flat 
+                ? "flex flex-col gap-4 bg-slate-100/50 rounded-2xl border border-slate-200/80 p-4" 
+                : "flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-100/50 rounded-2xl border border-slate-200/80 p-4"
+            }>
+                {/* Left: Program Type Segmented Control */}
+                <div className={flat 
+                    ? "flex w-full bg-slate-200/80 p-1 rounded-xl" 
+                    : "flex items-center bg-slate-200/80 p-1 rounded-xl self-start"
+                }>
+                    <button
+                        type="button"
+                        onClick={() => updateField('program_type', PROGRAM_TYPES.CENTER)}
+                        className={flat 
+                            ? `flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                                (!formData.program_type || formData.program_type === PROGRAM_TYPES.CENTER)
+                                    ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                                    : 'text-slate-600 hover:text-slate-900'
+                              }`
+                            : `px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                                (!formData.program_type || formData.program_type === PROGRAM_TYPES.CENTER)
+                                    ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                                    : 'text-slate-600 hover:text-slate-900'
+                              }`
+                        }
+                    >
+                        센터 프로그램
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => updateField('program_type', PROGRAM_TYPES.SCHOOL_CHURCH)}
+                        className={flat 
+                            ? `flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                                formData.program_type === PROGRAM_TYPES.SCHOOL_CHURCH
+                                    ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                                    : 'text-slate-600 hover:text-slate-900'
+                              }`
+                            : `px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                                formData.program_type === PROGRAM_TYPES.SCHOOL_CHURCH
+                                    ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                                    : 'text-slate-600 hover:text-slate-900'
+                              }`
+                        }
+                    >
+                        스처 프로그램
+                    </button>
+                </div>
 
-                <div className="md:ml-auto w-full md:w-auto flex flex-wrap items-center gap-3 mt-2 md:mt-0">
-                    <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 bg-gray-50 text-gray-700 rounded-xl border border-gray-200">
-                        {['강동', '강서'].map(region => (
-                            <label key={region} className="flex items-center gap-1.5 cursor-pointer text-sm font-bold">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.target_regions?.includes(region)}
-                                    onChange={(e) => {
-                                        const isChecked = e.target.checked;
+                {/* Right: Target Region and Leader only Chips */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 font-bold mr-1">대상 지역</span>
+                        {['강동', '강서'].map(region => {
+                            const isSelected = formData.target_regions?.includes(region);
+                            return (
+                                <button
+                                    type="button"
+                                    key={region}
+                                    onClick={() => {
                                         const current = formData.target_regions || [];
-                                        const nextRegions = isChecked
-                                            ? [...current, region]
-                                            : current.filter(r => r !== region);
+                                        const nextRegions = isSelected
+                                            ? current.filter(r => r !== region)
+                                            : [...current, region];
                                         updateField('target_regions', nextRegions);
                                     }}
-                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                                />
-                                {region}
-                            </label>
-                        ))}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 border ${
+                                        isSelected
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-100'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    {region}
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 text-yellow-700 rounded-xl border border-yellow-200">
-                        <input
-                            type="checkbox"
-                            id="is_leader_only"
-                            checked={formData.is_leader_only}
-                            onChange={(e) => updateField('is_leader_only', e.target.checked)}
-                            className="w-4 h-4 text-yellow-600 rounded focus:ring-yellow-500 cursor-pointer"
-                        />
-                        <label htmlFor="is_leader_only" className="text-sm font-black cursor-pointer flex items-center gap-1">
-                            ⭐ 리더 전용
-                        </label>
-                    </div>
+                    <div className="w-px h-4 bg-slate-300 mx-1" />
+
+                    <button
+                        type="button"
+                        onClick={() => updateField('is_leader_only', !formData.is_leader_only)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 border ${
+                            formData.is_leader_only
+                                ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-100'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                        리더 전용
+                    </button>
                 </div>
             </div>
 
-            {/* Participation Type (Open vs Application) */}
-            <div className="flex flex-wrap md:flex-nowrap gap-4 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 items-center animate-fade-in">
-                <span className="text-sm font-black text-indigo-800 mr-2">운영 방식</span>
-                
-                <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                    <input
-                        type="radio"
-                        name="participation_type"
-                        checked={formData.is_recruiting === false}
-                        onChange={() => {
+            {/* Participation Type (Open vs Application) Selection Cards */}
+            <div className="space-y-2">
+                <span className="text-xs font-semibold text-slate-500 ml-1">운영 방식</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Open Program Card */}
+                    <button
+                        type="button"
+                        onClick={() => {
                             updateField('is_recruiting', false);
                             updateField('max_capacity', '');
                         }}
-                        className="w-4 h-4 text-indigo-600"
-                    />
-                    <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-800">오픈 프로그램</span>
-                        <span className="text-[10px] text-gray-500 font-medium">신청 없이 누구나 참여 가능</span>
-                    </div>
-                </label>
-                
-                <label className="flex items-center gap-2 cursor-pointer shrink-0 md:ml-4">
-                    <input
-                        type="radio"
-                        name="participation_type"
-                        checked={formData.is_recruiting === true}
-                        onChange={() => updateField('is_recruiting', true)}
-                        className="w-4 h-4 text-indigo-600"
-                    />
-                    <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-800">신청 프로그램</span>
-                        <span className="text-[10px] text-gray-500 font-medium">사전 신청 필수 (인원 제한)</span>
-                    </div>
-                </label>
+                        className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
+                            formData.is_recruiting === false
+                                ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
+                                : 'border-slate-100 bg-white hover:border-slate-200'
+                        }`}
+                    >
+                        <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                            formData.is_recruiting === false ? 'border-blue-600' : 'border-slate-300'
+                        }`}>
+                            {formData.is_recruiting === false && (
+                                <div className="w-2 h-2 rounded-full bg-blue-600" />
+                            )}
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-sm font-bold text-slate-800">오픈 프로그램</p>
+                            <p className="text-xs text-slate-400 font-medium leading-relaxed">별도의 신청 절차 없이 모든 학생이 자유롭게 참여할 수 있습니다.</p>
+                        </div>
+                    </button>
+
+                    {/* Recruiting Program Card */}
+                    <button
+                        type="button"
+                        onClick={() => updateField('is_recruiting', true)}
+                        className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
+                            formData.is_recruiting === true
+                                ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
+                                : 'border-slate-100 bg-white hover:border-slate-200'
+                        }`}
+                    >
+                        <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                            formData.is_recruiting === true ? 'border-blue-600' : 'border-slate-300'
+                        }`}>
+                            {formData.is_recruiting === true && (
+                                <div className="w-2 h-2 rounded-full bg-blue-600" />
+                            )}
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-sm font-bold text-slate-800">신청 프로그램</p>
+                            <p className="text-xs text-slate-400 font-medium leading-relaxed">선착순 마감 등 사전 신청을 하고 승인받은 학생만 참여합니다.</p>
+                        </div>
+                    </button>
+                </div>
             </div>
 
-            <div className="border border-blue-200 rounded-2xl bg-white overflow-hidden focus-within:border-blue-500 transition-colors shadow-sm">
+            {/* Unified Program Information Section Card */}
+            <div className="space-y-2">
+                <span className="text-xs font-semibold text-slate-500 ml-1">상세 설정</span>
                 
-                {/* Row 1: Date & Time */}
-                <div className="flex flex-col sm:flex-row border-b border-gray-200">
-                    <div className="relative flex-1 border-b sm:border-b-0 sm:border-r border-gray-200 flex items-center">
-                        <Calendar className="absolute left-4 text-blue-400 shrink-0" size={20} />
-                        <input
-                            type="date"
-                            value={splitDateTime(formData.program_date).date}
-                            onChange={e => {
-                                const newDate = joinDateTime(e.target.value, splitDateTime(formData.program_date).time);
-                                updateField('program_date', newDate);
-                                if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
-                                    updateField('recruitment_deadline', newDate);
-                                }
-                            }}
-                            className="w-full pl-12 pr-4 py-4 bg-transparent outline-none font-bold text-gray-700 text-sm"
-                            required
-                        />
-                    </div>
-                    <div className="flex-1 flex items-center h-[52px]">
-                        <div className="pl-4 pr-2 flex justify-center items-center h-full">    
-                            <Clock className="text-blue-400 shrink-0" size={20} />
+                <div className="border border-slate-200/70 rounded-2xl bg-white overflow-hidden shadow-sm transition-all focus-within:border-blue-500">
+                    
+                    {/* Row 1: Schedule & Duration */}
+                    <div className={flat ? "flex flex-col" : "flex flex-col md:flex-row border-b border-slate-100"}>
+                        {/* Left: Schedule */}
+                        <div className={flat 
+                            ? "p-4 border-b border-slate-100 space-y-2" 
+                            : "flex-1 p-4 border-b md:border-b-0 md:border-r border-slate-100 space-y-2"
+                        }>
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                                <Calendar size={15} className="text-slate-400" />
+                                <span>프로그램 일정</span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                    <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
+                                    <input
+                                        type="date"
+                                        value={splitDateTime(formData.program_date).date}
+                                        onChange={e => {
+                                            const newDate = joinDateTime(e.target.value, splitDateTime(formData.program_date).time);
+                                            updateField('program_date', newDate);
+                                            if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
+                                                updateField('recruitment_deadline', newDate);
+                                            }
+                                        }}
+                                        className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+                                        required
+                                    />
+                                </div>
+                                <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                    <Clock className="text-slate-400 shrink-0 mr-2" size={15} />
+                                    <div className="flex-1">
+                                        <IntuitiveTimePicker
+                                            value={splitDateTime(formData.program_date).time}
+                                            onChange={time => {
+                                                const newDate = joinDateTime(splitDateTime(formData.program_date).date, time);
+                                                updateField('program_date', newDate);
+                                                if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
+                                                    updateField('recruitment_deadline', newDate);
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium ml-1">
+                                실제 진행되는 시작 날짜와 시간입니다.
+                            </p>
                         </div>
-                        <div className="flex-1 px-2">
-                            <IntuitiveTimePicker
-                                value={splitDateTime(formData.program_date).time}
-                                onChange={time => {
-                                    const newDate = joinDateTime(splitDateTime(formData.program_date).date, time);
-                                    updateField('program_date', newDate);
-                                    if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
-                                        updateField('recruitment_deadline', newDate);
-                                    }
-                                }}
-                            />
+
+                        {/* Right: Duration */}
+                        <div className={flat 
+                            ? "p-4 border-b border-slate-100 space-y-2" 
+                            : "w-full md:w-1/3 p-4 space-y-2"
+                        }>
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                                <Clock size={15} className="text-slate-400" />
+                                <span>소요 시간</span>
+                            </div>
+                            <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                <Clock className="absolute left-3 text-slate-400 shrink-0" size={15} />
+                                <input
+                                    type="text"
+                                    placeholder="예: 2시간 또는 1.5시간"
+                                    value={formData.program_duration}
+                                    onChange={e => updateField('program_duration', e.target.value)}
+                                    className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+                                    required
+                                />
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium ml-1">
+                                마감 시각 자동 계산용입니다. (예: 2시간)
+                            </p>
                         </div>
                     </div>
-                </div>
 
-                {/* Row 2: Duration */}
-                <div className="relative border-b border-gray-200 flex items-center">
-                    <Clock className="absolute left-4 text-gray-400 shrink-0" size={20} />
-                    <input
-                        type="text"
-                        placeholder="예: 2시간 (소요 시간)"
-                        value={formData.program_duration}
-                        onChange={e => updateField('program_duration', e.target.value)}
-                        className="w-full pl-12 pr-4 py-4 bg-transparent outline-none font-bold text-gray-700 text-sm"
-                        required
-                    />
-                </div>
+                    {/* Row 2: Recruitment Deadline & Capacity (Conditional on is_recruiting) */}
+                    {formData.is_recruiting && (
+                        <div className={flat 
+                            ? "flex flex-col bg-slate-50/20 border-b border-slate-100 animate-fade-in" 
+                            : "flex flex-col md:flex-row border-b border-slate-100 bg-slate-50/20 animate-fade-in"
+                        }>
+                            {/* Left: Deadline */}
+                            <div className={flat 
+                                ? "p-4 border-b border-slate-100 space-y-2" 
+                                : "flex-1 p-4 border-b md:border-b-0 md:border-r border-slate-100 space-y-2"
+                            }>
+                                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                                    <Clock size={15} className="text-slate-400" />
+                                    <span>신청 마감 시간</span>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                        <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
+                                        <input
+                                            type="date"
+                                            value={splitDateTime(formData.recruitment_deadline).date}
+                                            onChange={e => {
+                                                const newDate = joinDateTime(e.target.value, splitDateTime(formData.recruitment_deadline).time);
+                                                updateField('recruitment_deadline', newDate);
+                                            }}
+                                            className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+                                        />
+                                    </div>
+                                    <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                        <Clock className="text-slate-400 shrink-0 mr-2" size={15} />
+                                        <div className="flex-1">
+                                            <IntuitiveTimePicker
+                                                value={splitDateTime(formData.recruitment_deadline).time}
+                                                onChange={time => {
+                                                    const newDate = joinDateTime(splitDateTime(formData.recruitment_deadline).date, time);
+                                                    updateField('recruitment_deadline', newDate);
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-slate-400 font-medium ml-1">
+                                    생략하면 프로그램 시작 시간과 같아집니다.
+                                </p>
+                            </div>
 
-                {/* Row 3: Location */}
-                <div className="relative border-b border-gray-200 flex items-center">
-                    <MapPin className="absolute left-4 text-gray-400 shrink-0" size={20} />
-                    <input
-                        type="text"
-                        placeholder="예: 센터 멀티룸 (장소)"
-                        value={formData.program_location}
-                        onChange={e => updateField('program_location', e.target.value)}
-                        className="w-full pl-12 pr-4 py-4 bg-transparent outline-none font-bold text-gray-700 text-sm"
-                        required
-                    />
-                </div>
-
-                {/* Row 4: Hyphen Points */}
-                <div className="flex flex-col sm:flex-row relative">
-                    <div className="relative flex-1 border-b sm:border-b-0 sm:border-r border-gray-200 flex items-center">
-                        <Gift className="absolute left-4 text-indigo-400 shrink-0" size={20} />
-                        <input
-                            type="number"
-                            placeholder="단위: 하이픈 (지급 포인트)"
-                            min="0"
-                            value={formData.hyphen_reward || ''}
-                            onChange={e => updateField('hyphen_reward', e.target.value)}
-                            className="w-full pl-12 pr-4 py-4 bg-transparent outline-none font-bold text-gray-700 text-sm"
-                        />
-                    </div>
-                    <label className="flex-1 flex items-center gap-2 px-4 py-4 bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition-colors">
-                        <CheckSquare className={`shrink-0 ${formData.is_review_required ? 'text-indigo-600' : 'text-gray-300'}`} size={20} />
-                        <input
-                            type="checkbox"
-                            checked={formData.is_review_required || false}
-                            onChange={(e) => updateField('is_review_required', e.target.checked)}
-                            className="hidden"
-                        />
-                        <div className="flex flex-col justify-center">
-                            <span className="text-xs font-bold text-gray-700 leading-tight">리뷰 작성 필수</span>
-                            <span className="text-[10px] font-normal text-gray-400 leading-tight block">리뷰 완료 시 포인트 자동 지급</span>
+                            {/* Right: Capacity */}
+                            <div className={flat 
+                                ? "p-4 space-y-2" 
+                                : "w-full md:w-1/3 p-4 space-y-2"
+                            }>
+                                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                                    <Users size={15} className="text-slate-400" />
+                                    <span>모집 정원</span>
+                                </div>
+                                <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                    <Users className="absolute left-3 text-slate-400 shrink-0" size={15} />
+                                    <input
+                                        type="number"
+                                        placeholder="예: 10 (0: 무제한)"
+                                        value={formData.max_capacity}
+                                        onChange={e => updateField('max_capacity', e.target.value)}
+                                        className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-slate-400 font-medium ml-1">
+                                    0을 입력하면 인원 제한이 없어집니다.
+                                </p>
+                            </div>
                         </div>
-                    </label>
+                    )}
+
+                    {/* Row 3: Location */}
+                    <div className="p-4 border-b border-slate-100 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                            <MapPin size={15} className="text-slate-400" />
+                            <span>진행 장소</span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <select
+                                value={localMain}
+                                onChange={handleMainChange}
+                                className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
+                                required
+                            >
+                                <option value="">공간 선택</option>
+                                <option value="하이픈">하이픈</option>
+                                <option value="이높플레이스">이높플레이스</option>
+                                <option value="기타">기타</option>
+                            </select>
+
+                            {localMain === '하이픈' && (
+                                <select
+                                    value={selectedDetail}
+                                    onChange={handleDetailChange}
+                                    className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all cursor-pointer animate-fade-in"
+                                    required
+                                >
+                                    <option value="">세부 공간 선택</option>
+                                    {HYPHEN_DETAILS.map(opt => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                    ))}
+                                </select>
+                            )}
+
+                            {localMain === '기타' && (
+                                <input
+                                    type="text"
+                                    placeholder="예: 오아센터 (자유롭게 입력)"
+                                    value={customVal}
+                                    onChange={handleCustomChange}
+                                    className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all animate-fade-in"
+                                    required
+                                />
+                            )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-medium ml-1">
+                            {localMain === '하이픈' && "공간 이름 - 세부 공간 이름 순으로 표기됩니다. (예: '하이픈 B1F STAGE')"}
+                            {localMain === '이높플레이스' && "공간 이름만 표기됩니다. (예: '이높플레이스')"}
+                            {localMain === '기타' && "입력하신 텍스트가 그대로 표기됩니다. (예: '오아센터')"}
+                            {!localMain && "공간 유형을 선택해 주세요."}
+                        </p>
+                    </div>
+
+                    {/* Row 4: Hyphen Points */}
+                    <div className="p-4 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                            <Gift size={15} className="text-slate-400" />
+                            <span>지급 포인트 및 리뷰 설정</span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                <Gift className="absolute left-3 text-slate-400 shrink-0" size={15} />
+                                <input
+                                    type="number"
+                                    placeholder="단위: 하이픈 (지급 포인트)"
+                                    min="0"
+                                    value={formData.hyphen_reward || ''}
+                                    onChange={e => updateField('hyphen_reward', e.target.value)}
+                                    className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+                                />
+                            </div>
+                            
+                            <label className={`flex-1 flex items-center gap-2.5 px-3 py-3 border rounded-xl cursor-pointer transition-all duration-200 ${
+                                formData.is_review_required 
+                                    ? 'bg-blue-50/20 border-blue-500/30 text-blue-600' 
+                                    : 'bg-slate-50/50 border-slate-200/80 text-slate-400 hover:bg-slate-100/50'
+                            }`}>
+                                <CheckSquare className="shrink-0" size={16} />
+                                <input
+                                    type="checkbox"
+                                    checked={formData.is_review_required || false}
+                                    onChange={(e) => updateField('is_review_required', e.target.checked)}
+                                    className="hidden"
+                                />
+                                <div className="flex flex-col justify-center text-left">
+                                    <span className={`text-xs font-bold leading-tight ${formData.is_review_required ? 'text-blue-700' : 'text-slate-700'}`}>리뷰 작성 필수</span>
+                                    <span className="text-[10px] font-medium text-slate-400 leading-tight block mt-0.5">리뷰 완료 시 포인트 자동 지급</span>
+                                </div>
+                            </label>
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-medium ml-1">
+                            프로그램 참여 학생에게 지급할 HP(하이픈 포인트)를 입력하고, 리뷰 작성을 필수로 제한할지 결정합니다.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -202,7 +512,8 @@ const ProgramInfoSection = ({ formData, updateField }) => {
 
 ProgramInfoSection.propTypes = {
     formData: PropTypes.object.isRequired,
-    updateField: PropTypes.func.isRequired
+    updateField: PropTypes.func.isRequired,
+    flat: PropTypes.bool
 };
 
 export default React.memo(ProgramInfoSection);

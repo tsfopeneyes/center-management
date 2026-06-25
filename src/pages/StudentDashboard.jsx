@@ -17,6 +17,7 @@ import StudentChat from '../components/student/StudentChat';
 import StudentHyphenTab from '../components/student/StudentHyphenTab';
 import StudentAzitTab from '../components/student/StudentAzitTab';
 import { userApi } from '../api/userApi';
+import { noticesApi } from '../api/noticesApi';
 import UserAvatar from '../components/common/UserAvatar';
 
 // Extracted Modals
@@ -50,7 +51,7 @@ const StudentDashboard = () => {
         noticeContext, setNoticeContext, selectedNotice, setSelectedNotice,
         comments, newComment, setNewComment, handlePostComment, handleDeleteComment,
         handleShare, handleTabChange, openNoticeDetail, markNotificationsAsRead, handleLogout,
-        notices, responses, responseDetails, handleResponse, filteredNotices, filteredPrograms, allPrograms,
+        notices, responses, responseDetails, handleResponse, fetchNotices, filteredNotices, filteredPrograms, allPrograms,
         homeNotices, homePrograms, studentRegion, locationGroups, activeUserCountByGroup,
         totalHours, visitCount, programCount, attendedProgramsList,
         challengeCategories, dynamicChallenges, specialStats,
@@ -63,8 +64,13 @@ const StudentDashboard = () => {
     const [editVerificationPost, setEditVerificationPost] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [showMenuDrawer, setShowMenuDrawer] = useState(false);
+    const [hideMainHeader, setHideMainHeader] = useState(false);
 
     const navigate = useNavigate();
+
+    useEffect(() => {
+        setHideMainHeader(false);
+    }, [activeTab]);
 
     // 탭 트랜지션 및 스와이프 내비게이션 핸들러
     const [direction, setDirection] = useState(0);
@@ -222,14 +228,14 @@ const StudentDashboard = () => {
     return (
         <div 
             className={`w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 pb-20 font-sans transition-all duration-300 ${
-                activeTab === TAB_NAMES.HOME ? '' : 'pt-[max(env(safe-area-inset-top),10px)]'
+                hideMainHeader ? 'pt-[max(env(safe-area-inset-top),10px)]' : ''
             }`}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
-            {activeTab === TAB_NAMES.HOME && (
-                <div className="sticky top-0 z-[100] bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),8px)] pb-2 shadow-sm">
+            {!hideMainHeader && (
+                <div className={`${activeTab === TAB_NAMES.HOME ? 'sticky top-0' : 'relative'} z-[100] bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),8px)] pb-2 shadow-sm`}>
                     <div className="flex items-center gap-3">
                         <motion.button
                             whileTap={{ scale: 0.9 }}
@@ -306,6 +312,30 @@ const StudentDashboard = () => {
                         setNewComment={setNewComment}
                         onPostComment={handlePostComment}
                         onDeleteComment={handleDeleteComment}
+                        onUpdate={async (updatedNotice) => {
+                            try {
+                                await noticesApi.update(updatedNotice.id, updatedNotice);
+                                alert('성공적으로 수정되었습니다.');
+                                fetchNotices();
+                                setSelectedNotice({ ...selectedNotice, ...updatedNotice });
+                            } catch (e) {
+                                console.error(e);
+                                alert('수정 중 오류가 발생했습니다.');
+                            }
+                        }}
+                        onDelete={async (noticeId) => {
+                            if (window.confirm('정말로 이 게시물을 삭제하시겠습니까?')) {
+                                try {
+                                    await noticesApi.delete(noticeId);
+                                    alert('성공적으로 삭제되었습니다.');
+                                    fetchNotices();
+                                    setSelectedNotice(null);
+                                } catch (e) {
+                                    console.error(e);
+                                    alert('삭제 중 오류가 발생했습니다.');
+                                }
+                            }
+                        }}
                     />
                 )}
 
@@ -571,7 +601,7 @@ const StudentDashboard = () => {
             )}
 
             {activeTab === TAB_NAMES.MESSAGES && (
-                <StudentChat currentUser={user} onRefreshUnread={() => { }} />
+                <StudentChat currentUser={user} onRefreshUnread={() => { }} onSubViewToggle={setHideMainHeader} />
             )}
 
             {activeTab === TAB_NAMES.GUESTBOOK && (

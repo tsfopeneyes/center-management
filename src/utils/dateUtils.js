@@ -125,3 +125,84 @@ export const formatDateRelative = (dateStr) => {
     const day = date.getDate();
     return `${month}월 ${day}일`;
 };
+
+export const parseDurationToMinutes = (durationStr) => {
+    if (!durationStr) return 0;
+    
+    // Normalize string (remove spaces, lowercase)
+    const s = durationStr.toString().replace(/\s+/g, '').toLowerCase();
+    
+    // Check if it matches patterns
+    // 1. "1시간30분", "1h30m", etc.
+    const hourMinMatch = s.match(/^(\d+(?:\.\d+)?)(?:시간|h|시간반?)?(\d+)(?:분|m)?$/);
+    if (hourMinMatch) {
+        const hours = parseFloat(hourMinMatch[1]);
+        const mins = parseInt(hourMinMatch[2]);
+        return Math.round(hours * 60 + mins);
+    }
+    
+    // 2. "30분", "45m", etc.
+    const minMatch = s.match(/^(\d+)(?:분|m)$/);
+    if (minMatch) {
+        return parseInt(minMatch[1]);
+    }
+    
+    // 3. "2시간", "1.5h", etc.
+    const hourMatch = s.match(/^(\d+(?:\.\d+)?)(?:시간|h)?$/);
+    if (hourMatch) {
+        const hours = parseFloat(hourMatch[1]);
+        return Math.round(hours * 60);
+    }
+    
+    // 4. Try parsing float
+    const parsed = parseFloat(s);
+    if (!isNaN(parsed)) {
+        // Default to hours if it's a plain number
+        return Math.round(parsed * 60);
+    }
+    
+    return 0; // Default or fallback
+};
+
+export const formatProgramSchedule = (dateStr, durationStr) => {
+    if (!dateStr || dateStr === '미정') return '미정';
+    
+    const startDate = new Date(dateStr);
+    if (isNaN(startDate.getTime())) return '미정';
+    
+    const minutes = parseDurationToMinutes(durationStr);
+    
+    const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+    const month = startDate.getMonth() + 1;
+    const day = startDate.getDate();
+    const dayOfWeek = daysOfWeek[startDate.getDay()];
+    
+    const formatTime = (date) => {
+        const hours = date.getHours();
+        const minutes = date.getMinutes();
+        const hour12 = hours % 12 || 12;
+        const minStr = minutes.toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'pm' : 'am';
+        return { hour12, minStr, ampm };
+    };
+    
+    const start = formatTime(startDate);
+    
+    if (minutes > 0) {
+        const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
+        const end = formatTime(endDate);
+        
+        const datePart = `${month}/${day}(${dayOfWeek})`;
+        
+        if (start.ampm === end.ampm) {
+            // e.g. "6/26(금) 5:30-6:30pm"
+            return `${datePart} ${start.hour12}:${start.minStr}-${end.hour12}:${end.minStr}${end.ampm}`;
+        } else {
+            // e.g. "6/26(금) 11:30am-1:30pm"
+            return `${datePart} ${start.hour12}:${start.minStr}${start.ampm}-${end.hour12}:${end.minStr}${end.ampm}`;
+        }
+    } else {
+        // No duration or 0 duration: e.g. "6/26(금) 5:30pm"
+        return `${month}/${day}(${dayOfWeek}) ${start.hour12}:${start.minStr}${start.ampm}`;
+    }
+};
