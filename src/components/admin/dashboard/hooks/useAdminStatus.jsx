@@ -18,7 +18,7 @@ export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStat
     
     // Calculate total non-staff active members
     const activeUserCount = Object.keys(currentLocations).filter(uid => {
-        const locId = currentLocations[uid];
+        const locId = currentLocations[uid]?.locId;
         if (!locId || adminIdsSet.has(uid)) return false;
         return activeLocations.some(l => l.id === locId);
     }).length;
@@ -59,17 +59,18 @@ export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStat
 
     const activeUsersList = users.filter(u => {
         if (isAdminOrStaff(u)) return false;
-        const locId = currentLocations[u.id];
+        const locId = currentLocations[u.id]?.locId;
         if (!locId) return false;
         return filteredLocations.some(l => l.id === locId);
     }).map(u => ({
         ...u,
-        currentLocationName: locations.find(l => l.id === currentLocations[u.id])?.name || 'Unknown'
-    }));
+        currentLocationName: locations.find(l => l.id === currentLocations[u.id]?.locId)?.name || 'Unknown',
+        checkInTime: currentLocations[u.id]?.checkInTime
+    })).sort((a, b) => new Date(b.checkInTime) - new Date(a.checkInTime));
 
     const handleZoneClick = (location) => {
         const activeUserIds = Object.keys(currentLocations).filter(uid =>
-            currentLocations[uid] === location.id && !adminIdsSet.has(uid)
+            currentLocations[uid]?.locId === location.id && !adminIdsSet.has(uid)
         );
         const activeUsers = users.filter(u => activeUserIds.includes(u.id));
 

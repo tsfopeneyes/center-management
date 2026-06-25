@@ -1,10 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import UserAvatar from '../../../common/UserAvatar';
 
 const RealtimeActiveUsers = ({
     activeUsersList,
     handleForceCheckout
 }) => {
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const formatStayDuration = (checkInTime) => {
+        if (!checkInTime) return '-';
+        const checkInDate = new Date(checkInTime);
+        const formattedTime = checkInDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+        
+        const diffMs = currentTime - checkInDate;
+        const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+        const diffHours = Math.floor(diffMinutes / 60);
+        
+        const durationStr = diffHours > 0 ? `(${diffHours}시간 ${diffMinutes % 60}분)` : `(${diffMinutes}분)`;
+        
+        return `${formattedTime} ${durationStr}`;
+    };
     return (
         <section className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/20">
@@ -25,6 +45,7 @@ const RealtimeActiveUsers = ({
                                 <tr>
                                     <th className="p-6 pl-10">이름</th>
                                     <th className="p-6">현재 위치</th>
+                                    <th className="p-6">입실 시간</th>
                                     <th className="p-6">학교</th>
                                     <th className="p-6">그룹</th>
                                     <th className="p-6 pr-10 text-right">관리</th>
@@ -39,6 +60,7 @@ const RealtimeActiveUsers = ({
                                             {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                         </td>
                                         <td className="p-6 text-blue-600 font-black">{user.currentLocationName}</td>
+                                        <td className="p-6 text-gray-700 font-bold whitespace-nowrap">{formatStayDuration(user.checkInTime)}</td>
                                         <td className="p-6 text-gray-500 font-medium">{user.school || '-'}</td>
                                         <td className="p-6">
                                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-600' :
@@ -80,8 +102,9 @@ const RealtimeActiveUsers = ({
                                             {user.user_group || '재학생'}
                                         </span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                                        <span className="bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded">{user.currentLocationName}</span>
+                                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                        <span className="bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded flex-shrink-0">{user.currentLocationName}</span>
+                                        <span className="font-bold text-gray-700 whitespace-nowrap flex-shrink-0">{formatStayDuration(user.checkInTime)}</span>
                                         <span className="truncate">{user.school}</span>
                                     </div>
                                 </div>

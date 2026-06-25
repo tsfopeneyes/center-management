@@ -48,7 +48,7 @@ const AdminStatusHeader = ({
                 {activeUserCount > 0 && (
                     <button
                         onClick={() => handleBatchCheckout(Object.keys(currentLocations).filter(uid =>
-                            currentLocations[uid] && !adminIdsSet.has(uid)
+                            currentLocations[uid]?.locId && !adminIdsSet.has(uid)
                         ))}
                         className={`flex-1 md:flex-none px-4 md:px-5 py-2.5 md:py-3 rounded-xl md:rounded-2xl flex items-center justify-center gap-1.5 transition-all font-black shadow-lg border text-xs md:text-sm ${isPast10PM
                             ? 'bg-red-600 text-white border-red-700 hover:bg-red-700 animate-pulse'

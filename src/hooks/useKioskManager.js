@@ -119,7 +119,12 @@ export const useKioskManager = (navigate) => {
             let nextType = 'CHECKIN';
             if (lastLogs && lastLogs.length > 0) {
                 const lastLog = lastLogs[0];
-                if (lastLog.type === 'CHECKOUT') {
+                const isToday = new Date(lastLog.created_at).toDateString() === new Date().toDateString();
+
+                if (!isToday) {
+                    // If the last log is not from today, this is their first scan of the day, so it MUST be a CHECKIN
+                    nextType = 'CHECKIN';
+                } else if (lastLog.type === 'CHECKOUT') {
                     nextType = 'CHECKIN';
                 } else {
                     if (lastLog.location_id === selectedLocation.id) {

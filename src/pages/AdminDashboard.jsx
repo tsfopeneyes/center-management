@@ -92,8 +92,16 @@ const AdminDashboard = () => {
 
             const userCurrentLocation = {};
             logs?.forEach(log => {
-                if (log.type === 'CHECKIN' || log.type === 'MOVE') userCurrentLocation[log.user_id] = log.location_id;
-                else if (log.type === 'CHECKOUT') userCurrentLocation[log.user_id] = null;
+                if (log.type === 'CHECKIN') {
+                    userCurrentLocation[log.user_id] = { locId: log.location_id, checkInTime: log.created_at };
+                } else if (log.type === 'MOVE') {
+                    userCurrentLocation[log.user_id] = { 
+                        locId: log.location_id, 
+                        checkInTime: userCurrentLocation[log.user_id]?.checkInTime || log.created_at 
+                    };
+                } else if (log.type === 'CHECKOUT') {
+                    userCurrentLocation[log.user_id] = null;
+                }
             });
 
             const adminIdsSet = new Set(userData?.filter(u =>
@@ -103,7 +111,8 @@ const AdminDashboard = () => {
             // Occupancy Stats Calculation (Real-time) - Only count students
             const zStats = {};
             locData?.forEach(l => zStats[l.id] = 0);
-            Object.entries(userCurrentLocation).forEach(([userId, locId]) => {
+            Object.entries(userCurrentLocation).forEach(([userId, locData]) => {
+                const locId = locData?.locId;
                 if (locId && zStats[locId] !== undefined && !adminIdsSet.has(userId)) {
                     zStats[locId]++;
                 }
