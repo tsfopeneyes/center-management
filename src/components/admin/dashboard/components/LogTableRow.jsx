@@ -14,7 +14,8 @@ const LogTableRow = React.memo(({
     handleNotePaste,
     handleCellMouseDown,
     handleCellMouseEnter,
-    isCellSelected
+    isCellSelected,
+    handleTimeUpdate
 }) => {
     const noteKey = `${summary.userId}_${summary.date}`;
     const initialNote = visitNotes[noteKey] || {};
@@ -22,12 +23,20 @@ const LogTableRow = React.memo(({
     // 로컬 상태를 사용하여 타이핑 시 전체 테이블이 리렌더링되는 렉 방지
     const [localPurpose, setLocalPurpose] = useState(initialNote.purpose || '');
     const [localRemarks, setLocalRemarks] = useState(initialNote.remarks || '');
+    
+    const [localStartTime, setLocalStartTime] = useState(summary.startTime === '-' ? '' : summary.startTime);
+    const [localEndTime, setLocalEndTime] = useState(summary.endTime === '-' ? '' : summary.endTime);
 
     // 외부(DB/API)에서 업데이트 된 값이 있으면 동기화
     useEffect(() => {
         setLocalPurpose(initialNote.purpose || '');
         setLocalRemarks(initialNote.remarks || '');
     }, [initialNote.purpose, initialNote.remarks]);
+
+    useEffect(() => {
+        setLocalStartTime(summary.startTime === '-' ? '' : summary.startTime);
+        setLocalEndTime(summary.endTime === '-' ? '' : summary.endTime);
+    }, [summary.startTime, summary.endTime]);
 
     const isSelected = selectedRows.has(summary.id);
 
@@ -47,8 +56,42 @@ const LogTableRow = React.memo(({
             <td className="p-3 whitespace-nowrap">{summary.school}</td>
             <td className="p-3">{summary.age}</td>
             <td className="p-3 font-bold text-gray-800">{summary.name}</td>
-            <td className="p-3 font-mono text-xs">{summary.startTime}</td>
-            <td className="p-3 font-mono text-xs">{summary.endTime}</td>
+            <td className="p-1 min-w-[70px] text-center transition-colors">
+                <input
+                    className="w-[50px] p-1 bg-transparent border-none outline-none focus:bg-blue-50 focus:ring-1 focus:ring-blue-100 rounded text-xs text-center font-mono hover:bg-gray-100 transition-all placeholder-gray-300 font-bold text-blue-600"
+                    placeholder="--:--"
+                    value={localStartTime}
+                    onChange={(e) => setLocalStartTime(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                    onBlur={(e) => {
+                        const val = e.target.value;
+                        const original = summary.startTime === '-' ? '' : summary.startTime;
+                        if (val !== original && val !== '') {
+                            if (handleTimeUpdate) handleTimeUpdate(summary, 'startTime', val);
+                        } else if (val === '') {
+                            setLocalStartTime(original);
+                        }
+                    }}
+                />
+            </td>
+            <td className="p-1 min-w-[70px] text-center transition-colors">
+                <input
+                    className="w-[50px] p-1 bg-transparent border-none outline-none focus:bg-blue-50 focus:ring-1 focus:ring-blue-100 rounded text-xs text-center font-mono hover:bg-gray-100 transition-all placeholder-gray-300 font-bold text-blue-600"
+                    placeholder="--:--"
+                    value={localEndTime}
+                    onChange={(e) => setLocalEndTime(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                    onBlur={(e) => {
+                        const val = e.target.value;
+                        const original = summary.endTime === '-' ? '' : summary.endTime;
+                        if (val !== original && val !== '') {
+                            if (handleTimeUpdate) handleTimeUpdate(summary, 'endTime', val);
+                        } else if (val === '') {
+                            setLocalEndTime(original);
+                        }
+                    }}
+                />
+            </td>
             <td className="p-3">
                 <span className="text-[11px] text-gray-600 line-clamp-2 leading-tight" title={summary.usedSpaces}>
                     {summary.usedSpaces}

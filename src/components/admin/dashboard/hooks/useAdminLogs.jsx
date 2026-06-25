@@ -437,6 +437,60 @@ export const useAdminLogs = ({ allLogs, schoolLogs, users, locations, notices, f
         }
     };
 
+    const handleTimeUpdate = async (summary, field, newTime) => {
+        try {
+            // 빈 칸이면 무시
+            if (!newTime || newTime.trim() === '' || newTime === '-') return;
+
+            // HH:mm 또는 HHmm 형식 검증
+            const timeRegex = /^([01]?\d|2[0-3]):?([0-5]\d)$/;
+            const match = newTime.match(timeRegex);
+            if (!match) {
+                alert('올바른 시간 형식이 아닙니다. (예: 14:30 또는 1430)');
+                return;
+            }
+            
+            const hours = match[1].padStart(2, '0');
+            const mins = match[2];
+            const timeStr = `${hours}:${mins}`;
+
+            // timezone +09:00 반영
+            const targetTimestamp = `${summary.date}T${timeStr}:00+09:00`;
+
+            if (field === 'startTime') {
+                const targetLog = summary.rawLogs.find(l => l.type === 'CHECKIN' || l.type === 'GUEST_ENTRY') || summary.rawLogs[0];
+                if (!targetLog) return;
+                
+                const { error } = await supabase.from('logs').update({ created_at: targetTimestamp }).eq('id', targetLog.id);
+                if (error) throw error;
+
+            } else if (field === 'endTime') {
+                const targetLog = [...summary.rawLogs].reverse().find(l => l.type === 'CHECKOUT');
+                
+                if (targetLog) {
+                    const { error } = await supabase.from('logs').update({ created_at: targetTimestamp }).eq('id', targetLog.id);
+                    if (error) throw error;
+                } else {
+                    // 퇴실 기록이 없는 경우 새로 생성
+                    const lastLog = summary.rawLogs[summary.rawLogs.length - 1];
+                    const { error } = await supabase.from('logs').insert({
+                        user_id: summary.userId,
+                        type: 'CHECKOUT',
+                        location_id: lastLog ? lastLog.location_id : null,
+                        created_at: targetTimestamp
+                    });
+                    if (error) throw error;
+                }
+            }
+
+            // 표 데이터 갱신
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            alert('시간 수정 실패: ' + err.message);
+        }
+    };
+
     const handleBulkSaveNote = async (summaries, field, value) => {
         try {
             const updates = summaries.map(s => ({
@@ -559,6 +613,6 @@ export const useAdminLogs = ({ allLogs, schoolLogs, users, locations, notices, f
         
         handleDeleteLog, handleDeleteProgramSummary, handleBulkDelete, handleSelectiveExport,
         handleSelectAll, handleRowSelect, handleManualSubmit, handleSaveNote, handleBulkSaveNote,
-        handleNoteKeyDown, handleNotePaste, handleCellMouseDown, handleCellMouseEnter, isCellSelected
+        handleNoteKeyDown, handleNotePaste, handleCellMouseDown, handleCellMouseEnter, isCellSelected, handleTimeUpdate
     };
 };

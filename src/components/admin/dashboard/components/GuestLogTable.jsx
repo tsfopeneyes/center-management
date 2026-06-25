@@ -2,12 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
 import Pagination from '../../../common/Pagination';
 
+const TimeInputCell = ({ value, onChange, onBlur, placeholder = "--:--" }) => {
+    const [localValue, setLocalValue] = useState(value === '-' ? '' : value);
+
+    useEffect(() => {
+        setLocalValue(value === '-' ? '' : value);
+    }, [value]);
+
+    return (
+        <td className="p-1 min-w-[70px] text-center transition-colors">
+            <input
+                className="w-[50px] p-1 bg-transparent border-none outline-none focus:bg-indigo-50 focus:ring-1 focus:ring-indigo-100 rounded text-xs text-center font-mono hover:bg-gray-100 transition-all placeholder-gray-300 font-bold text-indigo-600"
+                placeholder={placeholder}
+                value={localValue}
+                onChange={(e) => setLocalValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                onBlur={(e) => {
+                    const val = e.target.value;
+                    const original = value === '-' ? '' : value;
+                    if (val !== original && val !== '') {
+                        onBlur(val);
+                    } else if (val === '') {
+                        setLocalValue(original);
+                    }
+                }}
+            />
+        </td>
+    );
+};
+
 const GuestLogTable = ({ hookData }) => {
     const {
         filteredGuestSummaries, selectedRows, handleSelectAll, handleRowSelect,
         visitNotes, setVisitNotes, inputRefs, focusValRef,
         handleSaveNote, handleNoteKeyDown, handleNotePaste,
-        handleCellMouseDown, handleCellMouseEnter, isCellSelected, selection, handleDeleteLog
+        handleCellMouseDown, handleCellMouseEnter, isCellSelected, selection, handleDeleteLog, handleTimeUpdate
     } = hookData;
 
     // Pagination State
@@ -74,8 +103,14 @@ const GuestLogTable = ({ hookData }) => {
                                 <td className="p-3 whitespace-nowrap text-gray-600">{summary.school}</td>
                                 <td className="p-3 whitespace-nowrap text-gray-600">{summary.birth}</td>
                                 <td className="p-3 font-mono text-xs text-gray-500">{summary.phone}</td>
-                                <td className="p-3 font-mono text-xs">{summary.startTime}</td>
-                                <td className="p-3 font-mono text-xs">{summary.endTime}</td>
+                                <TimeInputCell 
+                                    value={summary.startTime} 
+                                    onBlur={(val) => { if (handleTimeUpdate) handleTimeUpdate(summary, 'startTime', val); }}
+                                />
+                                <TimeInputCell 
+                                    value={summary.endTime} 
+                                    onBlur={(val) => { if (handleTimeUpdate) handleTimeUpdate(summary, 'endTime', val); }}
+                                />
                                 <td className="p-3">
                                     <span className="text-[11px] text-gray-600 line-clamp-2 leading-tight" title={summary.usedSpaces}>
                                         {summary.usedSpaces}

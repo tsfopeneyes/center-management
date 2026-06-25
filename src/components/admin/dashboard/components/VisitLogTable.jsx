@@ -9,7 +9,7 @@ const VisitLogTable = ({ hookData }) => {
         filterOptions, visitFilters, setVisitFilters, toggleFilter,
         visitNotes, setVisitNotes, inputRefs, focusValRef,
         handleSaveNote, handleNoteKeyDown, handleNotePaste,
-        handleCellMouseDown, handleCellMouseEnter, isCellSelected, selection
+        handleCellMouseDown, handleCellMouseEnter, isCellSelected, selection, handleTimeUpdate
     } = hookData;
 
     // Pagination State
@@ -61,6 +61,7 @@ const VisitLogTable = ({ hookData }) => {
                                 handleCellMouseDown={handleCellMouseDown}
                                 handleCellMouseEnter={handleCellMouseEnter}
                                 isCellSelected={isCellSelected}
+                                handleTimeUpdate={handleTimeUpdate}
                             />
                         ))
                     )}
