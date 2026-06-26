@@ -24,6 +24,7 @@ import AdminCalendar from '../components/admin/calendar/AdminCalendar';
 import AdminSchool from '../components/admin/school/AdminSchool';
 import AdminStore from '../components/admin/store/AdminStore';
 import AdminDuty from '../components/admin/duty/AdminDuty';
+import StaffPresenceToggleCard from '../components/admin/dashboard/components/StaffPresenceToggleCard';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
 
@@ -244,6 +245,28 @@ const AdminDashboard = () => {
         }
     }, [activeMenu]);
 
+    // B안: 뒤로가기 시 이전 탭으로 화면 전환을 위해 History API 연동
+    useEffect(() => {
+        // 첫 진입 시 현재 상태를 히스토리에 기재
+        window.history.replaceState({ menu: activeMenu }, '');
+
+        const handlePopState = (event) => {
+            if (event.state && event.state.menu) {
+                setActiveMenu(event.state.menu);
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    // activeMenu가 변경될 때마다 새로운 히스토리 항목 추가 (동일한 탭 연속 중복 추가 방지)
+    useEffect(() => {
+        if (window.history.state?.menu !== activeMenu) {
+            window.history.pushState({ menu: activeMenu }, '');
+        }
+    }, [activeMenu]);
+
     // Responsive Sidebar Fix: Handle window resize to sync states
     useEffect(() => {
         const handleResize = () => {
@@ -391,6 +414,11 @@ const AdminDashboard = () => {
                             handleForceCheckout={handleForceCheckout}
                         />
                     )}
+                    {activeMenu === 'WORK_STATUS' && (
+                        <div className="animate-fade-in-up">
+                            <StaffPresenceToggleCard users={users} />
+                        </div>
+                    )}
                     {activeMenu === 'CALENDAR' && (
                         <AdminCalendar notices={notices} fetchData={fetchData} />
                     )}
@@ -404,7 +432,7 @@ const AdminDashboard = () => {
                         <AdminBoard mode="GALLERY" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} setActiveMenu={setActiveMenu} />
                     )}
                     {activeMenu === 'STORE' && (
-                        <AdminStore />
+                        <AdminStore users={users} />
                     )}
                     {activeMenu === 'DUTY' && (
                         <AdminDuty currentAdmin={currentAdmin} users={users} />

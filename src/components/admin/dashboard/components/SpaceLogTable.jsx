@@ -10,7 +10,7 @@ const SpaceLogTable = ({ hookData, users, locations, notices }) => {
                     <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-semibold">
-                                <tr>
+                                <tr className="border-l-4 border-l-transparent">
                                     <th className="p-4 pl-6">시간</th>
                                     <th className="p-4">이름</th>
                                     <th className="p-4">종류</th>
@@ -43,7 +43,7 @@ const SpaceLogTable = ({ hookData, users, locations, notices }) => {
                                         const isProgramType = log.type.startsWith('PRG_');
 
                                         return (
-                                            <tr key={log.id} className={`hover:bg-gray-50 transition group ${isProgramType ? 'border-l-4 border-l-indigo-400' : ''}`}>
+                                            <tr key={log.id} className={`hover:bg-gray-50 transition group border-l-4 ${isProgramType ? 'border-l-indigo-400' : 'border-l-transparent'}`}>
                                                 <td className="p-4 pl-6 text-gray-500 font-mono text-xs">
                                                     {new Date(log.created_at).toLocaleString()}
                                                 </td>

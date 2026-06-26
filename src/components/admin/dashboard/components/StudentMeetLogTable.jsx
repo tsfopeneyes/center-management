@@ -8,7 +8,7 @@ const StudentMeetLogTable = ({ hookData, setSelectedLogId }) => {
                     <div className="overflow-x-auto custom-scrollbar" style={{ minHeight: '500px' }}>
                         <table className="w-full text-left border-collapse min-w-[1000px]">
                             <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-semibold">
-                                <tr className="border-b border-gray-100">
+                                <tr className="border-b border-gray-100 border-l-4 border-l-transparent">
                                     <th className="p-3 pl-6">Week ID</th>
                                     <th className="p-3">날짜</th>
                                     <th className="p-3 text-center">구분</th>

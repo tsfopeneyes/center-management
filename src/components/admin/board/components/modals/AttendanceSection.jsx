@@ -6,6 +6,7 @@ const AttendanceSection = ({
     notice, 
     participantList, 
     onAttendanceToggle, 
+    onStaffToggle,
     onDeleteParticipant, 
     onMarkAllAttended,
     showEntranceList,
@@ -42,23 +43,23 @@ const AttendanceSection = ({
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="grid grid-cols-4 md:grid-cols-5 p-3 bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500">
+                <div className="grid grid-cols-4 md:grid-cols-5 py-3 px-4 bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500 items-center">
                     <div className="col-span-1">이름</div>
                     <div className="col-span-2 md:col-span-2">학교/전화번호</div>
                     <div className="col-span-1 flex justify-center">출석</div>
-                    <div className="col-span-1 md:block hidden text-center">관리</div>
+                    <div className="col-span-1 md:flex hidden justify-center">관리</div>
                 </div>
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-gray-100/60">
                     {participantList.JOIN?.length > 0 ? (
                         participantList.JOIN.map(user => (
-                            <div key={user.id} className="grid grid-cols-4 md:grid-cols-5 p-3 items-center hover:bg-gray-50 transition text-sm">
-                                <div className="col-span-1 font-bold text-gray-800 truncate pr-2 flex items-center gap-1">
+                            <div key={user.id} className="grid grid-cols-4 md:grid-cols-5 py-3.5 px-4 items-center hover:bg-gray-50/50 transition text-sm">
+                                <div className="col-span-1 font-bold text-gray-800 truncate pr-2 flex items-center gap-1.5">
                                     {user.name}
                                     {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                 </div>
                                 <div className="col-span-2 md:col-span-2 flex flex-col justify-center">
-                                    <span className="text-xs text-gray-600 truncate">{user.school}</span>
-                                    <span className="text-[10px] text-gray-400 font-medium tracking-wider">{user.phone_back4}</span>
+                                    <span className="text-xs text-gray-600 truncate font-semibold">{user.school}</span>
+                                    <span className="text-[10px] text-gray-400 font-medium tracking-wider mt-0.5">{user.phone_back4}</span>
                                 </div>
                                 <div className="col-span-1 flex justify-center">
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -71,10 +72,20 @@ const AttendanceSection = ({
                                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                                     </label>
                                 </div>
-                                <div className="col-span-1 md:block hidden flex justify-center">
+                                <div className="col-span-1 md:flex hidden justify-center items-center gap-2.5">
+                                    <button 
+                                        onClick={() => onStaffToggle(user.id, user.is_staff)}
+                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all duration-200 border ${
+                                            user.is_staff
+                                                ? 'bg-purple-50 text-purple-600 border-purple-200/60 shadow-sm font-extrabold'
+                                                : 'bg-slate-50/50 text-slate-400 border-slate-200/50 hover:bg-slate-100 hover:text-slate-600 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        스탭
+                                    </button>
                                     <button 
                                         onClick={() => onDeleteParticipant(user.id, user.name)}
-                                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
                                         title="신청 취소"
                                     >
                                         <Trash2 size={16} />
@@ -138,6 +149,7 @@ AttendanceSection.propTypes = {
     notice: PropTypes.object.isRequired,
     participantList: PropTypes.object.isRequired,
     onAttendanceToggle: PropTypes.func.isRequired,
+    onStaffToggle: PropTypes.func.isRequired,
     onDeleteParticipant: PropTypes.func.isRequired,
     onMarkAllAttended: PropTypes.func.isRequired,
     showEntranceList: PropTypes.bool.isRequired,

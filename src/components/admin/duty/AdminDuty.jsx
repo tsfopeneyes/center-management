@@ -7,6 +7,8 @@ import DutyReportForm from './DutyReportForm';
 import DutyFeed from './DutyFeed';
 import * as XLSX from 'xlsx';
 
+import AdminPageHeader from '../common/AdminPageHeader';
+
 const AdminDuty = ({ currentAdmin, users }) => {
     const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [activeTab, setActiveTab] = useState('START'); // START, END, REPORT
@@ -156,37 +158,38 @@ const AdminDuty = ({ currentAdmin, users }) => {
         }
     };
 
-    return (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="p-3 md:p-4 border-b border-gray-100 flex flex-row justify-between items-center gap-2 bg-white z-10">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                        <ClipboardCheck size={18} />
-                    </div>
-                    <h2 className="text-lg font-black text-gray-800 tracking-tight">당직 관리</h2>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <div className="relative">
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="w-[130px] sm:w-[150px] pl-8 pr-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg font-bold text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                        />
-                        <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    </div>
-                    <button
-                        onClick={handleExportExcel}
-                        className="flex items-center justify-center w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-lg font-bold transition-colors shadow-sm"
-                        title="보고서 다운로드"
-                    >
-                        <Download size={14} />
-                        <span className="hidden sm:inline sm:ml-1.5 text-sm">다운로드</span>
-                    </button>
-                </div>
+    const actions = (
+        <div className="flex items-center gap-2">
+            <div className="relative">
+                <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-[130px] sm:w-[150px] pl-8 pr-2 py-2 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                />
+                <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
+            <button
+                onClick={handleExportExcel}
+                className="flex items-center justify-center w-8 h-8 sm:w-auto sm:px-4 sm:py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-xl font-bold transition-colors shadow-lg"
+                title="보고서 다운로드"
+            >
+                <Download size={14} />
+                <span className="hidden sm:inline sm:ml-1.5 text-xs">다운로드</span>
+            </button>
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col gap-6">
+            <AdminPageHeader
+                title="당직 관리"
+                subtitle="일자별 당직 근무 체크리스트 및 보고서 관리"
+                icon={<ClipboardCheck />}
+                actions={actions}
+            />
+
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
 
             {/* Tabs */}
             <div className="px-3 md:px-4 pt-3 border-b border-gray-100 flex gap-4 overflow-x-auto custom-scrollbar bg-white z-10">
@@ -246,6 +249,7 @@ const AdminDuty = ({ currentAdmin, users }) => {
                 )}
             </div>
         </div>
+    </div>
     );
 };
 

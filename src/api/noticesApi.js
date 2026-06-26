@@ -231,18 +231,57 @@ export const noticesApi = {
 
         const { error: insertError } = await supabase.from('logs').insert(logsToInsert);
         if (insertError) throw insertError;
+
+        // 5. Auto-reward 5H for staff members who attended
+        const staffAttendees = responses.filter(r => r.is_attended && r.is_staff);
+        if (staffAttendees.length > 0) {
+            const admin = JSON.parse(localStorage.getItem('admin_user')) || {};
+            const adminId = admin.id || null;
+            const rewardDesc = `[역할] 프로그램 스탭 참여: ${noticeData.title || ''}`;
+
+            const transactionsToInsert = staffAttendees.map(s => ({
+                user_id: s.user_id,
+                amount: 5,
+                transaction_type: 'EARN',
+                source_description: rewardDesc,
+                admin_id: adminId
+            }));
+
+            const { error: txError } = await supabase.from('hyphen_transactions').insert(transactionsToInsert);
+            if (txError) {
+                console.error("Failed to insert staff reward transactions:", txError);
+            }
+        }
     },
 
-    async revertProgramLogs(noticeId) {
+    async revertProgramLogs(noticeId, noticeTitle) {
         // Delete all PRG logs for this program since it was reverted to ACTIVE
         const { error } = await supabase.from('logs').delete().like('location_id', `${noticeId}|%`);
         if (error) throw error;
+
+        // Delete staff reward transactions
+        if (noticeTitle) {
+            const rewardDesc = `[역할] 프로그램 스탭 참여: ${noticeTitle}`;
+            await supabase
+                .from('hyphen_transactions')
+                .delete()
+                .eq('source_description', rewardDesc);
+        }
     },
 
     async updateAttendance(noticeId, userId, isAttended) {
         const { error } = await supabase
             .from('notice_responses')
             .update({ is_attended: isAttended })
+            .eq('notice_id', noticeId)
+            .eq('user_id', userId);
+        if (error) throw error;
+    },
+
+    async updateStaffStatus(noticeId, userId, isStaff) {
+        const { error } = await supabase
+            .from('notice_responses')
+            .update({ is_staff: isStaff })
             .eq('notice_id', noticeId)
             .eq('user_id', userId);
         if (error) throw error;

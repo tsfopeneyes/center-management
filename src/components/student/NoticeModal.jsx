@@ -94,31 +94,31 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                         </div>
                     ) : (
                         <>
-                            <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-4">{notice.title}</h1>
+                            <h1 className="text-2xl font-bold text-tossGrey900 leading-tight mb-4">{notice.title}</h1>
                             {notice.category === 'PROGRAM' && (
                                 <>
-                                    <hr className="border-gray-100 my-6" />
-                                    <div className="bg-[#f8fafc] border border-gray-100 rounded-2xl p-5 space-y-3 mb-6">
+                                    <hr className="border-tossGrey100 my-6" />
+                                    <div className="bg-tossGrey50 border border-tossGrey200/50 rounded-toss-lg p-5 space-y-3 mb-6">
                                         <div className="flex text-sm">
-                                            <span className="w-12 text-gray-500 font-bold shrink-0">일정</span>
-                                            <span className="text-gray-800 font-extrabold">{formattedSchedule}</span>
+                                            <span className="w-12 text-tossGrey500 font-bold shrink-0">일정</span>
+                                            <span className="text-tossGrey800 font-bold">{formattedSchedule}</span>
                                         </div>
                                         <div className="flex text-sm">
-                                            <span className="w-12 text-gray-500 font-bold shrink-0">장소</span>
-                                            <span className="text-gray-800 font-extrabold">{notice.program_location || location || '미정'}</span>
+                                            <span className="w-12 text-tossGrey500 font-bold shrink-0">장소</span>
+                                            <span className="text-tossGrey800 font-bold">{notice.program_location || location || '미정'}</span>
                                         </div>
                                         <div className="flex text-sm">
-                                            <span className="w-12 text-gray-500 font-bold shrink-0">인원</span>
-                                            <span className="text-gray-800 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                                            <span className="w-12 text-tossGrey500 font-bold shrink-0">인원</span>
+                                            <span className="text-tossGrey800 font-bold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
                                         </div>
                                     </div>
-                                    <hr className="border-gray-100 my-6" />
+                                    <hr className="border-tossGrey100 my-6" />
                                 </>
                             )}
                             {notice.category === 'PROGRAM' && (
-                                <h3 className="text-[15px] font-black text-blue-600 mb-3">프로그램 소개</h3>
+                                <h3 className="text-[15px] font-bold text-tossBlue mb-3">프로그램 소개</h3>
                             )}
-                            <div className="prose max-w-none text-gray-800 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden">
+                            <div className="prose max-w-none text-tossGrey800 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden">
                                 <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
                                 {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                             </div>
@@ -126,16 +126,16 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             {/* Polls */}
                             {notice.is_poll && notice.poll_options?.length > 0 && (
                                 <div className="mb-8">
-                                    <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+                                    <div className="bg-white p-5 rounded-toss-xl border border-tossGrey200/50 shadow-toss-standard">
                                         <div className="flex justify-between items-center mb-5">
                                             <div className="flex flex-col gap-1">
-                                                <h3 className="text-sm font-black text-gray-800 flex items-center gap-2">
-                                                    <span className="w-1.5 h-5 bg-blue-500 rounded-full inline-block"></span>
-                                                    투표 참여 {notice.allow_multiple_votes && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">다중 선택</span>}
+                                                <h3 className="text-sm font-bold text-tossGrey900 flex items-center gap-2">
+                                                    <span className="w-1 h-4 bg-tossBlue rounded-full inline-block"></span>
+                                                    투표 참여 {notice.allow_multiple_votes && <span className="text-[10px] font-bold text-tossBlue bg-tossBlueLight px-2 py-0.5 rounded-toss-sm">다중 선택</span>}
                                                 </h3>
-                                                {notice.poll_deadline && <span className={`text-[10px] font-bold ${isPollExpired ? 'text-gray-400' : 'text-red-500 animate-pulse'}`}>{pollTimeLeft}</span>}
+                                                {notice.poll_deadline && <span className={`text-[10px] font-bold ${isPollExpired ? 'text-tossGrey400' : 'text-tossError animate-pulse'}`}>{pollTimeLeft}</span>}
                                             </div>
-                                            <div className="text-[10px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl font-bold">{pollTotalVotes}명 참여</div>
+                                            <div className="text-[10px] bg-tossBlueLight text-tossBlue px-3 py-1.5 rounded-toss-md font-bold">{pollTotalVotes}명 참여</div>
                                         </div>
                                         <div className="space-y-3">
                                             {notice.poll_options.map(opt => {
@@ -144,22 +144,22 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                                 const percentage = pollTotalVotes > 0 ? Math.round((votesForOption / pollTotalVotes) * 100) : 0;
                                                 const showProgress = userVotes.length > 0;
                                                 return (
-                                                    <div key={opt.id} onClick={() => handleOptionClick(opt.id, isEditing)} className={`relative overflow-hidden cursor-pointer transition-all duration-300 border-2 rounded-2xl p-4 flex items-center gap-4 ${isSelected ? 'border-blue-500 bg-blue-50/20' : 'border-gray-100 bg-white hover:border-blue-200'}`}>
-                                                        {showProgress && <div className={`absolute left-0 top-0 bottom-0 opacity-10 ${userVotes.includes(opt.id) ? 'bg-blue-600' : 'bg-gray-400'}`} style={{ width: `${percentage}%` }} />}
+                                                    <div key={opt.id} onClick={() => handleOptionClick(opt.id, isEditing)} className={`relative overflow-hidden cursor-pointer transition-all duration-300 border rounded-toss-xl p-4 flex items-center gap-4 ${isSelected ? 'border-tossBlue bg-tossBlueLight/40' : 'border-tossGrey200 bg-white hover:border-tossBlue/20'}`}>
+                                                        {showProgress && <div className={`absolute left-0 top-0 bottom-0 opacity-10 ${userVotes.includes(opt.id) ? 'bg-tossBlue' : 'bg-tossGrey400'}`} style={{ width: `${percentage}%` }} />}
                                                         {opt.image_url && (
-                                                            <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-gray-100 bg-gray-50 z-10" onClick={(e) => { e.stopPropagation(); setZoomedImage(opt.image_url); }}>
+                                                            <div className="relative w-14 h-14 rounded-toss-lg overflow-hidden shrink-0 border border-tossGrey100 bg-tossGrey50 z-10" onClick={(e) => { e.stopPropagation(); setZoomedImage(opt.image_url); }}>
                                                                 <img src={opt.image_url} alt={opt.title} className="w-full h-full object-cover" />
                                                                 <div className="absolute inset-0 bg-black/5 flex items-center justify-center opacity-0 hover:opacity-100 transition"><ZoomIn size={16} className="text-white shadow-sm" /></div>
                                                             </div>
                                                         )}
                                                         <div className="flex-1 z-10">
                                                             <div className="flex justify-between items-center">
-                                                                <h4 className={`text-base font-bold ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>{opt.title}</h4>
-                                                                {showProgress && <span className="text-sm font-black text-blue-600">{percentage}% <span className="text-[10px] opacity-70">({votesForOption}표)</span></span>}
+                                                                <h4 className={`text-base font-bold ${isSelected ? 'text-tossBlue font-bold' : 'text-tossGrey800'}`}>{opt.title}</h4>
+                                                                {showProgress && <span className="text-sm font-black text-tossBlue">{percentage}% <span className="text-[10px] opacity-70">({votesForOption}표)</span></span>}
                                                             </div>
-                                                            {opt.description && <p className="text-xs text-gray-500">{opt.description}</p>}
+                                                            {opt.description && <p className="text-xs text-tossGrey500">{opt.description}</p>}
                                                         </div>
-                                                        <div className={`w-6 h-6 shrink-0 z-10 flex items-center justify-center border-2 transition-colors ${notice.allow_multiple_votes ? 'rounded-md' : 'rounded-full'} ${isSelected ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300 bg-white'}`}>
+                                                        <div className={`w-6 h-6 shrink-0 z-10 flex items-center justify-center border transition-colors ${notice.allow_multiple_votes ? 'rounded-toss-sm' : 'rounded-full'} ${isSelected ? 'border-tossBlue bg-tossBlue text-white' : 'border-tossGrey400 bg-white'}`}>
                                                             {isSelected && <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                                                         </div>
                                                     </div>
@@ -167,136 +167,142 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                             })}
                                         </div>
                                         {notice.allow_multiple_votes && !isPollExpired && (
-                                            <button onClick={() => handleSubmitVote(pendingVotes, isEditing)} disabled={isSubmittingPoll || pendingVotes.length === 0} className={`w-full mt-5 py-4 rounded-xl font-bold text-white transition-all shadow-sm ${pendingVotes.length > 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300'}`}>
+                                            <button onClick={() => handleSubmitVote(pendingVotes, isEditing)} disabled={isSubmittingPoll || pendingVotes.length === 0} className={`w-full mt-5 py-3.5 rounded-toss-xl font-bold text-white transition-all ${pendingVotes.length > 0 ? 'bg-tossBlue hover:bg-tossBlueHover' : 'bg-tossGrey100 text-tossGrey500 pointer-events-none'}`}>
                                                 {isSubmittingPoll ? '제출 중...' : '투표 제출하기'}
                                             </button>
                                         )}
                                     </div>
                                 </div>
-                            )}
+                             )}
 
-                            {/* RSVP */}
-                            {notice.category !== 'PROGRAM' && (
-                                notice.is_recruiting ? (
-                                    <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm mb-8">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <div className="flex flex-col">
-                                                <p className="text-sm font-black text-blue-600">참여 여부 선택</p>
-                                                {notice.recruitment_deadline && <p className="text-[11px] font-bold text-red-500">{timeLeft}</p>}
-                                            </div>
-                                            {notice.max_capacity > 0 && <div className="bg-green-100 text-green-600 px-3 py-1.5 rounded-xl text-xs font-black">{joinCount} / {notice.max_capacity}명</div>}
-                                        </div>
-                                        <button
-                                            disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
-                                            onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
-                                            className={`w-full py-4 rounded-full font-black text-white transition transform active:scale-95 ${(responses[notice.id] ? 'bg-gray-400' : 'bg-blue-600 shadow-lg shadow-blue-200')}`}
-                                        >
-                                            {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
-                                        </button>
-                                    </div>
-                                ) : null
-                            )}
-                        </>
-                    )}
-                </div>
+                             {/* RSVP */}
+                             {notice.category !== 'PROGRAM' && (
+                                 notice.is_recruiting ? (
+                                     <div className="bg-white p-6 rounded-toss-xl border border-tossGrey200/50 shadow-toss-standard mb-8">
+                                         <div className="flex justify-between items-center mb-6">
+                                             <div className="flex flex-col">
+                                                 <p className="text-sm font-bold text-tossBlue">참여 여부 선택</p>
+                                                 {notice.recruitment_deadline && <p className="text-[11px] font-bold text-tossError">{timeLeft}</p>}
+                                             </div>
+                                             {notice.max_capacity > 0 && <div className="bg-tossSuccess/10 text-tossSuccess px-3 py-1.5 rounded-toss-md text-xs font-bold">{joinCount} / {notice.max_capacity}명</div>}
+                                         </div>
+                                         <button
+                                             disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
+                                             onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
+                                             className={`w-full py-3.5 rounded-toss-xl font-bold text-white transition-all active:scale-[0.98] ${
+                                                 responses[notice.id]
+                                                     ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none'
+                                                     : (notice.max_capacity > 0 && joinCount >= notice.max_capacity
+                                                         ? 'bg-tossWarning hover:bg-tossWarning/90'
+                                                         : 'bg-tossBlue hover:bg-tossBlueHover')
+                                             }`}
+                                         >
+                                             {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
+                                         </button>
+                                     </div>
+                                 ) : null
+                             )}
+                         </>
+                     )}
+                 </div>
 
-                {/* Comments Section */}
-                <div className="border-t border-gray-50 mt-4">
-                    <div className="px-4 py-4 text-sm font-bold text-gray-900 border-b border-gray-50">댓글 {comments?.length || 0}</div>
-                    {comments?.map(c => (
-                        <div key={c.id} className="px-4 py-4 flex gap-3 text-sm hover:bg-gray-50 transition group/notice-comment">
-                            <UserAvatar user={c.users} size="w-8 h-8" />
-                            <div className="flex-1">
-                                <div className="flex items-baseline justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-gray-900">{c.users?.name}</span>
-                                        <span className="text-[10px] text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
-                                    </div>
-                                    {c.user_id === user.id && (
-                                        <button onClick={() => onDeleteComment(c.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors">
-                                            <Trash2 size={14} />
-                                        </button>
-                                    )}
-                                </div>
-                                <p className="text-gray-700 mt-1 leading-normal">{c.content}</p>
-                            </div>
-                        </div>
-                    ))}
-                    
-                    {/* Inline Comment Input for Program Notices */}
-                    {notice.category === 'PROGRAM' && (
-                        <div className="p-4 bg-white border-t border-gray-50">
-                            <form onSubmit={(e) => { e.preventDefault(); onPostComment(e); }} className="flex items-center gap-3">
-                                <UserAvatar user={user} size="w-8 h-8" />
-                                <div className="flex-1 bg-gray-100 rounded-full px-4 py-2 flex items-center">
-                                    <input type="text" value={newComment || ''} onChange={(e) => setNewComment(e.target.value)} placeholder="댓글 달기..." className="bg-transparent text-sm w-full outline-none py-1.5" />
-                                    {newComment?.trim() && <button type="submit" className="text-blue-600 text-sm font-bold ml-2">게시</button>}
-                                </div>
-                            </form>
-                        </div>
-                    )}
-                </div>
-            </div>
+                 {/* Comments Section */}
+                 <div className="border-t border-tossGrey100 mt-4">
+                     <div className="px-4 py-4 text-sm font-bold text-tossGrey900 border-b border-tossGrey100">댓글 {comments?.length || 0}</div>
+                     {comments?.map(c => (
+                         <div key={c.id} className="px-4 py-4 flex gap-3 text-sm hover:bg-tossGrey50 transition group/notice-comment">
+                             <UserAvatar user={c.users} size="w-8 h-8" />
+                             <div className="flex-1">
+                                 <div className="flex items-baseline justify-between">
+                                     <div className="flex items-center gap-2">
+                                         <span className="font-bold text-tossGrey900">{c.users?.name}</span>
+                                         <span className="text-[10px] text-tossGrey400">{new Date(c.created_at).toLocaleDateString()}</span>
+                                     </div>
+                                     {c.user_id === user.id && (
+                                         <button onClick={() => onDeleteComment(c.id)} className="p-1 text-tossGrey400 hover:text-tossError transition-colors">
+                                             <Trash2 size={14} />
+                                         </button>
+                                     )}
+                                 </div>
+                                 <p className="text-tossGrey700 mt-1 leading-normal">{c.content}</p>
+                             </div>
+                         </div>
+                     ))}
+                     
+                     {/* Inline Comment Input for Program Notices */}
+                     {notice.category === 'PROGRAM' && (
+                         <div className="p-4 bg-white border-t border-tossGrey100">
+                             <form onSubmit={(e) => { e.preventDefault(); onPostComment(e); }} className="flex items-center gap-3">
+                                 <UserAvatar user={user} size="w-8 h-8" />
+                                 <div className="flex-1 bg-tossGrey50 border border-tossGrey200 rounded-toss-xl px-4 py-2 flex items-center">
+                                     <input type="text" value={newComment || ''} onChange={(e) => setNewComment(e.target.value)} placeholder="댓글 달기..." className="bg-transparent text-sm w-full outline-none py-1.5 text-tossGrey850" />
+                                     {newComment?.trim() && <button type="submit" className="text-tossBlue text-sm font-bold ml-2">게시</button>}
+                                 </div>
+                             </form>
+                         </div>
+                     )}
+                 </div>
+             </div>
 
-            {/* Program Notice Fixed Bottom Action Bar */}
-            {notice.category === 'PROGRAM' && !isEditing && (
-                <div className="bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] z-[60]">
-                    {notice.is_recruiting && notice.recruitment_deadline && (
-                        <div className="bg-black text-center py-2.5 px-4 text-xs font-bold text-yellow-400 tracking-tight">
-                            {timeLeft}
-                        </div>
-                    )}
-                    {notice.is_recruiting ? (
-                        <div className="p-4 flex gap-3">
-                            <button
-                                disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
-                                onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
-                                className={`flex-1 py-4 rounded-xl font-black text-white text-base transition transform active:scale-95 shadow-md ${
-                                    responses[notice.id] 
-                                        ? 'bg-gray-400' 
-                                        : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
-                                            ? 'bg-orange-500 shadow-orange-100' 
-                                            : 'bg-blue-600 shadow-blue-100 hover:bg-blue-700')
-                                }`}
-                            >
-                                {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="p-4 bg-teal-50 text-center">
-                            <p className="text-sm font-black text-teal-800">🎉 오픈 프로그램입니다! 자유롭게 참여하세요.</p>
-                        </div>
-                    )}
-                </div>
-            )}
+             {/* Program Notice Fixed Bottom Action Bar */}
+             {notice.category === 'PROGRAM' && !isEditing && (
+                 <div className="bg-white border-t border-tossGrey200 z-[60]">
+                     {notice.is_recruiting && notice.recruitment_deadline && (
+                         <div className="bg-tossGrey900 text-center py-2.5 px-4 text-xs font-bold text-tossCaution tracking-tight">
+                             {timeLeft}
+                         </div>
+                     )}
+                     {notice.is_recruiting ? (
+                         <div className="p-4 flex gap-3">
+                             <button
+                                 disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
+                                 onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
+                                 className={`flex-1 py-3.5 rounded-toss-xl font-bold text-white text-base transition transform active:scale-[0.98] ${
+                                     responses[notice.id] 
+                                         ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none' 
+                                         : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
+                                             ? 'bg-tossWarning' 
+                                             : 'bg-tossBlue hover:bg-tossBlueHover')
+                                 }`}
+                             >
+                                 {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
+                             </button>
+                         </div>
+                     ) : (
+                         <div className="p-4 bg-tossBlueLight text-center">
+                             <p className="text-sm font-bold text-tossBlue">오픈 프로그램입니다. 자유롭게 참여하세요.</p>
+                         </div>
+                     )}
+                 </div>
+             )}
 
-            {/* Comment Input for Non-Program Notices */}
-            {notice.category !== 'PROGRAM' && (
-                <div className="p-3 border-t border-gray-100 bg-white sticky bottom-0 z-50">
-                    <form onSubmit={(e) => { e.preventDefault(); onPostComment(e); }} className="flex items-center gap-3">
-                        <UserAvatar user={user} size="w-8 h-8" />
-                        <div className="flex-1 bg-gray-100 rounded-full px-4 py-2 flex items-center">
-                            <input type="text" value={newComment || ''} onChange={(e) => setNewComment(e.target.value)} placeholder="댓글 달기..." className="bg-transparent text-sm w-full outline-none py-1.5" />
-                            {newComment?.trim() && <button type="submit" className="text-blue-600 text-sm font-bold ml-2">게시</button>}
-                        </div>
-                    </form>
-                </div>
-            )}
+             {/* Comment Input for Non-Program Notices */}
+             {notice.category !== 'PROGRAM' && (
+                 <div className="p-3 border-t border-tossGrey200 bg-white sticky bottom-0 z-50">
+                     <form onSubmit={(e) => { e.preventDefault(); onPostComment(e); }} className="flex items-center gap-3">
+                         <UserAvatar user={user} size="w-8 h-8" />
+                         <div className="flex-1 bg-tossGrey50 border border-tossGrey200 rounded-toss-xl px-4 py-2 flex items-center">
+                             <input type="text" value={newComment || ''} onChange={(e) => setNewComment(e.target.value)} placeholder="댓글 달기..." className="bg-transparent text-sm w-full outline-none py-1.5 text-tossGrey850" />
+                             {newComment?.trim() && <button type="submit" className="text-tossBlue text-sm font-bold ml-2">게시</button>}
+                         </div>
+                     </form>
+                 </div>
+             )}
 
-            {/* Zoom Overlay (Banner/Carousel & Poll Options) */}
-            {zoomedImage && (
-                <div
-                    className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 cursor-pointer animate-fade-in"
-                    onClick={() => setZoomedImage(null)}
-                >
-                    <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full hover:bg-white/20 transition">
-                        <X size={32} />
-                    </button>
-                    <img src={zoomedImage} className="max-w-full max-h-full object-contain animate-zoom-in" alt="Zoomed" />
-                </div>
-            )}
-        </motion.div>
-    );
-};
+             {/* Zoom Overlay (Banner/Carousel & Poll Options) */}
+             {zoomedImage && (
+                 <div
+                     className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 cursor-pointer animate-fade-in"
+                     onClick={() => setZoomedImage(null)}
+                 >
+                     <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full hover:bg-white/20 transition">
+                         <X size={32} />
+                     </button>
+                     <img src={zoomedImage} className="max-w-full max-h-full object-contain animate-zoom-in" alt="Zoomed" />
+                 </div>
+             )}
+         </motion.div>
+     );
+ };
 
-export default NoticeModal;
+ export default NoticeModal;

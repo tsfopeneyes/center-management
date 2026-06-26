@@ -13,6 +13,7 @@ import LayoutDesigner from './components/LayoutDesigner';
 import DutyChecklistSettings from './components/DutyChecklistSettings';
 import OperatingHoursSettings from './components/OperatingHoursSettings';
 import StaffPresenceSettings from './components/StaffPresenceSettings';
+import AdminPageHeader from '../common/AdminPageHeader';
 
 const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, fetchData, users, allLogs, responses = [], schoolLogs = [] }) => {
     const isMaster = currentAdmin?.is_master || currentAdmin?.name === 'Rok' || currentAdmin?.name === 'admin';
@@ -59,15 +60,11 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
 
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">
-            <div className="p-4 md:p-10 bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-4 lg:gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-blue-50/20">
-                <div>
-                    <h2 className="text-xl md:text-3xl font-black text-gray-800 tracking-tighter flex items-center gap-2 md:gap-3">
-                        <Settings className="text-blue-600" size={24} md:size={32} />
-                        시스템 설정
-                    </h2>
-                    <p className="hidden md:block text-gray-500 text-sm font-medium mt-1">센터 기본 정보 및 보안, 연동 설정 관리</p>
-                </div>
-            </div>
+            <AdminPageHeader
+                title="시스템 설정"
+                subtitle="센터 기본 정보 및 보안, 연동 설정 관리"
+                icon={<Settings />}
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <ProfileSettings

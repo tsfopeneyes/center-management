@@ -68,6 +68,28 @@ const StudentDashboard = () => {
 
     const navigate = useNavigate();
 
+    // B안: 뒤로가기 시 이전 탭으로 화면 전환을 위해 History API 연동 (학생용)
+    useEffect(() => {
+        // 첫 진입 시 현재 상태를 히스토리에 기재
+        window.history.replaceState({ tab: activeTab }, '');
+
+        const handlePopState = (event) => {
+            if (event.state && event.state.tab) {
+                handleTabChange(event.state.tab);
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    // activeTab이 변경될 때마다 새로운 히스토리 항목 추가 (동일한 탭 연속 중복 추가 방지)
+    useEffect(() => {
+        if (window.history.state?.tab !== activeTab) {
+            window.history.pushState({ tab: activeTab }, '');
+        }
+    }, [activeTab]);
+
     useEffect(() => {
         setHideMainHeader(false);
     }, [activeTab]);
@@ -216,9 +238,9 @@ const StudentDashboard = () => {
 
     if (loading || !user) {
         return (
-            <div className="w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="w-full md:max-w-lg mx-auto min-h-screen bg-tossGrey50 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-12 h-12 border-4 border-tossBlue border-t-transparent rounded-full animate-spin" />
                     <p className="text-gray-400 font-bold animate-pulse">정보를 불러오는 중...</p>
                 </div>
             </div>
@@ -227,7 +249,7 @@ const StudentDashboard = () => {
 
     return (
         <div 
-            className="w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 pb-20 font-sans transition-all duration-300 pt-[max(env(safe-area-inset-top),0px)]"
+            className="w-full md:max-w-lg mx-auto min-h-screen bg-tossGrey50 pb-20 font-sans transition-all duration-300 pt-[max(env(safe-area-inset-top),0px)]"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -380,33 +402,33 @@ const StudentDashboard = () => {
                             animate={{ x: 0 }}
                             exit={{ x: '-100%' }}
                             transition={{ type: 'tween', duration: 0.25, ease: 'easeInOut' }}
-                            className="fixed top-0 bottom-0 left-0 md:left-[calc(50vw-256px)] w-64 bg-white z-[210] shadow-2xl flex flex-col pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),16px)] border-r border-gray-100"
+                            className="fixed top-0 bottom-0 left-0 md:left-[calc(50vw-256px)] w-64 bg-white z-[210] shadow-toss-elevated flex flex-col pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),16px)] border-r border-tossGrey200"
                         >
                             {/* Drawer Header */}
-                            <div className="p-4 border-b border-gray-50 flex items-center justify-between">
+                            <div className="p-4 border-b border-tossGrey100 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                    <div className="w-8 h-8 rounded-full bg-tossBlueLight flex items-center justify-center text-tossBlue">
                                         <Home size={16} />
                                     </div>
-                                    <span className="font-black text-blue-600 tracking-tight text-sm select-none">SCI CENTER</span>
+                                    <span className="font-bold text-tossBlue tracking-tight text-sm select-none">SCI CENTER</span>
                                 </div>
                                 <motion.button
                                     whileTap={{ scale: 0.9 }}
                                     onClick={() => setShowMenuDrawer(false)}
-                                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                                    className="p-1.5 text-tossGrey500 hover:text-tossGrey800 hover:bg-tossGrey100 rounded-lg transition-colors"
                                 >
                                     <X size={20} />
                                 </motion.button>
                             </div>
 
                             {/* Mini Profile */}
-                            <div className="p-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 flex items-center gap-3">
-                                <div className="shrink-0 ring-2 ring-white shadow-sm rounded-full">
+                            <div className="p-5 bg-tossGrey50 border-b border-tossGrey100 flex items-center gap-3">
+                                <div className="shrink-0 ring-2 ring-white shadow-toss-subtle rounded-full">
                                     <UserAvatar user={user} size="w-12 h-12" textSize="text-md" />
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="text-[10px] text-gray-400 font-bold tracking-wider uppercase mb-0.5">{user?.school || 'WELCOME'}</p>
-                                    <h3 className="font-black text-gray-800 text-sm flex items-center gap-1">
+                                    <p className="text-[10px] text-tossGrey500 font-bold tracking-wider uppercase mb-0.5">{user?.school || 'WELCOME'}</p>
+                                    <h3 className="font-bold text-tossGrey900 text-sm flex items-center gap-1">
                                         {user?.name} 님
                                         {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                     </h3>
@@ -415,7 +437,7 @@ const StudentDashboard = () => {
 
                             {/* Menu Body */}
                             <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-                                <p className="px-4 py-1 text-[10px] text-gray-400 font-bold tracking-wider uppercase">바로가기</p>
+                                <p className="px-4 py-1 text-[10px] text-tossGrey500 font-bold tracking-wider uppercase">바로가기</p>
                                 
                                 {navigationTabs.map((tab) => {
                                     const IconComponent = tab.icon;
@@ -427,29 +449,29 @@ const StudentDashboard = () => {
                                                 handleTabNavigation(tab.id);
                                                 setShowMenuDrawer(false);
                                             }}
-                                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-black text-sm transition-all ${
+                                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-toss-lg text-left font-bold text-sm transition-all ${
                                                 isActive
-                                                    ? 'bg-blue-50 text-blue-600'
-                                                    : 'text-gray-600 hover:bg-gray-50'
+                                                    ? 'bg-tossBlueLight text-tossBlue'
+                                                    : 'text-tossGrey700 hover:bg-tossGrey100'
                                             }`}
                                         >
-                                            <IconComponent size={18} className={isActive ? 'text-blue-600' : 'text-gray-400'} />
+                                            <IconComponent size={18} className={isActive ? 'text-tossBlue' : 'text-tossGrey500'} />
                                             <span>{tab.label}</span>
                                         </button>
                                     );
                                 })}
 
-                                <div className="h-px bg-gray-100 my-2" />
-                                <p className="px-4 py-1 text-[10px] text-gray-400 font-bold tracking-wider uppercase">사용자 설정</p>
+                                <div className="h-px bg-tossGrey100 my-2" />
+                                <p className="px-4 py-1 text-[10px] text-tossGrey500 font-bold tracking-wider uppercase">사용자 설정</p>
 
                                 <button
                                     onClick={() => {
                                         setShowProfileSettings(true);
                                         setShowMenuDrawer(false);
                                     }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-black text-sm text-gray-600 hover:bg-gray-50 transition-all"
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-toss-lg text-left font-bold text-sm text-tossGrey700 hover:bg-tossGrey100 transition-all"
                                 >
-                                    <Settings size={18} className="text-gray-400" />
+                                    <Settings size={18} className="text-tossGrey500" />
                                     <span>설정</span>
                                 </button>
 
@@ -459,22 +481,22 @@ const StudentDashboard = () => {
                                             navigate('/admin');
                                             setShowMenuDrawer(false);
                                         }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-black text-sm text-blue-600 hover:bg-blue-50/50 transition-all"
+                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-toss-lg text-left font-bold text-sm text-tossBlue hover:bg-tossBlueLight transition-all"
                                     >
-                                        <ShieldCheck size={18} className="text-blue-500" />
+                                        <ShieldCheck size={18} className="text-tossBlue" />
                                         <span>관리자 페이지</span>
                                     </button>
                                 )}
                             </div>
 
                             {/* Menu Footer */}
-                            <div className="p-4 border-t border-gray-50">
+                            <div className="p-4 border-t border-tossGrey100">
                                 <button
                                     onClick={() => {
                                         setShowMenuDrawer(false);
                                         handleLogout();
                                     }}
-                                    className="w-full flex items-center justify-center gap-2 py-2.5 border border-red-100 text-red-500 rounded-xl font-black text-sm hover:bg-red-50 transition-colors"
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 border border-tossError/20 text-tossError rounded-toss-lg font-bold text-sm hover:bg-tossError/5 transition-colors"
                                 >
                                     <LogOut size={16} />
                                     <span>로그아웃</span>
@@ -609,22 +631,22 @@ const StudentDashboard = () => {
             </AnimatePresence>
 
             {/* Bottom Navigation */}
-            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 flex justify-around items-center px-4 py-3 z-[120] safe-area-bottom shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-[2.5rem]">
+            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white border-t border-tossGrey200 flex justify-around items-center px-4 py-3 z-[120] safe-area-bottom">
                 {navigationTabs.map((tab) => (
                     <motion.button
                         key={tab.id}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => handleTabNavigation(tab.id)}
-                        className={`flex flex-col items-center gap-1.5 p-2 rounded-2xl transition-all duration-300 flex-1 relative btn-tactile ${activeTab === tab.id ? (tab.activeColor || 'text-gray-900') : 'text-gray-300'}`}
+                        className={`flex flex-col items-center gap-1 p-2 transition-all duration-300 flex-1 relative btn-tactile ${activeTab === tab.id ? 'text-tossBlue' : 'text-tossGrey400'}`}
                     >
-                        <tab.icon size={24} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
-                        <span className={`text-[10px] font-black tracking-tight ${activeTab === tab.id ? (tab.activeColor || 'text-gray-900') : 'text-gray-400'}`}>
+                        <tab.icon size={22} strokeWidth={activeTab === tab.id ? 2.2 : 1.8} />
+                        <span className={`text-[11px] font-medium tracking-tight mt-1 ${activeTab === tab.id ? 'text-tossBlue' : 'text-tossGrey500'}`}>
                             {tab.label}
                         </span>
                         {activeTab === tab.id && (
                             <motion.div
                                 layoutId="activeTabPill"
-                                className={`absolute -top-1 w-1.5 h-1.5 rounded-full ${tab.activeColor ? 'bg-blue-600' : 'bg-gray-900'}`}
+                                className="absolute -top-1 w-1.5 h-1.5 rounded-full bg-tossBlue"
                             />
                         )}
                     </motion.button>

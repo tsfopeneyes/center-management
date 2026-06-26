@@ -1,7 +1,7 @@
 import React from 'react';
 import { format, isSameMonth, isSameDay, getDay, startOfMonth, isToday, parseISO, addMonths } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, Filter, Check, Settings, Palette } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Filter, Check, Settings, Palette, Calendar as CalendarIcon } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { useAdminCalendar } from './hooks/useAdminCalendar';
 import { COLOR_THEMES } from './calendarConstants';
@@ -9,6 +9,8 @@ import { COLOR_THEMES } from './calendarConstants';
 import EventEditModal from './modals/EventEditModal';
 import CategorySettingsModal from './modals/CategorySettingsModal';
 import MobileDayDetailOverlay from './modals/MobileDayDetailOverlay';
+
+import AdminPageHeader from '../common/AdminPageHeader';
 
 const AdminCalendar = ({ notices, fetchData }) => {
     const hookData = useAdminCalendar({ notices, fetchData });
@@ -29,66 +31,65 @@ const AdminCalendar = ({ notices, fetchData }) => {
         handleSaveCategory, handleDeleteCategory
     } = hookData;
 
-    return (
-        <div className="flex flex-col h-full bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden animate-fade-in">
-            {/* Calendar Header */}
-            <div className="p-3 md:p-8 flex flex-col md:flex-row justify-between items-center bg-white border-b border-gray-100 gap-3 md:gap-6 sticky top-0 md:relative z-20">
-                <div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8">
-                    <div className="flex items-center bg-gray-50 rounded-xl md:rounded-2xl p-0.5 md:p-1 overflow-hidden border border-gray-100/50">
-                        <button onClick={prevMonth} className="p-1.5 md:p-2 hover:bg-white hover:shadow-sm rounded-lg md:rounded-xl transition-all text-gray-500 active:scale-90">
-                            <ChevronLeft size={18} md:size={20} />
-                        </button>
-                        <button onClick={nextMonth} className="p-1.5 md:p-2 hover:bg-white hover:shadow-sm rounded-lg md:rounded-xl transition-all text-gray-500 active:scale-90">
-                            <ChevronRight size={18} md:size={20} />
-                        </button>
-                    </div>
-                    <div className="flex items-baseline gap-2 md:gap-3">
-                        <h2 className="text-xl md:text-3xl font-black text-gray-900 tracking-tighter flex items-center gap-1 md:gap-2">
-                            {format(currentDate, 'yyyy', { locale: ko })}
-                            <span className="text-blue-600">.</span>
-                            {format(currentDate, 'MM', { locale: ko })}
-                        </h2>
-                        <button onClick={goToToday} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black rounded-full hover:bg-blue-100 transition-colors uppercase tracking-widest">Today</button>
-                    </div>
-
-                    <button
-                        onClick={() => setShowCategoryModal(true)}
-                        className="md:hidden flex items-center justify-center p-2 bg-gray-50 border border-gray-100 text-gray-500 rounded-xl transition-all"
-                    >
-                        <Settings size={18} />
+    const actions = (
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+            <div className="flex items-center gap-4 bg-gray-50/50 p-1.5 rounded-2xl border border-gray-100">
+                <div className="flex items-center bg-white rounded-lg p-0.5 overflow-hidden border border-gray-100 shadow-sm">
+                    <button onClick={prevMonth} className="p-1 hover:bg-slate-50 rounded transition-all text-gray-500">
+                        <ChevronLeft size={16} />
+                    </button>
+                    <button onClick={nextMonth} className="p-1 hover:bg-slate-50 rounded transition-all text-gray-500">
+                        <ChevronRight size={16} />
                     </button>
                 </div>
-
-                <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">
-                    <button
-                        onClick={() => setShowCategoryModal(true)}
-                        className="hidden md:flex flex-items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-100 text-gray-500 hover:text-blue-600 hover:border-blue-100 rounded-2xl shadow-sm transition-all text-xs font-black"
-                    >
-                        <Settings size={18} />
-                        <span className="hidden lg:inline">설정</span>
-                    </button>
-                    <button
-                        onClick={() => {
-                            setSelectedEvent(null);
-                            setSelectedDate(new Date());
-                            setFormData({
-                                ...formData,
-                                type: 'SCHEDULE',
-                                start_date: format(new Date(), 'yyyy-MM-dd'),
-                                category_id: dynamicCategories[0]?.id || '',
-                                isRecurring: false,
-                                recurringDays: [],
-                                recurringEndDate: format(addMonths(new Date(), 1), 'yyyy-MM-dd')
-                            });
-                            setShowModal(true);
-                        }}
-                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-blue-600 text-white rounded-xl md:rounded-2xl font-black text-xs md:text-sm shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all"
-                    >
-                        <Plus size={16} md:size={18} strokeWidth={3} />
-                        일정 추가
-                    </button>
+                <div className="flex items-baseline gap-2">
+                    <h3 className="text-lg md:text-xl font-black text-gray-900 tracking-tighter flex items-center">
+                        {format(currentDate, 'yyyy', { locale: ko })}.{format(currentDate, 'MM', { locale: ko })}
+                    </h3>
+                    <button onClick={goToToday} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black rounded-full hover:bg-blue-100 transition-colors uppercase tracking-widest">Today</button>
                 </div>
             </div>
+            
+            <button
+                onClick={() => setShowCategoryModal(true)}
+                className="flex items-center justify-center p-2.5 bg-white border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-100 rounded-xl shadow-sm transition-all"
+                title="카테고리 관리"
+            >
+                <Settings size={18} />
+            </button>
+            <button
+                onClick={() => {
+                    setSelectedEvent(null);
+                    setSelectedDate(new Date());
+                    setFormData({
+                        ...formData,
+                        type: 'SCHEDULE',
+                        start_date: format(new Date(), 'yyyy-MM-dd'),
+                        category_id: dynamicCategories[0]?.id || '',
+                        isRecurring: false,
+                        recurringDays: [],
+                        recurringEndDate: format(addMonths(new Date(), 1), 'yyyy-MM-dd')
+                    });
+                    setShowModal(true);
+                }}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs md:text-sm shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all"
+            >
+                <Plus size={16} />
+                <span>일정 추가</span>
+            </button>
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col gap-6">
+            <AdminPageHeader
+                title="일정 관리"
+                subtitle="센터 프로그램 및 학사 일정 관리"
+                icon={<CalendarIcon />}
+                actions={actions}
+            />
+
+            <div className="flex flex-col h-full bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Sidebar */}
@@ -256,6 +257,7 @@ const AdminCalendar = ({ notices, fetchData }) => {
                 {showDayDetail && <MobileDayDetailOverlay {...hookData} />}
             </AnimatePresence>
         </div>
+    </div>
     );
 };
 

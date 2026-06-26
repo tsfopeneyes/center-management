@@ -11,26 +11,26 @@ const StudentGuestbookTab = ({
 }) => {
     return (
         <div className="animate-fade-in pb-32 relative min-h-screen">
-            <div className="px-5 pt-5 pb-4 sticky top-0 bg-gray-50/95 backdrop-blur-xl z-20 border-b border-gray-100/50 mb-6 shadow-sm">
+            <div className="px-5 pt-5 pb-4 sticky top-0 bg-tossGrey50/95 backdrop-blur-xl z-20 border-b border-tossGrey200/50 mb-6">
                 <div className="flex flex-col gap-1">
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-1.5">
-                        방명록 <span className="text-2xl">👋</span>
+                    <h2 className="text-2xl font-bold text-tossGrey900 tracking-tight flex items-center gap-1.5">
+                        방명록
                     </h2>
-                    <p className="text-gray-500 text-xs font-medium">자유롭게 글과 사진을 남겨주세요</p>
+                    <p className="text-tossGrey500 text-xs font-medium">자유롭게 글과 사진을 남겨주세요</p>
                 </div>
             </div>
 
             <div className="px-5 space-y-6">
                 {guestPosts.map(post => (
-                    <div key={post.id} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100" onClick={() => openGuestPostDetail(post)}>
+                    <div key={post.id} className="bg-white p-5 rounded-toss-xl shadow-toss-standard border-none cursor-pointer" onClick={() => openGuestPostDetail(post)}>
                         <div className="flex items-center gap-3 mb-3">
                             <UserAvatar user={post.users} />
                             <div className="flex-1">
-                                <p className="text-sm font-bold text-gray-800">{post.users?.name}</p>
-                                <p className="text-[10px] text-gray-400">{new Date(post.created_at).toLocaleDateString()}</p>
+                                <p className="text-sm font-bold text-tossGrey800">{post.users?.name}</p>
+                                <p className="text-[10px] text-tossGrey400 font-medium">{new Date(post.created_at).toLocaleDateString()}</p>
                             </div>
                         </div>
-                        <p className="text-sm text-gray-700 mb-3 whitespace-pre-wrap line-clamp-3">
+                        <p className="text-sm text-tossGrey700 mb-3 whitespace-pre-wrap line-clamp-3">
                             {post.content}
                             {extractUrls(post.content).map((url, i) => (
                                 <LinkPreview key={i} url={url} size="small" />
@@ -38,7 +38,7 @@ const StudentGuestbookTab = ({
                         </p>
                         {/* Image Display */}
                         {(post.images?.length > 0 || post.image_url) && (
-                            <div className={`mb-3 rounded-2xl overflow-hidden border border-gray-50 shadow-sm ${(post.images?.length > 1) ? 'grid grid-cols-2 gap-0.5 aspect-square' : 'bg-gray-50'
+                            <div className={`mb-3 rounded-toss-lg overflow-hidden border border-tossGrey100 shadow-toss-subtle ${(post.images?.length > 1) ? 'grid grid-cols-2 gap-0.5 aspect-square' : 'bg-tossGrey50'
                                 }`}>
                                 {post.images?.length > 1 ? (
                                     post.images.slice(0, 4).map((img, idx) => (
@@ -60,19 +60,19 @@ const StudentGuestbookTab = ({
                                 )}
                             </div>
                         )}
-                        <div className="flex justify-end gap-2 text-gray-400 text-xs font-bold">
-                            <button className="flex items-center gap-1 hover:text-green-600 transition">
+                        <div className="flex justify-end gap-2 text-tossGrey500 text-xs font-bold">
+                            <button className="flex items-center gap-1 hover:text-tossBlue transition-colors">
                                 <MessageSquare size={14} /> 댓글 달기
                             </button>
                         </div>
                     </div>
                 ))}
-                {guestPosts.length === 0 && <div className="text-center py-20 text-gray-400">첫 방명록의 주인공이 되어보세요!</div>}
+                {guestPosts.length === 0 && <div className="text-center py-20 text-tossGrey400 font-bold">첫 방명록의 주인공이 되어보세요!</div>}
             </div>
 
             <button
                 onClick={() => setShowGuestWrite(true)}
-                className="fixed bottom-24 right-6 w-14 h-14 bg-green-600 text-white rounded-full shadow-lg shadow-green-300 flex items-center justify-center hover:scale-105 active:scale-95 transition z-40"
+                className="fixed bottom-24 right-6 w-14 h-14 bg-tossBlue text-white rounded-full shadow-toss-elevated hover:bg-tossBlueHover flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-40"
             >
                 <Plus size={28} strokeWidth={2.5} />
             </button>

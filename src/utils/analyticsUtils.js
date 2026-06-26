@@ -752,7 +752,13 @@ SCI CENTER DASHBOARD
         });
 
         const userMap = new Map(users.map(u => [u.id, u]));
-        const locMap = new Map(locations.map(loc => [loc.id, { ...loc, logs: [] }]));
+        
+        let activeLocations = locations;
+        if (start >= new Date('2026-05-01')) {
+            activeLocations = locations.filter(loc => loc.id !== '고백플레이스' && loc.name !== '고백플레이스');
+        }
+
+        const locMap = new Map(activeLocations.map(loc => [loc.id, { ...loc, logs: [] }]));
 
         // Group logs by location and handle durations
         const userDateVisit = new Set(); // To count "Visits" (max 1 per user per day per location)
@@ -760,7 +766,7 @@ SCI CENTER DASHBOARD
 
         const guestMetrics = {};
 
-        locations.forEach(loc => {
+        activeLocations.forEach(loc => {
             spaceMetrics[loc.id] = {
                 id: loc.id,
                 name: loc.name,
@@ -777,7 +783,7 @@ SCI CENTER DASHBOARD
             };
         });
 
-        const sessions = aggregateVisitSessions(logs, users, locations, format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
+        const sessions = aggregateVisitSessions(logs, users, activeLocations, format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
 
         const segments = []; // To calculate peak hour occupancy correctly
 
@@ -863,7 +869,7 @@ SCI CENTER DASHBOARD
             const hStart = hour;
             const hEnd = new Date(hour.getTime() + 3600000);
 
-            locations.forEach(loc => {
+            activeLocations.forEach(loc => {
                 const concurrentCount = segments.filter(seg =>
                     seg.locId === loc.id && seg.start < hEnd && seg.end > hStart
                 ).length;

@@ -6,7 +6,6 @@ import AdminStatusHeader from './components/AdminStatusHeader';
 import ZoneCards from './components/ZoneCards';
 import RealtimeActiveUsers from './components/RealtimeActiveUsers';
 import ZoneDetailModal from './components/ZoneDetailModal';
-import StaffPresenceToggleCard from './components/StaffPresenceToggleCard';
 
 
 const AdminStatus = ({
@@ -60,8 +59,6 @@ const AdminStatus = ({
                 activeUsersList={activeUsersList}
                 handleForceCheckout={handleForceCheckout}
             />
-
-            <StaffPresenceToggleCard users={users} />
 
             <ZoneDetailModal
                 zoneDetailModal={zoneDetailModal}

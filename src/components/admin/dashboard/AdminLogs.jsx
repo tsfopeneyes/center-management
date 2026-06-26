@@ -20,6 +20,8 @@ import { aggregateVisitSessions } from '../../../utils/visitUtils';
 import { getWeekIdentifier, parseTimeRange } from '../../../utils/dateUtils';
 import { isAdminOrStaff } from '../../../utils/userUtils';
 
+import AdminPageHeader from '../common/AdminPageHeader';
+
 const AdminLogs = ({ allLogs, schoolLogs = [], users, locations, notices, fetchData }) => {
     const hookData = useAdminLogs({ allLogs, schoolLogs, users, locations, notices, fetchData });
     const {
@@ -36,85 +38,83 @@ const AdminLogs = ({ allLogs, schoolLogs = [], users, locations, notices, fetchD
         handleSelectAll, handleRowSelect, handleManualSubmit, handleSaveNote, handleBulkSaveNote,
         handleNoteKeyDown, handleNotePaste, handleCellMouseDown, handleCellMouseEnter, isCellSelected
     } = hookData;
+
+    const actions = (
+        <div className="flex flex-col md:flex-row flex-wrap items-center gap-2 md:gap-3 w-full lg:w-auto justify-end">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+                <RangeDatePicker
+                    startDate={startDate}
+                    endDate={endDate}
+                    onRangeChange={(s, e) => {
+                        setStartDate(s);
+                        setEndDate(e);
+                    }}
+                />
+                {(startDate || endDate || Object.values(visitFilters).some(v => v)) && (
+                    <button
+                        onClick={() => {
+                            setStartDate('');
+                            setEndDate('');
+                            setVisitFilters({
+                                weekIds: [],
+                                dates: [],
+                                days: [],
+                                school: '',
+                                name: '',
+                                age: '',
+                                space: [],
+                                duration: '',
+                                purpose: '',
+                                remarks: ''
+                            });
+                        }}
+                        className="p-2 md:p-2.5 bg-gray-100/80 text-gray-500 rounded-xl md:rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all shadow-sm border border-gray-100 flex items-center justify-center gap-1 text-[10px] md:text-xs font-bold"
+                        title="필터 초기화"
+                    >
+                        <X size={14} md:size={16} /> <span className="hidden sm:inline">초기화</span>
+                    </button>
+                )}
+                {logCategory === 'VISIT' && selectedRows.size > 0 && (
+                    <button
+                        onClick={handleBulkDelete}
+                        className="p-2 md:p-2.5 bg-red-50 text-red-600 rounded-xl md:rounded-2xl hover:bg-red-100 transition-all shadow-sm border border-red-100 flex items-center justify-center gap-1 text-[10px] md:text-xs font-bold whitespace-nowrap"
+                    >
+                        <Trash2 size={14} md:size={16} /> <span className="hidden sm:inline">삭제</span>({selectedRows.size})
+                    </button>
+                )}
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                    onClick={() => {
+                        if (logCategory === 'VISIT') {
+                            handleSelectiveExport();
+                        } else {
+                            const filtered = allLogs.filter(log => {
+                                const datePart = new Date(log.created_at).toISOString().split('T')[0];
+                                return isWithinRange(datePart);
+                            });
+                            exportLogsToExcel(filtered, users, locations, notices);
+                        }
+                    }}
+                    className="flex-1 sm:flex-none bg-green-50 text-green-600 border border-green-200 px-3 md:px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 hover:bg-green-100 transition font-bold shadow-sm text-xs md:text-sm whitespace-nowrap"
+                >
+                    <FileSpreadsheet size={16} md:size={18} /> 엑셀
+                </button>
+                <button onClick={fetchData} className="flex-1 sm:flex-none bg-white text-blue-600 border border-blue-200 px-3 md:px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 hover:bg-blue-50 transition font-bold shadow-sm text-xs md:text-sm whitespace-nowrap">
+                    <RefreshCw size={16} md:size={18} /> <span className="hidden sm:inline">새로고침</span>
+                </button>
+            </div>
+        </div>
+    );
+
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">
-            <div className="p-4 md:p-10 bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-4 md:gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-blue-50/20">
-                <div className="flex items-center justify-between w-full lg:w-auto">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-black text-gray-800 tracking-tighter flex items-center gap-2 md:gap-3">
-                            <Database className="text-blue-600" size={24} md:size={32} />
-                            로그 기록
-                        </h2>
-                        <p className="hidden md:block text-gray-500 text-sm font-medium mt-1">시스템 전체 이용 및 아카이빙 로그</p>
-                    </div>
-                </div>
-
-                <div className="flex flex-col md:flex-row flex-wrap items-center gap-2 md:gap-3 w-full lg:w-auto justify-end">
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <RangeDatePicker
-                            startDate={startDate}
-                            endDate={endDate}
-                            onRangeChange={(s, e) => {
-                                setStartDate(s);
-                                setEndDate(e);
-                            }}
-                        />
-                        {(startDate || endDate || Object.values(visitFilters).some(v => v)) && (
-                            <button
-                                onClick={() => {
-                                    setStartDate('');
-                                    setEndDate('');
-                                    setVisitFilters({
-                                        weekIds: [],
-                                        dates: [],
-                                        days: [],
-                                        school: '',
-                                        name: '',
-                                        age: '',
-                                        space: [],
-                                        duration: '',
-                                        purpose: '',
-                                        remarks: ''
-                                    });
-                                }}
-                                className="p-2 md:p-2.5 bg-gray-100/80 text-gray-500 rounded-xl md:rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all shadow-sm border border-gray-100 flex items-center justify-center gap-1 text-[10px] md:text-xs font-bold"
-                                title="필터 초기화"
-                            >
-                                <X size={14} md:size={16} /> <span className="hidden sm:inline">초기화</span>
-                            </button>
-                        )}
-                        {logCategory === 'VISIT' && selectedRows.size > 0 && (
-                            <button
-                                onClick={handleBulkDelete}
-                                className="p-2 md:p-2.5 bg-red-50 text-red-600 rounded-xl md:rounded-2xl hover:bg-red-100 transition-all shadow-sm border border-red-100 flex items-center justify-center gap-1 text-[10px] md:text-xs font-bold whitespace-nowrap"
-                            >
-                                <Trash2 size={14} md:size={16} /> <span className="hidden sm:inline">삭제</span>({selectedRows.size})
-                            </button>
-                        )}
-                    </div>
-                    <div className="flex gap-2 w-full sm:w-auto">
-                        <button
-                            onClick={() => {
-                                if (logCategory === 'VISIT') {
-                                    handleSelectiveExport();
-                                } else {
-                                    const filtered = allLogs.filter(log => {
-                                        const datePart = new Date(log.created_at).toISOString().split('T')[0];
-                                        return isWithinRange(datePart);
-                                    });
-                                    exportLogsToExcel(filtered, users, locations, notices);
-                                }
-                            }}
-                            className="flex-1 sm:flex-none bg-green-50 text-green-600 border border-green-200 px-3 md:px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 hover:bg-green-100 transition font-bold shadow-sm text-xs md:text-sm whitespace-nowrap"
-                        >
-                            <FileSpreadsheet size={16} md:size={18} /> 엑셀
-                        </button>
-                        <button onClick={fetchData} className="flex-1 sm:flex-none bg-white text-blue-600 border border-blue-200 px-3 md:px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 hover:bg-blue-50 transition font-bold shadow-sm text-xs md:text-sm whitespace-nowrap">
-                            <RefreshCw size={16} md:size={18} /> <span className="hidden sm:inline">새로고침</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <AdminPageHeader
+                title="로그 기록"
+                subtitle="시스템 전체 이용 및 아카이빙 로그"
+                icon={<Database />}
+                actions={actions}
+            />
 
             {/* Category Filter Tabs with Manual Entry Button */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

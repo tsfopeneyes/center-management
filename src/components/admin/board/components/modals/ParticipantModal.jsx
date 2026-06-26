@@ -15,6 +15,7 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
         modalLoading,
         fetchParticipants,
         handleAttendanceToggle,
+        handleStaffToggle,
         handleDeleteParticipant,
         handleMarkAllAttended,
         searchQuery,
@@ -130,6 +131,7 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
                                         notice={notice}
                                         participantList={participantList}
                                         onAttendanceToggle={handleAttendanceToggle}
+                                        onStaffToggle={handleStaffToggle}
                                         onDeleteParticipant={handleDeleteParticipant}
                                         onMarkAllAttended={handleMarkAllAttended}
                                         showEntranceList={showEntranceList}

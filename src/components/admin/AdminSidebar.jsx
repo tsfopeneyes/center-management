@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { LayoutDashboard, MessageSquare, Users, BarChart2, FileText, Settings, LogOut, User, Calendar, School, Trophy, Store, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Users, BarChart2, FileText, Settings, LogOut, User, Calendar, School, Trophy, Store, ClipboardCheck, UserCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, isPinned, setIsPinned, notices = [] }) => {
@@ -17,11 +17,12 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
             title: "센터 운영",
             items: [
                 { id: 'STATUS', label: '공간 현황', icon: <LayoutDashboard size={20} /> },
+                { id: 'WORK_STATUS', label: '근무 현황', icon: <UserCheck size={20} /> },
                 { id: 'CALENDAR', label: '일정 관리', icon: <Calendar size={20} /> },
                 { id: 'PROGRAMS', label: '프로그램 관리', icon: <Users size={20} /> },
                 { id: 'CHALLENGES', label: '챌린지 관리', icon: <Trophy size={20} /> },
                 { id: 'BOARD', label: '공지사항', icon: <MessageSquare size={20} /> },
-                { id: 'STORE', label: '하이픈 포인트', icon: <Store size={20} /> },
+                { id: 'STORE', label: '하이픈 스토어', icon: <Store size={20} /> },
                 { id: 'DUTY', label: '당직 관리', icon: <ClipboardCheck size={20} /> },
             ]
         },
@@ -59,6 +60,11 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
                         configMap[item.id] = item;
                         configOrder.push(item.id);
                     });
+                    const statusIdx = configOrder.indexOf('STATUS');
+                    const workStatusIdx = configOrder.indexOf('WORK_STATUS');
+                    if (statusIdx !== -1 && workStatusIdx === -1) {
+                        configOrder.splice(statusIdx + 1, 0, 'WORK_STATUS');
+                    }
                 }
             } catch (e) { console.error('Failed to parse sidebar config', e); }
         }

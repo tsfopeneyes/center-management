@@ -16,6 +16,8 @@ import SchoolDetailModal from './modals/SchoolDetailModal';
 import { useAdminSchool } from './hooks/useAdminSchool';
 import SnackDashboard from './components/SnackDashboard';
 
+import AdminPageHeader from '../common/AdminPageHeader';
+
 const MINISTRY_LOG_TEMPLATE = '';
 
 const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
@@ -38,118 +40,100 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
     } = useAdminSchool({ users, refreshDashboardData });
     if (loading) return <div className="p-10 text-center font-bold text-gray-400 animate-pulse">학교 데이터를 불러오는 중...</div>;
 
+    const actions = (
+        <div className="flex flex-col xl:flex-row items-center gap-3 md:gap-4 w-full xl:w-auto flex-1 justify-end">
+            <div className="flex gap-2 w-full sm:w-auto xl:w-auto">
+                <button
+                    onClick={() => setAdminTab(adminTab === 'CALLING_FOREST' ? 'SCHOOLS' : 'CALLING_FOREST')}
+                    className={`flex-1 sm:flex-none px-4 md:px-5 py-2.5 rounded-xl font-black text-xs transition-all items-center gap-2 flex justify-center ${adminTab === 'CALLING_FOREST' ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200/50'}`}
+                >
+                    <Flame size={14} className={adminTab === 'CALLING_FOREST' ? 'fill-current' : ''} />
+                    리더훈련
+                </button>
+
+                <button
+                    onClick={() => setAdminTab(adminTab === 'SNACKS' ? 'SCHOOLS' : 'SNACKS')}
+                    className={`flex-1 sm:flex-none px-4 md:px-5 py-2.5 rounded-xl font-black text-xs transition-all items-center gap-2 flex justify-center ${adminTab === 'SNACKS' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200/50'}`}
+                >
+                    <Cookie size={14} className={adminTab === 'SNACKS' ? 'fill-current' : ''} />
+                    간식
+                </button>
+            </div>
+
+            <div className="flex bg-gray-100/50 p-1 md:p-1.5 rounded-xl md:rounded-2xl border border-gray-100 w-full sm:w-auto xl:overflow-visible overflow-x-auto no-scrollbar shrink-0 gap-1">
+                {['ALL', ...SCHOOL_REGIONS, '미지정'].map((region) => (
+                    <button
+                        key={region}
+                        onClick={() => setSelectedRegion(region)}
+                        className={`flex-1 sm:flex-none px-3 md:px-5 py-2 md:py-2.5 rounded-lg md:rounded-xl font-black text-[10px] md:text-xs transition-all whitespace-nowrap ${selectedRegion === region ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        {region === 'ALL' ? '전체' : region}
+                    </button>
+                ))}
+            </div>
+
+            {adminTab === 'SCHOOLS' && (
+                <div className="flex items-center gap-2 w-full xl:w-auto">
+                    <button
+                        onClick={() => setIsAddSchoolModalOpen(true)}
+                        className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs md:text-sm hover:bg-indigo-700 shadow-sm transition-colors shrink-0 flex items-center gap-2"
+                    >
+                        <Plus size={16} /> 학교 추가
+                    </button>
+                    <div className="relative group flex-1 xl:min-w-[300px] xl:max-w-[400px]">
+                        <Search className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} md:size={20} />
+                        <input
+                            type="text"
+                            placeholder="검색..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-11 md:pl-14 p-3 md:p-3 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold text-gray-700 shadow-inner text-sm"
+                        />
+                    </div>
+
+                    <div className="flex bg-gray-100 p-1 rounded-lg md:rounded-xl shrink-0">
+                        <button
+                            onClick={() => handleViewModeChange('grid-lg')}
+                            className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-lg' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="크게 보기"
+                        >
+                            <LayoutGrid size={16} md:size={18} />
+                        </button>
+                        <button
+                            onClick={() => handleViewModeChange('grid-md')}
+                            className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-md' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="작게 보기"
+                        >
+                            <Grid size={16} md:size={18} />
+                        </button>
+                        <button
+                            onClick={() => handleViewModeChange('grid-sm')}
+                            className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-sm' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="더 작게 보기"
+                        >
+                            <Columns size={16} md:size={18} />
+                        </button>
+                        <button
+                            onClick={() => handleViewModeChange('list')}
+                            className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="목록형"
+                        >
+                            <List size={16} md:size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">
-            <div className="p-4 md:p-10 bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row gap-4 md:gap-6 items-start lg:items-center justify-between bg-gradient-to-r from-white to-indigo-50/20">
-                <div className="flex items-center justify-between w-full lg:w-auto">
-                    <div>
-                        <h2 className="text-xl md:text-3xl font-black text-gray-800 tracking-tighter flex items-center gap-2 md:gap-3">
-                            <School className="text-indigo-600" size={24} md:size={32} />
-                            학교 관리
-                        </h2>
-                        <p className="hidden md:block text-gray-500 text-sm font-medium mt-1">청소년 회원 소속 학교별 동아리 및 사역 일지 관리</p>
-                    </div>
-
-                    <div className="lg:hidden flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                        <button
-                            onClick={() => setAdminTab(adminTab === 'CALLING_FOREST' ? 'SCHOOLS' : 'CALLING_FOREST')}
-                            className={`shrink-0 px-3 py-2 rounded-xl font-black text-[10px] transition-all flex items-center gap-1.5 ${adminTab === 'CALLING_FOREST' ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200/50'}`}
-                        >
-                            <Flame size={12} className={adminTab === 'CALLING_FOREST' ? 'fill-current' : ''} />
-                            리더훈련
-                        </button>
-                        <button
-                            onClick={() => setAdminTab(adminTab === 'SNACKS' ? 'SCHOOLS' : 'SNACKS')}
-                            className={`shrink-0 px-3 py-2 rounded-xl font-black text-[10px] transition-all flex items-center gap-1.5 ${adminTab === 'SNACKS' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200/50'}`}
-                        >
-                            <Cookie size={12} className={adminTab === 'SNACKS' ? 'fill-current' : ''} />
-                            간식
-                        </button>
-                    </div>
-                </div>
-
-                <div className="flex flex-col xl:flex-row items-center gap-3 md:gap-4 w-full xl:w-auto flex-1 justify-end">
-                    <button
-                        onClick={() => setAdminTab(adminTab === 'CALLING_FOREST' ? 'SCHOOLS' : 'CALLING_FOREST')}
-                        className={`hidden lg:flex shrink-0 px-4 md:px-5 py-2.5 rounded-xl font-black text-xs transition-all items-center gap-2 ${adminTab === 'CALLING_FOREST' ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200/50'}`}
-                    >
-                        <Flame size={14} className={adminTab === 'CALLING_FOREST' ? 'fill-current' : ''} />
-                        리더훈련
-                    </button>
-
-                    <button
-                        onClick={() => setAdminTab(adminTab === 'SNACKS' ? 'SCHOOLS' : 'SNACKS')}
-                        className={`hidden lg:flex shrink-0 px-4 md:px-5 py-2.5 rounded-xl font-black text-xs transition-all items-center gap-2 ${adminTab === 'SNACKS' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200/50'}`}
-                    >
-                        <Cookie size={14} className={adminTab === 'SNACKS' ? 'fill-current' : ''} />
-                        간식
-                    </button>
-
-                    <div className="flex bg-gray-100/50 p-1 md:p-1.5 rounded-xl md:rounded-2xl border border-gray-100 w-full sm:w-auto xl:overflow-visible overflow-x-auto no-scrollbar shrink-0 gap-1">
-                        {['ALL', ...SCHOOL_REGIONS, '미지정'].map((region) => (
-                            <button
-                                key={region}
-                                onClick={() => setSelectedRegion(region)}
-                                className={`flex-1 sm:flex-none px-3 md:px-5 py-2 md:py-2.5 rounded-lg md:rounded-xl font-black text-[10px] md:text-xs transition-all whitespace-nowrap ${selectedRegion === region ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
-                            >
-                                {region === 'ALL' ? '전체' : region}
-                            </button>
-                        ))}
-                    </div>
-
-                    {adminTab === 'SCHOOLS' && (
-                        <div className="flex items-center gap-2 w-full xl:w-auto">
-                            <button
-                                onClick={() => setIsAddSchoolModalOpen(true)}
-                                className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs md:text-sm hover:bg-indigo-700 shadow-sm transition-colors shrink-0 flex items-center gap-2"
-                            >
-                                <Plus size={16} /> 학교 추가
-                            </button>
-                            <div className="relative group flex-1 xl:min-w-[300px] xl:max-w-[400px]">
-                                <Search className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} md:size={20} />
-                                <input
-                                    type="text"
-                                    placeholder="검색..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-11 md:pl-14 p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold text-gray-700 shadow-inner text-sm md:text-base"
-                                />
-                            </div>
-
-                            <div className="flex bg-gray-100 p-1 rounded-lg md:rounded-xl shrink-0">
-                                <button
-                                    onClick={() => handleViewModeChange('grid-lg')}
-                                    className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-lg' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                                    title="크게 보기"
-                                >
-                                    <LayoutGrid size={16} md:size={18} />
-                                </button>
-                                <button
-                                    onClick={() => handleViewModeChange('grid-md')}
-                                    className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-md' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                                    title="작게 보기"
-                                >
-                                    <Grid size={16} md:size={18} />
-                                </button>
-                                <button
-                                    onClick={() => handleViewModeChange('grid-sm')}
-                                    className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-sm' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                                    title="더 작게 보기"
-                                >
-                                    <Columns size={16} md:size={18} />
-                                </button>
-                                <button
-                                    onClick={() => handleViewModeChange('list')}
-                                    className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                                    title="목록형"
-                                >
-                                    <List size={16} md:size={18} />
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <AdminPageHeader
+                title="학교 관리"
+                subtitle="청소년 회원 소속 학교별 동아리 및 사역 일지 관리"
+                icon={<School />}
+                actions={actions}
+            />
 
             {adminTab === 'SCHOOLS' && (
                 <div className={`

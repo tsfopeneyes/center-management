@@ -41,10 +41,10 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
     return (
         <div
             onClick={() => onClick(program)}
-            className={`group bg-white overflow-hidden shadow-sm hover:shadow-lg border border-gray-100 transition-all duration-300 active:scale-[0.98] cursor-pointer flex flex-col h-full transform-gpu isolate ring-1 ring-black/5 ${compact ? 'rounded-[1.5rem]' : 'rounded-[2.5rem]'}`}
+            className={`group bg-white overflow-hidden shadow-toss-standard hover:shadow-toss-elevated transition-all duration-300 active:scale-[0.98] cursor-pointer flex flex-col h-full transform-gpu isolate border-none ${compact ? 'rounded-toss-lg' : 'rounded-toss-xl'}`}
         >
             {/* Thumbnail Section */}
-            <div className={`relative aspect-square overflow-hidden bg-gray-50 border-b border-gray-100/50 transform-gpu backface-hidden`}>
+            <div className={`relative aspect-square overflow-hidden bg-tossGrey50 border-b border-tossGrey100/50 transform-gpu backface-hidden`}>
                 {thumb ? (
                     <img
                         src={thumb}
@@ -52,7 +52,7 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform transform-gpu"
                     />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-blue-50/50 text-blue-200">
+                    <div className="w-full h-full flex items-center justify-center bg-tossBlueLight text-tossBlue/30">
                         <Calendar size={compact ? 32 : 48} />
                     </div>
                 )}
@@ -60,22 +60,22 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                 {/* Status Badges Overlaid */}
                 <div className={`absolute flex flex-col items-start ${compact ? 'top-2.5 left-2.5 gap-1.5' : 'top-4 left-4 gap-2'}`}>
                     {!program.is_recruiting && !isPast && (
-                        <div className={`flex items-center bg-teal-500 text-white font-black shadow-md uppercase tracking-wider ${compact ? 'gap-1 px-2.5 py-1 rounded-full text-[9px]' : 'gap-1.5 px-3 py-1.5 rounded-full text-[10px]'}`}>
-                            <Users size={compact ? 10 : 12} strokeWidth={3} /> 오픈 프로그램
+                        <div className={`flex items-center bg-tossSuccess text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
+                            <Users size={compact ? 10 : 12} strokeWidth={2.5} /> 오픈 프로그램
                         </div>
                     )}
                     {program.is_recruiting && !isClosingSoon && !isPast && (
-                        <div className={`flex items-center bg-blue-500 text-white font-black shadow-md uppercase tracking-wider ${compact ? 'gap-1 px-2.5 py-1 rounded-full text-[9px]' : 'gap-1.5 px-3 py-1.5 rounded-full text-[10px]'}`}>
-                            <Clock size={compact ? 10 : 12} strokeWidth={3} /> 신청 프로그램
+                        <div className={`flex items-center bg-tossBlue text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
+                            <Clock size={compact ? 10 : 12} strokeWidth={2.5} /> 신청 프로그램
                         </div>
                     )}
                     {program.is_recruiting && isClosingSoon && !isPast && (
-                        <div className={`flex items-center bg-gray-700 text-white font-black shadow-md uppercase tracking-wider ${compact ? 'gap-1 px-2.5 py-1 rounded-full text-[9px]' : 'gap-1.5 px-3 py-1.5 rounded-full text-[10px]'}`}>
-                            <CheckCircle2 size={compact ? 10 : 12} strokeWidth={3} /> 마감임박
+                        <div className={`flex items-center bg-tossError text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
+                            <CheckCircle2 size={compact ? 10 : 12} strokeWidth={2.5} /> 마감임박
                         </div>
                     )}
                     {program.is_leader_only && (
-                        <div className={`flex items-center bg-yellow-400 text-yellow-900 font-black shadow-md border border-yellow-500/20 w-fit ${compact ? 'gap-1 px-2 py-1 rounded-full text-[9px]' : 'gap-1.5 px-3 py-1.5 rounded-full text-[10px]'}`}>
+                        <div className={`flex items-center bg-tossCaution text-tossGrey800 font-bold shadow-toss-subtle border border-tossCaution/20 w-fit ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" width={compact ? "10" : "12"} height={compact ? "10" : "12"} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                             리더전용
                         </div>
@@ -85,42 +85,42 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
 
             {/* Content Section */}
             <div className={compact ? "p-4 flex flex-col flex-1" : "p-6 pb-4"}>
-                <h3 className={`font-extrabold text-gray-900 line-clamp-2 ${compact ? 'text-sm leading-snug ' + (program.short_description ? 'mb-1' : 'mb-3') : 'text-xl leading-tight ' + (program.short_description ? 'mb-2' : 'mb-4')}`}>
+                <h3 className={`font-bold text-tossGrey900 line-clamp-2 ${compact ? 'text-sm leading-snug ' + (program.short_description ? 'mb-1' : 'mb-3') : 'text-xl leading-tight ' + (program.short_description ? 'mb-2' : 'mb-4')}`}>
                     {program.title}
                 </h3>
                 
                 {program.short_description && (
-                    <p className={`text-gray-500 font-bold break-keep whitespace-normal ${compact ? 'text-[11px] mb-3 leading-snug' : 'text-[15px] mb-6 leading-relaxed'}`}>
+                    <p className={`text-tossGrey600 font-medium break-keep whitespace-normal ${compact ? 'text-[11px] mb-3 leading-snug' : 'text-[15px] mb-6 leading-relaxed'}`}>
                         {program.short_description}
                     </p>
                 )}
 
                 <div className={compact ? "space-y-1.5 mb-3 flex-1" : "space-y-3 mb-6"}>
-                    <div className={`flex items-center text-gray-400 ${compact ? 'gap-2' : 'gap-3'}`}>
-                        <Calendar size={compact ? 14 : 18} className="shrink-0 text-gray-300" />
-                        <span className={`font-bold text-gray-600 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{formatDate(program.program_date)}</span>
+                    <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2' : 'gap-3'}`}>
+                        <Calendar size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
+                        <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{formatDate(program.program_date)}</span>
                     </div>
                     {program.program_duration && !compact && (
-                        <div className={`flex items-center text-gray-400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
-                            <Clock size={compact ? 14 : 18} className="shrink-0 text-gray-300" />
-                            <span className={`font-bold text-gray-600 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>소요시간: {program.program_duration}</span>
+                        <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
+                            <Clock size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
+                            <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>소요시간: {program.program_duration}</span>
                         </div>
                     )}
                     {program.program_location && (
-                        <div className={`flex items-center text-gray-400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
-                            <MapPin size={compact ? 14 : 18} className="shrink-0 text-gray-300" />
-                            <span className={`font-bold text-gray-600 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{program.program_location}</span>
+                        <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
+                            <MapPin size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
+                            <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{program.program_location}</span>
                         </div>
                     )}
                     {program.is_recruiting && (
-                        <div className={`flex items-center text-gray-400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
-                            <Users size={compact ? 14 : 18} className="shrink-0 text-gray-300" />
-                            <div className={`font-bold flex items-center gap-[3px] ${compact ? 'text-[11px]' : 'text-sm'}`}>
-                                <span className="text-gray-600">모집: </span>
-                                <span className="text-blue-500 font-extrabold tracking-tight">
+                        <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
+                            <Users size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
+                            <div className={`font-medium flex items-center gap-[3px] ${compact ? 'text-[11px]' : 'text-sm'}`}>
+                                <span className="text-tossGrey600">모집: </span>
+                                <span className="text-tossBlue font-bold tracking-tight">
                                     {program.current_applicants || 0}
                                 </span>
-                                <span className="text-gray-400 font-semibold tracking-tight">
+                                <span className="text-tossGrey400 font-medium tracking-tight">
                                     {program.max_capacity > 0 ? `/ ${program.max_capacity}명` : '명 (제한 없음)'}
                                 </span>
                             </div>
@@ -129,11 +129,11 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                 </div>
 
                 {!program.is_recruiting ? (
-                    <button className={`w-full font-black transition-colors shadow-sm border border-transparent ${compact ? 'py-2.5 rounded-xl text-xs mt-auto' : 'py-4 rounded-full text-sm shadow-lg mt-auto'} bg-teal-50 text-teal-700 border-teal-100 hover:bg-teal-100 pointer-events-none`}>
-                        신청 없이 언제든지 와서 함께할 수 있어요!
+                    <button className={`w-full font-bold transition-colors border border-transparent ${compact ? 'py-2 rounded-toss-md text-xs mt-auto' : 'py-3.5 rounded-toss-xl text-sm mt-auto'} bg-tossSuccess/10 text-tossSuccess pointer-events-none`}>
+                        신청 없이 참여할 수 있어요!
                     </button>
                 ) : (
-                    <button className={`w-full font-black transition-colors active:scale-95 shadow-sm border border-transparent ${compact ? 'py-2.5 rounded-xl text-xs mt-auto' : 'py-4 rounded-full text-base shadow-lg mt-auto'} ${program.responseStatus === 'JOIN' ? 'bg-gray-50 border-gray-100 text-gray-400' : (program.responseStatus === 'WAITLIST' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-600 text-white shadow-blue-200/50 hover:bg-blue-700')}`}>
+                    <button className={`w-full font-bold transition-colors active:scale-95 shadow-toss-subtle border border-transparent ${compact ? 'py-2 rounded-toss-md text-xs mt-auto' : 'py-3.5 rounded-toss-xl text-sm mt-auto'} ${program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none shadow-none' : (program.responseStatus === 'WAITLIST' ? 'bg-tossWarning/10 text-[#fe9800] pointer-events-none shadow-none' : 'bg-tossBlue text-white hover:bg-tossBlueHover')}`}>
                         {program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '신청하기')}
                     </button>
                 )}

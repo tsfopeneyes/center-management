@@ -11,14 +11,23 @@ if (!supabaseUrl || !supabaseAnonKey) {
     process.exit(1);
 }
 
+const CryptoJS = require('crypto-js');
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function check() {
-    const { data, error } = await supabase.from('notice_responses').select('*').limit(1);
+    const { data: users, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('name', '강하민');
     if (error) {
-        console.error('Error fetching notice_responses:', error);
+        console.error(error);
     } else {
-        console.log('notice_responses schema example:', Object.keys(data[0] || {}));
+        console.log('User 강하민:', users);
+        if (users && users.length > 0) {
+            const rawPw = '4522';
+            const hashedLocal = CryptoJS.SHA256(rawPw).toString(CryptoJS.enc.Hex);
+            console.log('SHA256 of "4522":', hashedLocal);
+        }
     }
 }
 

@@ -58,7 +58,7 @@ const GuestLogTable = ({ hookData }) => {
         <div className={`overflow-x-auto custom-scrollbar flex flex-col justify-between ${selection.isDragging ? 'select-none' : ''}`} style={{ minHeight: '400px' }}>
             <table className="w-full text-left border-collapse min-w-[1000px]">
                 <thead className="bg-indigo-50/50 text-gray-500 text-xs uppercase tracking-wider font-semibold">
-                    <tr className="border-b border-gray-100">
+                    <tr className="border-b border-gray-100 border-l-4 border-l-transparent">
                         <th className="p-3 pl-6 w-10">
                             <input
                                 type="checkbox"

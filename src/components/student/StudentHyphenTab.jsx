@@ -90,57 +90,57 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
         <div className="animate-fade-in pb-32">
             {receiptData && <PurchaseReceiptModal transaction={receiptData} onClose={() => setReceiptData(null)} />}
             
-            <div className="px-5 pt-5 pb-4 sticky top-0 bg-gray-50/95 backdrop-blur-xl z-20 border-b border-gray-100/50 mb-6 shadow-sm">
+            <div className="px-5 pt-5 pb-4 sticky top-0 bg-tossGrey50/95 backdrop-blur-xl z-20 border-b border-tossGrey200/50 mb-6">
                 
                 {/* Title & Points Row */}
                 <div className="flex flex-wrap sm:flex-nowrap items-end justify-between gap-2 mb-4">
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-1.5">
-                        하이픈 스토어 <span className="text-2xl">🏪</span>
+                    <h2 className="text-2xl font-bold text-tossGrey900 tracking-tight">
+                        하이픈 스토어
                     </h2>
                     
-                    <div className="flex items-center gap-1 pb-0.5">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm border border-blue-200/50">
-                            <span className="font-black text-white text-[11px] italic pr-[1px]">H</span>
+                    <div className="flex items-center gap-1 pb-0.5 select-none">
+                        <div className="w-5 h-5 rounded-full bg-tossBlue flex items-center justify-center shadow-toss-subtle border border-tossBlue/20">
+                            <span className="font-bold text-white text-[11px] italic pr-[1.5px]">H</span>
                         </div>
-                        <span className="text-[13px] font-bold text-gray-600 tracking-tight ml-0.5">포인트</span>
-                        <span className="text-lg font-black text-blue-600 ml-1">{user.current_hyphen || 0}</span>
-                        <span className="text-[13px] font-bold text-gray-600">개</span>
+                        <span className="text-[13px] font-medium text-tossGrey600 tracking-tight ml-0.5">포인트</span>
+                        <span className="text-lg font-bold text-tossBlue ml-1">{user.current_hyphen || 0}</span>
+                        <span className="text-[13px] font-medium text-tossGrey600">개</span>
                     </div>
                 </div>
                 
                 {/* Search Bar & History Row */}
                 <div className="flex items-center gap-2.5">
                     <div className="flex-1 min-w-0 relative">
-                        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-tossGrey400" />
                         <input 
                             type="text" 
                             placeholder="스토어 아이템 검색..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white border border-gray-200 rounded-xl py-2 pl-10 pr-4 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm transition-shadow"
+                            className="w-full bg-white border border-tossGrey200 rounded-toss-xl py-2 pl-10 pr-4 text-sm font-medium text-tossGrey800 placeholder-tossGrey400 focus:outline-none focus:border-tossBlue focus:ring-1 focus:ring-tossBlue shadow-toss-subtle transition-shadow"
                         />
                     </div>
 
                     {/* History */}
                     <button 
                         onClick={() => setShowHistory(true)}
-                        className="flex shrink-0 items-center justify-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-[13px] font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+                        className="flex shrink-0 items-center justify-center gap-1.5 px-3.5 py-2 bg-white border border-tossGrey200 rounded-toss-xl text-[13px] font-bold text-tossGrey700 hover:bg-tossGrey50 transition-colors shadow-toss-subtle"
                     >
-                        <History size={15} className="text-gray-500" /> 
+                        <History size={15} className="text-tossGrey500" /> 
                         <span>구매내역</span>
                     </button>
                 </div>
                 
-                {/* Categories Row */}
-                <div className="flex gap-2 mt-4 overflow-x-auto [&::-webkit-scrollbar]:hidden pb-1 -mx-1 px-1">
+                {/* Categories Row (TDS Segmented Tab Switcher Style) */}
+                <div className="flex bg-tossGrey100 p-1 rounded-[12px] mt-4 overflow-x-auto scrollbar-hide gap-1">
                     {categories.map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
-                            className={`shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-all ${
+                            className={`shrink-0 px-4 py-1.5 rounded-[10px] text-[13px] font-bold transition-all ${
                                 selectedCategory === cat 
-                                ? 'bg-[#222] text-white shadow-sm' 
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                ? 'bg-white text-tossGrey900 shadow-toss-subtle' 
+                                : 'text-tossGrey500 hover:text-tossGrey800'
                             }`}
                         >
                             {cat}
@@ -150,7 +150,7 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
             </div>
 
             {loading ? (
-                <div className="py-20 text-center text-gray-400 font-bold">스토어 정보를 불러오는 중...</div>
+                <div className="py-20 text-center text-tossGrey400 font-bold">스토어 정보를 불러오는 중...</div>
             ) : (
                 <div className="px-5 space-y-10">
 
@@ -163,38 +163,38 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
                                     <div 
                                         key={item.id} 
                                         onClick={() => canAfford && !isProcessing && handlePurchase(item)}
-                                        className={`bg-white px-4 py-2.5 rounded-2xl flex items-center gap-3.5 relative transition-all shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] ${
+                                        className={`bg-white px-4 py-3.5 rounded-toss-xl flex items-center gap-3.5 relative transition-all shadow-toss-standard hover:shadow-toss-elevated border-none ${
                                             canAfford && !isProcessing ? 'cursor-pointer active:scale-[0.98]' : 'opacity-60 grayscale-[0.3]'
                                         }`}
                                     >
-                                        <div className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-gray-100 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] relative">
+                                        <div className="w-14 h-14 rounded-toss-lg flex items-center justify-center overflow-hidden shrink-0 border border-tossGrey100 relative">
                                             {item.image_url ? (
                                                 <img src={item.image_url} alt={item.name} className="w-full h-full object-cover scale-[1.05]" />
                                             ) : (
-                                                <div className="w-full h-full bg-gray-50 flex items-center justify-center">
-                                                    <Store size={24} className="text-gray-300" />
+                                                <div className="w-full h-full bg-tossGrey50 flex items-center justify-center">
+                                                    <Store size={24} className="text-tossGrey300" />
                                                 </div>
                                             )}
                                         </div>
                                         
                                         <div className="flex-1 min-w-0 flex flex-col justify-center">
                                             <div className="flex items-center gap-2 pl-1 mb-1">
-                                                <h4 className="font-extrabold text-gray-900 text-[15px] truncate leading-tight">
+                                                <h4 className="font-bold text-tossGrey900 text-[15px] truncate leading-tight">
                                                     {item.name}
                                                 </h4>
                                                 {item.requires_approval && (
-                                                    <span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-100 px-1.5 py-[2px] rounded shrink-0">
+                                                    <span className="text-[9px] font-bold text-tossError bg-tossError/10 px-1.5 py-[2px] rounded-toss-sm shrink-0">
                                                         승인필요
                                                     </span>
                                                 )}
                                             </div>
                                             
                                             <div className="flex items-center gap-2 pl-1">
-                                                <p className={`text-[13px] font-bold tracking-tight ${canAfford ? 'text-gray-500' : 'text-gray-400'} leading-none`}>
+                                                <p className={`text-[13px] font-bold tracking-tight ${canAfford ? 'text-tossGrey500' : 'text-tossGrey400'} leading-none`}>
                                                     {item.amount.toLocaleString()} H
                                                 </p>
                                                 {!canAfford && (
-                                                    <span className="text-[10px] font-bold text-red-400/80 bg-red-50/50 px-1.5 py-[1px] rounded leading-none flex items-center h-[16px]">
+                                                    <span className="text-[10px] font-bold text-tossError bg-tossError/10 px-1.5 py-[1px] rounded-toss-sm leading-none flex items-center h-[16px]">
                                                         포인트 부족
                                                     </span>
                                                 )}

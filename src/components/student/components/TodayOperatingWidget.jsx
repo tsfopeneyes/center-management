@@ -7,6 +7,7 @@ const TodayOperatingWidget = ({ studentRegion }) => {
     const [operatingHours, setOperatingHours] = useState(null);
     const [staffConfig, setStaffConfig] = useState({ "하이픈": [], "이높플레이스": [] });
     const [presenceStatus, setPresenceStatus] = useState({});
+    const [dutyStaff, setDutyStaff] = useState({ "하이픈": "", "이높플레이스": "" });
     const [staffList, setStaffList] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -15,14 +16,15 @@ const TodayOperatingWidget = ({ studentRegion }) => {
             // Fetch system configs from notices
             const { data: configs, error: configError } = await supabase
                 .from('notices')
-                .select('title, content')
+                .select('id, title, content')
                 .eq('category', 'SYSTEM')
-                .in('title', ['OPERATING_HOURS_CONFIG', 'STAFF_PRESENCE_CONFIG', 'STAFF_PRESENCE_STATUS']);
+                .in('title', ['OPERATING_HOURS_CONFIG', 'STAFF_PRESENCE_CONFIG', 'STAFF_PRESENCE_STATUS', 'DAILY_DUTY_STAFF']);
 
             if (!configError && configs) {
                 const hoursNotice = configs.find(c => c.title === 'OPERATING_HOURS_CONFIG');
                 const presenceConfigNotice = configs.find(c => c.title === 'STAFF_PRESENCE_CONFIG');
                 const presenceStatusNotice = configs.find(c => c.title === 'STAFF_PRESENCE_STATUS');
+                const dutyNotice = configs.find(c => c.title === 'DAILY_DUTY_STAFF');
 
                 if (hoursNotice?.content) {
                     try {
@@ -48,9 +50,53 @@ const TodayOperatingWidget = ({ studentRegion }) => {
 
                 if (presenceStatusNotice?.content) {
                     try {
-                        const parsedStatus = JSON.parse(presenceStatusNotice.content);
-                        setPresenceStatus(parsedStatus || {});
+                        let parsedStatus = JSON.parse(presenceStatusNotice.content) || {};
+                        
+                        const now = new Date();
+                        const todayStr = now.toLocaleDateString('sv');
+                        const currentHour = now.getHours();
+                        const isAfter6PM = currentHour >= 18;
+                        
+                        let needsReset = false;
+                        
+                        if (parsedStatus.date && parsedStatus.date !== todayStr) {
+                            needsReset = true;
+                        }
+                        
+                        const hasActive = Object.keys(parsedStatus).some(k => k !== 'date' && parsedStatus[k] === true);
+                        if (isAfter6PM && hasActive) {
+                            needsReset = true;
+                        }
+                        
+                        if (needsReset) {
+                            parsedStatus = { date: todayStr };
+                            const payload = {
+                                title: 'STAFF_PRESENCE_STATUS',
+                                content: JSON.stringify(parsedStatus),
+                                category: 'SYSTEM',
+                                is_sticky: false,
+                                is_recruiting: false
+                            };
+                            if (presenceStatusNotice.id) {
+                                await supabase.from('notices').update(payload).eq('id', presenceStatusNotice.id);
+                            } else {
+                                await supabase.from('notices').insert([payload]);
+                            }
+                        }
+                        
+                        setPresenceStatus(parsedStatus);
                     } catch (e) { console.error('Failed to parse staff status config', e); }
+                } else {
+                    const now = new Date();
+                    const todayStr = now.toLocaleDateString('sv');
+                    setPresenceStatus({ date: todayStr });
+                }
+
+                if (dutyNotice?.content) {
+                    try {
+                        const parsedDuty = JSON.parse(dutyNotice.content);
+                        setDutyStaff(parsedDuty || { "하이픈": "", "이높플레이스": "" });
+                    } catch (e) { console.error('Failed to parse duty config', e); }
                 }
             }
         } catch (err) {
@@ -76,6 +122,11 @@ const TodayOperatingWidget = ({ studentRegion }) => {
                             const parsedStatus = JSON.parse(content);
                             setPresenceStatus(parsedStatus || {});
                         } catch (e) { console.error(e); }
+                    } else if (title === 'DAILY_DUTY_STAFF') {
+                        try {
+                            const parsedDuty = JSON.parse(content);
+                            setDutyStaff(parsedDuty || { "하이픈": "", "이높플레이스": "" });
+                        } catch (e) { console.error(e); }
                     } else if (title === 'STAFF_PRESENCE_CONFIG' || title === 'OPERATING_HOURS_CONFIG') {
                         fetchHoursAndStaffConfig();
                     }
@@ -89,6 +140,25 @@ const TodayOperatingWidget = ({ studentRegion }) => {
     }, []);
 
     useEffect(() => {
+        // Periodic check every 30 seconds for 6 PM reset and day change
+        const interval = setInterval(() => {
+            const now = new Date();
+            const currentHour = now.getHours();
+            
+            // Check if day changed or it's after 6 PM with active presence
+            const todayStr = now.toLocaleDateString('sv');
+            const hasActive = Object.keys(presenceStatus).some(k => k !== 'date' && presenceStatus[k] === true);
+            const differentDay = presenceStatus.date && presenceStatus.date !== todayStr;
+            
+            if (differentDay || (currentHour >= 18 && hasActive)) {
+                fetchHoursAndStaffConfig();
+            }
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, [presenceStatus]);
+
+    useEffect(() => {
         const fetchStaffDetails = async () => {
             let filteredIds = [];
             if (studentRegion === '강동') {
@@ -96,21 +166,28 @@ const TodayOperatingWidget = ({ studentRegion }) => {
             } else if (studentRegion === '강서') {
                 filteredIds = staffConfig["이높플레이스"] || [];
             } else {
-                // Fallback: union of all spaces if no region is set (e.g. guest or legacy)
                 filteredIds = Array.from(new Set([
                     ...(staffConfig["하이픈"] || []),
                     ...(staffConfig["이높플레이스"] || [])
                 ]));
             }
 
-            if (filteredIds.length > 0) {
+            const currentSpaceKey = studentRegion === '강서' ? '이높플레이스' : '하이픈';
+            const currentDutyId = dutyStaff[currentSpaceKey];
+            
+            let fetchIds = [...filteredIds];
+            if (currentDutyId && !fetchIds.includes(currentDutyId)) {
+                fetchIds.push(currentDutyId);
+            }
+
+            if (fetchIds.length > 0) {
                 const { data: userData, error: userError } = await supabase
                     .from('users')
                     .select('id, name, profile_image_url, role, user_group')
-                    .in('id', filteredIds);
+                    .in('id', fetchIds);
                 
                 if (!userError && userData) {
-                    const orderedStaff = filteredIds
+                    const orderedStaff = fetchIds
                         .map(id => userData.find(u => u.id === id))
                         .filter(Boolean);
                     setStaffList(orderedStaff);
@@ -123,7 +200,7 @@ const TodayOperatingWidget = ({ studentRegion }) => {
         };
 
         fetchStaffDetails();
-    }, [staffConfig, studentRegion]);
+    }, [staffConfig, studentRegion, dutyStaff]);
 
     if (loading) return null;
 
@@ -132,55 +209,115 @@ const TodayOperatingWidget = ({ studentRegion }) => {
     const dayOfWeekStr = dayMap[today.getDay()];
     const todayConfig = operatingHours ? operatingHours[dayOfWeekStr] : null;
 
-    // Default configuration if not set
     const isOpen = todayConfig ? todayConfig.isOpen : false;
     const openTime = todayConfig ? todayConfig.open : '10:00';
     const closeTime = todayConfig ? todayConfig.close : '18:00';
 
-    // Filter present staff members
-    const presentStaff = staffList.filter(u => !!presenceStatus[u.id]);
+    const now = new Date();
+    const currentHour = now.getHours();
+    const isAfter6PM = currentHour >= 18;
+    const isDutyTime = currentHour >= 14 && currentHour < 22; // 오후 2시 ~ 오후 10시
+
+    const currentSpaceKey = studentRegion === '강서' ? '이높플레이스' : '하이픈';
+    const dutyStaffId = dutyStaff[currentSpaceKey];
+
+    // Duty staff member:
+    // - If toggled present (근무 중): show immediately (before 6 PM)
+    // - If NOT toggled present: show only during duty hours (2 PM ~ 10 PM)
+    const dutyMember = (() => {
+        if (!dutyStaffId) return null;
+        const member = staffList.find(u => u.id === dutyStaffId);
+        if (!member) return null;
+        const isToggledPresent = !isAfter6PM && !!presenceStatus[dutyStaffId];
+        if (isToggledPresent || isDutyTime) return member;
+        return null;
+    })();
+
+    // Present (non-duty) staff: after 6 PM all are absent
+    const presentStaff = isAfter6PM 
+        ? [] 
+        : staffList.filter(u => !!presenceStatus[u.id] && u.id !== dutyStaffId);
+
+    const hasDuty = !!dutyMember;
+    const hasPresent = presentStaff.length > 0;
+    const hasAnyone = hasDuty || hasPresent;
 
     return (
-        <div className={`p-5 rounded-[24px] border shadow-[0_4px_16px_rgba(0,0,0,0.02)] flex flex-col transition-all duration-300 ${isOpen ? 'bg-blue-50/50 border-blue-100/50' : 'bg-gray-50/50 border-gray-100/50'}`}>
+        <div className="bg-white p-5 rounded-toss-xl shadow-toss-standard flex flex-col transition-all duration-300">
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${isOpen ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-gray-200 text-gray-500'}`}>
-                        {isOpen ? <DoorOpen size={20} /> : <DoorClosed size={20} />}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isOpen ? 'bg-tossBlue text-white' : 'bg-tossGrey400 text-white'}`}>
+                        {isOpen ? <DoorOpen size={18} /> : <DoorClosed size={18} />}
                     </div>
                     <div className="flex flex-col">
-                        <span className={`text-xs font-bold mb-0.5 ${isOpen ? 'text-blue-600' : 'text-gray-500'}`}>
-                            {isOpen ? '오늘 센터 오픈 날이에요!' : '오늘은 센터 휴관일이에요'}
+                        <span className={`font-bold text-[14px] ${isOpen ? 'text-tossBlue' : 'text-tossGrey500'} tracking-tight`}>
+                            {isOpen ? '오늘은 센터 오픈 날이에요!' : '오늘은 센터 쉬는 날이에요!'}
                         </span>
-                        <div className="flex items-center gap-1.5 text-gray-700 font-black text-sm">
+                        <div className="flex items-center gap-1.5 text-tossGrey900 font-bold text-[14px] mt-0.5">
                             {isOpen ? (
                                 <>
-                                    <Clock size={14} className="text-blue-400" />
+                                    <Clock size={14} className="text-tossBlue shrink-0" />
                                     <span>{openTime} ~ {closeTime}</span>
                                 </>
                             ) : (
-                                <span className="text-gray-400">다음에 다시 만나요</span>
+                                <span className="text-tossGrey400 text-xs font-semibold">오늘은 휴관일입니다</span>
                             )}
                         </div>
                     </div>
                 </div>
-                {isOpen && (
-                    <div className="bg-white/80 backdrop-blur-sm text-blue-600 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-sm border border-blue-100">
-                        OPEN
-                    </div>
-                )}
+                <div>
+                    {isOpen ? (
+                        <span className="px-3 py-1 bg-white border border-tossBlue text-tossBlue rounded-full text-[11px] font-bold select-none">
+                            OPEN
+                        </span>
+                    ) : (
+                        <span className="px-3 py-1 bg-white border border-tossGrey300 text-tossGrey400 rounded-full text-[11px] font-bold select-none">
+                            CLOSED
+                        </span>
+                    )}
+                </div>
             </div>
 
-            {/* Present Staff Section */}
-            {isOpen && presentStaff.length > 0 && (
-                <div className="w-full flex flex-col gap-2.5 mt-3.5 pt-3.5 border-t border-blue-100/60 animate-fade-in">
-                    <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase ml-1">센터에서 만나요!</span>
-                    <div className="flex flex-wrap gap-4 items-center pl-1">
-                        {presentStaff.map(member => (
-                            <div key={member.id} className="flex flex-col items-center justify-center text-center gap-1 min-w-[50px] animate-scale-in">
-                                <UserAvatar user={member} size="w-8 h-8" />
-                                <span className="text-[10px] font-bold text-slate-600 leading-tight">{member.name}</span>
+            {/* Present/Duty Staff Section */}
+            {hasAnyone && (
+                <div className="w-full flex flex-col gap-3 mt-6 pt-5 border-t border-tossGrey100 animate-fade-in">
+                    <span className="text-[10px] font-bold text-tossGrey500 tracking-wider uppercase">지금 센터에서 만나요!</span>
+                    <div className="flex items-center gap-4 pl-0.5">
+                        {/* Duty Staff — always first */}
+                        {hasDuty && (
+                            <div className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[50px] animate-scale-in">
+                                <div className="relative shrink-0 shadow-toss-subtle rounded-full ring-2 ring-tossBlue/30">
+                                    <UserAvatar user={dutyMember} size="w-9 h-9" />
+                                    <span className="absolute -top-1 -right-1 bg-tossBlue text-[8px] text-white px-1 py-0.5 rounded-full font-bold leading-none scale-90 border border-white whitespace-nowrap select-none">
+                                        당직
+                                    </span>
+                                </div>
+                                <span className="text-[10.5px] font-bold leading-tight text-tossBlue">
+                                    {dutyMember.name}
+                                </span>
                             </div>
-                        ))}
+                        )}
+
+                        {/* Vertical Gray Divider */}
+                        {hasDuty && hasPresent && (
+                            <div className="w-px h-10 bg-tossGrey200 shrink-0" />
+                        )}
+
+                        {/* Present Staff */}
+                        {hasPresent && (
+                            <div className="flex flex-wrap gap-4 items-center">
+                                {presentStaff.map(member => (
+                                    <div key={member.id} className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[50px] animate-scale-in">
+                                        <div className="relative shrink-0 shadow-toss-subtle rounded-full ring-1 ring-tossGrey200/50">
+                                            <UserAvatar user={member} size="w-8 h-8" />
+                                        </div>
+                                        <span className="text-[10.5px] font-bold leading-tight text-tossGrey600">
+                                            {member.name}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -189,3 +326,4 @@ const TodayOperatingWidget = ({ studentRegion }) => {
 };
 
 export default TodayOperatingWidget;
+

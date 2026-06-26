@@ -111,7 +111,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                 }
             } else if (newStatus === 'ACTIVE') {
                  // REVERT: Delete generated PRG logs
-                 await noticesApi.revertProgramLogs(id);
+                 await noticesApi.revertProgramLogs(id, notice?.title);
             }
         } catch (error) {
             console.error('Error updating status:', error);
@@ -132,18 +132,17 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
     }, []);
 
     return (
-        <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-10 space-y-6 md:space-y-8 animate-fade-in custom-scrollbar">
+        <div className="space-y-4 md:space-y-6 animate-fade-in-up">
+            <AdminBoardHeader 
+                mode={mode} 
+                showWriteForm={showWriteForm} 
+                onToggleWriteForm={() => {
+                    if (showWriteForm) handleFormCancel();
+                    else setShowWriteForm(true);
+                }} 
+            />
             
             <div className="bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                <AdminBoardHeader 
-                    mode={mode} 
-                    showWriteForm={showWriteForm} 
-                    onToggleWriteForm={() => {
-                        if (showWriteForm) handleFormCancel();
-                        else setShowWriteForm(true);
-                    }} 
-                />
-
                 {!showWriteForm && (
                     <FilterBar 
                         mode={mode}
