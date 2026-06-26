@@ -105,7 +105,9 @@ const RealtimeActiveUsers = ({
                                     <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                                         <span className="bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded flex-shrink-0">{user.currentLocationName}</span>
                                         <span className="font-bold text-gray-700 whitespace-nowrap flex-shrink-0">{formatStayDuration(user.checkInTime)}</span>
-                                        <span className="truncate">{user.school}</span>
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-1 truncate">
+                                        {user.school || '소속 학교 없음'}
                                     </div>
                                 </div>
                                 <button

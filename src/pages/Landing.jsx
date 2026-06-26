@@ -62,7 +62,26 @@ const LoginForm = ({ navigate }) => {
             // If auth.users password is corrupted or missing (Migration Edge Case)
             // Validating directly against public.users and forcing sync if it matches.
             if (authError || !authData.user) {
-                console.log("Auth failed, attempting strict legacy database sync...");
+                console.log("Auth failed, attempting direct database password check fallback...");
+                
+                const { data: dbUser, error: dbError } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', userCandidate.id)
+                    .eq('password', hashedPw)
+                    .maybeSingle();
+
+                if (dbError) {
+                    console.error("Database user query error:", dbError);
+                }
+
+                if (dbUser) {
+                    console.log("Direct database password match! Bypassing Supabase Auth login.");
+                    checkTermsAgreement(dbUser);
+                    return true;
+                }
+
+                console.log("Direct database check failed or user not found, attempting legacy database sync...");
                 
                 // Call secure RPC that checks public.users.password and sets auth.users
                 const { data: syncSuccess, error: syncError } = await supabase.rpc('legacy_login_sync', {
@@ -194,7 +213,7 @@ const LoginForm = ({ navigate }) => {
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all tracking-widest font-mono"
+                            className={`w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all ${password ? 'tracking-widest font-mono' : ''}`}
                             placeholder="비밀번호 입력"
                         />
                     </div>
@@ -278,15 +297,12 @@ const Landing = () => {
     }, [navigate]);
 
     return (
-        <div className="min-h-screen bg-blue-50 flex flex-col items-center justify-center p-4 font-sans">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans">
+            <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100">
                 {/* Header Section */}
-                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-10 text-center text-white relative overflow-hidden">
+                <div className="bg-gradient-to-br from-[#0050ff] to-[#003ad6] p-12 text-center text-white relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full bg-white opacity-5 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold mb-3 tracking-tight drop-shadow-sm">SCI CENTER</h1>
-                    <p className="text-blue-100 text-lg md:text-xl font-medium flex items-center justify-center gap-2 opacity-90">
-                        우리가 교회다 <span className="text-3xl filter drop-shadow-md">⛪</span>
-                    </p>
+                    <h1 className="text-4xl md:text-5xl font-black tracking-tighter drop-shadow-sm">SCI CENTER</h1>
                 </div>
 
                 {/* Tabs */}

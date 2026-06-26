@@ -39,7 +39,48 @@ async function testLogin(name, password) {
     });
 
     if (authError) {
-        console.error('Auth Error:', authError);
+        console.error('Auth Error:', authError.message);
+        console.log('Attempting direct database password check fallback...');
+        const { data: dbUser, error: dbError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', candidates[0].id)
+            .eq('password', hashedPw)
+            .maybeSingle();
+            
+        if (dbError) {
+            console.error("Database user query error:", dbError);
+        }
+        
+        if (dbUser) {
+            console.log("Direct database password match SUCCESS! User ID:", dbUser.id);
+        } else {
+            console.log('Direct password match failed. Attempting legacy_login_sync...');
+            const { data: syncSuccess, error: syncError } = await supabase.rpc('legacy_login_sync', {
+                p_name: name,
+                p_hashed_pw: hashedPw
+            });
+            
+            if (syncError) {
+                console.error('Sync Error:', syncError);
+                return;
+            }
+            
+            console.log('Sync Success result:', syncSuccess);
+            
+            if (syncSuccess) {
+                console.log('Attempting login again after sync...');
+                const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: hashedPw
+                });
+                if (retryError) {
+                    console.error('Retry Auth Error:', retryError.message);
+                } else {
+                    console.log('Retry Auth Success! User ID:', retryData.user.id);
+                }
+            }
+        }
     } else {
         console.log('Auth Success! User ID:', authData.user.id);
     }
@@ -47,5 +88,4 @@ async function testLogin(name, password) {
 
 // Test with typical cases. Assuming admin or some user exists.
 // By default we don't know EXACT user names, let's search for "관리자"
-testLogin('관리자', '1234');
-testLogin('admin', '1234');
+testLogin('강하민', '4522');
