@@ -282,15 +282,15 @@ const TodayOperatingWidget = ({ studentRegion }) => {
             {hasAnyone && (
                 <div className="w-full flex flex-col gap-3 mt-6 pt-5 border-t border-tossGrey100 animate-fade-in">
                     <span className="text-[10px] font-bold text-tossGrey500 tracking-wider uppercase">지금 센터에서 만나요!</span>
-                    <div className="flex items-center gap-4 pl-0.5">
+                    <div className="flex items-center gap-3 pl-0.5">
                         {/* Duty Staff — always first */}
                         {hasDuty && (
-                            <div className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[50px] animate-scale-in">
+                            <div className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[40px] animate-scale-in">
                                 <div className="relative shrink-0 shadow-toss-subtle rounded-full ring-2 ring-tossBlue/30">
                                     <UserAvatar user={dutyMember} size="w-9 h-9" />
                                     <span className="absolute -top-1 -right-1 bg-tossBlue text-[8px] text-white px-1 py-0.5 rounded-full font-bold leading-none scale-90 border border-white whitespace-nowrap select-none">
                                         당직
-                                    </span>
+                                     </span>
                                 </div>
                                 <span className="text-[10.5px] font-bold leading-tight text-tossBlue">
                                     {dutyMember.name}
@@ -305,9 +305,9 @@ const TodayOperatingWidget = ({ studentRegion }) => {
 
                         {/* Present Staff */}
                         {hasPresent && (
-                            <div className="flex flex-wrap gap-4 items-center">
+                            <div className="flex flex-wrap gap-2 items-center">
                                 {presentStaff.map(member => (
-                                    <div key={member.id} className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[50px] animate-scale-in">
+                                    <div key={member.id} className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[40px] animate-scale-in">
                                         <div className="relative shrink-0 shadow-toss-subtle rounded-full ring-1 ring-tossGrey200/50">
                                             <UserAvatar user={member} size="w-8 h-8" />
                                         </div>

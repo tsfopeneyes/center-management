@@ -89,25 +89,23 @@ const RealtimeActiveUsers = ({
                         {activeUsersList.map(user => (
                             <div key={user.id} className="p-4 active:bg-gray-50 transition flex items-center justify-between gap-4">
                                 <UserAvatar user={user} size="w-10 h-10" textSize="text-xs" />
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-bold text-gray-800 text-base truncate flex items-center gap-1">
+                                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                    {/* 1행: 이름 + 학교명 */}
+                                    <div className="flex items-baseline gap-2 mb-1.5 min-w-0">
+                                        <span className="font-bold text-gray-800 text-base flex-shrink-0 flex items-center gap-1">
                                             {user.name}
                                             {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                         </span>
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-500' :
-                                            user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' :
-                                                'bg-blue-50 text-blue-500'
-                                            }`}>
-                                            {user.user_group || '재학생'}
-                                        </span>
+                                        {user.school && (
+                                            <span className="text-xs text-gray-400 font-medium truncate flex-1 min-w-0">
+                                                {user.school}
+                                            </span>
+                                        )}
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                                        <span className="bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded flex-shrink-0">{user.currentLocationName}</span>
-                                        <span className="font-bold text-gray-700 whitespace-nowrap flex-shrink-0">{formatStayDuration(user.checkInTime)}</span>
-                                    </div>
-                                    <div className="text-xs text-gray-400 mt-1 truncate">
-                                        {user.school || '소속 학교 없음'}
+                                    {/* 2행: 입실 위치 + 체류 시간 */}
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        <span className="bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded-lg flex-shrink-0 text-[11px]">{user.currentLocationName}</span>
+                                        <span className="font-semibold text-gray-600 whitespace-nowrap flex-shrink-0">{formatStayDuration(user.checkInTime)}</span>
                                     </div>
                                 </div>
                                 <button
