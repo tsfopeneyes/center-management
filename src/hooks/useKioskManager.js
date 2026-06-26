@@ -103,6 +103,15 @@ export const useKioskManager = (navigate) => {
         }
 
         const { getKSTDateString } = await import('../utils/dateUtils');
+        const kstDateStr = getKSTDateString(new Date());
+        const kstOffset = 9 * 60 * 60 * 1000; // UTC+9
+        const nowKST = new Date(new Date().getTime() + kstOffset);
+        const startKST = new Date(nowKST);
+        startKST.setUTCHours(0, 0, 0, 0);
+        const startUTC = new Date(startKST.getTime() - kstOffset);
+        const endUTC = new Date(startUTC.getTime() + 24 * 60 * 60 * 1000 - 1);
+        const kstStartISO = startUTC.toISOString();
+        const kstEndISO = endUTC.toISOString();
 
         const currentBackgroundStatus = status;
         setStatus('LOADING');
@@ -171,15 +180,14 @@ export const useKioskManager = (navigate) => {
                     streakCount = currentStreak;
                 }
 
-                // 2. First-in Recognition (Today, this location)
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
+                // 2. First-in Recognition (Today, this location - KST base)
                 const { count: todayLogsCount } = await supabase
                     .from('logs')
                     .select('*', { count: 'exact', head: true })
                     .eq('location_id', selectedLocation.id)
                     .eq('type', 'CHECKIN')
-                    .gte('created_at', todayStart.toISOString());
+                    .gte('created_at', kstStartISO)
+                    .lte('created_at', kstEndISO);
 
                 if (todayLogsCount === 0) isFirstToday = true;
 
@@ -266,14 +274,13 @@ export const useKioskManager = (navigate) => {
             let earnedCheckinMsg = '';
             if (nextType === 'CHECKIN') {
                 try {
-                    const todayStart = new Date();
-                    todayStart.setHours(0, 0, 0, 0);
                     const { data: existingPoints } = await supabase
                         .from('hyphen_transactions')
                         .select('id')
                         .eq('user_id', user.id)
                         .eq('source_description', '공간 방문 (1일 1회)')
-                        .gte('created_at', todayStart.toISOString())
+                        .gte('created_at', kstStartISO)
+                        .lte('created_at', kstEndISO)
                         .limit(1);
 
                     if (!existingPoints || existingPoints.length === 0) {
@@ -301,18 +308,16 @@ export const useKioskManager = (navigate) => {
                 sub = '이동 완료';
                 color = 'bg-blue-600';
             } else if (nextType === 'CHECKOUT') {
-                // 2-Hour Stay Check
+                // 1-Hour Stay Check (KST base)
                 let earnedMsg = '';
                 try {
-                    const todayStart = new Date();
-                    todayStart.setHours(0, 0, 0, 0);
-                    
                     const { data: firstCheckin } = await supabase
                         .from('logs')
                         .select('created_at')
                         .eq('user_id', user.id)
                         .eq('type', 'CHECKIN')
-                        .gte('created_at', todayStart.toISOString())
+                        .gte('created_at', kstStartISO)
+                        .lte('created_at', kstEndISO)
                         .order('created_at', { ascending: true })
                         .limit(1);
 
@@ -321,13 +326,14 @@ export const useKioskManager = (navigate) => {
                         const checkoutTime = new Date().getTime();
                         const durationHours = (checkoutTime - checkinTime) / (1000 * 60 * 60);
 
-                        if (durationHours >= 2) {
+                        if (durationHours >= 1) {
                             const { data: existingPoints } = await supabase
                                 .from('hyphen_transactions')
                                 .select('id')
                                 .eq('user_id', user.id)
-                                .eq('source_description', '공간 체류 (2시간 이상)')
-                                .gte('created_at', todayStart.toISOString())
+                                .eq('source_description', '공간 체류 (1시간 이상)')
+                                .gte('created_at', kstStartISO)
+                                .lte('created_at', kstEndISO)
                                 .limit(1);
 
                             if (!existingPoints || existingPoints.length === 0) {
@@ -335,9 +341,9 @@ export const useKioskManager = (navigate) => {
                                     user_id: user.id,
                                     amount: 1,
                                     transaction_type: 'EARN',
-                                    source_description: '공간 체류 (2시간 이상)'
+                                    source_description: '공간 체류 (1시간 이상)'
                                 }]);
-                                earnedMsg = '🎉 2시간 이상 체류하여 1 하이픈이 적립되었습니다!';
+                                earnedMsg = '🎉 1시간 이상 체류하여 1 하이픈이 적립되었습니다!';
                             }
                         }
                     }
