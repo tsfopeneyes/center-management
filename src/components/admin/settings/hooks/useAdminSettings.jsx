@@ -82,6 +82,11 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
     const [operatingHours, setOperatingHours] = useState(defaultHours);
     const [hoursLoading, setHoursLoading] = useState(false);
 
+    // 6. Staff Presence Config State
+    const [selectedStaffConfig, setSelectedStaffConfig] = useState({ "하이픈": [], "이높플레이스": [] });
+    const [staffSaving, setStaffSaving] = useState(false);
+
+
     // --- EFFECT: Load Layout Configurations ---
     useEffect(() => {
         const loadConfigs = async () => {
@@ -169,6 +174,32 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                     setOperatingHours(prev => ({ ...prev, ...parsed }));
                 } catch (e) { console.error(e); }
             }
+
+            const { data: staffData } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STAFF_PRESENCE_CONFIG')
+                .maybeSingle();
+
+            if (staffData?.content) {
+                try {
+                    const parsed = JSON.parse(staffData.content);
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                        setSelectedStaffConfig(parsed);
+                    } else if (Array.isArray(parsed)) {
+                        // Legacy fallback
+                        setSelectedStaffConfig({
+                            "하이픈": parsed,
+                            "이높플레이스": parsed
+                        });
+                    }
+                } catch (e) { 
+                    console.error(e);
+                    setSelectedStaffConfig({ "하이픈": [], "이높플레이스": [] });
+                }
+            }
+
         };
         loadConfigs();
     }, []);
@@ -577,6 +608,39 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         }
     };
 
+    const handleSaveStaffPresenceConfig = async (staffConfig) => {
+        setStaffSaving(true);
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STAFF_PRESENCE_CONFIG')
+                .maybeSingle();
+
+            const payload = {
+                title: 'STAFF_PRESENCE_CONFIG',
+                content: JSON.stringify(staffConfig),
+                category: CATEGORIES.SYSTEM,
+                is_sticky: false,
+                is_recruiting: false
+            };
+
+            if (existing) {
+                await supabase.from('notices').update(payload).eq('id', existing.id);
+            } else {
+                await supabase.from('notices').insert([payload]);
+            }
+            setSelectedStaffConfig(staffConfig);
+            alert('스탭 설정이 저장되었습니다.');
+        } catch (err) {
+            console.error(err);
+            alert('스탭 설정 저장 실패');
+        } finally {
+            setStaffSaving(false);
+        }
+    };
+
     return {
         profileImage, setProfileImage,
         profilePreview, setProfilePreview,
@@ -614,7 +678,10 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         handleMoveTabConfig, handleUpdateTabConfig, handleSaveTabConfig,
 
         operatingHours, hoursLoading,
-        handleUpdateOperatingHours, handleSaveOperatingHours
+        handleUpdateOperatingHours, handleSaveOperatingHours,
+
+        selectedStaffConfig, staffSaving,
+        handleSaveStaffPresenceConfig
     };
 };
 

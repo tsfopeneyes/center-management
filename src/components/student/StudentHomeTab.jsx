@@ -34,7 +34,9 @@ const StudentHomeTab = ({
     activeUserCountByGroup,
     handleLogout,
     dynamicChallenges,
-    specialStats}) => {
+    specialStats,
+    studentRegion
+}) => {
     // 뱃지 관련 로직 제거됨
 
     return (
@@ -72,14 +74,23 @@ const StudentHomeTab = ({
 
                             {/* Profile Right: Actions */}
                             <div className="flex items-center gap-1.5 shrink-0">
-                                {/* Hyphen Badge */}
-                                <button 
-                                    onClick={() => handleTabChange(TAB_NAMES.HYPHEN)}
-                                    className="flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors backdrop-blur-md px-2.5 py-1 rounded-full border border-white/30 shadow-sm"
-                                >
-                                    <div className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white text-[9px] font-black shadow-sm leading-none shrink-0 border border-amber-300">H</div>
-                                    <span className="font-extrabold text-[13px] sm:text-[14px] text-white tracking-tight">{user?.current_hyphen || 0}</span>
-                                </button>
+                                {user?.role === 'admin' ? (
+                                    <button 
+                                        onClick={() => navigate('/admin')}
+                                        className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all px-3 py-1.5 rounded-full border border-blue-400/20 shadow-md text-white font-extrabold text-[12px] group"
+                                    >
+                                        <ShieldCheck size={14} className="text-white shrink-0 group-hover:scale-110 transition-transform" />
+                                        <span>관리자 모드</span>
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={() => handleTabChange(TAB_NAMES.HYPHEN)}
+                                        className="flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors backdrop-blur-md px-2.5 py-1 rounded-full border border-white/30 shadow-sm"
+                                    >
+                                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white text-[9px] font-black shadow-sm leading-none shrink-0 border border-amber-300">H</div>
+                                        <span className="font-extrabold text-[13px] sm:text-[14px] text-white tracking-tight">{user?.current_hyphen || 0}</span>
+                                    </button>
+                                )}
                                 
                                 {/* Settings Icon */}
                                 <button 
@@ -109,54 +120,54 @@ const StudentHomeTab = ({
                 </div>
             </header>
 
-            {/* Today's Closure Notification */}
-            {(() => {
-                const today = startOfDay(new Date());
-                const todayClosure = adminSchedules.find(sch => {
-                    const cat = calendarCategories.find(c => c.id === sch.category_id);
-                    if (cat?.name !== '휴관') return false;
-                    const start = startOfDay(new Date(sch.start_date));
-                    const end = startOfDay(new Date(sch.end_date));
-                    return today >= start && today <= end;
-                });
+            {/* Main Content Area: Aligned Stack */}
+            <div className="px-4 py-4 pb-28 space-y-4 relative z-0">
+                {/* Today's Closure Notification */}
+                {(() => {
+                    const today = startOfDay(new Date());
+                    const todayClosure = adminSchedules.find(sch => {
+                        const cat = calendarCategories.find(c => c.id === sch.category_id);
+                        if (cat?.name !== '휴관') return false;
+                        const start = startOfDay(new Date(sch.start_date));
+                        const end = startOfDay(new Date(sch.end_date));
+                        return today >= start && today <= end;
+                    });
 
-                if (!todayClosure) return null;
+                    if (!todayClosure) return null;
 
-                let closedSpaces = todayClosure.closed_spaces || [];
-                try {
-                    const parsed = JSON.parse(todayClosure.content);
-                    if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
-                        closedSpaces = parsed.closed_spaces;
-                    }
-                } catch (e) { }
+                    let closedSpaces = todayClosure.closed_spaces || [];
+                    try {
+                        const parsed = JSON.parse(todayClosure.content);
+                        if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                            closedSpaces = parsed.closed_spaces;
+                        }
+                    } catch (e) { }
 
-                const isHyphenClosed = closedSpaces.includes('HYPHEN');
-                const isEnofClosed = closedSpaces.includes('ENOF');
+                    const isHyphenClosed = closedSpaces.includes('HYPHEN');
+                    const isEnofClosed = closedSpaces.includes('ENOF');
 
-                let message = "오늘은 센터 전체 휴관일입니다 🏠";
-                if (isHyphenClosed && !isEnofClosed) message = "오늘은 하이픈 휴관일입니다 ⛔";
-                else if (!isHyphenClosed && isEnofClosed) message = "오늘은 이높플레이스 휴관일입니다 ⚠️";
+                    let message = "오늘은 센터 전체 휴관일입니다 🏠";
+                    if (isHyphenClosed && !isEnofClosed) message = "오늘은 하이픈 휴관일입니다 ⛔";
+                    else if (!isHyphenClosed && isEnofClosed) message = "오늘은 이높플레이스 휴관일입니다 ⚠️";
 
-                return (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mx-2.5 mt-4 p-4 rounded-2xl bg-red-50/80 backdrop-blur-md border border-red-100 shadow-sm flex items-center justify-center relative overflow-hidden"
-                    >
-                        <div className="flex items-center gap-2">
-                            <AlertCircle size={18} strokeWidth={3} className="text-red-600 animate-pulse" />
-                            <p className="text-red-700 font-black text-[15px] tracking-wide">{message}</p>
-                        </div>
-                    </motion.div>
-                );
-            })()}
+                    return (
+                        <motion.div
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="p-4 rounded-[24px] bg-red-50/80 backdrop-blur-md border border-red-100 shadow-sm flex items-center justify-center relative overflow-hidden"
+                        >
+                            <div className="flex items-center gap-2">
+                                <AlertCircle size={18} strokeWidth={3} className="text-red-600 animate-pulse" />
+                                <p className="text-red-700 font-black text-[15px] tracking-wide">{message}</p>
+                            </div>
+                        </motion.div>
+                    );
+                })()}
 
-            {/* Today Operating Widget */}
-            <div className="px-3.5 mt-4">
-                <TodayOperatingWidget />
-            </div>
+                {/* Today Operating Widget */}
+                <TodayOperatingWidget studentRegion={studentRegion} />
 
-            <div className="p-2.5 pt-2.5 pb-10 space-y-2.5 relative z-0">
+                {/* Dynamic Dashboard Widgets */}
                 {dashboardConfig.map((config) => {
                     if (!config.isVisible) return null;
 
@@ -167,12 +178,12 @@ const StudentHomeTab = ({
 
                         case 'programs':
                             return (
-                                <div key="programs" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                    <h3 className="font-bold text-gray-800 mb-3 flex justify-between items-center text-sm">
-                                        <span className="flex items-center gap-1">🔥 {config.label || '프로그램 신청'}</span>
-                                        <button onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)} className="text-[10px] text-blue-500 font-bold">더보기</button>
+                                <div key="programs" className="bg-white p-5 rounded-[24px] border border-gray-100 shadow-[0_4px_16px_rgba(0,0,0,0.02)]">
+                                    <h3 className="font-extrabold text-gray-800 mb-3.5 flex justify-between items-center text-sm">
+                                        <span className="flex items-center gap-1.5 text-slate-800">🔥 {config.label || '프로그램 신청'}</span>
+                                        <button onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)} className="text-[11px] text-blue-500 font-extrabold px-2 py-1 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">더보기</button>
                                     </h3>
-                                    <div className="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x no-swipe" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                                         {homePrograms.slice(0, config.count || 10).map(p => (
                                             <div key={p.id} className="min-w-[160px] w-[160px] snap-start">
                                                 <ProgramCard
@@ -182,51 +193,52 @@ const StudentHomeTab = ({
                                                 />
                                             </div>
                                         ))}
-                                        {homePrograms.length === 0 && <p className="text-center py-4 text-gray-400 text-[10px] w-full">신청 가능한 프로그램이 없습니다</p>}
+                                        {homePrograms.length === 0 && <p className="text-center py-6 text-gray-400 text-xs w-full">신청 가능한 프로그램이 없습니다</p>}
                                     </div>
                                 </div>
                             );
                         case 'notices':
                             return (
-                                <div key="notices" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                    <h3 className="font-bold text-gray-800 mb-3 flex justify-between items-center text-sm">
-                                        <span className="flex items-center gap-1">📢 {config.label || '공지사항'}</span>
-                                        <button onClick={() => handleTabChange(TAB_NAMES.NOTICES)} className="text-[10px] text-blue-500 font-bold">더보기</button>
+                                <div key="notices" className="bg-white p-5 rounded-[24px] border border-gray-100 shadow-[0_4px_16px_rgba(0,0,0,0.02)]">
+                                    <h3 className="font-extrabold text-gray-800 mb-2 flex justify-between items-center text-sm">
+                                        <span className="flex items-center gap-1.5 text-slate-800">📢 {config.label || '공지사항'}</span>
+                                        <button onClick={() => handleTabChange(TAB_NAMES.NOTICES)} className="text-[11px] text-blue-500 font-extrabold px-2 py-1 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">더보기</button>
                                     </h3>
-                                    <div className="space-y-4">
+                                    <div className="divide-y divide-gray-50">
                                         {homeNotices.slice(0, config.count).map(n => (
                                             <motion.div
                                                 key={n.id}
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 onClick={() => openNoticeDetail(n)}
-                                                className="bg-white p-4 rounded-2xl border-2 border-gray-100 shadow-sm btn-tactile cursor-pointer hover:shadow-md hover:border-blue-200 transition-all"
+                                                className="py-3.5 first:pt-2 last:pb-0 cursor-pointer group flex justify-between items-start gap-4"
                                             >
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div className="flex items-center gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                                                         {n.is_sticky && (
-                                                            <span className="flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-orange-600 rounded-full text-[10px] font-black shadow-sm whitespace-nowrap shrink-0 animate-pulse">
-                                                                <Pin size={10} className="fill-orange-600" /> 공지
+                                                            <span className="flex items-center gap-0.5 px-2 py-0.5 bg-orange-50 text-orange-600 rounded-full text-[9px] font-black shadow-sm whitespace-nowrap shrink-0 animate-pulse">
+                                                                <Pin size={8} className="fill-orange-600" /> 공지
                                                             </span>
                                                         )}
-                                                        <h3 className={`font-extrabold text-sm leading-tight line-clamp-1 ${n.is_sticky ? 'text-orange-700' : 'text-gray-800'}`}>{n.title}</h3>
+                                                        {n.is_recruiting && (
+                                                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black shrink-0">
+                                                                모집중
+                                                            </span>
+                                                        )}
+                                                        <span className="text-[10px] text-gray-400 font-bold">{new Date(n.created_at).toLocaleDateString()}</span>
                                                     </div>
-                                                    {n.is_recruiting && <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full text-[9px] font-black shrink-0">모집중</span>}
+                                                    <h4 className="font-extrabold text-sm text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 mb-1 leading-snug">{n.title}</h4>
+                                                    <p className="text-xs text-gray-500 font-medium line-clamp-2 leading-relaxed">{stripHtml(n.content)}</p>
                                                 </div>
+                                                
                                                 {(n.images?.length > 0 || n.image_url) && (
-                                                    <div className="mb-3 rounded-2xl overflow-hidden aspect-square w-full bg-gray-200 border border-gray-100 relative shadow-inner">
-                                                        <img src={n.images?.length > 0 ? n.images[0] : n.image_url} alt="thumbnail" className="w-full h-full object-cover" />
-                                                        {n.images?.length > 1 && <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">+{n.images.length - 1}</div>}
+                                                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-50 shrink-0 border border-gray-100 relative shadow-inner">
+                                                        <img src={n.images?.length > 0 ? n.images[0] : n.image_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                                     </div>
                                                 )}
-                                                <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed font-medium">{stripHtml(n.content)}</p>
-                                                <div className="flex justify-between items-center text-[10px] text-gray-400 border-t border-gray-200 pt-3 font-bold uppercase tracking-wider">
-                                                    <span>{new Date(n.created_at).toLocaleDateString()}</span>
-                                                    <span className="flex items-center gap-1 text-blue-500">상세보기 <ChevronRight size={10} /></span>
-                                                </div>
                                             </motion.div>
                                         ))}
-                                        {homeNotices.length === 0 && <p className="text-center py-4 text-gray-400 text-[10px]">등록된 공지사항이 없습니다</p>}
+                                        {homeNotices.length === 0 && <p className="text-center py-6 text-gray-400 text-xs">등록된 공지사항이 없습니다</p>}
                                     </div>
                                 </div>
                             );
@@ -236,11 +248,12 @@ const StudentHomeTab = ({
                 })}
 
                 {/* Real-time Space Status (공간현황) placed below everything */}
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-2 mt-2">
-                    <h3 className="font-bold text-gray-800 mb-3 flex items-center text-sm gap-2">
-                        🟢 {dashboardConfig.find(c => c.id === 'space_status')?.label || '실시간 공간 현황'}
+                <div className="bg-white p-5 rounded-[24px] border border-gray-100 shadow-[0_4px_16px_rgba(0,0,0,0.02)]">
+                    <h3 className="font-extrabold text-gray-800 mb-3.5 flex items-center text-sm gap-1.5 text-slate-800">
+                        <span>🟢</span>
+                        <span>{dashboardConfig.find(c => c.id === 'space_status')?.label || '실시간 공간 현황'}</span>
                     </h3>
-                    <div className="flex justify-around items-center">
+                    <div className="flex justify-around items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50">
                         {locationGroups
                             .filter(group => group && group.name && group.is_active !== false)
                             .sort((a, b) => {
@@ -252,22 +265,22 @@ const StudentHomeTab = ({
                             .map((group, idx, filteredArr) => (
                                 <React.Fragment key={group.id}>
                                     <div className="flex flex-col items-center flex-1">
-                                        <p className="text-gray-400 text-[9px] mb-1 font-black uppercase tracking-wider">{group.name}</p>
-                                        <div className="flex items-baseline gap-1">
+                                        <p className="text-gray-400 text-[10px] mb-1 font-black uppercase tracking-wider">{group.name}</p>
+                                        <div className="flex items-baseline gap-0.5">
                                             <span className="text-2xl font-black text-blue-600 tracking-tighter">
                                                 {activeUserCountByGroup[group.id] || 0}
                                             </span>
-                                            <span className="text-blue-300 text-[9px] font-black">명</span>
+                                            <span className="text-blue-400 text-[10px] font-extrabold">명</span>
                                         </div>
                                     </div>
                                     {idx < filteredArr.length - 1 && (
-                                        <div className="w-px h-8 bg-gray-100" />
+                                        <div className="w-px h-8 bg-gray-200" />
                                     )}
                                 </React.Fragment>
                             ))}
                     </div>
                 </div>
-            </div >
+            </div>
 
         </>
     );

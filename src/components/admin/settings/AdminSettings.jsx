@@ -12,6 +12,7 @@ import IntegrationConfig from './components/IntegrationConfig';
 import LayoutDesigner from './components/LayoutDesigner';
 import DutyChecklistSettings from './components/DutyChecklistSettings';
 import OperatingHoursSettings from './components/OperatingHoursSettings';
+import StaffPresenceSettings from './components/StaffPresenceSettings';
 
 const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, fetchData, users, allLogs, responses = [], schoolLogs = [] }) => {
     const isMaster = currentAdmin?.is_master || currentAdmin?.name === 'Rok' || currentAdmin?.name === 'admin';
@@ -50,7 +51,8 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
         handleMoveSidebarConfig, handleUpdateSidebarConfig, handleSaveSidebarConfig,
         handleMoveTabConfig, handleUpdateTabConfig, handleSaveTabConfig,
         operatingHours, hoursLoading,
-        handleUpdateOperatingHours, handleSaveOperatingHours
+        handleUpdateOperatingHours, handleSaveOperatingHours,
+        selectedStaffConfig, staffSaving, handleSaveStaffPresenceConfig
     } = useAdminSettings({
         currentAdmin, locations, locationGroups, fetchData, users, allLogs, responses, schoolLogs, notices
     });
@@ -106,13 +108,22 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
             </div>
 
             {isMaster && (
-                <OperatingHoursSettings
-                    operatingHours={operatingHours}
-                    handleUpdateOperatingHours={handleUpdateOperatingHours}
-                    handleSaveOperatingHours={handleSaveOperatingHours}
-                    hoursLoading={hoursLoading}
-                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <OperatingHoursSettings
+                        operatingHours={operatingHours}
+                        handleUpdateOperatingHours={handleUpdateOperatingHours}
+                        handleSaveOperatingHours={handleSaveOperatingHours}
+                        hoursLoading={hoursLoading}
+                    />
+                    <StaffPresenceSettings
+                        users={users}
+                        selectedStaffConfig={selectedStaffConfig}
+                        onSave={handleSaveStaffPresenceConfig}
+                        isSaving={staffSaving}
+                    />
+                </div>
             )}
+
 
             {isMaster && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

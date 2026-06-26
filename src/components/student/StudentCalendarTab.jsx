@@ -9,7 +9,8 @@ const StudentCalendarTab = ({
     adminSchedules,
     notices,
     calendarCategories,
-    openNoticeDetail
+    openNoticeDetail,
+    studentRegion
 }) => {
     return (
         <div className="animate-fade-in pb-32 relative min-h-screen">
@@ -24,7 +25,7 @@ const StudentCalendarTab = ({
 
             <div className="px-5">
                 <div className="mb-4">
-                    <TodayOperatingWidget />
+                    <TodayOperatingWidget studentRegion={studentRegion} />
                 </div>
                 
 

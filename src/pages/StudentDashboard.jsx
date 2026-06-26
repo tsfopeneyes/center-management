@@ -227,55 +227,11 @@ const StudentDashboard = () => {
 
     return (
         <div 
-            className={`w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 pb-20 font-sans transition-all duration-300 ${
-                hideMainHeader ? 'pt-[max(env(safe-area-inset-top),10px)]' : ''
-            }`}
+            className="w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 pb-20 font-sans transition-all duration-300 pt-[max(env(safe-area-inset-top),0px)]"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
-            {!hideMainHeader && (
-                <div className={`${activeTab === TAB_NAMES.HOME ? 'sticky top-0' : 'relative'} z-[100] bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),8px)] pb-2 shadow-sm`}>
-                    <div className="flex items-center gap-3">
-                        <motion.button
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => setShowMenuDrawer(true)}
-                            className="p-0.5 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                            <Menu size={24} />
-                        </motion.button>
-                        <span className="text-lg font-black text-blue-600 tracking-tight select-none">
-                            SCI CENTER
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <motion.button
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => setShowNotificationsModal(true)}
-                            className="p-1 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-50 transition-colors relative animate-fade-in"
-                        >
-                            <Bell size={20} />
-                            {unreadNotificationCount > 0 && (
-                                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white" />
-                            )}
-                        </motion.button>
-                        <motion.button
-                            whileTap={{ scale: 0.9 }}
-                            onClick={handleShare}
-                            className="p-1 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-50 transition-colors"
-                        >
-                            <Share2 size={20} />
-                        </motion.button>
-                        <motion.button
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => setShowEnlargedQr(true)}
-                            className="p-1 text-blue-600 hover:text-blue-700 rounded-full hover:bg-blue-50 transition-colors"
-                        >
-                            <QrCode size={20} />
-                        </motion.button>
-                    </div>
-                </div>
-            )}
             
             {/* Verification Write Modal */}
             {showVerificationWrite && (
@@ -569,6 +525,7 @@ const StudentDashboard = () => {
                     activeUserCountByGroup={activeUserCountByGroup}
                     dynamicChallenges={dynamicChallenges}
                     specialStats={specialStats}
+                    studentRegion={studentRegion}
                 />
             )}
 
@@ -618,6 +575,7 @@ const StudentDashboard = () => {
                     notices={filteredPrograms}
                     calendarCategories={calendarCategories}
                     openNoticeDetail={openNoticeDetail}
+                    studentRegion={studentRegion}
                 />
             )}
 
