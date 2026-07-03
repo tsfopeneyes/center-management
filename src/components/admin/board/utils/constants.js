@@ -1,7 +1,8 @@
 export const PROGRAM_TYPES = {
     ALL: 'ALL',
     CENTER: 'CENTER',
-    SCHOOL_CHURCH: 'SCHOOL_CHURCH'
+    SCHOOL_CHURCH: 'SCHOOL_CHURCH',
+    CHALLENGE: 'CHALLENGE'
 };
 
 export const VIEW_MODES = {

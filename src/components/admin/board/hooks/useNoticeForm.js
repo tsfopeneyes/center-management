@@ -22,7 +22,10 @@ const INITIAL_NOTICE_STATE = {
     allow_multiple_votes: false,
     poll_deadline: '',
     poll_options: [],
-    hyphen_reward: 5
+    hyphen_reward: 5,
+    challenge_start_date: '',
+    challenge_end_date: '',
+    challenge_missions: []
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
@@ -30,7 +33,8 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
         ...INITIAL_NOTICE_STATE,
         category: mode,
         is_recruiting: mode === CATEGORIES.PROGRAM,
-        max_capacity: mode === CATEGORIES.PROGRAM ? 0 : ''
+        max_capacity: mode === CATEGORIES.PROGRAM ? 0 : '',
+        hyphen_reward: mode === CATEGORIES.PROGRAM ? 30 : 5 // Default to 30 for challenges / program rewards
     });
 
     const updateField = useCallback((field, value) => {
@@ -42,7 +46,8 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
             ...INITIAL_NOTICE_STATE,
             category: targetMode,
             is_recruiting: targetMode === CATEGORIES.PROGRAM,
-            max_capacity: targetMode === CATEGORIES.PROGRAM ? 0 : ''
+            max_capacity: targetMode === CATEGORIES.PROGRAM ? 0 : '',
+            hyphen_reward: targetMode === CATEGORIES.PROGRAM ? 30 : 5
         });
     }, []);
 
@@ -52,14 +57,28 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
         }
         
         if (mode === CATEGORIES.PROGRAM) {
-            if (!formData.program_date) {
-                return { isValid: false, message: '프로그램 날짜를 선택해주세요.' };
-            }
-            if (!formData.program_duration?.trim()) {
-                return { isValid: false, message: '소요 시간을 입력해주세요.' };
-            }
-            if (!formData.program_location?.trim()) {
-                return { isValid: false, message: '장소를 입력해주세요.' };
+            const isChallenge = formData.program_type === PROGRAM_TYPES.CHALLENGE;
+            
+            if (isChallenge) {
+                if (!formData.challenge_start_date) {
+                    return { isValid: false, message: '뱃지 시작일을 선택해주세요.' };
+                }
+                if (!formData.challenge_end_date) {
+                    return { isValid: false, message: '뱃지 종료일을 선택해주세요.' };
+                }
+                if (!formData.challenge_missions || formData.challenge_missions.length === 0) {
+                    return { isValid: false, message: '뱃지 미션을 최소 1개 이상 추가해주세요.' };
+                }
+            } else {
+                if (!formData.program_date) {
+                    return { isValid: false, message: '프로그램 날짜를 선택해주세요.' };
+                }
+                if (!formData.program_duration?.trim()) {
+                    return { isValid: false, message: '소요 시간을 입력해주세요.' };
+                }
+                if (!formData.program_location?.trim()) {
+                    return { isValid: false, message: '장소를 입력해주세요.' };
+                }
             }
         }
 

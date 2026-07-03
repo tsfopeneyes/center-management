@@ -1,0 +1,321 @@
+import React, { useEffect } from 'react';
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Image from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
+import Underline from '@tiptap/extension-underline';
+import TextAlign from '@tiptap/extension-text-align';
+import Highlight from '@tiptap/extension-highlight';
+import {
+    Bold, Italic, Underline as UnderlineIcon,
+    List, ListOrdered, Quote, Heading1, Heading2,
+    AlignLeft, AlignCenter, AlignRight,
+    Link as LinkIcon, Image as ImageIcon,
+    Undo, Redo, Highlighter, Code
+} from 'lucide-react';
+
+const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        className={`p-2 rounded-lg transition-all ${isActive
+            ? 'bg-blue-100 text-blue-600'
+            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+            } disabled:opacity-30 disabled:cursor-not-allowed`}
+    >
+        {children}
+    </button>
+);
+
+import { Extension } from '@tiptap/core';
+
+const SwapEnter = Extension.create({
+    name: 'swapEnter',
+    addKeyboardShortcuts() {
+        return {
+            'Enter': () => {
+                // If it's a list item, we keep the default Tiptap behavior (split list item)
+                if (this.editor.isActive('listItem')) {
+                    return false; 
+                }
+                return this.editor.commands.setHardBreak();
+            },
+            'Shift-Enter': () => {
+                if (this.editor.isActive('listItem')) {
+                    return false;
+                }
+                return this.editor.commands.splitBlock();
+            },
+        };
+    },
+});
+
+const LineHeight = Extension.create({
+    name: 'lineHeight',
+    addGlobalAttributes() {
+        return [
+            {
+                types: ['paragraph', 'heading'],
+                attributes: {
+                    lineHeight: {
+                        default: null,
+                        parseHTML: element => element.style.lineHeight || null,
+                        renderHTML: attributes => {
+                            if (!attributes.lineHeight) {
+                                return {};
+                            }
+                            return {
+                                style: `line-height: ${attributes.lineHeight}`,
+                            };
+                        },
+                    },
+                },
+            },
+        ];
+    },
+    addCommands() {
+        return {
+            setLineHeight: (lineHeight) => ({ commands }) => {
+                return commands.updateAttributes('paragraph', { lineHeight }) &&
+                       commands.updateAttributes('heading', { lineHeight });
+            },
+            unsetLineHeight: () => ({ commands }) => {
+                return commands.updateAttributes('paragraph', { lineHeight: null }) &&
+                       commands.updateAttributes('heading', { lineHeight: null });
+            },
+        };
+    },
+});
+
+const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세요...' }) => {
+    const [isCodeView, setIsCodeView] = React.useState(false);
+    const editor = useEditor({
+        extensions: [
+            SwapEnter,
+            LineHeight,
+            StarterKit,
+            Underline,
+            Link.configure({
+                openOnClick: false,
+                HTMLAttributes: {
+                    class: 'text-blue-600 underline cursor-pointer',
+                },
+            }),
+            Image.configure({
+                HTMLAttributes: {
+                    class: 'rounded-2xl max-w-full h-auto border border-gray-100 my-4',
+                },
+            }),
+            Placeholder.configure({
+                placeholder,
+            }),
+            TextAlign.configure({
+                types: ['heading', 'paragraph'],
+            }),
+            Highlight.configure({
+                multicolor: true,
+            }),
+        ],
+        content: content,
+        onUpdate: ({ editor }) => {
+            onChange(editor.getHTML());
+        },
+        editorProps: {
+            attributes: {
+                class: 'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 leading-snug m-5 focus:outline-none min-h-[300px] max-w-none text-gray-800',
+            },
+        },
+    });
+
+    // Update content if it changes externally (e.g. during initial load or edit reset)
+    useEffect(() => {
+        if (editor && content !== editor.getHTML()) {
+            editor.commands.setContent(content);
+        }
+    }, [content, editor]);
+
+    if (!editor) {
+        return null;
+    }
+
+    const addImage = () => {
+        const url = window.prompt('이미지 URL을 입력하세요');
+        if (url) {
+            editor.chain().focus().setImage({ src: url }).run();
+        }
+    };
+
+    const setLink = () => {
+        const previousUrl = editor.getAttributes('link').href;
+        const url = window.prompt('URL을 입력하세요', previousUrl);
+
+        if (url === null) {
+            return;
+        }
+
+        if (url === '') {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run();
+            return;
+        }
+
+        editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    };
+
+    return (
+        <div className="w-full border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm ring-1 ring-gray-950/5">
+            {/* Main Toolbar */}
+            <div className="flex flex-nowrap overflow-x-auto items-center gap-1 p-2 border-b border-gray-50 bg-gray-50/50 sticky top-0 z-10 backdrop-blur-sm scrollbar-hide">
+                <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
+                    <MenuButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo() || isCodeView} title="되돌리기"><Undo size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo() || isCodeView} title="다시 실행"><Redo size={18} /></MenuButton>
+                </div>
+
+                <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
+                    <MenuButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} isActive={editor.isActive('heading', { level: 1 })} disabled={isCodeView} title="대제목"><Heading1 size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} disabled={isCodeView} title="소제목"><Heading2 size={18} /></MenuButton>
+                </div>
+
+                <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
+                    <MenuButton onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} disabled={isCodeView} title="굵게"><Bold size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} disabled={isCodeView} title="기울임"><Italic size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive('underline')} disabled={isCodeView} title="밑줄"><UnderlineIcon size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleHighlight().run()} isActive={editor.isActive('highlight')} disabled={isCodeView} title="형광펜"><Highlighter size={18} /></MenuButton>
+                </div>
+
+                <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
+                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('left').run()} isActive={editor.isActive({ textAlign: 'left' })} disabled={isCodeView} title="왼쪽 정렬"><AlignLeft size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('center').run()} isActive={editor.isActive({ textAlign: 'center' })} disabled={isCodeView} title="가운데 정렬"><AlignCenter size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().setTextAlign('right').run()} isActive={editor.isActive({ textAlign: 'right' })} disabled={isCodeView} title="오른쪽 정렬"><AlignRight size={18} /></MenuButton>
+                </div>
+
+                <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
+                    <select
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'default') {
+                                editor.chain().focus().unsetLineHeight().run();
+                            } else {
+                                editor.chain().focus().setLineHeight(val).run();
+                            }
+                        }}
+                        disabled={isCodeView}
+                        className="bg-transparent text-xs font-bold text-gray-500 hover:text-gray-900 border border-gray-200 rounded-lg p-1.5 outline-none cursor-pointer"
+                        title="행간 조절"
+                        value={editor.getAttributes('paragraph').lineHeight || editor.getAttributes('heading').lineHeight || 'default'}
+                    >
+                        <option value="default">행간 (기본)</option>
+                        <option value="1.2">1.2 (좁게)</option>
+                        <option value="1.5">1.5 (보통)</option>
+                        <option value="1.8">1.8 (넓게)</option>
+                        <option value="2.0">2.0 (아주 넓게)</option>
+                        <option value="2.4">2.4 (최대)</option>
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
+                    <MenuButton onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} disabled={isCodeView} title="글머리 기호"><List size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} disabled={isCodeView} title="번호 매기기"><ListOrdered size={18} /></MenuButton>
+                    <MenuButton onClick={() => editor.chain().focus().toggleBlockquote().run()} isActive={editor.isActive('blockquote')} disabled={isCodeView} title="인용구"><Quote size={18} /></MenuButton>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                    <MenuButton onClick={setLink} isActive={editor.isActive('link')} disabled={isCodeView} title="링크"><LinkIcon size={18} /></MenuButton>
+                    <MenuButton onClick={addImage} disabled={isCodeView} title="이미지"><ImageIcon size={18} /></MenuButton>
+                </div>
+
+                <div className="ml-auto shrink-0 pl-1">
+                    <MenuButton
+                        onClick={() => setIsCodeView(!isCodeView)}
+                        isActive={isCodeView}
+                        title={isCodeView ? "에디터 보기" : "코드 보기"}
+                    >
+                        <Code size={18} />
+                    </MenuButton>
+                </div>
+            </div>
+
+            {/* Bubble Menu for quick access */}
+            {
+                editor && (
+                    <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }} className="flex items-center bg-gray-900 text-white rounded-lg shadow-xl overflow-hidden px-1 py-1">
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().toggleBold().run()}
+                            className={`p-1.5 rounded hover:bg-gray-800 transition ${editor.isActive('bold') ? 'text-blue-400' : 'text-white'}`}
+                        >
+                            <Bold size={16} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().toggleItalic().run()}
+                            className={`p-1.5 rounded hover:bg-gray-800 transition ${editor.isActive('italic') ? 'text-blue-400' : 'text-white'}`}
+                        >
+                            <Italic size={16} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().toggleUnderline().run()}
+                            className={`p-1.5 rounded hover:bg-gray-800 transition ${editor.isActive('underline') ? 'text-blue-400' : 'text-white'}`}
+                        >
+                            <UnderlineIcon size={16} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().toggleHighlight().run()}
+                            className={`p-1.5 rounded hover:bg-gray-800 transition ${editor.isActive('highlight') ? 'text-yellow-400' : 'text-white'}`}
+                        >
+                            <Highlighter size={16} />
+                        </button>
+                        <div className="w-[1px] h-4 bg-gray-700 mx-1" />
+                        <button
+                            type="button"
+                            onClick={setLink}
+                            className={`p-1.5 rounded hover:bg-gray-800 transition ${editor.isActive('link') ? 'text-blue-400' : 'text-white'}`}
+                        >
+                            <LinkIcon size={16} />
+                        </button>
+                    </BubbleMenu>
+                )
+            }
+
+            {isCodeView ? (
+                <textarea
+                    value={content}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="w-full min-h-[400px] p-5 font-mono text-sm text-gray-800 bg-gray-50/50 focus:outline-none resize-y"
+                    placeholder="HTML 코드를 입력하세요..."
+                />
+            ) : (
+                <EditorContent editor={editor} />
+            )}
+
+            <style>{`
+                .tiptap p.is-editor-empty:first-child::before {
+                    color: #adb5bd;
+                    content: attr(data-placeholder);
+                    float: left;
+                    height: 0;
+                    pointer-events: none;
+                }
+                /* Higher specificity to override prose defaults if needed */
+                .tiptap.prose {
+                    max-width: none;
+                }
+                .tiptap.prose :first-child {
+                    margin-top: 0;
+                }
+                .tiptap.prose :last-child {
+                    margin-bottom: 0;
+                }
+                .tiptap {
+                    font-family: inherit;
+                }
+            `}</style>
+        </div >
+    );
+};
+
+export default ModernEditor;

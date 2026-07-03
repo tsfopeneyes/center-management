@@ -72,28 +72,28 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
     };
 
     return (
-        <div className="p-6 bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-5">
+        <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm col-span-1 lg:col-span-2 flex flex-col gap-5">
             <div className="flex items-center justify-between pb-3 border-b border-gray-50">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#3182f6]/10 text-[#3182f6] flex items-center justify-center shrink-0">
                         <Users size={20} />
                     </div>
                     <div>
-                        <h3 className="text-lg font-black text-gray-800 tracking-tight">스탭 현황 노출 설정</h3>
+                        <h3 className="text-lg font-bold text-[#191f28] tracking-tight">스탭 현황 노출 설정</h3>
                         <p className="text-xs text-gray-400 font-semibold mt-0.5">각 공간(하이픈, 이높플레이스)별로 근무할 스탭을 지정합니다.</p>
                     </div>
                 </div>
             </div>
 
             {/* Search Box */}
-            <div className="relative flex items-center bg-gray-50 border border-gray-200 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+            <div className="relative flex items-center bg-[#f2f4f6] border border-transparent rounded-xl overflow-hidden focus-within:border-[#3182f6] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#3182f6]/10 transition-all">
                 <Search className="absolute left-3.5 text-gray-400 shrink-0" size={16} />
                 <input
                     type="text"
                     placeholder="스탭 이름으로 검색..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-transparent outline-none font-semibold text-gray-700 text-sm"
+                    className="w-full pl-10 pr-4 py-2.5 bg-transparent outline-none font-semibold text-[#191f28] text-sm"
                 />
             </div>
 

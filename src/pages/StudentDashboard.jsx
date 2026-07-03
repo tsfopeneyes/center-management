@@ -7,8 +7,8 @@ import { useStudentDashboard } from '../hooks/useStudentDashboard';
 
 // Tabs
 import StudentHomeTab from '../components/student/StudentHomeTab';
-import StudentChallengesTab from '../components/student/StudentChallengesTab';
-import StudentProgramsTab from '../components/student/StudentProgramsTab';
+import StudentBadgesTab from '../components/student/StudentBadgesTab';
+import StudentCenterTab from '../components/student/StudentCenterTab';
 import StudentNoticesTab from '../components/student/StudentNoticesTab';
 import StudentGuestbookTab from '../components/student/StudentGuestbookTab';
 import StudentCalendarTab from '../components/student/StudentCalendarTab';
@@ -104,12 +104,12 @@ const StudentDashboard = () => {
     const activeVisibleTabs = (tabConfig || []).filter(t => t.isVisible);
     const TAB_SEQUENCE = activeVisibleTabs.length > 0 
         ? activeVisibleTabs.map(t => t.id)
-        : [TAB_NAMES.HOME, TAB_NAMES.CHALLENGES, TAB_NAMES.PROGRAMS, TAB_NAMES.CALENDAR, TAB_NAMES.AZIT, TAB_NAMES.HYPHEN];
+        : [TAB_NAMES.HOME, TAB_NAMES.BADGES, TAB_NAMES.PROGRAMS, TAB_NAMES.CALENDAR, TAB_NAMES.AZIT, TAB_NAMES.HYPHEN];
 
     const tabIconMap = {
         [TAB_NAMES.HOME]: { icon: Home, defaultLabel: '홈' },
-        [TAB_NAMES.CHALLENGES]: { icon: Award, defaultLabel: '챌린지' },
-        [TAB_NAMES.PROGRAMS]: { icon: BookOpen, defaultLabel: '프로그램', activeColor: 'text-blue-600' },
+        [TAB_NAMES.BADGES]: { icon: Award, defaultLabel: '뱃지' },
+        [TAB_NAMES.PROGRAMS]: { icon: BookOpen, defaultLabel: '센터', activeColor: 'text-blue-600' },
         [TAB_NAMES.CALENDAR]: { icon: Calendar, defaultLabel: '캘린더' },
         [TAB_NAMES.AZIT]: { icon: MessageSquareHeart, defaultLabel: '커뮤니티' },
         [TAB_NAMES.HYPHEN]: { icon: Store, defaultLabel: '하이픈' }
@@ -130,8 +130,8 @@ const StudentDashboard = () => {
 
     const defaultTabsList = [
         { id: TAB_NAMES.HOME, icon: Home, label: '홈' },
-        { id: TAB_NAMES.CHALLENGES, icon: Award, label: '챌린지' },
-        { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '프로그램', activeColor: 'text-blue-600' },
+        { id: TAB_NAMES.BADGES, icon: Award, label: '뱃지' },
+        { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '센터', activeColor: 'text-blue-600' },
         { id: TAB_NAMES.CALENDAR, icon: Calendar, label: '캘린더' },
         { id: TAB_NAMES.AZIT, icon: MessageSquareHeart, label: '커뮤니티' },
         { id: TAB_NAMES.HYPHEN, icon: Store, label: '하이픈' }
@@ -548,11 +548,13 @@ const StudentDashboard = () => {
                     dynamicChallenges={dynamicChallenges}
                     specialStats={specialStats}
                     studentRegion={studentRegion}
+                    selectedRegion={hookData.selectedRegion}
+                    setSelectedRegion={hookData.setSelectedRegion}
                 />
             )}
 
-            {activeTab === TAB_NAMES.CHALLENGES && (
-                <StudentChallengesTab
+            {activeTab === TAB_NAMES.BADGES && (
+                <StudentBadgesTab
                     dynamicChallenges={dynamicChallenges}
                     challengeCategories={challengeCategories}
                     visitCount={visitCount}
@@ -563,12 +565,16 @@ const StudentDashboard = () => {
             )}
 
             {activeTab === TAB_NAMES.PROGRAMS && (
-                <StudentProgramsTab
+                <StudentCenterTab
+                    user={user}
                     filteredPrograms={filteredPrograms}
                     allPrograms={allPrograms}
                     responses={responses}
                     responseDetails={responseDetails}
                     openNoticeDetail={openNoticeDetail}
+                    refreshTrigger={refreshTrigger}
+                    setRefreshTrigger={setRefreshTrigger}
+                    selectedRegion={hookData.selectedRegion}
                 />
             )}
 
@@ -612,19 +618,12 @@ const StudentDashboard = () => {
             {activeTab === TAB_NAMES.HYPHEN && (
                 <StudentHyphenTab 
                     user={user} 
-                    handleCreatePost={hookData.handleCreatePost}
-                    handleUpdatePost={hookData.handleUpdatePost}
-                    handleDeleteGuestPost={hookData.handleDeleteGuestPost}
-                    uploadingGuest={hookData.uploadingGuest}
-                    openGuestPostDetail={openGuestPostDetail}
-                    setShowVerificationWrite={setShowVerificationWrite}
-                    setEditVerificationPost={setEditVerificationPost}
-                    refreshTrigger={refreshTrigger}
                     notifyParentRefresh={() => {
                         userApi.fetchUser(user.id).then(u => {
                             if (u) hookData.setUser(prev => ({ ...prev, ...u }));
                         });
                     }}
+                    refreshTrigger={refreshTrigger}
                 />
             )}
                 </motion.div>

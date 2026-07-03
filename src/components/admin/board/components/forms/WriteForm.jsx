@@ -75,19 +75,22 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
             let finalContent = formData.content;
 
             if (isProgram) {
+                const isChallenge = formData.program_type === 'CHALLENGE';
                 let validJoinedDate = '';
-                const pVal = formData.program_date;
-                if (pVal && pVal !== '') {
-                    const parsed = new Date(pVal);
-                    if (!isNaN(parsed.getTime())) {
-                        validJoinedDate = pVal; // e.g. "2024-03-24T14:30"
+                
+                if (!isChallenge) {
+                    const pVal = formData.program_date;
+                    if (pVal && pVal !== '') {
+                        const parsed = new Date(pVal);
+                        if (!isNaN(parsed.getTime())) {
+                            validJoinedDate = pVal;
+                        }
                     }
                 }
 
                 const combinedDateObj = {
                     ...formData,
                     program_date: validJoinedDate
-
                 };
                 const infoBlock = generateProgramInfoHtml(combinedDateObj);
                 finalContent = infoBlock + finalContent;
@@ -175,15 +178,32 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
             };
 
             if (isProgram) {
-                let finalProgramDate = null;
-                const pVal = formData.program_date;
-                if (pVal && pVal !== '') {
-                    const parsedDate = new Date(pVal);
-                    if (!isNaN(parsedDate.getTime())) {
-                        finalProgramDate = parsedDate.toISOString();
+                const isChallenge = formData.program_type === 'CHALLENGE';
+                
+                if (isChallenge) {
+                    noticeData.program_date = null;
+                    noticeData.program_duration = null;
+                    noticeData.program_location = null;
+                    noticeData.challenge_start_date = formData.challenge_start_date ? new Date(formData.challenge_start_date).toISOString() : null;
+                    noticeData.challenge_end_date = formData.challenge_end_date ? new Date(formData.challenge_end_date).toISOString() : null;
+                    noticeData.challenge_missions = formData.challenge_missions || [];
+                } else {
+                    let finalProgramDate = null;
+                    const pVal = formData.program_date;
+                    if (pVal && pVal !== '') {
+                        const parsedDate = new Date(pVal);
+                        if (!isNaN(parsedDate.getTime())) {
+                            finalProgramDate = parsedDate.toISOString();
+                        }
                     }
+                    noticeData.program_date = finalProgramDate;
+                    noticeData.program_duration = formData.program_duration || '';
+                    noticeData.program_location = formData.program_location || '';
+                    noticeData.challenge_start_date = null;
+                    noticeData.challenge_end_date = null;
+                    noticeData.challenge_missions = null;
                 }
-                noticeData.program_date = finalProgramDate;
+                
                 noticeData.program_type = formData.program_type;
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;
                 noticeData.is_leader_only = formData.is_leader_only;
@@ -205,7 +225,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
 
         } catch (error) {
             console.error('Save error:', error);
-            alert('저장 중 오류가 발생했습니다.');
+            alert('저장 중 오류가 발생했습니다: ' + (error.message || error.details || JSON.stringify(error)));
         } finally {
             setIsSaving(false);
         }

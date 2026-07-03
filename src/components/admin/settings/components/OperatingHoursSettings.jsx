@@ -10,10 +10,10 @@ const OperatingHoursSettings = ({
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
     return (
-        <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-sm col-span-1 lg:col-span-2">
+        <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm col-span-1 lg:col-span-2 flex flex-col gap-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div>
-                    <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight">
                         <Clock className="text-indigo-600" size={24} />
                         기본 운영 시간 설정
                     </h3>
@@ -24,7 +24,7 @@ const OperatingHoursSettings = ({
                 <button
                     onClick={handleSaveOperatingHours}
                     disabled={hoursLoading}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all shadow-sm shrink-0
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm shrink-0 text-xs
                     ${hoursLoading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-500 hover:-translate-y-0.5 hover:shadow-md'}`}
                 >
                     <Save size={18} />
@@ -46,7 +46,7 @@ const OperatingHoursSettings = ({
                                         onChange={(e) => handleUpdateOperatingHours(day, 'isOpen', e.target.checked)}
                                         className="sr-only peer"
                                     />
-                                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3182f6]"></div>
                                 </label>
                             </div>
                             
@@ -55,14 +55,14 @@ const OperatingHoursSettings = ({
                                     type="time"
                                     value={data.open}
                                     onChange={(e) => handleUpdateOperatingHours(day, 'open', e.target.value)}
-                                    className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                    className="flex-1 px-3 py-2 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-bold text-[#191f28] text-sm"
                                 />
                                 <span className="text-gray-400 font-bold">-</span>
                                 <input
                                     type="time"
                                     value={data.close}
                                     onChange={(e) => handleUpdateOperatingHours(day, 'close', e.target.value)}
-                                    className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                    className="flex-1 px-3 py-2 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-bold text-[#191f28] text-sm"
                                 />
                             </div>
                         </div>

@@ -24,7 +24,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             // Fetch normal RSVPs
             const { data, error } = await supabase
                 .from('notice_responses')
-                .select('status, is_attended, is_staff, users(id, name, school, phone_back4, is_leader)')
+                .select('status, is_attended, is_staff, challenge_mission_statuses, users(id, name, school, phone_back4, is_leader)')
                 .eq('notice_id', notice.id);
                 
             if (error) throw error;
@@ -32,7 +32,12 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             const list = { JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] };
             data?.forEach(r => {
                 if (list[r.status]) {
-                    list[r.status].push({ ...r.users, is_attended: r.is_attended, is_staff: r.is_staff });
+                    list[r.status].push({ 
+                        ...r.users, 
+                        is_attended: r.is_attended, 
+                        is_staff: r.is_staff,
+                        challenge_mission_statuses: r.challenge_mission_statuses
+                    });
                 }
             });
             setParticipantList(list);

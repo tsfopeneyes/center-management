@@ -36,6 +36,18 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
         }
     }, [notice, fetchParticipants]);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [onClose]);
+
     if (!notice) return null;
 
     return (

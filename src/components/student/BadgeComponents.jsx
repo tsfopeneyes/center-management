@@ -80,7 +80,7 @@ export const BadgeModal = ({ badge, stats, onClose }) => {
 
                     <h3 className="text-2xl font-black text-gray-800 mb-2">{badge.name}</h3>
                     <p className="text-gray-500 font-bold text-center text-sm mb-6 leading-relaxed">
-                        {badge.description || '이 챌린지를 달성하고 멋진 뱃지를 획득하세요!'}
+                        {badge.description || '조건을 달성하고 멋진 뱃지를 획득하세요!'}
                     </p>
 
                     {/* Progress Card */}

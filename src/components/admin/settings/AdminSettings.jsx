@@ -66,7 +66,7 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                 icon={<Settings />}
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                 <ProfileSettings
                     currentAdmin={currentAdmin}
                     profilePreview={profilePreview}
@@ -102,30 +102,23 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                     handleDeleteLocation={handleDeleteLocation}
                     handleToggleLocationStatus={handleToggleLocationStatus}
                 />
-            </div>
 
-            {isMaster && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <OperatingHoursSettings
+                {isMaster && (
+                    <>
+                        <OperatingHoursSettings
                         operatingHours={operatingHours}
                         handleUpdateOperatingHours={handleUpdateOperatingHours}
                         handleSaveOperatingHours={handleSaveOperatingHours}
                         hoursLoading={hoursLoading}
-                    />
-                    <StaffPresenceSettings
+                        />
+                        <StaffPresenceSettings
                         users={users}
                         selectedStaffConfig={selectedStaffConfig}
                         onSave={handleSaveStaffPresenceConfig}
                         isSaving={staffSaving}
-                    />
-                </div>
-            )}
-
-
-            {isMaster && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <DutyChecklistSettings isMaster={isMaster} />
-                    <IntegrationConfig
+                        />
+                        <DutyChecklistSettings isMaster={isMaster} />
+                        <IntegrationConfig
                         gsWebhookUrl={gsWebhookUrl}
                         setGsWebhookUrl={setGsWebhookUrl}
                         notionApiKey={notionApiKey}
@@ -140,9 +133,10 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                         handleSaveIntegrations={handleSaveIntegrations}
                         handleGoogleSheetsBackup={handleGoogleSheetsBackup}
                         handleNotionUpload={handleNotionUpload}
-                    />
-                </div>
-            )}
+                        />
+                    </>
+                )}
+            </div>
 
             {isMaster && (
                 <LayoutDesigner

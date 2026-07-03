@@ -44,13 +44,13 @@ const LayoutDesigner = ({
     return (
         <>
             {/* Dashboard Layout Customization */}
-            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-base md:text-lg text-gray-700 flex items-center gap-2"><Layout size={20} /> 학생 대시보드 레이아웃 설정</h3>
                     <button
                         onClick={handleSaveDashboardConfig}
                         disabled={configLoading}
-                        className="text-xs bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition shadow-md disabled:bg-gray-300"
+                        className="px-4 py-2 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-xs transition-colors shadow-sm disabled:bg-gray-300"
                     >
                         {configLoading ? '저장 중...' : '레이아웃 저장'}
                     </button>
@@ -127,13 +127,13 @@ const LayoutDesigner = ({
             </div>
 
             {/* Admin Sidebar Layout Customization */}
-            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-base md:text-lg text-gray-700 flex items-center gap-2"><Layout size={20} /> 관리자 사이드바 메뉴 설정</h3>
                     <button
                         onClick={handleSaveSidebarConfig}
                         disabled={sidebarConfigLoading}
-                        className="text-xs bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition shadow-md disabled:bg-gray-300"
+                        className="px-4 py-2 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-xs transition-colors shadow-sm disabled:bg-gray-300"
                     >
                         {sidebarConfigLoading ? '저장 중...' : '사이드바 저장'}
                     </button>
@@ -199,13 +199,13 @@ const LayoutDesigner = ({
             </div>
 
             {/* Student Bottom Tab Layout Customization */}
-            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-base md:text-lg text-gray-700 flex items-center gap-2"><Layout size={20} /> 학생 하단 탭 메뉴 설정</h3>
                     <button
                         onClick={handleSaveTabConfig}
                         disabled={tabConfigLoading}
-                        className="text-xs bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition shadow-md disabled:bg-gray-300"
+                        className="px-4 py-2 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-xs transition-colors shadow-sm disabled:bg-gray-300"
                     >
                         {tabConfigLoading ? '저장 중...' : '탭 설정 저장'}
                     </button>

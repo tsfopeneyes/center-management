@@ -20,8 +20,27 @@ export const generateProgramInfoHtml = ({
     program_duration,
     program_location,
     max_capacity,
-    is_leader_only
+    is_leader_only,
+    program_type,
+    challenge_start_date,
+    challenge_end_date,
+    challenge_missions,
+    hyphen_reward
 }) => {
+    if (program_type === 'CHALLENGE') {
+        const start = challenge_start_date ? new Date(challenge_start_date).toLocaleDateString('ko-KR') : '미정';
+        const end = challenge_end_date ? new Date(challenge_end_date).toLocaleDateString('ko-KR') : '미정';
+        const missionCount = challenge_missions?.length || 0;
+        
+        return `
+<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+    <p style="margin: 0 0 8px 0; color: #166534;"><strong>🏆 뱃지 기간:</strong> ${start} ~ ${end}</p>
+    <p style="margin: 0 0 8px 0; color: #166534;"><strong>🎁 성공 보상:</strong> ${hyphen_reward || 30}H 지급</p>
+    <p style="margin: 0 0 8px 0; color: #166534;"><strong>🎯 미션 개수:</strong> 총 ${missionCount}개 미션</p>
+</div>
+`;
+    }
+
     const combinedDate = program_date;
     const formattedDate = combinedDate 
         ? new Date(combinedDate).toLocaleString('ko-KR', { 
@@ -54,8 +73,6 @@ export const prepareNoticeForEdit = (notice) => {
     const { duration, location, cleanContent } = extractProgramInfo(notice.content);
 
     const localProgramDate = notice.program_date ? formatToLocalISO(notice.program_date) : '';
-    // We retain the full string (e.g., 'YYYY-MM-DDTHH:mm') for program_date 
-    // because splitDateTime in downstream components expects the full string to extract the time properly.
     const pDateFull = localProgramDate ? localProgramDate.split('T') : ['', '12:00'];
     const pTime = pDateFull[1] ? pDateFull[1].substring(0, 5) : '12:00';
 
@@ -72,7 +89,7 @@ export const prepareNoticeForEdit = (notice) => {
         program_date: localProgramDate,
         program_time: pTime,
         program_duration: duration || notice.program_duration || '',
-        program_location: location,
+        program_location: location || notice.program_location || '',
         program_type: notice.program_type || 'CENTER',
         is_leader_only: notice.is_leader_only || false,
         target_regions: notice.target_regions || [],
@@ -81,6 +98,10 @@ export const prepareNoticeForEdit = (notice) => {
         poll_deadline: notice.poll_deadline ? formatToLocalISO(notice.poll_deadline) : '',
         poll_options: notice.poll_options || [],
         hyphen_reward: notice.hyphen_reward || 0,
-        is_review_required: notice.is_review_required || false
+        is_review_required: notice.is_review_required || false,
+        // Challenge specific properties mapped for editing
+        challenge_start_date: notice.challenge_start_date ? formatToLocalISO(notice.challenge_start_date).split('T')[0] : '',
+        challenge_end_date: notice.challenge_end_date ? formatToLocalISO(notice.challenge_end_date).split('T')[0] : '',
+        challenge_missions: notice.challenge_missions || []
     };
 };

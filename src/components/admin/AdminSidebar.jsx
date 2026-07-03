@@ -20,7 +20,9 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
                 { id: 'WORK_STATUS', label: '근무 현황', icon: <UserCheck size={20} /> },
                 { id: 'CALENDAR', label: '일정 관리', icon: <Calendar size={20} /> },
                 { id: 'PROGRAMS', label: '프로그램 관리', icon: <Users size={20} /> },
-                { id: 'CHALLENGES', label: '챌린지 관리', icon: <Trophy size={20} /> },
+                { id: 'CONTENTS_MGMT', label: '콘텐츠 관리', icon: <Store size={20} /> },
+                { id: 'RENTAL_MGMT', label: '대관 현황', icon: <ClipboardCheck size={20} /> },
+                { id: 'BADGES', label: '뱃지 관리', icon: <Trophy size={20} /> },
                 { id: 'BOARD', label: '공지사항', icon: <MessageSquare size={20} /> },
                 { id: 'STORE', label: '하이픈 스토어', icon: <Store size={20} /> },
                 { id: 'DUTY', label: '당직 관리', icon: <ClipboardCheck size={20} /> },
@@ -73,7 +75,9 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
             let newItems = group.items.map(item => {
                 const conf = configMap[item.id];
                 if (conf) {
-                    return { ...item, label: conf.label || item.label, isVisible: conf.isVisible !== false };
+                    let label = conf.label || item.label;
+                    if (item.id === 'BADGES') label = '뱃지 관리';
+                    return { ...item, label, isVisible: conf.isVisible !== false };
                 }
                 return { ...item, isVisible: true };
             });

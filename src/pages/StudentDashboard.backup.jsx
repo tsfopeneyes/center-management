@@ -33,7 +33,7 @@ import { useMessaging } from '../hooks/useMessaging';
 import { useNotices } from '../hooks/useNotices';
 import { useGuestbook } from '../hooks/useGuestbook';
 import { useProfile } from '../hooks/useProfile';
-import { challengesApi } from '../api/challengesApi';
+import { badgesApi } from '../api/badgesApi';
 import { userApi } from '../api/userApi';
 
 import { parseISO, isWithinInterval, startOfDay, eachDayOfInterval, isSameDay } from 'date-fns';
@@ -371,8 +371,8 @@ const StudentDashboard = () => {
         setChallengesLoading(true);
         try {
             const [cats, chs] = await Promise.all([
-                challengesApi.fetchCategories(),
-                challengesApi.fetchChallenges()
+                badgesApi.fetchCategories(),
+                badgesApi.fetchChallenges()
             ]);
             setChallengeCategories(cats);
             setDynamicChallenges(chs);

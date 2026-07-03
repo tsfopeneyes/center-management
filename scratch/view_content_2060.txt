@@ -1,0 +1,124 @@
+Created At: 2026-07-01T06:58:31Z
+Completed At: 2026-07-01T06:58:31Z
+File Path: `file:///c:/Users/david/.gemini/antigravity/scratch/center-management-main/src/components/student/StudentCenterTab.jsx`
+Total Lines: 381
+Total Bytes: 20941
+Showing lines 195 to 310
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+195:                     </div>
+196:                 </section>
+197: 
+198:                 {/* ─── 2. 콘텐츠 ─── */}
+199:                 <section className="bg-white rounded-2xl shadow-toss-standard overflow-hidden">
+200:                     <div className="px-5 pt-5 pb-3 flex items-center gap-2.5">
+201:                         <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
+202:                             <Package size={16} strokeWidth={2.5} />
+203:                         </div>
+204:                         <div>
+205:                             <h3 className="font-extrabold text-tossGrey900 text-[15px] leading-tight">콘텐츠</h3>
+206:                             <p className="text-[11px] text-tossGrey500 font-medium mt-0.5">센터에서 자유롭게 누릴 수 있는 다채로운 경험!</p>
+207:                         </div>
+208:                     </div>
+209:                     <div className="px-5 pb-5">
+210:                         {loadingContents ? (
+211:                             <div className="text-center py-8 font-bold text-tossGrey400 text-sm animate-pulse">불러오는 중...</div>
+212:                         ) : contents.length === 0 ? (
+213:                             <div className="text-center py-8 text-tossGrey400 text-sm font-bold">등록된 콘텐츠가 없습니다.</div>
+214:                         ) : (
+215:                             (() => {
+216:                                 const snacks = contents.filter(c => c.category === '간식');
+217:                                 const boardGames = contents.filter(c => c.category === '보드게임');
+218: 
+219:                                 const renderList = (items, categoryLabel, CategoryIcon, locationLabel) => {
+220:                                     if (items.length === 0) return null;
+221:                                     return (
+222:                                         <div>
+223:                                             <div className="flex items-center gap-1.5 mb-2.5">
+224:                                                 <CategoryIcon size={13} className="text-tossGrey500" strokeWidth={2.5} />
+225:                                                 <span className="text-[13px] font-bold text-tossGrey800">{categoryLabel}</span>
+226:                                                 <span className="text-[10px] font-bold text-tossGrey400 bg-tossGrey100 px-1.5 py-0.5 rounded-full ml-0.5">{items.length}</span>
+227:                                                 {locationLabel && (
+228:                                                     <span className={`text-[9px] font-black px-2 py-0.5 rounded ml-auto tracking-wider ${
+229:                                                         locationLabel === '2F SQUARE' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+230:                                                         locationLabel === '3F ROUND' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+231:                                                         'bg-tossGrey100 text-tossGrey600'
+232:                                                     }`}>
+233:                                                         {locationLabel}
+234:                                                     </span>
+235:                                                 )}
+236:                                             </div>
+237:                                             <div className="grid grid-cols-2 gap-2 mb-4 last:mb-0">
+238:                                                 {items.map(item => {
+239:                                                     let d = '';
+240:                                                     try {
+241:                                                         if (item.description && item.description.startsWith('{')) {
+242:                                                             const parsed = JSON.parse(item.description);
+243:                                                             d = parsed.desc || '';
+244:                                                         } else {
+245:                                                             d = item.description || '';
+246:                                                         }
+247:                                                     } catch (e) {
+248:                                                         d = item.description || '';
+249:                                                     }
+250: 
+251:                                                     const isLong = item.name && item.name.length > 5;
+252: 
+253:                                                     return (
+254:                                                         <div key={item.id} className={`bg-tossGrey50 rounded-xl border border-tossGrey100 px-3 py-2.5 hover:bg-tossGrey100/50 transition-colors ${isLong ? 'col-span-2' : 'col-span-1'}`}>
+255:                                                             <div className="flex items-center justify-between gap-1.5 min-w-0">
+256:                                                                 <h4 className="font-bold text-tossGrey900 text-[13px] tracking-tight flex-1">{item.name}</h4>
+257:                                                             </div>
+258:                                                             {d && <p className="text-[10px] text-tossGrey400 mt-0.5 truncate">{d}</p>}
+259:                                                         </div>
+260:                                                     );
+261:                                                 })}
+262:                                             </div>
+263:                                         </div>
+264:                                     );
+265:                                 };
+266: 
+267:                                 return (
+268:                                     <div className="space-y-4">
+269:                                         {renderList(snacks, '간식', Coffee, '2F SQUARE')}
+270:                                         {renderList(boardGames, '보드게임', Gamepad2, '3F ROUND')}
+271:                                     </div>
+272:                                 );
+273:                             })()
+274:                         )}
+275:                     </div>
+276:                 </section>
+277: 
+278:                 {/* ─── 3. 대관 신청 ─── */}
+279:                 <section className="bg-white rounded-2xl shadow-toss-standard overflow-hidden">
+280:                     <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+281:                         <div className="flex items-center gap-2.5">
+282:                             <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center shrink-0">
+283:                                 <Landmark size={16} strokeWidth={2.5} />
+284:                             </div>
+285:                             <div>
+286:                                 <h3 className="font-extrabold text-tossGrey900 text-[15px] leading-tight">공간 대여</h3>
+287:                                 <p className="text-[11px] text-tossGrey500 font-medium mt-0.5">우리만의 스쿨처치 모임을 위해 공간을 이용해보세요</p>
+288:                             </div>
+289:                         </div>
+290:                         <button 
+291:                             onClick={() => setShowMyRentalsModal(true)}
+292:                             className="px-3 py-1.5 bg-tossGrey100 text-tossGrey600 rounded-lg text-[10px] font-bold hover:bg-tossGrey200 transition-colors"
+293:                         >
+294:                             내 현황
+295:                         </button>
+296:                     </div>
+297:                     <div className="px-5 pb-5">
+298:                         {loadingRentals ? (
+299:                             <div className="text-center py-8 font-bold text-tossGrey400 text-sm animate-pulse">불러오는 중...</div>
+300:                         ) : rentals.length === 0 ? (
+301:                             <div className="text-center py-8 text-tossGrey400 text-sm font-bold">등록된 공간이 없습니다.</div>
+302:                         ) : (
+303:                             <div className="grid grid-cols-2 gap-2.5">
+304:                                 {rentals.map(rental => {
+305:                                     let displayName = rental.name;
+306:                                     let capacityText = '';
+307:                                     let featuresText = '';
+308:                                     try {
+309:                                         const trimmed = rental.name ? rental.name.trim() : '';
+310:                                         if (trimmed.startsWith('{')) {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

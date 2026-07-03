@@ -51,7 +51,7 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         { id: 'BOARD', label: '공지사항', isVisible: true },
         { id: 'USERS', label: '이용자 관리', isVisible: true },
         { id: 'SCHOOLS', label: '학교 관리', isVisible: true },
-        { id: 'CHALLENGES', label: '챌린지 관리', isVisible: true },
+        { id: 'BADGES', label: '뱃지 관리', isVisible: true },
         { id: 'STATISTICS', label: '통계', isVisible: true },
         { id: 'LOGS', label: '로그', isVisible: true },
         { id: 'REPORTS', label: '운영 리포트', isVisible: true },
@@ -59,8 +59,8 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
     ]);
     const [tabConfig, setTabConfig] = useState([
         { id: 'home', label: '홈', isVisible: true },
-        { id: 'challenges', label: '챌린지', isVisible: true },
-        { id: 'programs', label: '프로그램', isVisible: true },
+        { id: 'badges', label: '뱃지', isVisible: true },
+        { id: 'programs', label: '센터', isVisible: true },
         { id: 'calendar', label: '캘린더', isVisible: true },
         { id: 'azit', label: '커뮤니티', isVisible: true },
         { id: 'hyphen', label: '하이픈', isVisible: true }
@@ -119,7 +119,10 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                         const filteredParsed = parsed.filter(c => c.id !== 'GALLERY');
                         const merged = sidebarConfig.map(def => {
                             const found = filteredParsed.find(p => p.id === def.id);
-                            return found ? { ...def, ...found } : def;
+                            let mergedItem = found ? { ...def, ...found } : def;
+                            if (mergedItem.id === 'BADGES') mergedItem.label = '뱃지 관리';
+                            if (mergedItem.id === 'badges') mergedItem.label = '뱃지';
+                            return mergedItem;
                         });
                         const ordered = [
                             ...filteredParsed.map(p => merged.find(m => m.id === p.id)).filter(Boolean),
@@ -143,15 +146,17 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                     if (Array.isArray(parsed)) {
                         const defaultTabs = [
                             { id: 'home', label: '홈', isVisible: true },
-                            { id: 'challenges', label: '챌린지', isVisible: true },
-                            { id: 'programs', label: '프로그램', isVisible: true },
+                            { id: 'badges', label: '뱃지', isVisible: true },
+                            { id: 'programs', label: '센터', isVisible: true },
                             { id: 'calendar', label: '캘린더', isVisible: true },
                             { id: 'azit', label: '커뮤니티', isVisible: true },
                             { id: 'hyphen', label: '하이픈', isVisible: true }
                         ];
                         const merged = defaultTabs.map(def => {
                             const found = parsed.find(p => p.id === def.id);
-                            return found ? { ...def, ...found } : def;
+                            let mergedItem = found ? { ...def, ...found } : def;
+                            if (mergedItem.id === 'badges') mergedItem.label = '뱃지';
+                            return mergedItem;
                         });
                         const ordered = [
                             ...parsed.map(p => merged.find(m => m.id === p.id)).filter(Boolean),

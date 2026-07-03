@@ -14,9 +14,9 @@ const ProfileSettings = ({
     handleSaveAdminProfile
 }) => {
     return (
-        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="font-bold text-base md:text-lg text-gray-700 mb-6 flex items-center gap-2">
-                <User size={20} /> 관리자 프로필
+        <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-[#191f28] mb-6 flex items-center gap-2 tracking-tight">
+                <User size={20} className="text-[#3182f6]" /> 관리자 프로필
             </h3>
 
             <div className="flex flex-col items-center gap-6 mb-8">
@@ -47,7 +47,7 @@ const ProfileSettings = ({
                         value={newAdminPassword} 
                         onChange={(e) => setNewAdminPassword(e.target.value)} 
                         placeholder="변경할 비밀번호 (4자리 이상)" 
-                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm" 
+                        className="w-full px-4 py-2.5 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm" 
                     />
                 </div>
                 <div>
@@ -57,13 +57,13 @@ const ProfileSettings = ({
                         value={confirmAdminPassword} 
                         onChange={(e) => setConfirmAdminPassword(e.target.value)} 
                         placeholder="비밀번호 다시 입력" 
-                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm" 
+                        className="w-full px-4 py-2.5 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm" 
                     />
                 </div>
                 <button 
                     onClick={handleSaveAdminProfile} 
                     disabled={profileLoading} 
-                    className="w-full py-3.5 bg-gray-800 text-white rounded-xl font-bold hover:bg-black transition shadow-lg mt-2 disabled:bg-gray-400 text-sm"
+                    className="w-full py-3.5 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold transition shadow-sm mt-2 disabled:bg-gray-300 text-sm"
                 >
                     {profileLoading ? '저장 중...' : '프로필 저장하기'}
                 </button>

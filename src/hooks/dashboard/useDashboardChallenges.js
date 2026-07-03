@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { challengesApi } from '../../api/challengesApi';
+import { badgesApi } from '../../api/badgesApi';
 
 export const useDashboardChallenges = () => {
     const [challengeCategories, setChallengeCategories] = useState([]);
@@ -10,8 +10,8 @@ export const useDashboardChallenges = () => {
         setChallengesLoading(true);
         try {
             const [cats, chs] = await Promise.all([
-                challengesApi.fetchCategories(),
-                challengesApi.fetchChallenges()
+                badgesApi.fetchCategories(),
+                badgesApi.fetchChallenges()
             ]);
             setChallengeCategories(cats);
             setDynamicChallenges(chs);

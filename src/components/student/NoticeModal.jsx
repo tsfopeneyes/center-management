@@ -55,6 +55,24 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         }
     }, [notice.id, context]);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                if (zoomedImage) {
+                    setZoomedImage(null);
+                } else if (isEditing) {
+                    setIsEditing(false);
+                } else {
+                    onClose();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [onClose, zoomedImage, isEditing]);
+
     return (
         <motion.div
             initial={{ y: '100%' }}

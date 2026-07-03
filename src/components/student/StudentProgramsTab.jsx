@@ -38,18 +38,9 @@ const StudentProgramsTab = ({
     });
 
     return (
-        <div className="animate-fade-in pb-32 relative min-h-screen">
-            <div className="px-5 pt-5 pb-4 sticky top-0 bg-tossGrey50/95 backdrop-blur-xl z-20 border-b border-tossGrey200/50 mb-6">
-                <div className="flex flex-col gap-1">
-                    <h2 className="text-2xl font-bold text-tossGrey900 tracking-tight flex items-center gap-1.5">
-                        센터 프로그램
-                    </h2>
-                    <p className="text-tossGrey500 text-xs font-medium">다양한 프로그램에 참여해보세요!</p>
-                </div>
-            </div>
-
+        <div className="animate-fade-in relative">
             {/* Custom Tab Switcher (TDS Segmented 스타일) */}
-            <div className="px-5">
+            <div className="px-0">
                 <div className="flex bg-tossGrey100 p-1 rounded-[12px] mb-6 relative">
                     <div
                         className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-[10px] shadow-[0px_2px_4px_rgba(0,0,0,0.06)] transition-transform duration-300 ease-out"
@@ -82,13 +73,16 @@ const StudentProgramsTab = ({
                                 {filteredPrograms.length === 0 ? (
                                     <div className="text-center py-20 text-tossGrey400 font-bold">진행 중인 프로그램이 없습니다.</div>
                                 ) : (
-                                    filteredPrograms.map(n => (
-                                        <ProgramCard
-                                            key={n.id}
-                                            program={{ ...n, responseStatus: responses[n.id] }}
-                                            onClick={openNoticeDetail}
-                                        />
-                                    ))
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {filteredPrograms.map(n => (
+                                            <ProgramCard
+                                                key={n.id}
+                                                program={{ ...n, responseStatus: responses[n.id] }}
+                                                onClick={openNoticeDetail}
+                                                compact={true}
+                                            />
+                                        ))}
+                                    </div>
                                 )}
                             </motion.div>
                         ) : (
@@ -102,46 +96,48 @@ const StudentProgramsTab = ({
                                 {historyPrograms.length === 0 ? (
                                     <div className="text-center py-20 text-tossGrey400 font-bold">참여 완료된 내역이 없습니다.</div>
                                 ) : (
-                                    historyPrograms.map(n => {
-                                        const hasReviewed = userFeedbacks.some(f => f.notice_id === n.id);
-                                        
-                                        return (
-                                            <div key={n.id} className="bg-white text-left shadow-toss-standard rounded-toss-xl p-5 active:scale-[0.98] transition-transform">
-                                                <div className="flex gap-4 mb-4" onClick={() => openNoticeDetail(n)}>
-                                                    {/* Optional smaller thumbnail */}
-                                                    <div className="w-16 h-16 rounded-toss-lg bg-tossGrey50 flex-shrink-0 overflow-hidden border border-tossGrey100">
-                                                        {(n.image_url || n.images?.[0]) ? (
-                                                            <img src={n.image_url || n.images[0]} alt="" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full bg-tossBlueLight" />
-                                                        )}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {historyPrograms.map(n => {
+                                            const hasReviewed = userFeedbacks.some(f => f.notice_id === n.id);
+                                            
+                                            return (
+                                                <div key={n.id} className="bg-white text-left shadow-toss-standard rounded-toss-xl p-4 flex flex-col justify-between hover:shadow-toss-elevated active:scale-[0.98] transition-all border border-tossGrey100/50">
+                                                    <div className="flex gap-3 mb-3 cursor-pointer" onClick={() => openNoticeDetail(n)}>
+                                                        {/* Optional smaller thumbnail */}
+                                                        <div className="w-12 h-12 rounded-toss-lg bg-tossGrey50 flex-shrink-0 overflow-hidden border border-tossGrey100">
+                                                            {(n.image_url || n.images?.[0]) ? (
+                                                                <img src={n.image_url || n.images[0]} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full bg-tossBlueLight" />
+                                                            )}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <h3 className="font-bold text-tossGrey900 text-xs mb-0.5 truncate">{n.title}</h3>
+                                                            <p className="text-[10px] text-tossGrey500 font-medium line-clamp-1">{n.short_description || '설명 없음'}</p>
+                                                            <p className="text-[9px] font-bold text-tossGrey450 mt-1">{new Date(n.program_date || n.created_at).toLocaleDateString()}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="font-bold text-tossGrey900 text-sm mb-1">{n.title}</h3>
-                                                        <p className="text-xs text-tossGrey600 font-medium line-clamp-1">{n.short_description || '설명 없음'}</p>
-                                                        <p className="text-[10px] font-bold text-tossGrey400 mt-2">{new Date(n.program_date || n.created_at).toLocaleDateString()}</p>
-                                                    </div>
+     
+                                                    {/* Action Area */}
+                                                    {hasReviewed ? (
+                                                        <button
+                                                            onClick={() => setSelectedFeedbackProgram(n)}
+                                                            className="w-full py-2 rounded-toss-lg text-tossGrey700 text-xs font-bold bg-tossGrey100 hover:bg-tossGrey200 transition-colors"
+                                                        >
+                                                            리뷰 수정하기
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => setSelectedFeedbackProgram(n)}
+                                                            className="w-full py-2 rounded-toss-lg text-white text-xs font-bold bg-tossBlue hover:bg-tossBlueHover transition-all flex items-center justify-center gap-1"
+                                                        >
+                                                            리뷰 작성하고 {n.hyphen_reward && n.hyphen_reward > 0 && n.is_review_required ? `${n.hyphen_reward}H 받기` : '피드백 남기기'}
+                                                        </button>
+                                                    )}
                                                 </div>
-
-                                                {/* Action Area */}
-                                                {hasReviewed ? (
-                                                    <button
-                                                        onClick={() => setSelectedFeedbackProgram(n)}
-                                                        className="w-full py-3.5 rounded-toss-xl text-tossGrey700 text-sm font-bold bg-tossGrey100 hover:bg-tossGrey200 transition-colors"
-                                                    >
-                                                        리뷰 수정하기
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => setSelectedFeedbackProgram(n)}
-                                                        className="w-full py-3.5 rounded-toss-xl text-white text-sm font-bold bg-tossBlue hover:bg-tossBlueHover transition-all flex items-center justify-center gap-1"
-                                                    >
-                                                        리뷰 작성하고 {n.hyphen_reward && n.hyphen_reward > 0 && n.is_review_required ? `${n.hyphen_reward}H 받기` : '피드백 남기기'}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        );
-                                    })
+                                            );
+                                        })}
+                                    </div>
                                 )}
                             </motion.div>
                         )}

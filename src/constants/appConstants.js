@@ -43,7 +43,7 @@ export const RESPONSE_STATUS = {
 
 export const TAB_NAMES = {
     HOME: 'home',
-    CHALLENGES: 'challenges',
+    BADGES: 'badges',
     PROGRAMS: 'programs',
     NOTICES: 'notices',
     GALLERY: 'gallery',
@@ -52,7 +52,8 @@ export const TAB_NAMES = {
     CALENDAR: 'calendar',
     COMMUNITY: 'community',
     HYPHEN: 'hyphen',
-    AZIT: 'azit'
+    AZIT: 'azit',
+    CENTER: 'center'
 };
 
 export const COMMUNITY_CATEGORIES = [

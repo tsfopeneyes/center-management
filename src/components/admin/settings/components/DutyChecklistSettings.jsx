@@ -167,7 +167,7 @@ const DutyChecklistSettings = ({ isMaster }) => {
 
     if (!isMaster) {
         return (
-            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center py-12">
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col items-center justify-center text-center py-12">
                 <Settings size={48} className="text-gray-200 mb-4" />
                 <h3 className="font-bold text-gray-400">마스터 권한이 필요한 메뉴입니다</h3>
                 <p className="text-xs text-gray-400 mt-2">당직 체크리스트 설정은 마스터 계정만 가능합니다.</p>
@@ -186,23 +186,23 @@ const DutyChecklistSettings = ({ isMaster }) => {
     });
 
     return (
-        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-6">
+        <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-6">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <h3 className="font-bold text-base md:text-lg text-gray-700 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight">
                     <ClipboardList size={20} className="text-blue-600" />
                     당직 체크리스트 관리
                 </h3>
                 {/* Tabs */}
-                <div className="flex bg-gray-100 p-0.5 rounded-lg">
+                <div className="flex bg-[#f2f4f6] p-1 rounded-xl">
                     <button
                         onClick={() => setActiveTab('START')}
-                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${activeTab === 'START' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                        className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'START' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
                     >
                         시작 업무
                     </button>
                     <button
                         onClick={() => setActiveTab('END')}
-                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${activeTab === 'END' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                        className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'END' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
                     >
                         마감 업무
                     </button>
@@ -210,7 +210,7 @@ const DutyChecklistSettings = ({ isMaster }) => {
             </div>
 
             {/* Add Form */}
-            <form onSubmit={handleAddItem} className="space-y-3 p-4 bg-blue-50/30 rounded-xl border border-blue-100/50">
+            <form onSubmit={handleAddItem} className="space-y-3 p-4 bg-[#f8f9fa] rounded-2xl border border-[#f2f4f6]">
                 <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest">체크 항목 추가</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {/* Floor Selection */}

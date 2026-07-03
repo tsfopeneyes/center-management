@@ -16,13 +16,15 @@ import AdminBoard from '../components/admin/board/AdminBoard';
 import AdminUsers from '../components/admin/users/AdminUsers';
 import AdminLogs from '../components/admin/dashboard/AdminLogs';
 import AdminSettings from '../components/admin/settings/AdminSettings';
+import AdminBadges from '../components/admin/settings/AdminBadges';
 import AdminStatistics from '../components/admin/statistics/AdminStatistics';
 import AdminMessages from '../components/admin/messages/AdminMessages';
 import AdminReport from '../components/admin/statistics/AdminReport';
-import AdminChallenges from '../components/admin/settings/AdminChallenges';
 import AdminCalendar from '../components/admin/calendar/AdminCalendar';
 import AdminSchool from '../components/admin/school/AdminSchool';
 import AdminStore from '../components/admin/store/AdminStore';
+import AdminRentals from '../components/admin/rentals/AdminRentals';
+import AdminContents from '../components/admin/contents/AdminContents';
 import AdminDuty from '../components/admin/duty/AdminDuty';
 import StaffPresenceToggleCard from '../components/admin/dashboard/components/StaffPresenceToggleCard';
 import { Menu, X as CloseIcon } from 'lucide-react';
@@ -420,7 +422,7 @@ const AdminDashboard = () => {
                         </div>
                     )}
                     {activeMenu === 'CALENDAR' && (
-                        <AdminCalendar notices={notices} fetchData={fetchData} />
+                        <AdminCalendar notices={notices} fetchData={fetchData} setActiveMenu={setActiveMenu} />
                     )}
                     {activeMenu === 'PROGRAMS' && (
                         <AdminBoard mode="PROGRAM" notices={notices} fetchData={fetchData} users={users} currentLocations={currentLocations} setActiveMenu={setActiveMenu} />
@@ -434,6 +436,12 @@ const AdminDashboard = () => {
                     {activeMenu === 'STORE' && (
                         <AdminStore users={users} />
                     )}
+                    {activeMenu === 'CONTENTS_MGMT' && (
+                        <AdminContents />
+                    )}
+                    {activeMenu === 'RENTAL_MGMT' && (
+                        <AdminRentals />
+                    )}
                     {activeMenu === 'DUTY' && (
                         <AdminDuty currentAdmin={currentAdmin} users={users} />
                     )}
@@ -443,8 +451,11 @@ const AdminDashboard = () => {
                     {activeMenu === 'SCHOOLS' && (
                         <AdminSchool users={users} fetchData={fetchData} />
                     )}
-                    {activeMenu === 'CHALLENGES' && (
-                        <AdminChallenges />
+                    {activeMenu === 'RENTALS' && (
+                        <AdminRentals notices={notices} />
+                    )}
+                    {activeMenu === 'CONTENTS' && (
+                        <AdminContents />
                     )}
                     {activeMenu === 'MESSAGES' && (
                         <AdminMessages users={users} />
@@ -469,6 +480,9 @@ const AdminDashboard = () => {
                     )}
                     {activeMenu === 'REPORTS' && (
                         <AdminReport allLogs={allLogs} users={users} locations={locations} notices={notices} responses={responses} />
+                    )}
+                    {activeMenu === 'BADGES' && (
+                        <AdminBadges />
                     )}
                     {activeMenu === 'SETTINGS' && (
                         <AdminSettings currentAdmin={currentAdmin} locations={locations} locationGroups={locationGroups} notices={notices} fetchData={fetchData} users={users} allLogs={allLogs} responses={responses} schoolLogs={schoolLogs} />

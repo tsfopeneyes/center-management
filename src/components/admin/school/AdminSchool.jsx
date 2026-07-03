@@ -40,101 +40,116 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
     } = useAdminSchool({ users, refreshDashboardData });
     if (loading) return <div className="p-10 text-center font-bold text-gray-400 animate-pulse">학교 데이터를 불러오는 중...</div>;
 
-    const actions = (
-        <div className="flex flex-col xl:flex-row items-center gap-3 md:gap-4 w-full xl:w-auto flex-1 justify-end">
-            <div className="flex gap-2 w-full sm:w-auto xl:w-auto">
-                <button
-                    onClick={() => setAdminTab(adminTab === 'CALLING_FOREST' ? 'SCHOOLS' : 'CALLING_FOREST')}
-                    className={`flex-1 sm:flex-none px-4 md:px-5 py-2.5 rounded-xl font-black text-xs transition-all items-center gap-2 flex justify-center ${adminTab === 'CALLING_FOREST' ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200/50'}`}
-                >
-                    <Flame size={14} className={adminTab === 'CALLING_FOREST' ? 'fill-current' : ''} />
-                    리더훈련
-                </button>
-
-                <button
-                    onClick={() => setAdminTab(adminTab === 'SNACKS' ? 'SCHOOLS' : 'SNACKS')}
-                    className={`flex-1 sm:flex-none px-4 md:px-5 py-2.5 rounded-xl font-black text-xs transition-all items-center gap-2 flex justify-center ${adminTab === 'SNACKS' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200/50'}`}
-                >
-                    <Cookie size={14} className={adminTab === 'SNACKS' ? 'fill-current' : ''} />
-                    간식
-                </button>
-            </div>
-
-            <div className="flex bg-gray-100/50 p-1 md:p-1.5 rounded-xl md:rounded-2xl border border-gray-100 w-full sm:w-auto xl:overflow-visible overflow-x-auto no-scrollbar shrink-0 gap-1">
-                {['ALL', ...SCHOOL_REGIONS, '미지정'].map((region) => (
-                    <button
-                        key={region}
-                        onClick={() => setSelectedRegion(region)}
-                        className={`flex-1 sm:flex-none px-3 md:px-5 py-2 md:py-2.5 rounded-lg md:rounded-xl font-black text-[10px] md:text-xs transition-all whitespace-nowrap ${selectedRegion === region ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        {region === 'ALL' ? '전체' : region}
-                    </button>
-                ))}
-            </div>
-
-            {adminTab === 'SCHOOLS' && (
-                <div className="flex items-center gap-2 w-full xl:w-auto">
-                    <button
-                        onClick={() => setIsAddSchoolModalOpen(true)}
-                        className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs md:text-sm hover:bg-indigo-700 shadow-sm transition-colors shrink-0 flex items-center gap-2"
-                    >
-                        <Plus size={16} /> 학교 추가
-                    </button>
-                    <div className="relative group flex-1 xl:min-w-[300px] xl:max-w-[400px]">
-                        <Search className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} md:size={20} />
-                        <input
-                            type="text"
-                            placeholder="검색..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-11 md:pl-14 p-3 md:p-3 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold text-gray-700 shadow-inner text-sm"
-                        />
-                    </div>
-
-                    <div className="flex bg-gray-100 p-1 rounded-lg md:rounded-xl shrink-0">
-                        <button
-                            onClick={() => handleViewModeChange('grid-lg')}
-                            className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-lg' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                            title="크게 보기"
-                        >
-                            <LayoutGrid size={16} md:size={18} />
-                        </button>
-                        <button
-                            onClick={() => handleViewModeChange('grid-md')}
-                            className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-md' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                            title="작게 보기"
-                        >
-                            <Grid size={16} md:size={18} />
-                        </button>
-                        <button
-                            onClick={() => handleViewModeChange('grid-sm')}
-                            className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'grid-sm' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                            title="더 작게 보기"
-                        >
-                            <Columns size={16} md:size={18} />
-                        </button>
-                        <button
-                            onClick={() => handleViewModeChange('list')}
-                            className={`p-1.5 md:p-2 rounded-md md:rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                            title="목록형"
-                        >
-                            <List size={16} md:size={18} />
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+    const headerActions = adminTab === 'SCHOOLS' ? (
+        <button
+            onClick={() => setIsAddSchoolModalOpen(true)}
+            className="px-5 py-2.5 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-xs md:text-sm shadow-sm transition-colors shrink-0 flex items-center gap-1.5 whitespace-nowrap"
+        >
+            <Plus size={16} /> 학교 추가
+        </button>
+    ) : null;
 
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">
             <AdminPageHeader
                 title="학교 관리"
                 subtitle="청소년 회원 소속 학교별 동아리 및 사역 일지 관리"
-                icon={<School />}
-                actions={actions}
+                icon={<School className="text-blue-500" />}
+                actions={headerActions}
             />
 
+            {/* 토스 스타일의 통합 필터/검색 툴바 */}
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-5">
+                {/* Row 1: 메인 서브탭 및 지역 선택 필터 */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#f2f4f6] pb-4">
+                    {/* 메인 서브탭 */}
+                    <div className="flex bg-[#f2f4f6] p-1 rounded-xl shrink-0 gap-1 w-full lg:w-auto">
+                        <button
+                            onClick={() => setAdminTab('SCHOOLS')}
+                            className={`flex-1 lg:flex-none px-4 py-2 rounded-lg font-bold text-xs transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${adminTab === 'SCHOOLS' ? 'bg-white text-[#191f28] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                        >
+                            <School size={13} />
+                            학교 목록
+                        </button>
+                        <button
+                            onClick={() => setAdminTab('CALLING_FOREST')}
+                            className={`flex-1 lg:flex-none px-4 py-2 rounded-lg font-bold text-xs transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${adminTab === 'CALLING_FOREST' ? 'bg-white text-[#2b8a3e] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                        >
+                            <Flame size={13} className={adminTab === 'CALLING_FOREST' ? 'fill-current' : ''} />
+                            리더훈련
+                        </button>
+                        <button
+                            onClick={() => setAdminTab('SNACKS')}
+                            className={`flex-1 lg:flex-none px-4 py-2 rounded-lg font-bold text-xs transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${adminTab === 'SNACKS' ? 'bg-white text-[#e67700] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                        >
+                            <Cookie size={13} className={adminTab === 'SNACKS' ? 'fill-current' : ''} />
+                            간식
+                        </button>
+                    </div>
+
+                    {/* 지역 선택 필터 */}
+                    <div className="flex bg-[#f2f4f6] p-1 rounded-xl shrink-0 gap-1 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                        {['ALL', ...SCHOOL_REGIONS, '미지정'].map((region) => (
+                            <button
+                                key={region}
+                                onClick={() => setSelectedRegion(region)}
+                                className={`flex-1 lg:flex-none px-4 py-1.5 rounded-lg font-bold text-xs transition-all whitespace-nowrap ${selectedRegion === region ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                            >
+                                {region === 'ALL' ? '전체' : region}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Row 2: 검색창 및 뷰 스위처 (SCHOOLS 탭일 때만 노출) */}
+                {adminTab === 'SCHOOLS' && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        {/* 검색창 */}
+                        <div className="relative group w-full sm:max-w-md">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8b95a1] group-focus-within:text-[#3182f6] transition-colors" size={16} />
+                            <input
+                                type="text"
+                                placeholder="학교명 검색..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-11 pr-4 py-2.5 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm shadow-inner"
+                            />
+                        </div>
+
+                        {/* 뷰 스위처 */}
+                        <div className="flex bg-[#f2f4f6] p-1 rounded-xl shrink-0 gap-0.5 border border-transparent self-end sm:self-auto">
+                            <button
+                                onClick={() => handleViewModeChange('grid-lg')}
+                                className={`p-2 rounded-lg transition-all ${viewMode === 'grid-lg' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                                title="크게 보기"
+                            >
+                                <LayoutGrid size={15} />
+                            </button>
+                            <button
+                                onClick={() => handleViewModeChange('grid-md')}
+                                className={`p-2 rounded-lg transition-all ${viewMode === 'grid-md' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                                title="작게 보기"
+                            >
+                                <Grid size={15} />
+                            </button>
+                            <button
+                                onClick={() => handleViewModeChange('grid-sm')}
+                                className={`p-2 rounded-lg transition-all ${viewMode === 'grid-sm' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                                title="더 작게 보기"
+                            >
+                                <Columns size={15} />
+                            </button>
+                            <button
+                                onClick={() => handleViewModeChange('list')}
+                                className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                                title="목록형"
+                            >
+                                <List size={15} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
             {adminTab === 'SCHOOLS' && (
                 <div className={`
                     ${viewMode === 'list' ? 'flex flex-col gap-2' : 'grid gap-3 md:gap-4'}

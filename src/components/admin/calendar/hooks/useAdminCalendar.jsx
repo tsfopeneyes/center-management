@@ -15,11 +15,14 @@ import { supabase } from '../../../../supabaseClient';
 import { CATEGORIES } from '../../../../constants/appConstants';
 import { motion, AnimatePresence } from 'framer-motion';
 import { COLOR_THEMES } from '../calendarConstants';
-export const useAdminCalendar = ({ notices, fetchData }) => {
+import { extractProgramInfo } from '../../../../utils/textUtils';
+
+export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
     // State
     const [currentDate, setCurrentDate] = useState(new Date());
     const [adminSchedules, setAdminSchedules] = useState([]);
     const [dynamicCategories, setDynamicCategories] = useState([]);
+    const [rentalBookings, setRentalBookings] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -64,6 +67,19 @@ export const useAdminCalendar = ({ notices, fetchData }) => {
                 .order('name', { ascending: true });
 
             if (catError) throw catError;
+            
+            // Rename '대관' category to '공간 대여' if '공간 대여' does not already exist
+            const rCatOld = (catData || []).find(c => c.name === '대관');
+            const rCatNew = (catData || []).find(c => c.name === '공간 대여');
+            if (rCatOld && !rCatNew) {
+                try {
+                    await supabase.from('calendar_categories').update({ name: '공간 대여' }).eq('id', rCatOld.id);
+                    rCatOld.name = '공간 대여';
+                } catch (e) {
+                    console.error('Failed to rename category to 공간 대여:', e);
+                }
+            }
+            
             setDynamicCategories(catData || []);
 
             // 2. Fetch Schedules
@@ -75,6 +91,14 @@ export const useAdminCalendar = ({ notices, fetchData }) => {
             if (schError) throw schError;
             setAdminSchedules(schData || []);
 
+            // 3. Fetch Approved Rental Bookings
+            const { data: rentalData, error: rentalError } = await supabase
+                .from('rental_bookings')
+                .select('*, rentals(name, schools(region))')
+                .eq('status', 'APPROVED');
+            if (rentalError) throw rentalError;
+            setRentalBookings(rentalData || []);
+
             // Synchronize visible categories
             setVisibleCategories(prev => {
                 const next = { ...prev };
@@ -84,6 +108,11 @@ export const useAdminCalendar = ({ notices, fetchData }) => {
                 });
                 if (next['PROGRAM_CENTER'] === undefined) next['PROGRAM_CENTER'] = true;
                 if (next['PROGRAM_SCHOOL'] === undefined) next['PROGRAM_SCHOOL'] = true;
+                
+                // Add RENTAL category visibility
+                const rCat = (catData || []).find(c => c.name === '공간 대여' || c.name === '대관');
+                if (rCat && next[rCat.id] === undefined) next[rCat.id] = true;
+                
                 return next;
             });
 
@@ -104,16 +133,18 @@ export const useAdminCalendar = ({ notices, fetchData }) => {
             .filter(n => n.category === CATEGORIES.PROGRAM && n.program_date)
             .map(n => {
                 const type = n.program_type || 'CENTER';
+                const { cleanContent, location, duration } = extractProgramInfo(n.content);
+                const finalLocation = location || n.program_location || '';
                 return {
                     id: `PRG-${n.id}`,
                     originalId: n.id,
                     title: n.title,
-                    content: n.content,
-                    start: startOfDay(parseISO(n.program_date)),
-                    end: endOfDay(parseISO(n.program_date)),
+                    content: cleanContent,
+                    start: parseISO(n.program_date),
+                    end: parseISO(n.program_date),
                     category: type === 'CENTER' ? 'PROGRAM_CENTER' : 'PROGRAM_SCHOOL',
                     isPublic: true,
-                    raw: n
+                    raw: { ...n, program_location: finalLocation, duration }
                 };
             });
 
@@ -153,16 +184,47 @@ export const useAdminCalendar = ({ notices, fetchData }) => {
             };
         });
 
-        return [...programEvents, ...generalEvents].filter(e => {
+        const rentalCat = dynamicCategories.find(c => c.name === '공간 대여' || c.name === '대관');
+        const rentalEvents = rentalBookings.map(rb => {
+            let displayName = rb.rentals?.name || '공간';
+            try {
+                if (displayName.startsWith('{')) displayName = JSON.parse(displayName).name;
+            } catch(e) {}
+            
+            const region = rb.rentals?.schools?.region;
+            const regionName = region === '강동' ? '하이픈' : region === '강서' ? '이높플레이스' : '';
+            
+            const endTimeStr = rb.end_time || '';
+            const endParts = endTimeStr.includes('|') ? endTimeStr.split('|') : [endTimeStr];
+            const actualEndTime = endParts[0] || '18:00';
+            const meetingName = endParts.length > 3 ? endParts[3] : '';
+
+            let finalTitle = meetingName || displayName;
+
+            return {
+                id: `RNT-${rb.id}`,
+                originalId: rb.id,
+                title: finalTitle,
+                content: `대여 목적: ${endParts[1] || '미정'}\n대여 인원: ${endParts[2] || '미정'}명`,
+                start: parseISO(`${rb.booking_date}T${rb.start_time || '09:00'}:00`),
+                end: parseISO(`${rb.booking_date}T${actualEndTime}:00`),
+                category_id: rentalCat?.id || 'RENTAL',
+                color_theme: rentalCat?.color_theme || 'purple',
+                isPublic: false,
+                raw: rb
+            };
+        });
+
+        return [...programEvents, ...generalEvents, ...rentalEvents].filter(e => {
             if (e.isPublic) return visibleCategories[e.category];
             return visibleCategories[e.category_id];
         });
-    }, [notices, adminSchedules, dynamicCategories, visibleCategories]);
+    }, [notices, adminSchedules, rentalBookings, dynamicCategories, visibleCategories]);
 
     // Helper to check if event spans/includes a specific day
     const isEventOnDay = (event, day) => {
         const d = startOfDay(day);
-        return d >= event.start && d <= event.end;
+        return d >= startOfDay(event.start) && d <= endOfDay(event.end);
     };
 
     // Calendar Calculations
@@ -188,10 +250,18 @@ export const useAdminCalendar = ({ notices, fetchData }) => {
         } else {
             setFormData({
                 ...formData,
+                title: '',
+                content: '',
                 start_date: format(date, 'yyyy-MM-dd'),
+                start_time: '12:00',
                 end_date: format(date, 'yyyy-MM-dd'),
+                end_time: '13:00',
                 type: 'SCHEDULE',
                 category_id: dynamicCategories[0]?.id || '',
+                program_location: '',
+                max_capacity: 0,
+                program_type: 'CENTER',
+                closed_spaces: [],
                 isRecurring: false,
                 recurringDays: [],
                 recurringEndDate: format(addMonths(date, 1), 'yyyy-MM-dd')
@@ -353,6 +423,7 @@ export const useAdminCalendar = ({ notices, fetchData }) => {
                     recruitment_deadline: programDateStr,
                     max_capacity: formData.max_capacity ? parseInt(formData.max_capacity) : null,
                     program_type: formData.program_type,
+                    program_location: formData.program_location,
                     images: selectedEvent?.raw?.images || [],
                     image_url: (selectedEvent?.raw?.images && selectedEvent?.raw?.images.length > 0) ? selectedEvent.raw.images[0] : null
                 };
@@ -503,6 +574,7 @@ export const useAdminCalendar = ({ notices, fetchData }) => {
         categoryForm, setCategoryForm,
         showDayDetail, setShowDayDetail,
         formData, setFormData,
+        setActiveMenu,
         fetchAllData, fetchAdminSchedules,
         allEvents, isEventOnDay,
         monthStart, monthEnd, startDate, endDate, calendarDays,

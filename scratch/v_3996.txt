@@ -1,0 +1,392 @@
+Created At: 2026-07-02T07:08:10Z
+Completed At: 2026-07-02T07:08:10Z
+File Path: `file:///c:/Users/david/.gemini/antigravity/scratch/center-management-main/src/components/student/StudentCenterTab.jsx`
+Total Lines: 384
+Total Bytes: 20683
+Showing lines 1 to 384
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: import React, { useState, useEffect } from 'react';
+2: import { supabase } from '../../supabaseClient';
+3: import StudentProgramsTab from './StudentProgramsTab';
+4: import { Store, Calendar, MapPin, Check, Plus, Coffee, Gamepad2, Landmark, CheckCircle, Sparkles, BookOpen, Package } from 'lucide-react';
+5: import RentalBookingModal from './modals/RentalBookingModal';
+6: 
+7: const StudentCenterTab = ({
+8:     user,
+9:     filteredPrograms,
+10:     allPrograms,
+11:     responses,
+12:     responseDetails,
+13:     openNoticeDetail,
+14:     refreshTrigger,
+15:     setRefreshTrigger,
+16:     selectedRegion
+17: }) => {
+18:     const [contents, setContents] = useState([]);
+19:     const [rentals, setRentals] = useState([]);
+20:     const [bookings, setBookings] = useState([]);
+21:     const [loadingContents, setLoadingContents] = useState(false);
+22:     const [loadingRentals, setLoadingRentals] = useState(false);
+23:     
+24:     // Booking modal states
+25:     const [selectedRental, setSelectedRental] = useState(null);
+26:     const [showBookingModal, setShowBookingModal] = useState(false);
+27: 
+28:     // Get mapped center name based on student school
+29:     // 강동 -> 하이픈, 강서 -> 이높플레이스
+30:     const studentSchool = user?.school || '';
+31:     const centerName = studentSchool.includes('강서') ? '이높플레이스' : '하이픈';
+32: 
+33:     // Region switcher states are now passed as props from parent (Student Dashboard / Home Tab)
+34:     useEffect(() => {
+35:         fetchContents();
+36:         fetchRentals();
+37:         fetchBookings();
+38:     }, [studentSchool, selectedRegion, refreshTrigger]);
+39: 
+40:     const fetchContents = async () => {
+41:         setLoadingContents(true);
+42:         try {
+43:             let query = supabase.from('contents').select('*, schools(region)');
+44:             
+45:             // Region selection filter (matching simplified 'ALL', 'GANGDONG', 'GANGSEO' regional scope)
+46:             if (selectedRegion === 'GANGDONG') {
+47:                 const { data: schs } = await supabase.from('schools').select('id').eq('region', '강동');
+48:                 query = query.in('school_id', schs?.map(s => s.id) || []);
+49:             } else if (selectedRegion === 'GANGSEO') {
+50:                 const { data: schs } = await supabase.from('schools').select('id').eq('region', '강서');
+51:                 query = query.in('school_id', schs?.map(s => s.id) || []);
+52:             } else if (user?.role !== 'admin') {
+53:                 // Regular student query - exact school name matching
+54:                 const { data: schoolData } = await supabase
+55:                     .from('schools')
+56:                     .select('id')
+57:                     .eq('name', studentSchool)
+58:                     .maybeSingle();
+59:                 
+60:                 if (schoolData) {
+61:                     query = query.eq('school_id', schoolData.id);
+62:                 } else {
+63:                     const schoolRegion = studentSchool.includes('강서') ? '강서' : '강동';
+64:                     const { data: schs } = await supabase.from('schools').select('id').eq('region', schoolRegion);
+65:                     query = query.in('school_id', schs?.map(s => s.id) || []);
+66:                 }
+67:             }
+68: 
+69:             const { data, error } = await query;
+70:             if (error) throw error;
+71:             setContents(data || []);
+72:         } catch (error) {
+73:             console.error('Error fetching contents:', error);
+74:         } finally {
+75:             setLoadingContents(false);
+76:         }
+77:     };
+78: 
+79:     const fetchRentals = async () => {
+80:         setLoadingRentals(true);
+81:         try {
+82:             let query = supabase.from('rentals').select('*, schools(region)');
+83:             
+84:             if (selectedRegion === 'GANGDONG') {
+85:                 const { data: schs } = await supabase.from('schools').select('id').eq('region', '강동');
+86:                 query = query.in('school_id', schs?.map(s => s.id) || []);
+87:             } else if (selectedRegion === 'GANGSEO') {
+88:                 const { data: schs } = await supabase.from('schools').select('id').eq('region', '강서');
+89:                 query = query.in('school_id', schs?.map(s => s.id) || []);
+90:             } else if (user?.role !== 'admin') {
+91:                 // Regular student query - exact school name matching
+92:                 const { data: schoolData } = await supabase
+93:                     .from('schools')
+94:                     .select('id')
+95:                     .eq('name', studentSchool)
+96:                     .maybeSingle();
+97:                 
+98:                 if (schoolData) {
+99:                     query = query.eq('school_id', schoolData.id);
+100:                 } else {
+101:                     const schoolRegion = studentSchool.includes('강서') ? '강서' : '강동';
+102:                     const { data: schs } = await supabase.from('schools').select('id').eq('region', schoolRegion);
+103:                     query = query.in('school_id', schs?.map(s => s.id) || []);
+104:                 }
+105:             }
+106: 
+107:             const { data, error } = await query;
+108:             if (error) throw error;
+109:             
+110:             const sorted = (data || []).sort((a, b) => {
+111:                 let orderA = 9999;
+112:                 let orderB = 9999;
+113:                 try {
+114:                     if (a.name && a.name.trim().startsWith('{')) {
+115:                         orderA = JSON.parse(a.name.trim()).sort_order ?? 9999;
+116:                     }
+117:                 } catch (e) {}
+118:                 try {
+119:                     if (b.name && b.name.trim().startsWith('{')) {
+120:                         orderB = JSON.parse(b.name.trim()).sort_order ?? 9999;
+121:                     }
+122:                 } catch (e) {}
+123:                 
+124:                 if (orderA !== orderB) {
+125:                     return orderA - orderB;
+126:                 }
+127:                 
+128:                 let nameA = a.name || '';
+129:                 let nameB = b.name || '';
+130:                 try {
+131:                     if (a.name && a.name.trim().startsWith('{')) nameA = JSON.parse(a.name.trim()).name || '';
+132:                     if (b.name && b.name.trim().startsWith('{')) nameB = JSON.parse(b.name.trim()).name || '';
+133:                 } catch (e) {}
+134:                 return nameA.localeCompare(nameB);
+135:             });
+136:             
+137:             setRentals(sorted);
+138:         } catch (error) {
+139:             console.error('Error fetching rentals:', error);
+140:         } finally {
+141:             setLoadingRentals(false);
+142:         }
+143:     };
+144: 
+145:     const fetchBookings = async () => {
+146:         try {
+147:             const today = new Date().toISOString().split('T')[0];
+148:             const { data, error } = await supabase
+149:                 .from('rental_bookings')
+150:                 .select('*')
+151:                 .eq('booking_date', today);
+152:             if (error) throw error;
+153:             setBookings(data || []);
+154:         } catch (error) {
+155:             console.error('Error fetching bookings:', error);
+156:         }
+157:     };
+158: 
+159:     const handleOpenBooking = (rental) => {
+160:         setSelectedRental(rental);
+161:         setShowBookingModal(true);
+162:     };
+163: 
+164:     return (
+165:         <div className="w-full min-h-screen bg-tossGrey50 pb-28 relative">
+166:             {/* Header Title */}
+167:             <div className="px-5 pt-5 pb-4 sticky top-0 bg-tossGrey50/95 backdrop-blur-xl z-20 border-b border-tossGrey200/50 mb-6">
+168:                 <div className="flex flex-col gap-1">
+169:                     <h2 className="text-2xl font-bold text-tossGrey900 tracking-tight flex items-center gap-1.5">
+170:                         센터 이용
+171:                     </h2>
+172:                     <p className="text-tossGrey500 text-xs font-medium">센터에서 새로운 기독 청소년 라이프스타일을 누려보세요</p>
+173:                 </div>
+174:             </div>
+175: 
+176:             <div className="px-5 space-y-6">
+177: 
+178:             {/* 1. Programs Section */}
+179:             <div className="bg-white p-5 rounded-toss-xl shadow-toss-standard">
+180:                 <div className="flex justify-between items-start mb-4">
+181:                     <div className="flex items-center gap-3">
+182:                         <div className="w-10 h-10 rounded-full bg-tossBlueLight text-tossBlue flex items-center justify-center shrink-0">
+183:                             <BookOpen size={18} />
+184:                         </div>
+185:                         <div>
+186:                             <h3 className="font-bold text-tossGrey900 text-[15px] tracking-tight leading-tight">프로그램</h3>
+187:                             <p className="text-[11px] text-tossGrey500 font-semibold mt-0.5">진행 중인 다양한 프로그램에 참여해 보세요.</p>
+188:                         </div>
+189:                     </div>
+190:                 </div>
+191:                 <div className="pt-2">
+192:                     <StudentProgramsTab
+193:                         filteredPrograms={filteredPrograms}
+194:                         allPrograms={allPrograms}
+195:                         responses={responses}
+196:                         responseDetails={responseDetails}
+197:                         openNoticeDetail={openNoticeDetail}
+198:                     />
+199:                 </div>
+200:             </div>
+201: 
+202:             {/* 2. Contents Section */}
+203:             <div className="bg-white p-5 rounded-toss-xl shadow-toss-standard">
+204:                 <div className="flex justify-between items-start mb-4">
+205:                     <div className="flex items-center gap-3">
+206:                         <div className="w-10 h-10 rounded-full bg-tossWarning/10 text-tossWarning flex items-center justify-center shrink-0">
+207:                             <Store size={18} />
+208:                         </div>
+209:                         <div>
+210:                             <h3 className="font-bold text-tossGrey900 text-[15px] tracking-tight leading-tight">콘텐츠</h3>
+211:                             <p className="text-[11px] text-tossGrey500 font-semibold mt-0.5">간식 및 보드게임 등 무료로 이용 가능한 혜택입니다.</p>
+212:                         </div>
+213:                     </div>
+214:                 </div>
+215:                 <div className="pt-2 space-y-5">
+216:                     {loadingContents ? (
+217:                         <div className="text-center py-6 font-bold text-tossGrey400 animate-pulse">불러오는 중...</div>
+218:                     ) : contents.length === 0 ? (
+219:                         <div className="text-center py-6 text-tossGrey400 text-xs font-bold">등록된 콘텐츠가 없습니다.</div>
+220:                     ) : (
+221:                         (() => {
+222:                             const snacks = contents.filter(c => c.category === '간식');
+223:                             const boardGames = contents.filter(c => c.category === '보드게임');
+224: 
+225:                             const renderList = (items, categoryLabel) => {
+226:                                 if (items.length === 0) return null;
+227:                                 return (
+228:                                     <div className="space-y-2">
+229:                                         <div className="flex items-center gap-1.5 border-b border-tossGrey100 pb-1 mb-2">
+230:                                             <span className="text-[12px] font-black text-tossGrey850">{categoryLabel}</span>
+231:                                             <span className="text-[10px] font-bold text-tossGrey400 bg-tossGrey100 px-1.5 py-0.5 rounded-full">{items.length}</span>
+232:                                         </div>
+233:                                         <div className="grid grid-cols-2 gap-2">
+234:                                             {items.map(item => {
+235:                                                 let loc = '';
+236:                                                 let d = '';
+237:                                                 try {
+238:                                                     if (item.description && item.description.startsWith('{')) {
+239:                                                         const parsed = JSON.parse(item.description);
+240:                                                         loc = parsed.location || '';
+241:                                                         d = parsed.desc || '';
+242:                                                     } else {
+243:                                                         d = item.description || '';
+244:                                                     }
+245:                                                 } catch (e) {
+246:                                                     d = item.description || '';
+247:                                                 }
+248: 
+249:                                                 return (
+250:                                                     <div key={item.id} className="bg-tossGrey50 rounded-xl border border-tossGrey100 p-3 hover:bg-tossGrey100/50 transition-colors flex flex-col justify-center">
+251:                                                         <div className="flex items-center justify-between gap-1.5 min-w-0">
+252:                                                             <h4 className="font-extrabold text-tossGrey900 text-[13px] tracking-tight truncate flex-1">{item.name}</h4>
+253:                                                             {loc ? (
+254:                                                                 <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 ${
+255:                                                                     loc === '2F SQUARE' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+256:                                                                     loc === '3F ROUND' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+257:                                                                     loc === '6F LOUNGE' ? 'bg-purple-50 text-purple-700 border border-purple-100' :
+258:                                                                     'bg-pink-50 text-pink-700 border border-pink-100'
+259:                                                                 }`}>
+260:                                                                     {loc}
+261:                                                                 </span>
+262:                                                             ) : (
+263:                                                                 <span className="text-[9px] font-bold text-tossGrey400 bg-tossGrey200/50 px-1.5 py-0.5 rounded shrink-0">
+264:                                                                     위치 미정
+265:                                                                 </span>
+266:                                                             )}
+267:                                                         </div>
+268:                                                         {d && <p className="text-[10px] text-tossGrey400 mt-1 truncate font-normal">{d}</p>}
+269:                                                     </div>
+270:                                                 );
+271:                                             })}
+272:                                         </div>
+273:                                     </div>
+274:                                 );
+275:                             };
+276: 
+277:                             return (
+278:                                 <div className="space-y-4">
+279:                                     {renderList(snacks, '🍪 간식')}
+280:                                     {renderList(boardGames, '🎲 보드게임')}
+281:                                 </div>
+282:                             );
+283:                         })()
+284:                     )}
+285:                 </div>
+286:             </div>
+287: 
+288:             {/* 3. Rentals Section */}
+289:             <div className="bg-white p-5 rounded-toss-xl shadow-toss-standard">
+290:                 <div className="flex justify-between items-start mb-4">
+291:                     <div className="flex items-center gap-3">
+292:                         <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+293:                             <Landmark size={18} />
+294:                         </div>
+295:                         <div>
+296:                             <h3 className="font-bold text-tossGrey900 text-[15px] tracking-tight leading-tight">대관 신청</h3>
+297:                             <p className="text-[11px] text-tossGrey500 font-semibold mt-0.5">센터 대관 현황을 조회하고 예약 신청을 진행하세요.</p>
+298:                         </div>
+299:                     </div>
+300:                 </div>
+301:                 <div className="pt-2 space-y-2">
+302:                     {loadingRentals ? (
+303:                         <div className="text-center py-6 font-bold text-tossGrey400 animate-pulse">불러오는 중...</div>
+304:                     ) : rentals.length === 0 ? (
+305:                         <div className="text-center py-6 text-tossGrey400 text-xs font-bold">등록된 공간이 없습니다.</div>
+306:                     ) : (
+307:                         <div className="grid grid-cols-1 divide-y divide-tossGrey100 bg-tossGrey50 border border-tossGrey100 rounded-xl overflow-hidden">
+308:                             {rentals.map(rental => {
+309:                                 let displayName = rental.name;
+310:                                 let capacityText = '';
+311:                                 let featuresText = '';
+312:                                 try {
+313:                                     const trimmed = rental.name ? rental.name.trim() : '';
+314:                                     if (trimmed.startsWith('{')) {
+315:                                         const parsed = JSON.parse(trimmed);
+316:                                         displayName = parsed.name || '';
+317:                                         capacityText = parsed.capacity || '';
+318:                                         featuresText = parsed.features || '';
+319:                                     }
+320:                                 } catch (e) {
+321:                                     displayName = rental.name;
+322:                                     capacityText = '';
+323:                                     featuresText = '';
+324:                                 }
+325: 
+326:                                 return (
+327:                                     <div key={rental.id} className="flex justify-between items-center px-4 py-3.5 hover:bg-tossGrey100/50 transition-colors">
+328:                                         <div className="min-w-0 pr-3">
+329:                                             <h4 className="font-extrabold text-tossGrey900 text-[13px] tracking-tight leading-none">{displayName}</h4>
+330:                                             {(capacityText || featuresText) ? (
+331:                                                 <div className="flex flex-col gap-1 mt-1.5 font-normal text-[10px] text-tossGrey400">
+332:                                                     {capacityText && <span>👥 최대 이용 인원: <span className="font-black text-tossGrey600">{capacityText}</span></span>}
+333:                                                     {featuresText && <span className="truncate max-w-[220px]">🛠️ 구비 설비: {featuresText}</span>}
+334:                                                 </div>
+335:                                             ) : (
+336:                                                 <p className="text-[10px] text-tossGrey400 mt-1.5 truncate max-w-[240px] font-normal">
+337:                                                     {rental.description || '대관 가능한 공간입니다.'}
+338:                                                 </p>
+339:                                             )}
+340:                                         </div>
+341:                                     <button
+342:                                         onClick={() => handleOpenBooking(rental)}
+343:                                         className="shrink-0 px-3.5 py-1.5 bg-tossBlue text-white rounded-lg font-black text-[11px] hover:bg-tossBlueDark transition-colors shadow-sm"
+344:                                     >
+345:                                         예약 신청
+346:                                     </button>
+347:                                 </div>
+348:                                 );
+349:                             })}
+350:                         </div>
+351:                     )}
+352:                 </div>
+353:             </div>
+354: 
+355:             {/* My Rentals Modal */}
+356:             {showMyRentalsModal && (
+357:                 <MyRentalsModal 
+358:                     user={user}
+359:                     onClose={() => setShowMyRentalsModal(false)}
+360:                 />
+361:             )}
+362:             {showBookingModal && selectedRental && (
+363:                 <RentalBookingModal
+364:                     user={user}
+365:                     rental={selectedRental}
+366:                     bookings={bookings}
+367:                     onClose={() => {
+368:                         setShowBookingModal(false);
+369:                         setSelectedRental(null);
+370:                     }}
+371:                     onSuccess={() => {
+372:                         setShowBookingModal(false);
+373:                         setSelectedRental(null);
+374:                         fetchBookings();
+375:                         if (setRefreshTrigger) setRefreshTrigger(prev => prev + 1);
+376:                     }}
+377:                 />
+378:             )}
+379:         </div>
+380:     );
+381: };
+382: 
+383: export default StudentCenterTab;
+384: 
+The above content shows the entire, complete file contents of the requested file.

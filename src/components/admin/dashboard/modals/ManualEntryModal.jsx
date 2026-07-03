@@ -10,10 +10,19 @@ const ManualEntryModal = ({ hookData, users, locations }) => {
         handleManualSubmit
     } = hookData;
 
+    React.useEffect(() => {
+        if (!isManualModalOpen) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') setIsManualModalOpen(false);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isManualModalOpen, setIsManualModalOpen]);
+
     if (!isManualModalOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+        <div onClick={(e) => { if (e.target === e.currentTarget) setIsManualModalOpen(false); }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <div>

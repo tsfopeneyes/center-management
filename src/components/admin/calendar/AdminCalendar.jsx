@@ -12,8 +12,8 @@ import MobileDayDetailOverlay from './modals/MobileDayDetailOverlay';
 
 import AdminPageHeader from '../common/AdminPageHeader';
 
-const AdminCalendar = ({ notices, fetchData }) => {
-    const hookData = useAdminCalendar({ notices, fetchData });
+const AdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
+    const hookData = useAdminCalendar({ notices, fetchData, setActiveMenu });
     const { 
         currentDate, dynamicCategories, 
         showModal, setShowModal,
@@ -201,8 +201,10 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                                 const mobileTextColor = theme.color.split(' ').find(c => c.startsWith('text-')) || 'text-gray-700';
 
                                                 // Multi-day continuity logic
-                                                const isStart = isSameDay(day, parseISO(event.raw.start_date || event.raw.program_date));
-                                                const isEnd = isSameDay(day, parseISO(event.raw.end_date || event.raw.program_date));
+                                                const startDateStr = event.raw.start_date || event.raw.program_date || event.raw.booking_date;
+                                                const endDateStr = event.raw.end_date || event.raw.program_date || event.raw.booking_date;
+                                                const isStart = startDateStr ? isSameDay(day, parseISO(startDateStr)) : false;
+                                                const isEnd = endDateStr ? isSameDay(day, parseISO(endDateStr)) : false;
                                                 const isContinuous = !isStart || !isEnd;
 
                                                 return (

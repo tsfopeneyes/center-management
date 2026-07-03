@@ -18,15 +18,15 @@ const IntegrationConfig = ({
     handleNotionUpload
 }) => {
     return (
-        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2">
+        <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-6">
             <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-base md:text-lg text-gray-700 flex items-center gap-2"><Share2 size={20} /> 외부 서비스 연동</h3>
-                <button onClick={handleSaveIntegrations} className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold hover:bg-blue-100 transition">설정 저장</button>
+                <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight"><Share2 size={20} className="text-[#3182f6]" /> 외부 서비스 연동</h3>
+                <button onClick={handleSaveIntegrations} className="px-4 py-2 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-xs transition-colors shadow-sm">설정 저장</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Google Sheets */}
-                <div className="space-y-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="space-y-4 p-4 bg-[#f8f9fa] rounded-2xl border border-[#f2f4f6]">
                     <div className="flex items-center gap-2 text-green-600 font-bold mb-2">
                         <Database size={18} />
                         <span>Google Sheets 백업</span>
@@ -38,13 +38,13 @@ const IntegrationConfig = ({
                             value={gsWebhookUrl}
                             onChange={e => setGsWebhookUrl(e.target.value)}
                             placeholder="https://script.google.com/macros/s/.../exec"
-                            className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-green-500 transition text-sm"
+                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
                         />
                     </div>
                     <button
                         onClick={handleGoogleSheetsBackup}
                         disabled={isBackingUp}
-                        className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition shadow-sm disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm"
+                        className="w-full py-3 bg-[#2b8a3e] hover:bg-[#216a2f] text-white rounded-xl font-bold transition shadow-sm disabled:bg-gray-300 flex items-center justify-center gap-2 text-xs"
                     >
                         {isBackingUp ? '동기화 중...' : <><Database size={16} /> 모든 데이터 시트 동기화</>}
                     </button>
@@ -55,7 +55,7 @@ const IntegrationConfig = ({
                 </div>
 
                 {/* Notion */}
-                <div className="space-y-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="space-y-4 p-4 bg-[#f8f9fa] rounded-2xl border border-[#f2f4f6]">
                     <div className="flex items-center gap-2 text-black font-bold mb-2">
                         <FileText size={18} />
                         <span>Notion 요약 업로드</span>

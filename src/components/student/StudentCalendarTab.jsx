@@ -36,7 +36,9 @@ const StudentCalendarTab = ({
                         .map(e => {
                             const isProgram = e.category === CATEGORIES.PROGRAM;
                             const cat = calendarCategories.find(c => c.id === e.category_id);
-                            let catName = isProgram ? (e.program_type === 'SCHOOL_CHURCH' ? '스처 프로그램' : '센터 프로그램') : cat?.name || '기타';
+                            let catName = isProgram 
+                                ? (e.program_type === 'SCHOOL_CHURCH' ? '스처 프로그램' : '센터 프로그램') 
+                                : (e.category_id === 'RENTAL' ? '공간 이용' : cat?.name || '기타');
                             let baseTitle = e.title;
 
                             if (cat?.name === '휴관') {
@@ -50,8 +52,9 @@ const StudentCalendarTab = ({
                             }
 
                             const rawDate = new Date(e.start_date || e.program_date);
-                            const start = isProgram ? rawDate : startOfDay(rawDate);
-                            const end = isProgram ? start : startOfDay(new Date(e.end_date || e.start_date));
+                            const isRental = e.category_id === 'RENTAL';
+                            const start = (isProgram || isRental) ? rawDate : startOfDay(rawDate);
+                            const end = (isProgram || isRental) ? new Date(e.end_date || e.start_date) : startOfDay(new Date(e.end_date || e.start_date));
 
                             return {
                                 ...e,
@@ -63,6 +66,13 @@ const StudentCalendarTab = ({
                             };
                         })
                         .filter(e => e.end >= startOfDay(new Date()))
+                        .filter(e => {
+                            // Filter rental bookings: only show if they match current student's region
+                            if (e.category_id === 'RENTAL' && e.region && studentRegion) {
+                                return e.region === studentRegion;
+                            }
+                            return true;
+                        })
                         .filter(e => {
                             // Hide regular recurring closures (Saturday=6, Sunday=0) to prevent clutter
                             if (e.catName === '휴관') {
@@ -97,13 +107,38 @@ const StudentCalendarTab = ({
                                     <span className={`px-2 py-0.5 rounded-toss-md text-[9px] font-bold uppercase tracking-tight ${
                                         event.type === 'PROGRAM'
                                             ? (event.program_type === 'SCHOOL_CHURCH' ? 'bg-[#a234c7]/10 text-[#a234c7]' : 'bg-tossBlueLight text-tossBlue')
-                                            : event.catName === '휴관' ? 'bg-tossError/10 text-tossError' : 'bg-tossGrey100 text-tossGrey600'
+                                            : event.category_id === 'RENTAL'
+                                                ? 'bg-indigo-50 text-indigo-600'
+                                                : event.catName === '휴관' ? 'bg-tossError/10 text-tossError' : 'bg-tossGrey100 text-tossGrey600'
                                     }`}>
                                         {event.catName}
                                     </span>
-                                    {event.type === 'PROGRAM' && <span className="text-[9px] font-bold text-tossGrey500 uppercase tracking-widest flex items-center gap-1"><Clock size={10} /> {new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>}
+                                    {(event.type === 'PROGRAM' || event.category_id === 'RENTAL') && (
+                                        <span className="text-[9px] font-bold text-tossGrey500 uppercase tracking-widest flex items-center gap-1">
+                                            <Clock size={10} />
+                                            {event.category_id === 'RENTAL' ? (
+                                                `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                                            ) : (
+                                                new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+                                            )}
+                                        </span>
+                                    )}
                                 </div>
-                                <h4 className="font-bold text-tossGrey800 text-sm truncate">{event.title}</h4>
+                                {event.category_id === 'RENTAL' ? (
+                                    <div className="space-y-0.5">
+                                        <h4 className="font-extrabold text-tossGrey850 text-[13.5px] truncate">
+                                            {event.meetingName}
+                                        </h4>
+                                        <p className="text-[10px] text-tossGrey500 font-bold flex items-center gap-1.5 mt-0.5">
+                                            <span className="px-1.5 py-0.5 bg-tossGrey100 text-tossGrey600 rounded text-[9px]">
+                                                {event.regionName}
+                                            </span>
+                                            <span>{event.spaceName}</span>
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <h4 className="font-bold text-tossGrey800 text-sm truncate">{event.title}</h4>
+                                )}
                             </div>
                             <ChevronRight size={16} className="text-tossGrey300 group-active:text-tossBlue transition-colors" />
                         </motion.div>

@@ -1,0 +1,550 @@
+import React, { useEffect, useState } from 'react';
+import { CATEGORIES, TAB_NAMES, RESPONSE_STATUS, BADGE_DEFINITIONS } from '../constants/appConstants';
+import { QRCodeSVG } from 'qrcode.react';
+import { supabase } from '../supabaseClient';
+import { AlertCircle, MapPin, Clock, Info, LogOut, CheckCircle, XCircle, HelpCircle, MessageSquare, Send, X, ArrowLeft, Image as ImageIcon, Grid, Settings, User, Plus, Heart, ZoomIn, RotateCw, Home, FileText, MessageCircle, BookOpen, MoreHorizontal, Bookmark, Share2, ShieldCheck, Calendar, Edit2, Trash2, Save, Trash, ChevronRight, Pin, Award, Share, Bell, QrCode } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import Microlink from '@microlink/react';
+import { motion, AnimatePresence } from 'framer-motion';
+import SunEditor from 'suneditor-react';
+import 'suneditor/dist/css/suneditor.min.css';
+import Cropper from 'react-easy-crop';
+import confetti from 'canvas-confetti';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { stripHtml, extractUrls } from '../utils/textUtils';
+import { formatToLocalISO } from '../utils/dateUtils';
+import { subscribeToPush } from '../utils/pushUtils';
+import getCroppedImg from '../utils/imageUtils';
+
+import { useMessaging } from '../hooks/useMessaging';
+import { useNotices } from '../hooks/useNotices';
+import { useGuestbook } from '../hooks/useGuestbook';
+import { useProfile } from '../hooks/useProfile';
+import { challengesApi } from '../api/challengesApi';
+import { userApi } from '../api/userApi';
+
+import { parseISO, isWithinInterval, startOfDay, eachDayOfInterval, isSameDay } from 'date-fns';
+import { getBadgeProgress } from '../components/student/BadgeComponents';
+import { useDashboardNotifications } from './dashboard/useDashboardNotifications';
+import { useRealtimePresence } from './dashboard/useRealtimePresence';
+import { useDashboardChallenges } from './dashboard/useDashboardChallenges';
+import { useDashboardCalendar } from './dashboard/useDashboardCalendar';
+
+export const useStudentDashboard = () => {
+    const navigate = useNavigate();
+    const [activeTab, setActiveTab] = useState(TAB_NAMES.HOME);
+    const [loading, setLoading] = useState(true);
+    const [studentRegion, setStudentRegion] = useState(null);
+
+    // Real-time Status State (Hook)
+    const { locationGroups, locations, allUsers, activeUserCountByGroup, fetchRealtimeStatusData } = useRealtimePresence();
+
+    // Hooks
+    const { user, setUser, totalHours, visitCount, programCount, fetchStats, updateProfile, loading: profileLoadingState } = useProfile(null);
+    const { notices, responses, responseDetails, fetchNotices, handleResponse } = useNotices(user?.id);
+    const { messages, unreadCount, markAsRead } = useMessaging(user?.id);
+    const { guestPosts, uploading: uploadingGuest, handleCreatePost, handleUpdatePost, fetchComments: fetchGuestCommentsData, handlePostComment: handleGuestCommentSubmit, handleDeletePost: handleDeleteGuestPost, handleDeleteComment: handleDeleteGuestComment } = useGuestbook(user?.id);
+    const { notifications, unreadNotificationCount, showNotificationsModal, setShowNotificationsModal, fetchNotifications, markNotificationsAsRead } = useDashboardNotifications(user);
+
+    // UI-Specific State (Not in hooks)
+    const [selectedNotice, setSelectedNotice] = useState(null);
+    const [noticeContext, setNoticeContext] = useState(null);
+    const [comments, setComments] = useState([]);
+    const [newComment, setNewComment] = useState('');
+
+    const [showGuestWrite, setShowGuestWrite] = useState(false);
+    const [newGuestPost, setNewGuestPost] = useState({ content: '', images: [], previews: [] });
+    const [selectedGuestPost, setSelectedGuestPost] = useState(null);
+    const [guestComments, setGuestComments] = useState([]);
+    const [newGuestComment, setNewGuestComment] = useState('');
+
+    const [showProfileSettings, setShowProfileSettings] = useState(false);
+    const [profileImage, setProfileImage] = useState(null);
+    const [profilePreview, setProfilePreview] = useState(null);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+
+    const [showCropModal, setShowCropModal] = useState(false);
+    const [photoURL, setPhotoURL] = useState(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [rotation, setRotation] = useState(0);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+    const [showProgramHistory, setShowProgramHistory] = useState(false);
+    const [attendedProgramsList, setAttendedProgramsList] = useState([]);
+    const [showEnlargedQr, setShowEnlargedQr] = useState(false);
+    const { challengeCategories, dynamicChallenges, challengesLoading, fetchChallengeData } = useDashboardChallenges();
+    const [specialStats, setSpecialStats] = useState({ isBirthdayVisited: false, uniqueLocationsCount: 0, maxConsecutiveDays: 0, earnedChallengeIds: [] });
+    const [selectedBadge, setSelectedBadge] = useState(null);
+    const { adminSchedules, calendarCategories, fetchSchedules } = useDashboardCalendar();
+    const [dashboardConfig, setDashboardConfig] = useState([
+        { id: 'stats', label: '활동 통계', isVisible: true, count: 3 },
+        { id: 'programs', label: '프로그램 신청', isVisible: true, count: 10 },
+        { id: 'space_status', isVisible: true, count: 0 }, // Add space_status below programs
+        { id: 'notices', label: '공지사항', isVisible: true, count: 5 },
+        { id: 'gallery', label: '갤러리', isVisible: true, count: 10 }
+    ]);
+    const [tabConfig, setTabConfig] = useState([
+        { id: 'home', label: '홈', isVisible: true },
+        { id: 'challenges', label: '챌린지', isVisible: true },
+        { id: 'programs', label: '프로그램', isVisible: true },
+        { id: 'calendar', label: '캘린더', isVisible: true },
+        { id: 'azit', label: '커뮤니티', isVisible: true },
+        { id: 'hyphen', label: '하이픈', isVisible: true }
+    ]);
+
+    const handleTabChange = (tabName) => {
+        setActiveTab(tabName);
+        setSelectedNotice(null);
+        setNoticeContext(null);
+        setSelectedGuestPost(null);
+        setShowProfileSettings(false);
+        setShowGuestWrite(false);
+
+        // Celebration Logic
+        if (tabName === TAB_NAMES.CHALLENGES) {
+            const earnedCount = dynamicChallenges.filter(ch => getBadgeProgress(ch, { visitCount, programCount, specialStats }).earned).length;
+            const lastSeenEarned = parseInt(localStorage.getItem(`lastEarnedCount_${user?.id}`) || '0');
+
+            if (earnedCount > lastSeenEarned) {
+                // Celebrate!
+                setTimeout(() => {
+                    confetti({
+                        particleCount: 150,
+                        spread: 70,
+                        origin: { y: 0.6 },
+                        colors: ['#3b82f6', '#4f46e5', '#ec4899', '#fbbf24']
+                    });
+                }, 500);
+                localStorage.setItem(`lastEarnedCount_${user?.id}`, earnedCount.toString());
+            }
+        }
+    };
+
+    // Notifications managed by useDashboardNotifications hook
+
+    const handleShare = async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'SCI CENTER 학생앱',
+                    text: '학생앱에 접속해보세요!',
+                    url: 'https://app.schoolchurchimpact.org',
+                });
+            } catch (err) {
+                console.error('Share failed:', err);
+            }
+        } else {
+            alert('공유하기를 지원하지 않는 기기입니다. URL을 복사해주세요.');
+        }
+    };
+
+
+
+
+    useEffect(() => {
+        const storedUser = localStorage.getItem('user');
+        if (!storedUser) {
+            alert('로그인이 필요합니다.');
+            navigate('/');
+            return;
+        }
+
+        const parsedUser = JSON.parse(storedUser);
+
+        if (!user || user.id !== parsedUser.id) {
+            setUser(parsedUser);
+        }
+
+        // Refresh User Data (to ensure is_leader is up-to-date)
+        userApi.fetchUser(parsedUser.id).then(latestUser => {
+            if (latestUser) {
+                const mergedUser = { ...parsedUser, ...latestUser };
+                setUser(mergedUser);
+                localStorage.setItem('user', JSON.stringify(mergedUser));
+            }
+        });
+
+        fetchStats(parsedUser.id).then(res => {
+            if (res && res.attendedPrograms) {
+                setAttendedProgramsList(res.attendedPrograms);
+            }
+            if (res && res.specialStats) {
+                setSpecialStats(res.specialStats);
+            }
+        });
+
+        fetchChallengeData();
+        subscribeToPush(parsedUser.id);
+        fetchSchedules();
+        fetchRealtimeStatusData();
+        fetchNotifications(parsedUser);
+
+        // Fetch student's region based on their school
+        if (parsedUser.school) {
+            supabase
+                .from('schools')
+                .select('region')
+                .eq('name', parsedUser.school)
+                .maybeSingle()
+                .then(({ data, error }) => {
+                    if (!error && data) {
+                        setStudentRegion(data.region);
+                    }
+                });
+        }
+
+        setLoading(false);
+
+    }, [navigate, fetchStats, fetchChallengeData, fetchNotifications, fetchSchedules]); // Removed dependencies that cause loops
+
+    // Handled by useRealtimePresence and useDashboardCalendar
+
+    useEffect(() => {
+        const fetchDashboardConfig = async () => {
+            const { data } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STUDENT_DASHBOARD_CONFIG')
+                .maybeSingle();
+
+            if (data && data.content) {
+                try {
+                    const parsed = JSON.parse(data.content);
+                    if (Array.isArray(parsed)) setDashboardConfig(parsed);
+                } catch (e) {
+                    console.error('Failed to parse dashboard config', e);
+                }
+            }
+        };
+
+        const fetchTabConfig = async () => {
+            const { data } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'STUDENT_TAB_CONFIG')
+                .maybeSingle();
+
+            if (data && data.content) {
+                try {
+                    const parsed = JSON.parse(data.content);
+                    if (Array.isArray(parsed)) {
+                        const defaultTabs = [
+                            { id: 'home', label: '홈', isVisible: true },
+                            { id: 'challenges', label: '챌린지', isVisible: true },
+                            { id: 'programs', label: '프로그램', isVisible: true },
+                            { id: 'calendar', label: '캘린더', isVisible: true },
+                            { id: 'azit', label: '커뮤니티', isVisible: true },
+                            { id: 'hyphen', label: '하이픈', isVisible: true }
+                        ];
+                        const merged = defaultTabs.map(def => {
+                            const found = parsed.find(p => p.id === def.id);
+                            return found ? { ...def, ...found } : def;
+                        });
+                        const ordered = [
+                            ...parsed.map(p => merged.find(m => m.id === p.id)).filter(Boolean),
+                            ...merged.filter(m => !parsed.find(p => p.id === m.id))
+                        ];
+                        setTabConfig(ordered);
+                    }
+                } catch (e) {
+                    console.error('Failed to parse tab config', e);
+                }
+            }
+        };
+
+        fetchDashboardConfig();
+        fetchTabConfig();
+    }, []);
+
+    // Handled by useDashboardChallenges
+
+    // Deep-linking: Open notice from URL query param or localStorage intent
+    useEffect(() => {
+        if (notices.length > 0) {
+            const params = new URLSearchParams(window.location.search);
+            const queryNoticeId = params.get('noticeId');
+            const pendingNoticeId = localStorage.getItem('pendingProgramJoin');
+            const targetId = queryNoticeId || pendingNoticeId;
+            
+            if (targetId) {
+                const target = notices.find(n => n.id === targetId);
+                if (target) {
+                    openNoticeDetail(target, 'all Programs'); // Open specifically
+                    // Clear both
+                    if (queryNoticeId) {
+                        window.history.replaceState({}, '', window.location.pathname);
+                    }
+                    if (pendingNoticeId) {
+                        localStorage.removeItem('pendingProgramJoin');
+                    }
+                }
+            }
+        }
+    }, [notices]);
+
+    const handlePostComment = async (e) => {
+        e.preventDefault();
+        if (!newComment.trim()) return;
+        try {
+            const { error } = await supabase.from('comments').insert([{
+                notice_id: selectedNotice.id,
+                user_id: user?.id,
+                content: newComment
+            }]);
+            if (error) throw error;
+            setNewComment('');
+            // Fetch updated comments
+            const { data } = await supabase
+                .from('comments')
+                .select('*, users(name, profile_image_url)')
+                .eq('notice_id', selectedNotice.id)
+                .order('created_at', { ascending: true });
+            setComments(data || []);
+        } catch (err) { alert('댓글 작성 실패'); }
+    };
+
+    const handleDeleteComment = async (commentId) => {
+        if (!confirm('댓글을 삭제하시겠습니까?')) return;
+        try {
+            const { error } = await supabase
+                .from('comments')
+                .delete()
+                .eq('id', commentId)
+                .eq('user_id', user?.id);
+            if (error) throw error;
+            // Fetch updated comments
+            const { data } = await supabase
+                .from('comments')
+                .select('*, users(name, profile_image_url)')
+                .eq('notice_id', selectedNotice.id)
+                .order('created_at', { ascending: true });
+            setComments(data || []);
+        } catch (err) {
+            console.error(err);
+            alert('댓글 삭제 실패');
+        }
+    };
+
+    const openNoticeDetail = async (notice, context = null) => {
+        setSelectedNotice(notice);
+        setNoticeContext(context);
+        try {
+            const { data } = await supabase
+                .from('comments')
+                .select('*, users(name, profile_image_url)')
+                .eq('notice_id', notice.id)
+                .order('created_at', { ascending: true });
+            setComments(data || []);
+        } catch (err) { console.error(err); }
+    };
+
+    const handleCreateGuestPost = async () => {
+        const success = await handleCreatePost(newGuestPost.content, newGuestPost.images);
+        if (success) {
+            setNewGuestPost({ content: '', images: [], previews: [] });
+            setShowGuestWrite(false);
+        }
+    };
+    const openGuestPostDetail = async (post) => {
+        setSelectedGuestPost(post);
+        const data = await fetchGuestCommentsData(post.id);
+        setGuestComments(data);
+    };
+
+    const handlePostGuestCommentData = async (e) => {
+        e.preventDefault();
+        const success = await handleGuestCommentSubmit(selectedGuestPost.id, newGuestComment);
+        if (success) {
+            setNewGuestComment('');
+            const data = await fetchGuestCommentsData(selectedGuestPost.id);
+            setGuestComments(data);
+        }
+    };
+
+    const onDeleteGuestPost = async (postId) => {
+        if (!confirm('방명록 글을 삭제하시겠습니까?')) return;
+        const success = await handleDeleteGuestPost(postId);
+        if (success) {
+            setSelectedGuestPost(null);
+            alert('삭제되었습니다.');
+        }
+    };
+
+    const onDeleteGuestComment = async (commentId) => {
+        if (!confirm('댓글을 삭제하시겠습니까?')) return;
+        const success = await handleDeleteGuestComment(selectedGuestPost.id, commentId);
+        if (success) {
+            const data = await fetchGuestCommentsData(selectedGuestPost.id);
+            setGuestComments(data);
+        }
+    };
+
+    const handleGuestFileSelect = (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            const newPreviews = files.map(file => URL.createObjectURL(file));
+            setNewGuestPost(prev => ({
+                ...prev,
+                images: [...prev.images, ...files],
+                previews: [...prev.previews, ...newPreviews]
+            }));
+        }
+    };
+
+
+
+
+
+    // Filter Notices
+
+
+
+    const filteredNotices = notices.filter(n =>
+        n.category === CATEGORIES.NOTICE
+    );
+
+    const allPrograms = notices.filter(n => {
+        if (n.category !== CATEGORIES.PROGRAM) return false;
+        const targets = n.target_regions || [];
+        if (targets.length === 0 || targets.length === 2) return true;
+        if (user?.role === 'admin' || user?.user_group === '관리자') return true;
+        if (!studentRegion) return false;
+        return targets.includes(studentRegion);
+    });
+
+    const filteredPrograms = allPrograms.filter(n => {
+        if (n.program_status === 'CANCELLED' || n.program_status === 'COMPLETED') return false;
+        if (n.program_date && new Date(n.program_date) < startOfDay(new Date())) return false;
+        return true;
+    });
+
+    const homeNotices = filteredNotices.slice(0, 3);
+    const homePrograms = filteredPrograms.slice(0, 10);
+
+
+    const handleProfileImageSelect = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setPhotoURL(URL.createObjectURL(file));
+            setShowCropModal(true);
+            // Reset Cropper
+            setZoom(1);
+            setRotation(0);
+            setCrop({ x: 0, y: 0 });
+        }
+    };
+
+    const onCropComplete = (croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
+    const handleCropSave = async () => {
+        try {
+            const croppedImageBlob = await getCroppedImg(photoURL, croppedAreaPixels, rotation);
+            const file = new File([croppedImageBlob], "profile_cropped.jpg", { type: "image/jpeg" });
+
+            setProfileImage(file);
+            setProfilePreview(URL.createObjectURL(file));
+            setShowCropModal(false);
+        } catch (e) {
+            console.error(e);
+            alert('이미지 크롭 실패');
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        const updates = {};
+        if (newPassword) {
+            if (newPassword.length < 4) {
+                alert('비밀번호는 4자리 이상이어야 합니다.');
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                alert('비밀번호 확인이 일치하지 않습니다.');
+                return;
+            }
+            updates.password = newPassword;
+        }
+
+        const result = await updateProfile(updates, profileImage);
+
+        if (result.success) {
+            alert('프로필이 업데이트되었습니다.');
+            setShowProfileSettings(false);
+            setProfileImage(null);
+            setNewPassword('');
+            setConfirmPassword('');
+        } else {
+            alert('프로필 저장 실패: ' + result.error);
+        }
+    };
+    const handleLogout = async () => {
+        if (window.confirm("로그아웃 하시겠습니까?")) {
+            await supabase.auth.signOut();
+            localStorage.removeItem('user');
+            localStorage.removeItem('admin_user');
+            navigate('/');
+        }
+    };
+
+    return {
+        // Core State
+        loading,
+        user, setUser,
+        activeTab,
+        handleLogout,
+        
+        // Modals Traps
+        showProfileSettings, setShowProfileSettings,
+        showGuestWrite, setShowGuestWrite,
+        selectedGuestPost, setSelectedGuestPost,
+        showProgramHistory, setShowProgramHistory,
+        showEnlargedQr, setShowEnlargedQr,
+        showNotificationsModal, setShowNotificationsModal,
+        selectedBadge, setSelectedBadge,
+        selectedNotice, setSelectedNotice,
+        noticeContext, setNoticeContext,
+        
+        // Modal dependencies & handlers (passed through)
+        comments, setComments,
+        newComment, setNewComment,
+        handlePostComment, handleDeleteComment,
+        handleShare,
+        handleTabChange,
+        openNoticeDetail,
+        markNotificationsAsRead,
+        
+        // Mapped Data For Tabs & Dashboard
+        notices, responses, responseDetails, handleResponse, fetchNotices,
+        filteredNotices, filteredPrograms, allPrograms,
+        homeNotices, homePrograms,
+        studentRegion, locationGroups, locations, allUsers, activeUserCountByGroup,
+        totalHours, visitCount, programCount,
+        attendedProgramsList,
+        challengeCategories, dynamicChallenges, specialStats,
+        adminSchedules, calendarCategories, dashboardConfig, tabConfig,
+        notifications, unreadNotificationCount,
+        updateProfile, profileLoadingState,
+        
+        // Guestbook Hooks
+        guestPosts, uploadingGuest, handleCreatePost, handleUpdatePost, handleDeleteGuestPost,
+        fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestComment
+    };
+};

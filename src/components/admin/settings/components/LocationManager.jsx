@@ -26,7 +26,7 @@ const LocationManager = ({
 }) => {
     if (!isMaster) {
         return (
-            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center py-12">
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col items-center justify-center text-center py-12">
                 <Settings size={48} className="text-gray-200 mb-4" />
                 <h3 className="font-bold text-gray-400">마스터 권한이 필요한 메뉴입니다</h3>
                 <p className="text-xs text-gray-400 mt-2">공간 관리 및 시스템 설정은 마스터 계정만 가능합니다.</p>
@@ -35,21 +35,21 @@ const LocationManager = ({
     }
 
     return (
-        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-6">
-            <h3 className="font-bold text-base md:text-lg text-gray-700 flex items-center gap-2"><Settings size={20} /> 공간(Zone) 관리</h3>
+        <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-6">
+            <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight"><Settings size={20} className="text-[#3182f6]" /> 공간(Zone) 관리</h3>
 
             {/* Group Add */}
             <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">공간 그룹 (지역) 추가</h4>
+                <h4 className="text-xs font-bold text-[#8b95a1] uppercase tracking-wider">공간 그룹 (지역) 추가</h4>
                 <div className="flex items-center gap-2">
-                    <input type="text" value={tempGroupName} onChange={e => setTempGroupName(e.target.value)} placeholder="새 그룹 이름 (예: 하이픈)" className="flex-1 w-full min-w-0 p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm h-[40px]" />
-                    <button onClick={handleAddGroup} className="bg-gray-800 text-white px-4 rounded-xl font-bold hover:bg-black shadow-sm text-sm whitespace-nowrap h-[40px] flex items-center justify-center transition-all">그룹 추가</button>
+                    <input type="text" value={tempGroupName} onChange={e => setTempGroupName(e.target.value)} placeholder="새 그룹 이름 (예: 하이픈)" className="flex-1 w-full min-w-0 px-4 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm h-[40px]" />
+                    <button onClick={handleAddGroup} className="bg-[#3182f6] hover:bg-[#1b64da] text-white px-4 rounded-xl font-bold transition-all shadow-sm text-sm whitespace-nowrap h-[40px] flex items-center justify-center">그룹 추가</button>
                 </div>
             </div>
 
             {/* Location Add */}
             <div className="space-y-3 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest">상세 공간 추가</h4>
+                <h4 className="text-xs font-bold text-[#3182f6] uppercase tracking-wider">상세 공간 추가</h4>
                 <div className="flex flex-col gap-2">
                     <select
                         className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm h-[40px] font-bold text-gray-700"

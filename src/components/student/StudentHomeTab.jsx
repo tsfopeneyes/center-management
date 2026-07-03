@@ -35,7 +35,9 @@ const StudentHomeTab = ({
     handleLogout,
     dynamicChallenges,
     specialStats,
-    studentRegion
+    studentRegion,
+    selectedRegion,
+    setSelectedRegion
 }) => {
     // 뱃지 관련 로직 제거됨
 
@@ -107,10 +109,46 @@ const StudentHomeTab = ({
                         </div>
 
                         {/* Bottom Section: Text Summary (Compact) */}
-                        <div className="flex items-center justify-center text-center -mt-2 mb-1.5">
+                        <div className="flex flex-col items-center justify-center text-center -mt-2 mb-1.5 gap-2.5">
                             <span className="text-white/90 text-[13.5px] sm:text-[14.5px] font-bold tracking-tight">
                                 그동안 센터에서 <span className="text-tossCaution font-bold">{visitCount}번</span> 만났고, <span className="text-emerald-300 font-bold">{programCount}개</span>의 활동을 함께했어요!
                             </span>
+
+                            {/* Admin Testing Region Filter Tabs */}
+                            {user?.role === 'admin' && (
+                                <div className="flex bg-white/10 p-0.5 rounded-xl w-full border border-white/10 mt-1 select-none">
+                                    <button
+                                        onClick={() => setSelectedRegion('ALL')}
+                                        className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+                                            selectedRegion === 'ALL'
+                                                ? 'bg-white text-tossBlue shadow-sm'
+                                                : 'text-white/70 hover:text-white'
+                                        }`}
+                                    >
+                                        전체
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedRegion('GANGDONG')}
+                                        className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+                                            selectedRegion === 'GANGDONG'
+                                                ? 'bg-white text-tossBlue shadow-sm'
+                                                : 'text-white/70 hover:text-white'
+                                        }`}
+                                    >
+                                        하이픈
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedRegion('GANGSEO')}
+                                        className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+                                            selectedRegion === 'GANGSEO'
+                                                ? 'bg-white text-tossBlue shadow-sm'
+                                                : 'text-white/70 hover:text-white'
+                                        }`}
+                                    >
+                                        이높플레이스
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

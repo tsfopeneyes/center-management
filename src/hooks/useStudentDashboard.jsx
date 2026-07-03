@@ -33,7 +33,7 @@ import { useMessaging } from '../hooks/useMessaging';
 import { useNotices } from '../hooks/useNotices';
 import { useGuestbook } from '../hooks/useGuestbook';
 import { useProfile } from '../hooks/useProfile';
-import { challengesApi } from '../api/challengesApi';
+import { badgesApi } from '../api/badgesApi';
 import { userApi } from '../api/userApi';
 
 import { parseISO, isWithinInterval, startOfDay, eachDayOfInterval, isSameDay } from 'date-fns';
@@ -101,11 +101,13 @@ export const useStudentDashboard = () => {
     const [tabConfig, setTabConfig] = useState([
         { id: 'home', label: '홈', isVisible: true },
         { id: 'challenges', label: '챌린지', isVisible: true },
-        { id: 'programs', label: '프로그램', isVisible: true },
+        { id: 'programs', label: '센터', isVisible: true },
         { id: 'calendar', label: '캘린더', isVisible: true },
         { id: 'azit', label: '커뮤니티', isVisible: true },
         { id: 'hyphen', label: '하이픈', isVisible: true }
     ]);
+
+    const [selectedRegion, setSelectedRegion] = useState('ALL'); // 'ALL', 'GANGDONG', 'GANGSEO'
 
     const handleTabChange = (tabName) => {
         setActiveTab(tabName);
@@ -116,7 +118,7 @@ export const useStudentDashboard = () => {
         setShowGuestWrite(false);
 
         // Celebration Logic
-        if (tabName === TAB_NAMES.CHALLENGES) {
+        if (tabName === TAB_NAMES.BADGES) {
             const earnedCount = dynamicChallenges.filter(ch => getBadgeProgress(ch, { visitCount, programCount, specialStats }).earned).length;
             const lastSeenEarned = parseInt(localStorage.getItem(`lastEarnedCount_${user?.id}`) || '0');
 
@@ -194,16 +196,20 @@ export const useStudentDashboard = () => {
         fetchRealtimeStatusData();
         fetchNotifications(parsedUser);
 
-        // Fetch student's region based on their school
+        // Fetch student's region based on their school region mapping
         if (parsedUser.school) {
+            const mappedName = parsedUser.school.includes('강서') ? '강서' : '강동';
             supabase
                 .from('schools')
                 .select('region')
-                .eq('name', parsedUser.school)
+                .eq('region', mappedName)
                 .maybeSingle()
                 .then(({ data, error }) => {
                     if (!error && data) {
                         setStudentRegion(data.region);
+                    } else {
+                        // Fallback region state directly
+                        setStudentRegion(mappedName);
                     }
                 });
         }
@@ -248,7 +254,7 @@ export const useStudentDashboard = () => {
                         const defaultTabs = [
                             { id: 'home', label: '홈', isVisible: true },
                             { id: 'challenges', label: '챌린지', isVisible: true },
-                            { id: 'programs', label: '프로그램', isVisible: true },
+                            { id: 'programs', label: '센터', isVisible: true },
                             { id: 'calendar', label: '캘린더', isVisible: true },
                             { id: 'azit', label: '커뮤니티', isVisible: true },
                             { id: 'hyphen', label: '하이픈', isVisible: true }
@@ -510,6 +516,8 @@ export const useStudentDashboard = () => {
         user, setUser,
         activeTab,
         handleLogout,
+        selectedRegion,
+        setSelectedRegion,
         
         // Modals Traps
         showProfileSettings, setShowProfileSettings,
