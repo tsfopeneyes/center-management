@@ -178,42 +178,30 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
             };
 
             if (isProgram) {
-                const isChallenge = formData.program_type === 'CHALLENGE';
-                
-                if (isChallenge) {
-                    noticeData.program_date = null;
-                    noticeData.program_duration = null;
-                    noticeData.program_location = null;
-                    noticeData.challenge_start_date = formData.challenge_start_date ? new Date(formData.challenge_start_date).toISOString() : null;
-                    noticeData.challenge_end_date = formData.challenge_end_date ? new Date(formData.challenge_end_date).toISOString() : null;
-                    noticeData.challenge_missions = formData.challenge_missions || [];
-                } else {
-                    let finalProgramDate = null;
-                    const pVal = formData.program_date;
-                    if (pVal && pVal !== '') {
-                        const parsedDate = new Date(pVal);
-                        if (!isNaN(parsedDate.getTime())) {
-                            finalProgramDate = parsedDate.toISOString();
-                        }
+                let finalProgramDate = null;
+                const pVal = formData.program_date;
+                if (pVal && pVal !== '') {
+                    const parsedDate = new Date(pVal);
+                    if (!isNaN(parsedDate.getTime())) {
+                        finalProgramDate = parsedDate.toISOString();
                     }
-                    noticeData.program_date = finalProgramDate;
-                    noticeData.program_duration = formData.program_duration || '';
-                    noticeData.program_location = formData.program_location || '';
-                    noticeData.challenge_start_date = null;
-                    noticeData.challenge_end_date = null;
-                    noticeData.challenge_missions = null;
                 }
+                noticeData.program_date = finalProgramDate;
+                noticeData.program_duration = formData.program_duration || '';
+                noticeData.program_location = formData.program_location || '';
                 
                 noticeData.program_type = formData.program_type;
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;
                 noticeData.is_leader_only = formData.is_leader_only;
                 noticeData.hyphen_reward = formData.hyphen_reward ? parseInt(formData.hyphen_reward, 10) : 0;
                 noticeData.is_review_required = formData.is_review_required || false;
-                noticeData.is_recurring = formData.is_recurring || false;
-                noticeData.recurring_days = formData.is_recurring ? formData.recurring_days : [];
-                noticeData.recurring_end_date = (formData.is_recurring && formData.recurring_end_date) 
-                    ? new Date(formData.recurring_end_date).toISOString().split('T')[0] 
+                noticeData.program_start_date = (!formData.is_recruiting && formData.program_start_date)
+                    ? new Date(formData.program_start_date).toISOString().split('T')[0]
                     : null;
+                noticeData.program_end_date = (!formData.is_recruiting && formData.program_end_date)
+                    ? new Date(formData.program_end_date).toISOString().split('T')[0]
+                    : null;
+                noticeData.program_days = !formData.is_recruiting ? formData.program_days : [];
 
                 if (!editNoticeId && !noticeData.program_status) {
                     noticeData.program_status = 'ACTIVE';

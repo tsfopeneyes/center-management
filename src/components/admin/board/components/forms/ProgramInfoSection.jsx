@@ -263,53 +263,105 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                 <span className="text-xs font-semibold text-slate-500 ml-1">상세 설정</span>
                 
                 <div className="border border-slate-200/70 rounded-2xl bg-white overflow-hidden shadow-sm transition-all focus-within:border-blue-500">
-                    
-                    {/* Row 1: Schedule & Duration */}
                     <div className={flat ? "flex flex-col" : "flex flex-col md:flex-row border-b border-slate-100"}>
-                        {/* Left: Schedule */}
+                        {/* Left: Schedule / Period */}
                         <div className={flat 
                             ? "p-4 border-b border-slate-100 space-y-2" 
                             : "flex-1 p-4 border-b md:border-b-0 md:border-r border-slate-100 space-y-2"
                         }>
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
                                 <Calendar size={15} className="text-slate-400" />
-                                <span>프로그램 일정</span>
+                                <span>{formData.is_recruiting ? "프로그램 일정" : "프로그램 진행 기간"}</span>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
-                                    <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
-                                    <input
-                                        type="date"
-                                        value={splitDateTime(formData.program_date).date}
-                                        onChange={e => {
-                                            const newDate = joinDateTime(e.target.value, splitDateTime(formData.program_date).time);
-                                            updateField('program_date', newDate);
-                                            if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
-                                                updateField('recruitment_deadline', newDate);
-                                            }
-                                        }}
-                                        className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
-                                        required
-                                    />
-                                </div>
-                                <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
-                                    <Clock className="text-slate-400 shrink-0 mr-2" size={15} />
-                                    <div className="flex-1">
-                                        <IntuitiveTimePicker
-                                            value={splitDateTime(formData.program_date).time}
-                                            onChange={time => {
-                                                const newDate = joinDateTime(splitDateTime(formData.program_date).date, time);
+                            
+                            {formData.is_recruiting ? (
+                                // Recruiting Program (Single Date & Time)
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    {/* Single Date picker */}
+                                    <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                        <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
+                                        <input
+                                            type="date"
+                                            value={splitDateTime(formData.program_date).date}
+                                            onChange={e => {
+                                                const newDate = joinDateTime(e.target.value, splitDateTime(formData.program_date).time);
                                                 updateField('program_date', newDate);
                                                 if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
                                                     updateField('recruitment_deadline', newDate);
                                                 }
                                             }}
+                                            className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+                                            required
                                         />
                                     </div>
+                                    {/* Time picker */}
+                                    <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                        <Clock className="text-slate-400 shrink-0 mr-2" size={15} />
+                                        <div className="flex-1">
+                                            <IntuitiveTimePicker
+                                                value={splitDateTime(formData.program_date).time}
+                                                onChange={time => {
+                                                    const newDate = joinDateTime(splitDateTime(formData.program_date).date, time);
+                                                    updateField('program_date', newDate);
+                                                    if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
+                                                        updateField('recruitment_deadline', newDate);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                // Open Program (Start Date, End Date, and Start Time)
+                                <div className="flex flex-col lg:flex-row gap-3">
+                                    {/* Start Date */}
+                                    <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                        <Calendar className="absolute left-3 text-slate-400 shrink-0" size={14} />
+                                        <input
+                                            type="date"
+                                            placeholder="시작일"
+                                            value={formData.program_start_date || ''}
+                                            onChange={e => {
+                                                updateField('program_start_date', e.target.value);
+                                                const timePart = splitDateTime(formData.program_date).time;
+                                                updateField('program_date', joinDateTime(e.target.value, timePart));
+                                            }}
+                                            className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+                                            required
+                                        />
+                                    </div>
+                                    {/* End Date */}
+                                    <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                        <Calendar className="absolute left-3 text-slate-400 shrink-0" size={14} />
+                                        <input
+                                            type="date"
+                                            placeholder="종료일"
+                                            value={formData.program_end_date || ''}
+                                            onChange={e => updateField('program_end_date', e.target.value)}
+                                            className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+                                            required
+                                        />
+                                    </div>
+                                    {/* Time picker */}
+                                    <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                        <Clock className="text-slate-400 shrink-0 mr-2" size={14} />
+                                        <div className="flex-1">
+                                            <IntuitiveTimePicker
+                                                value={splitDateTime(formData.program_date).time}
+                                                onChange={time => {
+                                                    const datePart = formData.program_start_date || splitDateTime(formData.program_date).date;
+                                                    const newDate = joinDateTime(datePart, time);
+                                                    updateField('program_date', newDate);
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             <p className="text-[11px] text-slate-400 font-medium ml-1">
-                                실제 진행되는 시작 날짜와 시간입니다.
+                                {formData.is_recruiting 
+                                    ? "실제 진행되는 시작 날짜와 시간입니다." 
+                                    : "프로그램이 진행되는 전체 기간(시작일~종료일)과 매회 시작 시각입니다."}
                             </p>
                         </div>
 
@@ -339,92 +391,52 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                         </div>
                     </div>
 
-                    {/* Row 1.5: Recurring Schedule (Conditional on is_recruiting === false) */}
+                    {/* Row 1.5: Running Days (Conditional on is_recruiting === false) */}
                     {!formData.is_recruiting && (
                         <div className={flat 
-                            ? "flex flex-col bg-slate-50/20 border-b border-slate-100 p-4 space-y-4" 
-                            : "flex flex-col border-b border-slate-100 bg-slate-50/20 p-4 space-y-4"
+                            ? "flex flex-col bg-slate-50/20 border-b border-slate-100 p-4 space-y-2" 
+                            : "flex flex-col border-b border-slate-100 bg-slate-50/20 p-4 space-y-2"
                         }>
-                            {/* Toggle Row */}
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Clock size={15} className="text-slate-400" />
-                                    <span className="text-xs font-bold text-slate-700">반복 일정 설정 (오픈 프로그램)</span>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input 
-                                        type="checkbox" 
-                                        checked={formData.is_recurring || false}
-                                        onChange={e => {
-                                            updateField('is_recurring', e.target.checked);
-                                            if (!e.target.checked) {
-                                                updateField('recurring_days', []);
-                                                updateField('recurring_end_date', '');
-                                            }
-                                        }}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mb-1">
+                                <Clock size={15} className="text-slate-400" />
+                                <span>진행 요일 선택</span>
                             </div>
-
-                            {/* Recurring Options */}
-                            {formData.is_recurring && (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 animate-fade-in">
-                                    {/* Select Days of the Week */}
-                                    <div className="md:col-span-2 space-y-2">
-                                        <label className="text-[11px] font-bold text-slate-500 block">반복 요일 선택</label>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {[
-                                                { label: '일', val: 0 },
-                                                { label: '월', val: 1 },
-                                                { label: '화', val: 2 },
-                                                { label: '수', val: 3 },
-                                                { label: '목', val: 4 },
-                                                { label: '금', val: 5 },
-                                                { label: '토', val: 6 }
-                                            ].map(day => {
-                                                const days = formData.recurring_days || [];
-                                                const isSelected = days.includes(day.val);
-                                                return (
-                                                    <button
-                                                        type="button"
-                                                        key={day.val}
-                                                        onClick={() => {
-                                                            const nextDays = isSelected
-                                                                ? days.filter(d => d !== day.val)
-                                                                : [...days, day.val].sort();
-                                                            updateField('recurring_days', nextDays);
-                                                        }}
-                                                        className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${
-                                                            isSelected 
-                                                                ? 'bg-blue-600 text-white shadow-sm shadow-blue-100' 
-                                                                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
-                                                        }`}
-                                                    >
-                                                        {day.label}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    {/* Select End Date */}
-                                    <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-slate-500 block">반복 종료일</label>
-                                        <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
-                                            <Calendar className="absolute left-3 text-slate-400 shrink-0" size={14} />
-                                            <input
-                                                type="date"
-                                                value={formData.recurring_end_date || ''}
-                                                onChange={e => updateField('recurring_end_date', e.target.value)}
-                                                className="w-full pl-9 pr-3 py-2 bg-transparent outline-none font-semibold text-slate-700 text-xs cursor-pointer"
-                                                required={formData.is_recurring}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                            <div className="flex flex-wrap gap-1.5">
+                                {[
+                                    { label: '일', val: 0 },
+                                    { label: '월', val: 1 },
+                                    { label: '화', val: 2 },
+                                    { label: '수', val: 3 },
+                                    { label: '목', val: 4 },
+                                    { label: '금', val: 5 },
+                                    { label: '토', val: 6 }
+                                ].map(day => {
+                                    const days = formData.program_days || [];
+                                    const isSelected = days.includes(day.val);
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={day.val}
+                                            onClick={() => {
+                                                const nextDays = isSelected
+                                                    ? days.filter(d => d !== day.val)
+                                                    : [...days, day.val].sort();
+                                                updateField('program_days', nextDays);
+                                            }}
+                                            className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${
+                                                isSelected 
+                                                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-100' 
+                                                    : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {day.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium ml-1 mt-1">
+                                선택된 요일에 캘린더 일정이 자동으로 표출됩니다.
+                            </p>
                         </div>
                     )}
 

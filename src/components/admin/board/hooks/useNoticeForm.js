@@ -23,12 +23,9 @@ const INITIAL_NOTICE_STATE = {
     poll_deadline: '',
     poll_options: [],
     hyphen_reward: 5,
-    challenge_start_date: '',
-    challenge_end_date: '',
-    challenge_missions: [],
-    is_recurring: false,
-    recurring_days: [],
-    recurring_end_date: ''
+    program_start_date: '',
+    program_end_date: '',
+    program_days: []
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
@@ -60,36 +57,29 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
         }
         
         if (mode === CATEGORIES.PROGRAM) {
-            const isChallenge = formData.program_type === PROGRAM_TYPES.CHALLENGE;
-            
-            if (isChallenge) {
-                if (!formData.challenge_start_date) {
-                    return { isValid: false, message: '뱃지 시작일을 선택해주세요.' };
-                }
-                if (!formData.challenge_end_date) {
-                    return { isValid: false, message: '뱃지 종료일을 선택해주세요.' };
-                }
-                if (!formData.challenge_missions || formData.challenge_missions.length === 0) {
-                    return { isValid: false, message: '뱃지 미션을 최소 1개 이상 추가해주세요.' };
-                }
-            } else {
+            if (formData.is_recruiting) {
+                // 신청 프로그램
                 if (!formData.program_date) {
                     return { isValid: false, message: '프로그램 날짜를 선택해주세요.' };
                 }
-                if (formData.is_recurring) {
-                    if (!formData.recurring_end_date) {
-                        return { isValid: false, message: '반복 종료일을 선택해주세요.' };
-                    }
-                    if (!formData.recurring_days || formData.recurring_days.length === 0) {
-                        return { isValid: false, message: '반복할 요일을 최소 1개 이상 선택해주세요.' };
-                    }
+            } else {
+                // 오픈 프로그램
+                if (!formData.program_start_date) {
+                    return { isValid: false, message: '진행 시작일을 선택해주세요.' };
                 }
-                if (!formData.program_duration?.trim()) {
-                    return { isValid: false, message: '소요 시간을 입력해주세요.' };
+                if (!formData.program_end_date) {
+                    return { isValid: false, message: '진행 종료일을 선택해주세요.' };
                 }
-                if (!formData.program_location?.trim()) {
-                    return { isValid: false, message: '장소를 입력해주세요.' };
+                if (!formData.program_days || formData.program_days.length === 0) {
+                    return { isValid: false, message: '진행 요일을 최소 1개 이상 선택해주세요.' };
                 }
+            }
+
+            if (!formData.program_duration?.trim()) {
+                return { isValid: false, message: '소요 시간을 입력해주세요.' };
+            }
+            if (!formData.program_location?.trim()) {
+                return { isValid: false, message: '장소를 입력해주세요.' };
             }
         }
 

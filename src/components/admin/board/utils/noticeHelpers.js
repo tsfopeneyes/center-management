@@ -21,22 +21,34 @@ export const generateProgramInfoHtml = ({
     program_location,
     max_capacity,
     is_leader_only,
-    program_type,
-    challenge_start_date,
-    challenge_end_date,
-    challenge_missions,
-    hyphen_reward
+    is_recruiting,
+    program_start_date,
+    program_end_date,
+    program_days
 }) => {
-    if (program_type === 'CHALLENGE') {
-        const start = challenge_start_date ? new Date(challenge_start_date).toLocaleDateString('ko-KR') : '미정';
-        const end = challenge_end_date ? new Date(challenge_end_date).toLocaleDateString('ko-KR') : '미정';
-        const missionCount = challenge_missions?.length || 0;
-        
+    const leaderWarning = is_leader_only 
+        ? '<p style="margin: 0; color: #f59e0b;"><strong>⚠️ 대상:</strong> 학생 리더 전용 프로그램</p>' 
+        : '';
+
+    if (!is_recruiting) {
+        // 오픈 프로그램 (기간 반복 진행형)
+        const start = program_start_date ? new Date(program_start_date).toLocaleDateString('ko-KR') : '미정';
+        const end = program_end_date ? new Date(program_end_date).toLocaleDateString('ko-KR') : '미정';
+        const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+        const daysText = program_days && program_days.length > 0
+            ? program_days.map(d => dayLabels[d]).join(', ')
+            : '없음';
+
+        const pTime = program_date ? splitDateTime(program_date).time : '12:00';
+        const formattedTime = pTime ? (pTime.split(':')[0] >= 12 ? `오후 ${pTime.split(':')[0] - 12 || 12}:${pTime.split(':')[1]}` : `오전 ${pTime.split(':')[0]}:${pTime.split(':')[1]}`) : '미정';
+
         return `
-<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-    <p style="margin: 0 0 8px 0; color: #166534;"><strong>🏆 뱃지 기간:</strong> ${start} ~ ${end}</p>
-    <p style="margin: 0 0 8px 0; color: #166534;"><strong>🎁 성공 보상:</strong> ${hyphen_reward || 30}H 지급</p>
-    <p style="margin: 0 0 8px 0; color: #166534;"><strong>🎯 미션 개수:</strong> 총 ${missionCount}개 미션</p>
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+    <p style="margin: 0 0 8px 0;"><strong>📅 진행 기간:</strong> ${start} ~ ${end}</p>
+    <p style="margin: 0 0 8px 0;"><strong>🗓️ 진행 요일:</strong> ${daysText}</p>
+    <p style="margin: 0 0 8px 0;"><strong>⏰ 진행 시간:</strong> ${formattedTime} (${program_duration || '미정'})</p>
+    <p style="margin: 0 0 8px 0;"><strong>📍 장소:</strong> ${program_location || '미정'}</p>
+    ${leaderWarning}
 </div>
 `;
     }
@@ -54,9 +66,6 @@ export const generateProgramInfoHtml = ({
         : '미정';
 
     const capacityText = max_capacity && max_capacity > 0 ? `${max_capacity}명` : '제한 없음';
-    const leaderWarning = is_leader_only 
-        ? '<p style="margin: 0; color: #f59e0b;"><strong>⚠️ 대상:</strong> 학생 리더 전용 프로그램</p>' 
-        : '';
 
     return `
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
@@ -99,12 +108,8 @@ export const prepareNoticeForEdit = (notice) => {
         poll_options: notice.poll_options || [],
         hyphen_reward: notice.hyphen_reward || 0,
         is_review_required: notice.is_review_required || false,
-        is_recurring: notice.is_recurring || false,
-        recurring_days: notice.recurring_days || [],
-        recurring_end_date: notice.recurring_end_date ? formatToLocalISO(notice.recurring_end_date).split('T')[0] : '',
-        // Challenge specific properties mapped for editing
-        challenge_start_date: notice.challenge_start_date ? formatToLocalISO(notice.challenge_start_date).split('T')[0] : '',
-        challenge_end_date: notice.challenge_end_date ? formatToLocalISO(notice.challenge_end_date).split('T')[0] : '',
-        challenge_missions: notice.challenge_missions || []
+        program_start_date: notice.program_start_date ? formatToLocalISO(notice.program_start_date).split('T')[0] : '',
+        program_end_date: notice.program_end_date ? formatToLocalISO(notice.program_end_date).split('T')[0] : '',
+        program_days: notice.program_days || []
     };
 };
