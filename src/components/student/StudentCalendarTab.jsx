@@ -32,7 +32,35 @@ const StudentCalendarTab = ({
                 {/* Group schedules by date or simple list for now, 
                 but a list of upcoming events is often better for mobile */}
                 {(() => {
-                    const sortedEvents = [...adminSchedules, ...notices.filter(n => n.category === CATEGORIES.PROGRAM)]
+                    const programEvents = [];
+                    notices.filter(n => n.category === CATEGORIES.PROGRAM).forEach(n => {
+                        if (n.is_recurring && n.recurring_days && n.recurring_days.length > 0 && n.recurring_end_date) {
+                            const start = new Date(n.program_date);
+                            const end = new Date(n.recurring_end_date);
+                            let iter = new Date(start);
+                            
+                            while (iter <= end) {
+                                const dayOfWeek = iter.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+                                if (n.recurring_days.includes(dayOfWeek)) {
+                                    const dateStr = iter.toISOString().split('T')[0];
+                                    const timeStr = n.program_date && n.program_date.includes('T') 
+                                        ? n.program_date.split('T')[1] 
+                                        : '12:00:00';
+                                    const programDateStr = `${dateStr}T${timeStr}`;
+                                    
+                                    programEvents.push({
+                                        ...n,
+                                        program_date: programDateStr
+                                    });
+                                }
+                                iter.setDate(iter.getDate() + 1);
+                            }
+                        } else {
+                            programEvents.push(n);
+                        }
+                    });
+
+                    const sortedEvents = [...adminSchedules, ...programEvents]
                         .map(e => {
                             const isProgram = e.category === CATEGORIES.PROGRAM;
                             const cat = calendarCategories.find(c => c.id === e.category_id);

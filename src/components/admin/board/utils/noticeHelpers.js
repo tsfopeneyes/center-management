@@ -99,6 +99,9 @@ export const prepareNoticeForEdit = (notice) => {
         poll_options: notice.poll_options || [],
         hyphen_reward: notice.hyphen_reward || 0,
         is_review_required: notice.is_review_required || false,
+        is_recurring: notice.is_recurring || false,
+        recurring_days: notice.recurring_days || [],
+        recurring_end_date: notice.recurring_end_date ? formatToLocalISO(notice.recurring_end_date).split('T')[0] : '',
         // Challenge specific properties mapped for editing
         challenge_start_date: notice.challenge_start_date ? formatToLocalISO(notice.challenge_start_date).split('T')[0] : '',
         challenge_end_date: notice.challenge_end_date ? formatToLocalISO(notice.challenge_end_date).split('T')[0] : '',

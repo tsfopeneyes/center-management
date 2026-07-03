@@ -209,6 +209,11 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.is_leader_only = formData.is_leader_only;
                 noticeData.hyphen_reward = formData.hyphen_reward ? parseInt(formData.hyphen_reward, 10) : 0;
                 noticeData.is_review_required = formData.is_review_required || false;
+                noticeData.is_recurring = formData.is_recurring || false;
+                noticeData.recurring_days = formData.is_recurring ? formData.recurring_days : [];
+                noticeData.recurring_end_date = (formData.is_recurring && formData.recurring_end_date) 
+                    ? new Date(formData.recurring_end_date).toISOString().split('T')[0] 
+                    : null;
 
                 if (!editNoticeId && !noticeData.program_status) {
                     noticeData.program_status = 'ACTIVE';

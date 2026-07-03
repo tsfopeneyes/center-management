@@ -129,23 +129,53 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
 
     // Combine Notices (Programs) and Admin Schedules
     const allEvents = useMemo(() => {
-        const programEvents = notices
+        const programEvents = [];
+        notices
             .filter(n => n.category === CATEGORIES.PROGRAM && n.program_date)
-            .map(n => {
+            .forEach(n => {
                 const type = n.program_type || 'CENTER';
                 const { cleanContent, location, duration } = extractProgramInfo(n.content);
                 const finalLocation = location || n.program_location || '';
-                return {
-                    id: `PRG-${n.id}`,
-                    originalId: n.id,
-                    title: n.title,
-                    content: cleanContent,
-                    start: parseISO(n.program_date),
-                    end: parseISO(n.program_date),
-                    category: type === 'CENTER' ? 'PROGRAM_CENTER' : 'PROGRAM_SCHOOL',
-                    isPublic: true,
-                    raw: { ...n, program_location: finalLocation, duration }
-                };
+                
+                if (n.is_recurring && n.recurring_days && n.recurring_days.length > 0 && n.recurring_end_date) {
+                    const start = new Date(n.program_date);
+                    const end = new Date(n.recurring_end_date);
+                    let iter = new Date(start);
+                    
+                    while (iter <= end) {
+                        const dayOfWeek = iter.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+                        if (n.recurring_days.includes(dayOfWeek)) {
+                            const dateStr = iter.toISOString().split('T')[0];
+                            const timeStr = n.program_date.includes('T') ? n.program_date.split('T')[1] : '12:00:00';
+                            const programDateStr = `${dateStr}T${timeStr}`;
+                            
+                            programEvents.push({
+                                id: `PRG-${n.id}-${dateStr}`,
+                                originalId: n.id,
+                                title: n.title,
+                                content: cleanContent,
+                                start: parseISO(programDateStr),
+                                end: parseISO(programDateStr),
+                                category: type === 'CENTER' ? 'PROGRAM_CENTER' : 'PROGRAM_SCHOOL',
+                                isPublic: true,
+                                raw: { ...n, program_location: finalLocation, duration, program_date: programDateStr }
+                            });
+                        }
+                        iter.setDate(iter.getDate() + 1);
+                    }
+                } else {
+                    programEvents.push({
+                        id: `PRG-${n.id}`,
+                        originalId: n.id,
+                        title: n.title,
+                        content: cleanContent,
+                        start: parseISO(n.program_date),
+                        end: parseISO(n.program_date),
+                        category: type === 'CENTER' ? 'PROGRAM_CENTER' : 'PROGRAM_SCHOOL',
+                        isPublic: true,
+                        raw: { ...n, program_location: finalLocation, duration }
+                    });
+                }
             });
 
         const generalEvents = adminSchedules.map(s => {

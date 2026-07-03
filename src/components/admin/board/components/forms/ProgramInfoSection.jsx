@@ -339,6 +339,95 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                         </div>
                     </div>
 
+                    {/* Row 1.5: Recurring Schedule (Conditional on is_recruiting === false) */}
+                    {!formData.is_recruiting && (
+                        <div className={flat 
+                            ? "flex flex-col bg-slate-50/20 border-b border-slate-100 p-4 space-y-4" 
+                            : "flex flex-col border-b border-slate-100 bg-slate-50/20 p-4 space-y-4"
+                        }>
+                            {/* Toggle Row */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Clock size={15} className="text-slate-400" />
+                                    <span className="text-xs font-bold text-slate-700">반복 일정 설정 (오픈 프로그램)</span>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={formData.is_recurring || false}
+                                        onChange={e => {
+                                            updateField('is_recurring', e.target.checked);
+                                            if (!e.target.checked) {
+                                                updateField('recurring_days', []);
+                                                updateField('recurring_end_date', '');
+                                            }
+                                        }}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+
+                            {/* Recurring Options */}
+                            {formData.is_recurring && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 animate-fade-in">
+                                    {/* Select Days of the Week */}
+                                    <div className="md:col-span-2 space-y-2">
+                                        <label className="text-[11px] font-bold text-slate-500 block">반복 요일 선택</label>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {[
+                                                { label: '일', val: 0 },
+                                                { label: '월', val: 1 },
+                                                { label: '화', val: 2 },
+                                                { label: '수', val: 3 },
+                                                { label: '목', val: 4 },
+                                                { label: '금', val: 5 },
+                                                { label: '토', val: 6 }
+                                            ].map(day => {
+                                                const days = formData.recurring_days || [];
+                                                const isSelected = days.includes(day.val);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={day.val}
+                                                        onClick={() => {
+                                                            const nextDays = isSelected
+                                                                ? days.filter(d => d !== day.val)
+                                                                : [...days, day.val].sort();
+                                                            updateField('recurring_days', nextDays);
+                                                        }}
+                                                        className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${
+                                                            isSelected 
+                                                                ? 'bg-blue-600 text-white shadow-sm shadow-blue-100' 
+                                                                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                                        }`}
+                                                    >
+                                                        {day.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Select End Date */}
+                                    <div className="space-y-2">
+                                        <label className="text-[11px] font-bold text-slate-500 block">반복 종료일</label>
+                                        <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+                                            <Calendar className="absolute left-3 text-slate-400 shrink-0" size={14} />
+                                            <input
+                                                type="date"
+                                                value={formData.recurring_end_date || ''}
+                                                onChange={e => updateField('recurring_end_date', e.target.value)}
+                                                className="w-full pl-9 pr-3 py-2 bg-transparent outline-none font-semibold text-slate-700 text-xs cursor-pointer"
+                                                required={formData.is_recurring}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Row 2: Recruitment Deadline & Capacity (Conditional on is_recruiting) */}
                     {formData.is_recruiting && (
                         <div className={flat 

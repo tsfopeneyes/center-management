@@ -25,7 +25,10 @@ const INITIAL_NOTICE_STATE = {
     hyphen_reward: 5,
     challenge_start_date: '',
     challenge_end_date: '',
-    challenge_missions: []
+    challenge_missions: [],
+    is_recurring: false,
+    recurring_days: [],
+    recurring_end_date: ''
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
@@ -72,6 +75,14 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
             } else {
                 if (!formData.program_date) {
                     return { isValid: false, message: '프로그램 날짜를 선택해주세요.' };
+                }
+                if (formData.is_recurring) {
+                    if (!formData.recurring_end_date) {
+                        return { isValid: false, message: '반복 종료일을 선택해주세요.' };
+                    }
+                    if (!formData.recurring_days || formData.recurring_days.length === 0) {
+                        return { isValid: false, message: '반복할 요일을 최소 1개 이상 선택해주세요.' };
+                    }
                 }
                 if (!formData.program_duration?.trim()) {
                     return { isValid: false, message: '소요 시간을 입력해주세요.' };
