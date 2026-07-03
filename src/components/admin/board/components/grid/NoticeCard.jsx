@@ -29,7 +29,7 @@ const NoticeCard = ({
     let cardClass = "bg-white border border-gray-100/80 flex group shadow-sm hover:shadow-lg hover:-translate-y-0.5 transform transition-all duration-300 ";
     let contentClass = "flex ";
     let thumbClass = "bg-gray-50 overflow-hidden flex-shrink-0 cursor-pointer border border-gray-100 shadow-inner group-hover:border-blue-200 transition-colors ";
-    let titleClass = "font-black cursor-pointer group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug tracking-tight ";
+    let titleClass = "font-bold text-slate-800 cursor-pointer group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug tracking-tight ";
 
     if (viewMode === 'large') {
         cardClass += "p-5 md:p-6 lg:p-8 rounded-[1.5rem] md:rounded-[2rem] flex-col";
@@ -143,28 +143,28 @@ const NoticeCard = ({
                     </h3>
                     
                     {mode === CATEGORIES.PROGRAM ? (
-                        <div className="mt-1.5 space-y-0.5 flex flex-col">
+                        <div className="mt-1.5 space-y-0.5 flex flex-col text-slate-500 text-xs md:text-sm font-medium">
                             {notice.is_recruiting === false ? (
                                 <>
-                                    <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1.5">
-                                        <Calendar size={13} className="text-blue-500 shrink-0" />
-                                        매주 {formatProgramDays(notice.program_days)}
-                                    </span>
-                                    <span className="text-xs md:text-sm font-bold text-gray-700 flex items-center gap-1.5">
-                                        <Clock size={13} className="text-gray-400 shrink-0" />
-                                        {formatKoreanTimeRange(notice.program_date || notice.program_start_date, notice.program_duration)}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                        <Calendar size={13} className="text-slate-400 shrink-0" />
+                                        <span>매주 {formatProgramDays(notice.program_days)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                        <Clock size={13} className="text-slate-400 shrink-0" />
+                                        <span>{formatKoreanTimeRange(notice.program_date || notice.program_start_date, notice.program_duration)}</span>
+                                    </div>
                                 </>
                             ) : (
-                                <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1.5">
-                                    <Calendar size={13} className="text-blue-500 shrink-0" />
-                                    {new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                                <div className="flex items-center gap-1.5 text-slate-600">
+                                    <Calendar size={13} className="text-slate-400 shrink-0" />
+                                    <span>{new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
                             )}
-                            <span className="text-[9px] font-bold text-gray-300 mt-0.5">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
+                            <span className="text-[10px] text-slate-400 mt-1">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
                         </div>
                     ) : (
-                        <p className="text-[10px] font-bold text-gray-300 uppercase tracking-wider mt-1">{new Date(notice.created_at).toLocaleDateString()}</p>
+                        <p className="text-[10px] text-slate-400 mt-1.5">작성일: {new Date(notice.created_at).toLocaleDateString()}</p>
                     )}
                 </div>
             </div>
@@ -177,28 +177,27 @@ const NoticeCard = ({
                             ? 'bg-slate-50 border-slate-100' 
                             : 'bg-gray-50 border-gray-100 opacity-60'
                     } ${viewMode === 'list' ? 'shrink-0 min-w-[130px] md:min-w-[150px]' : ''}`}>
-                        <div className={`flex gap-3 font-extrabold items-center ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
+                        <div className={`flex gap-3 font-semibold items-center text-slate-600 ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
                             {notice.is_poll ? (
-                                <span className={isActive ? "text-purple-600" : "text-gray-400"}>
-                                    투표 {noticeStats[notice.id]?.pollTotal || 0}
+                                <span>
+                                    투표 <span className={isActive ? "text-purple-600 font-bold" : "text-gray-400 font-bold"}>{noticeStats[notice.id]?.pollTotal || 0}</span>
                                 </span>
                             ) : notice.is_recruiting ? (
                                 <>
-                                    <span className={isActive ? "text-blue-600" : "text-gray-400"}>신청 {noticeStats[notice.id]?.JOIN || 0}</span>
-                                    {viewMode !== 'smaller' && <span className={isActive ? "text-slate-500" : "text-gray-400"}>대기 {noticeStats[notice.id]?.WAITLIST || 0}</span>}
+                                    <span>신청 <span className={isActive ? "text-blue-600 font-bold" : "text-gray-400 font-bold"}>{noticeStats[notice.id]?.JOIN || 0}</span></span>
+                                    {viewMode !== 'smaller' && <span className="text-slate-400 font-medium">대기 <span className="text-slate-500 font-bold">{noticeStats[notice.id]?.WAITLIST || 0}</span></span>}
                                 </>
                             ) : (
-                                <span className={isActive ? "text-emerald-600" : "text-gray-400"}>오픈 프로그램</span>
+                                <span className={isActive ? "text-slate-700 font-semibold" : "text-gray-400 font-semibold"}>오픈 프로그램</span>
                             )}
                         </div>
                         <button 
                             onClick={() => onOpenParticipants(notice)} 
-                            className={`text-[9px] md:text-[10px] px-2.5 py-1.5 rounded-lg font-black transition-all ${
+                            className={`text-[9px] md:text-[10px] px-2.5 py-1.5 rounded-lg font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] ${
                                 isActive 
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98]' 
-                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                    : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
                             }`}
-                            disabled={!isActive}
                         >
                             {notice.is_poll ? '결과' : '명단'}
                         </button>
