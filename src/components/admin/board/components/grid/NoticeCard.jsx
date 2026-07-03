@@ -23,18 +23,34 @@ const NoticeCard = ({
         return sortedDays.map(d => labels[d]).join(', ');
     };
 
-    const formatTimeOnly = (dateString) => {
+    const formatTimeRangeCompact = (dateString, durationStr) => {
         if (!dateString) return '시간 미정';
-        const date = new Date(dateString);
-        let hours = date.getHours();
-        const minutes = date.getMinutes();
-        const ampm = hours >= 12 ? '오후' : '오전';
+        const startDate = new Date(dateString);
+        if (isNaN(startDate.getTime())) return '시간 미정';
         
-        hours = hours % 12;
-        hours = hours ? hours : 12;
+        const formatTimePart = (date) => {
+            let hours = date.getHours();
+            const minutes = date.getMinutes();
+            const ampm = hours >= 12 ? '오후' : '오전';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const minStr = String(minutes).padStart(2, '0');
+            return { ampm, hours, minStr, text: `${ampm} ${hours}:${minStr}` };
+        };
         
-        const minuteStr = minutes > 0 ? ` ${minutes}분` : '';
-        return `${ampm} ${hours}시${minuteStr}`;
+        const start = formatTimePart(startDate);
+        const minutes = parseDurationToMinutes(durationStr);
+        if (minutes > 0) {
+            const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
+            const end = formatTimePart(endDate);
+            
+            if (start.ampm === end.ampm) {
+                return `${start.text} ~ ${end.hours}:${end.minStr}`;
+            } else {
+                return `${start.text} ~ ${end.text}`;
+            }
+        }
+        return start.text;
     };
 
     // Card styles
@@ -131,54 +147,14 @@ const NoticeCard = ({
                     </h3>
                     
                     {mode === CATEGORIES.PROGRAM ? (
-                        <div className="mt-1.5 space-y-1.5 flex flex-col">
+                        <div className="mt-1.5 space-y-0.5 flex flex-col">
                             {notice.is_recruiting === false ? (
                                 <>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-black text-gray-400">진행 요일:</span>
-                                        <div className="flex gap-1 items-center">
-                                            {['일', '월', '화', '수', '목', '금', '토'].map((d, idx) => {
-                                                const isActive = notice.program_days?.includes(idx);
-                                                return (
-                                                    <span 
-                                                        key={idx} 
-                                                        className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-black shrink-0 transition-all ${
-                                                            isActive 
-                                                                ? 'bg-blue-600 text-white shadow-sm' 
-                                                                : 'bg-gray-100 text-gray-400 font-medium'
-                                                        }`}
-                                                    >
-                                                        {d}
-                                                    </span>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
                                     <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1">
-                                        🕒 {(() => {
-                                            const targetDate = notice.program_date || notice.program_start_date;
-                                            if (!targetDate) return '시간 미정';
-                                            const startDate = new Date(targetDate);
-                                            
-                                            const formatSingleTime = (date) => {
-                                                let hours = date.getHours();
-                                                const minutes = date.getMinutes();
-                                                const ampm = hours >= 12 ? '오후' : '오전';
-                                                hours = hours % 12;
-                                                hours = hours ? hours : 12;
-                                                const minStr = String(minutes).padStart(2, '0');
-                                                return `${ampm} ${hours}:${minStr}`;
-                                            };
-                                            
-                                            const startText = formatSingleTime(startDate);
-                                            const minutes = parseDurationToMinutes(notice.program_duration);
-                                            if (minutes > 0) {
-                                                const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
-                                                const endText = formatSingleTime(endDate);
-                                                return `${startText} ~ ${endText}`;
-                                            }
-                                            return startText;
-                                        })()}
+                                        📅 매주 {formatProgramDays(notice.program_days)}
+                                    </span>
+                                    <span className="text-xs md:text-sm font-bold text-gray-700 flex items-center gap-1">
+                                        🕒 {formatTimeRangeCompact(notice.program_date || notice.program_start_date, notice.program_duration)}
                                     </span>
                                 </>
                             ) : (
