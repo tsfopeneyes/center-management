@@ -26,7 +26,7 @@ const NoticeCard = ({
 
 
     // Card styles
-    let cardClass = "bg-white border border-gray-100 transition-all duration-300 flex group shadow-sm hover:shadow-xl hover:shadow-blue-500/5 ";
+    let cardClass = "bg-white border border-gray-100/80 flex group shadow-sm hover:shadow-lg hover:-translate-y-0.5 transform transition-all duration-300 ";
     let contentClass = "flex ";
     let thumbClass = "bg-gray-50 overflow-hidden flex-shrink-0 cursor-pointer border border-gray-100 shadow-inner group-hover:border-blue-200 transition-colors ";
     let titleClass = "font-black cursor-pointer group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug tracking-tight ";
@@ -64,7 +64,20 @@ const NoticeCard = ({
         if (!notice.recruitment_deadline) return null;
         const diff = parseISO(notice.recruitment_deadline) - new Date();
         if (diff > 0 && diff < 86400000) {
-            return <span className="px-2 py-0.5 bg-red-500 text-white rounded-lg text-[9px] font-black animate-pulse">마감직전</span>;
+            return <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-100/50 rounded-md text-[9px] font-black animate-pulse uppercase tracking-tight">마감직전</span>;
+        }
+        return null;
+    };
+
+    const getTargetBadge = () => {
+        if (mode !== CATEGORIES.PROGRAM) return null;
+        const targets = notice.target_regions || [];
+        if (targets.length === 0 || (targets.includes('강동') && targets.includes('강서'))) {
+            return <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">All</span>;
+        } else if (targets.includes('강동')) {
+            return <span className="px-2 py-0.5 bg-purple-50 text-purple-600 border border-purple-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">강동</span>;
+        } else if (targets.includes('강서')) {
+            return <span className="px-2 py-0.5 bg-pink-50 text-pink-600 border border-pink-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">강서</span>;
         }
         return null;
     };
@@ -92,18 +105,19 @@ const NoticeCard = ({
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                     {viewMode !== 'list' && (
-                        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                            {notice.is_sticky && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-lg text-[9px] font-black uppercase tracking-tight">📌 공지</span>}
+                        <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
+                            {getTargetBadge()}
+                            {notice.is_sticky && <span className="px-2 py-0.5 bg-orange-50 text-orange-600 border border-orange-100/50 rounded-md text-[9px] font-black tracking-tight">📌 공지</span>}
                             {notice.is_recruiting && isActive && (
                                 <>
-                                    <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-lg text-[9px] font-black uppercase tracking-tight">Active</span>
+                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">Active</span>
                                     {getDeadlineWarning()}
                                 </>
                             )}
-                            {isCompleted && <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-lg text-[9px] font-black uppercase tracking-tight">Completed</span>}
-                            {isCancelled && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-lg text-[9px] font-black uppercase tracking-tight">Cancelled</span>}
+                            {isCompleted && <span className="px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-200/50 rounded-md text-[9px] font-black tracking-tight uppercase">Completed</span>}
+                            {isCancelled && <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">Cancelled</span>}
                             {hasThumbnail && (
-                                <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded-lg border border-gray-100">
+                                <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 bg-gray-50/50 px-1.5 py-0.5 rounded-md border border-gray-100/80">
                                     <ImageIcon size={10} className="opacity-50" /> {notice.images?.length || 1}
                                 </div>
                             )}
@@ -112,15 +126,15 @@ const NoticeCard = ({
 
                     <h3 onClick={() => onViewDetails(notice)} className={`${titleClass} ${!isActive ? 'text-gray-400' : 'text-gray-800'}`}>
                         {viewMode === 'list' && notice.is_sticky && <span className="mr-2 text-orange-500 shrink-0">📌</span>}
-                        {(() => {
+                        {viewMode === 'list' && (() => {
                             if (mode === CATEGORIES.PROGRAM) {
                                 const targets = notice.target_regions || [];
                                 if (targets.length === 0 || (targets.includes('강동') && targets.includes('강서'))) {
-                                    return <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-black mr-1.5 inline-block align-middle">All</span>;
+                                    return <span className="text-blue-600 mr-1 font-bold">[All]</span>;
                                 } else if (targets.includes('강동')) {
-                                    return <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[10px] font-black mr-1.5 inline-block align-middle">강동</span>;
+                                    return <span className="text-purple-600 mr-1 font-bold">[강동]</span>;
                                 } else if (targets.includes('강서')) {
-                                    return <span className="px-1.5 py-0.5 bg-pink-50 text-pink-600 rounded text-[10px] font-black mr-1.5 inline-block align-middle">강서</span>;
+                                    return <span className="text-pink-600 mr-1 font-bold">[강서]</span>;
                                 }
                             }
                             return null;
@@ -158,22 +172,34 @@ const NoticeCard = ({
             {/* Actions & Stats */}
             <div className={viewMode === 'list' ? "flex items-center gap-4 shrink-0" : "mt-auto space-y-2 md:space-y-3"}>
                 {(mode === CATEGORIES.PROGRAM || notice.is_poll) && (
-                    <div className={`p-2 lg:p-3 rounded-xl flex justify-between items-center transition-all shadow-sm ${isActive ? 'bg-blue-50/50 group-hover:bg-blue-600 group-hover:text-white' : 'bg-gray-100/50 opacity-60'} ${viewMode === 'list' ? 'shrink-0 min-w-[130px] md:min-w-[150px]' : ''}`}>
-                        <div className={`flex gap-3 font-black ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
+                    <div className={`p-2.5 rounded-2xl flex justify-between items-center transition-all border ${
+                        isActive 
+                            ? 'bg-slate-50 border-slate-100' 
+                            : 'bg-gray-50 border-gray-100 opacity-60'
+                    } ${viewMode === 'list' ? 'shrink-0 min-w-[130px] md:min-w-[150px]' : ''}`}>
+                        <div className={`flex gap-3 font-extrabold items-center ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
                             {notice.is_poll ? (
-                                <span className={isActive ? "text-purple-600 group-hover:text-white" : ""}>
+                                <span className={isActive ? "text-purple-600" : "text-gray-400"}>
                                     투표 {noticeStats[notice.id]?.pollTotal || 0}
                                 </span>
                             ) : notice.is_recruiting ? (
                                 <>
-                                    <span className={isActive ? "text-blue-600 group-hover:text-white" : ""}>신청 {noticeStats[notice.id]?.JOIN || 0}</span>
-                                    {viewMode !== 'smaller' && <span className={isActive ? "text-orange-500 group-hover:text-orange-200" : ""}>대기 {noticeStats[notice.id]?.WAITLIST || 0}</span>}
+                                    <span className={isActive ? "text-blue-600" : "text-gray-400"}>신청 {noticeStats[notice.id]?.JOIN || 0}</span>
+                                    {viewMode !== 'smaller' && <span className={isActive ? "text-slate-500" : "text-gray-400"}>대기 {noticeStats[notice.id]?.WAITLIST || 0}</span>}
                                 </>
                             ) : (
-                                <span className={isActive ? "text-green-600 group-hover:text-white font-extrabold" : ""}>오픈 프로그램 명단</span>
+                                <span className={isActive ? "text-emerald-600" : "text-gray-400"}>오픈 프로그램</span>
                             )}
                         </div>
-                        <button onClick={() => onOpenParticipants(notice)} className={`text-[9px] md:text-[10px] px-2 py-1 rounded-md font-black transition-all shadow-sm ${isActive ? 'bg-white text-blue-600 hover:bg-blue-50' : 'bg-gray-200 text-gray-500'}`}>
+                        <button 
+                            onClick={() => onOpenParticipants(notice)} 
+                            className={`text-[9px] md:text-[10px] px-2.5 py-1.5 rounded-lg font-black transition-all ${
+                                isActive 
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98]' 
+                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            }`}
+                            disabled={!isActive}
+                        >
                             {notice.is_poll ? '결과' : '명단'}
                         </button>
                     </div>
