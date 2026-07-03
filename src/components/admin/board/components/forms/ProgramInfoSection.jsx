@@ -276,7 +276,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                             
                             {formData.is_recruiting ? (
                                 // Recruiting Program (Single Date & Time)
-                                <div className="flex flex-col sm:flex-row gap-3">
+                                <div className={flat ? "flex flex-col gap-3" : "flex flex-col sm:flex-row gap-3"}>
                                     {/* Single Date picker */}
                                     <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
                                         <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
@@ -313,7 +313,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                 </div>
                             ) : (
                                 // Open Program (Start Date, End Date, and Start Time)
-                                <div className="flex flex-col lg:flex-row gap-3">
+                                <div className={flat ? "flex flex-col gap-3" : "flex flex-col lg:flex-row gap-3"}>
                                     {/* Start Date */}
                                     <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
                                         <Calendar className="absolute left-3 text-slate-400 shrink-0" size={14} />
@@ -455,7 +455,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                     <Clock size={15} className="text-slate-400" />
                                     <span>신청 마감 시간</span>
                                 </div>
-                                <div className="flex flex-col sm:flex-row gap-3">
+                                <div className={flat ? "flex flex-col gap-3" : "flex flex-col sm:flex-row gap-3"}>
                                     <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
                                         <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
                                         <input
@@ -518,7 +518,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                             <MapPin size={15} className="text-slate-400" />
                             <span>진행 장소</span>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3">
+                        <div className={flat ? "flex flex-col gap-3" : "flex flex-col sm:flex-row gap-3"}>
                             <select
                                 value={localMain}
                                 onChange={handleMainChange}
@@ -570,7 +570,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                             <Gift size={15} className="text-slate-400" />
                             <span>지급 포인트 및 리뷰 설정</span>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3">
+                        <div className={flat ? "flex flex-col gap-3" : "flex flex-col sm:flex-row gap-3"}>
                             <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
                                 <Gift className="absolute left-3 text-slate-400 shrink-0" size={15} />
                                 <input
