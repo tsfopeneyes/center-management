@@ -26,10 +26,10 @@ const NoticeCard = ({
 
 
     // Card styles
-    let cardClass = "bg-white border border-gray-100/80 flex group shadow-sm hover:shadow-lg hover:-translate-y-0.5 transform transition-all duration-300 ";
+    let cardClass = "bg-white flex group rounded-[24px] border border-[#f2f4f6] shadow-[0_8px_24px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 transform transition-all duration-300 ";
     let contentClass = "flex ";
-    let thumbClass = "bg-gray-50 overflow-hidden flex-shrink-0 cursor-pointer border border-gray-100 shadow-inner group-hover:border-blue-200 transition-colors ";
-    let titleClass = "font-bold text-slate-800 cursor-pointer group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug tracking-tight ";
+    let thumbClass = "bg-[#f9fafb] overflow-hidden flex-shrink-0 cursor-pointer transition-colors ";
+    let titleClass = "font-bold text-[#191f28] cursor-pointer group-hover:text-[#1b64da] transition-colors line-clamp-2 leading-snug tracking-tight ";
 
     if (viewMode === 'large') {
         cardClass += "p-5 md:p-6 lg:p-8 rounded-[1.5rem] md:rounded-[2rem] flex-col";
@@ -64,7 +64,7 @@ const NoticeCard = ({
         if (!notice.recruitment_deadline) return null;
         const diff = parseISO(notice.recruitment_deadline) - new Date();
         if (diff > 0 && diff < 86400000) {
-            return <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-100/50 rounded-md text-[9px] font-black animate-pulse uppercase tracking-tight">마감직전</span>;
+            return <span className="px-2 py-0.5 bg-[#fdf0f0] text-[#e63c3c] rounded-md text-[9px] font-semibold uppercase tracking-tight">마감직전</span>;
         }
         return null;
     };
@@ -73,11 +73,11 @@ const NoticeCard = ({
         if (mode !== CATEGORIES.PROGRAM) return null;
         const targets = notice.target_regions || [];
         if (targets.length === 0 || (targets.includes('강동') && targets.includes('강서'))) {
-            return <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">All</span>;
+            return <span className="px-2 py-0.5 bg-[#e8f3ff] text-[#1b64da] rounded-md text-[9px] font-semibold tracking-tight uppercase">All</span>;
         } else if (targets.includes('강동')) {
-            return <span className="px-2 py-0.5 bg-purple-50 text-purple-600 border border-purple-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">강동</span>;
+            return <span className="px-2 py-0.5 bg-[#f3e8ff] text-[#7c3aed] rounded-md text-[9px] font-semibold tracking-tight uppercase">강동</span>;
         } else if (targets.includes('강서')) {
-            return <span className="px-2 py-0.5 bg-pink-50 text-pink-600 border border-pink-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">강서</span>;
+            return <span className="px-2 py-0.5 bg-[#ffe8f3] text-[#db2777] rounded-md text-[9px] font-semibold tracking-tight uppercase">강서</span>;
         }
         return null;
     };
@@ -90,12 +90,12 @@ const NoticeCard = ({
                         {hasThumbnail ? (
                             <img src={thumbnailSrc} alt="thumb" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-gray-50 to-slate-100 flex flex-col items-center justify-center text-gray-400 gap-1 select-none">
-                                <Calendar size={20} className="text-gray-300" />
+                            <div className="w-full h-full bg-[#f2f4f6] flex flex-col items-center justify-center text-[#8b95a1] gap-1 select-none">
+                                <Calendar size={18} className="text-[#8b95a1] opacity-70" />
                                 {notice.is_recruiting === false ? (
-                                    <span className="text-[9px] font-black tracking-wider text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase">오픈</span>
+                                    <span className="text-[9px] font-semibold tracking-wider text-[#1b64da] bg-[#e8f3ff] px-1.5 py-0.5 rounded-md uppercase">오픈</span>
                                 ) : (
-                                    <span className="text-[9px] font-black tracking-wider text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md uppercase">신청</span>
+                                    <span className="text-[9px] font-semibold tracking-wider text-[#7c3aed] bg-[#f3e8ff] px-1.5 py-0.5 rounded-md uppercase">신청</span>
                                 )}
                             </div>
                         )}
@@ -107,18 +107,18 @@ const NoticeCard = ({
                     {viewMode !== 'list' && (
                         <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
                             {getTargetBadge()}
-                            {notice.is_sticky && <span className="px-2 py-0.5 bg-orange-50 text-orange-600 border border-orange-100/50 rounded-md text-[9px] font-black tracking-tight">📌 공지</span>}
+                            {notice.is_sticky && <span className="px-2 py-0.5 bg-[#fff0e6] text-[#ff6b00] rounded-md text-[9px] font-semibold tracking-tight">📌 공지</span>}
                             {notice.is_recruiting && isActive && (
                                 <>
-                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">Active</span>
+                                    <span className="px-2 py-0.5 bg-[#e8f3ff] text-[#1b64da] rounded-md text-[9px] font-semibold tracking-tight uppercase">Active</span>
                                     {getDeadlineWarning()}
                                 </>
                             )}
-                            {isCompleted && <span className="px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-200/50 rounded-md text-[9px] font-black tracking-tight uppercase">Completed</span>}
-                            {isCancelled && <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-100/50 rounded-md text-[9px] font-black tracking-tight uppercase">Cancelled</span>}
+                            {isCompleted && <span className="px-2 py-0.5 bg-[#f2f4f6] text-[#4e5968] rounded-md text-[9px] font-semibold tracking-tight uppercase">Completed</span>}
+                            {isCancelled && <span className="px-2 py-0.5 bg-[#fdf0f0] text-[#e63c3c] rounded-md text-[9px] font-semibold tracking-tight uppercase">Cancelled</span>}
                             {hasThumbnail && (
-                                <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 bg-gray-50/50 px-1.5 py-0.5 rounded-md border border-gray-100/80">
-                                    <ImageIcon size={10} className="opacity-50" /> {notice.images?.length || 1}
+                                <div className="flex items-center gap-1 text-[9px] font-semibold text-[#8b95a1] bg-[#f2f4f6] px-1.5 py-0.5 rounded-md">
+                                    <ImageIcon size={10} className="opacity-60" /> {notice.images?.length || 1}
                                 </div>
                             )}
                         </div>
@@ -143,28 +143,28 @@ const NoticeCard = ({
                     </h3>
                     
                     {mode === CATEGORIES.PROGRAM ? (
-                        <div className="mt-1.5 space-y-0.5 flex flex-col text-slate-500 text-xs md:text-sm font-medium">
+                        <div className="mt-1.5 space-y-0.5 flex flex-col text-[#4e5968] text-xs md:text-sm font-medium">
                             {notice.is_recruiting === false ? (
                                 <>
-                                    <div className="flex items-center gap-1.5 text-slate-600">
-                                        <Calendar size={13} className="text-slate-400 shrink-0" />
+                                    <div className="flex items-center gap-1.5 text-[#4e5968]">
+                                        <Calendar size={13} className="text-[#8b95a1] shrink-0" />
                                         <span>매주 {formatProgramDays(notice.program_days)}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-slate-600">
-                                        <Clock size={13} className="text-slate-400 shrink-0" />
+                                    <div className="flex items-center gap-1.5 text-[#4e5968]">
+                                        <Clock size={13} className="text-[#8b95a1] shrink-0" />
                                         <span>{formatKoreanTimeRange(notice.program_date || notice.program_start_date, notice.program_duration)}</span>
                                     </div>
                                 </>
                             ) : (
-                                <div className="flex items-center gap-1.5 text-slate-600">
-                                    <Calendar size={13} className="text-slate-400 shrink-0" />
+                                <div className="flex items-center gap-1.5 text-[#4e5968]">
+                                    <Calendar size={13} className="text-[#8b95a1] shrink-0" />
                                     <span>{new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                                 </div>
                             )}
-                            <span className="text-[10px] text-slate-400 mt-1">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
+                            <span className="text-[10px] text-[#8b95a1] mt-1">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
                         </div>
                     ) : (
-                        <p className="text-[10px] text-slate-400 mt-1.5">작성일: {new Date(notice.created_at).toLocaleDateString()}</p>
+                        <p className="text-[10px] text-[#8b95a1] mt-1.5">작성일: {new Date(notice.created_at).toLocaleDateString()}</p>
                     )}
                 </div>
             </div>
@@ -172,31 +172,31 @@ const NoticeCard = ({
             {/* Actions & Stats */}
             <div className={viewMode === 'list' ? "flex items-center gap-4 shrink-0" : "mt-auto space-y-2 md:space-y-3"}>
                 {(mode === CATEGORIES.PROGRAM || notice.is_poll) && (
-                    <div className={`p-2.5 rounded-2xl flex justify-between items-center transition-all border ${
+                    <div className={`p-2.5 rounded-[16px] flex justify-between items-center transition-all border ${
                         isActive 
-                            ? 'bg-slate-50 border-slate-100' 
-                            : 'bg-gray-50 border-gray-100 opacity-60'
+                            ? 'bg-[#f9fafb] border-[#f2f4f6]' 
+                            : 'bg-[#f9fafb]/60 border-[#f2f4f6]/60 opacity-70'
                     } ${viewMode === 'list' ? 'shrink-0 min-w-[130px] md:min-w-[150px]' : ''}`}>
-                        <div className={`flex gap-3 font-semibold items-center text-slate-600 ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
+                        <div className={`flex gap-3 font-semibold items-center text-[#4e5968] ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
                             {notice.is_poll ? (
                                 <span>
-                                    투표 <span className={isActive ? "text-purple-600 font-bold" : "text-gray-400 font-bold"}>{noticeStats[notice.id]?.pollTotal || 0}</span>
+                                    투표 <span className={isActive ? "text-[#7c3aed] font-bold" : "text-[#8b95a1] font-bold"}>{noticeStats[notice.id]?.pollTotal || 0}</span>
                                 </span>
                             ) : notice.is_recruiting ? (
                                 <>
-                                    <span>신청 <span className={isActive ? "text-blue-600 font-bold" : "text-gray-400 font-bold"}>{noticeStats[notice.id]?.JOIN || 0}</span></span>
-                                    {viewMode !== 'smaller' && <span className="text-slate-400 font-medium">대기 <span className="text-slate-500 font-bold">{noticeStats[notice.id]?.WAITLIST || 0}</span></span>}
+                                    <span>신청 <span className={isActive ? "text-[#1b64da] font-bold" : "text-[#8b95a1] font-bold"}>{noticeStats[notice.id]?.JOIN || 0}</span></span>
+                                    {viewMode !== 'smaller' && <span className="text-[#8b95a1] font-medium">대기 <span className="text-[#ff6b00] font-bold">{noticeStats[notice.id]?.WAITLIST || 0}</span></span>}
                                 </>
                             ) : (
-                                <span className={isActive ? "text-slate-700 font-semibold" : "text-gray-400 font-semibold"}>오픈 프로그램</span>
+                                <span className={isActive ? "text-[#333d4b] font-semibold" : "text-[#8b95a1] font-semibold"}>오픈 프로그램</span>
                             )}
                         </div>
                         <button 
                             onClick={() => onOpenParticipants(notice)} 
-                            className={`text-[9px] md:text-[10px] px-2.5 py-1.5 rounded-lg font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                            className={`text-[9px] md:text-[10px] px-3 py-1.5 rounded-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] ${
                                 isActive 
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                    : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+                                    ? 'bg-[#e8f3ff] text-[#1b64da] hover:bg-[#d0e6ff]' 
+                                    : 'bg-[#f2f4f6] text-[#4e5968] hover:bg-[#e4e8eb]'
                             }`}
                         >
                             {notice.is_poll ? '결과' : '명단'}
@@ -204,7 +204,7 @@ const NoticeCard = ({
                     </div>
                 )}
 
-                <div className={`flex items-center justify-between lg:gap-2 ${viewMode === 'list' ? 'gap-1' : 'pt-2 md:pt-3 border-t border-gray-50'}`}>
+                <div className={`flex items-center justify-between lg:gap-2 ${viewMode === 'list' ? 'gap-1' : 'pt-2 md:pt-3 border-t border-[#f2f4f6]'}`}>
                     <div className="flex items-center gap-1 shrink-0">
                         {mode === CATEGORIES.PROGRAM && (
                             <>
