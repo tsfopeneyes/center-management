@@ -195,13 +195,19 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.is_leader_only = formData.is_leader_only;
                 noticeData.hyphen_reward = formData.hyphen_reward ? parseInt(formData.hyphen_reward, 10) : 0;
                 noticeData.is_review_required = formData.is_review_required || false;
-                noticeData.program_start_date = (!formData.is_recruiting && formData.program_start_date)
-                    ? new Date(formData.program_start_date).toISOString().split('T')[0]
+                const startDate = formData.program_start_date || formData.program_date || formData.challenge_start_date;
+                const endDate = formData.program_end_date || formData.recurring_end_date || formData.challenge_end_date;
+                const days = (formData.program_days && formData.program_days.length > 0) 
+                    ? formData.program_days 
+                    : ((formData.recurring_days && formData.recurring_days.length > 0) ? formData.recurring_days : []);
+
+                noticeData.program_start_date = (!formData.is_recruiting && startDate)
+                    ? new Date(startDate).toISOString().split('T')[0]
                     : null;
-                noticeData.program_end_date = (!formData.is_recruiting && formData.program_end_date)
-                    ? new Date(formData.program_end_date).toISOString().split('T')[0]
+                noticeData.program_end_date = (!formData.is_recruiting && endDate)
+                    ? new Date(endDate).toISOString().split('T')[0]
                     : null;
-                noticeData.program_days = !formData.is_recruiting ? formData.program_days : [];
+                noticeData.program_days = !formData.is_recruiting ? days : [];
 
                 if (!editNoticeId && !noticeData.program_status) {
                     noticeData.program_status = 'ACTIVE';

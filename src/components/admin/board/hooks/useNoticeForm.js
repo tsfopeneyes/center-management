@@ -64,13 +64,19 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
                 }
             } else {
                 // 오픈 프로그램
-                if (!formData.program_start_date) {
+                const startDate = formData.program_start_date || formData.program_date || formData.challenge_start_date;
+                const endDate = formData.program_end_date || formData.recurring_end_date || formData.challenge_end_date;
+                const days = (formData.program_days && formData.program_days.length > 0) 
+                    ? formData.program_days 
+                    : ((formData.recurring_days && formData.recurring_days.length > 0) ? formData.recurring_days : []);
+
+                if (!startDate) {
                     return { isValid: false, message: '진행 시작일을 선택해주세요.' };
                 }
-                if (!formData.program_end_date) {
+                if (!endDate) {
                     return { isValid: false, message: '진행 종료일을 선택해주세요.' };
                 }
-                if (!formData.program_days || formData.program_days.length === 0) {
+                if (!days || days.length === 0) {
                     return { isValid: false, message: '진행 요일을 최소 1개 이상 선택해주세요.' };
                 }
             }
