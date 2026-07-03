@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { parseISO } from 'date-fns';
-import { RefreshCw, CheckCircle2, Eye, Edit2, Trash2, ImageIcon } from 'lucide-react';
+import { RefreshCw, CheckCircle2, Eye, Edit2, Trash2, ImageIcon, Calendar, Clock } from 'lucide-react';
 import { CATEGORIES } from '../../utils/constants';
 import { parseDurationToMinutes, formatKoreanTimeRange } from '../../../../../utils/dateUtils';
 
@@ -72,10 +72,20 @@ const NoticeCard = ({
     return (
         <div className={cardClass}>
             <div className={contentClass}>
-                {/* Thumbnail */}
-                {viewMode !== 'list' && hasThumbnail && (
+                {viewMode !== 'list' && (
                     <div onClick={() => onViewDetails(notice)} className={thumbClass}>
-                        <img src={thumbnailSrc} alt="thumb" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        {hasThumbnail ? (
+                            <img src={thumbnailSrc} alt="thumb" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-gray-50 to-slate-100 flex flex-col items-center justify-center text-gray-400 gap-1 select-none">
+                                <Calendar size={20} className="text-gray-300" />
+                                {notice.is_recruiting === false ? (
+                                    <span className="text-[9px] font-black tracking-wider text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase">오픈</span>
+                                ) : (
+                                    <span className="text-[9px] font-black tracking-wider text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md uppercase">신청</span>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -106,11 +116,11 @@ const NoticeCard = ({
                             if (mode === CATEGORIES.PROGRAM) {
                                 const targets = notice.target_regions || [];
                                 if (targets.length === 0 || (targets.includes('강동') && targets.includes('강서'))) {
-                                    return <span className="text-blue-600 mr-1 font-bold">[All]</span>;
+                                    return <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-black mr-1.5 inline-block align-middle">All</span>;
                                 } else if (targets.includes('강동')) {
-                                    return <span className="text-purple-600 mr-1 font-bold">[강동]</span>;
+                                    return <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[10px] font-black mr-1.5 inline-block align-middle">강동</span>;
                                 } else if (targets.includes('강서')) {
-                                    return <span className="text-pink-600 mr-1 font-bold">[강서]</span>;
+                                    return <span className="px-1.5 py-0.5 bg-pink-50 text-pink-600 rounded text-[10px] font-black mr-1.5 inline-block align-middle">강서</span>;
                                 }
                             }
                             return null;
@@ -122,16 +132,19 @@ const NoticeCard = ({
                         <div className="mt-1.5 space-y-0.5 flex flex-col">
                             {notice.is_recruiting === false ? (
                                 <>
-                                    <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1">
-                                        📅 매주 {formatProgramDays(notice.program_days)}
+                                    <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1.5">
+                                        <Calendar size={13} className="text-blue-500 shrink-0" />
+                                        매주 {formatProgramDays(notice.program_days)}
                                     </span>
-                                    <span className="text-xs md:text-sm font-bold text-gray-700 flex items-center gap-1">
-                                        🕒 {formatKoreanTimeRange(notice.program_date || notice.program_start_date, notice.program_duration)}
+                                    <span className="text-xs md:text-sm font-bold text-gray-700 flex items-center gap-1.5">
+                                        <Clock size={13} className="text-gray-400 shrink-0" />
+                                        {formatKoreanTimeRange(notice.program_date || notice.program_start_date, notice.program_duration)}
                                     </span>
                                 </>
                             ) : (
-                                <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1">
-                                    📅 {new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                                <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1.5">
+                                    <Calendar size={13} className="text-blue-500 shrink-0" />
+                                    {new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}
                                 </span>
                             )}
                             <span className="text-[9px] font-bold text-gray-300 mt-0.5">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
