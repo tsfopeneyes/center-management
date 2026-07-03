@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { parseISO } from 'date-fns';
 import { RefreshCw, CheckCircle2, Eye, Edit2, Trash2, ImageIcon } from 'lucide-react';
 import { CATEGORIES } from '../../utils/constants';
+import { parseDurationToMinutes } from '../../../../../utils/dateUtils';
 
 const NoticeCard = ({ 
     notice, 
@@ -130,14 +131,61 @@ const NoticeCard = ({
                     </h3>
                     
                     {mode === CATEGORIES.PROGRAM ? (
-                        <div className="mt-1 flex flex-col">
-                            <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1">
-                                📅 {notice.is_recruiting === false ? (
-                                    `[${formatProgramDays(notice.program_days)}] ${formatTimeOnly(notice.program_date || notice.program_start_date)}`
-                                ) : (
-                                    new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })
-                                )}
-                            </span>
+                        <div className="mt-1.5 space-y-1.5 flex flex-col">
+                            {notice.is_recruiting === false ? (
+                                <>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-black text-gray-400">진행 요일:</span>
+                                        <div className="flex gap-1 items-center">
+                                            {['일', '월', '화', '수', '목', '금', '토'].map((d, idx) => {
+                                                const isActive = notice.program_days?.includes(idx);
+                                                return (
+                                                    <span 
+                                                        key={idx} 
+                                                        className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-black shrink-0 transition-all ${
+                                                            isActive 
+                                                                ? 'bg-blue-600 text-white shadow-sm' 
+                                                                : 'bg-gray-100 text-gray-400 font-medium'
+                                                        }`}
+                                                    >
+                                                        {d}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1">
+                                        🕒 {(() => {
+                                            const targetDate = notice.program_date || notice.program_start_date;
+                                            if (!targetDate) return '시간 미정';
+                                            const startDate = new Date(targetDate);
+                                            
+                                            const formatSingleTime = (date) => {
+                                                let hours = date.getHours();
+                                                const minutes = date.getMinutes();
+                                                const ampm = hours >= 12 ? '오후' : '오전';
+                                                hours = hours % 12;
+                                                hours = hours ? hours : 12;
+                                                const minStr = String(minutes).padStart(2, '0');
+                                                return `${ampm} ${hours}:${minStr}`;
+                                            };
+                                            
+                                            const startText = formatSingleTime(startDate);
+                                            const minutes = parseDurationToMinutes(notice.program_duration);
+                                            if (minutes > 0) {
+                                                const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
+                                                const endText = formatSingleTime(endDate);
+                                                return `${startText} ~ ${endText}`;
+                                            }
+                                            return startText;
+                                        })()}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1">
+                                    📅 {new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                            )}
                             <span className="text-[9px] font-bold text-gray-300 mt-0.5">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
                         </div>
                     ) : (

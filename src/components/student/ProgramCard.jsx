@@ -2,6 +2,7 @@ import React from 'react';
 import { stripHtml } from '../../utils/textUtils';
 import { parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { MapPin, Calendar, Clock, ChevronRight, Users, CheckCircle2 } from 'lucide-react';
+import { parseDurationToMinutes } from '../../utils/dateUtils';
 
 const ProgramCard = ({ program, onClick, compact = false }) => {
     const thumb = program.image_url || (program.images?.length > 0 ? program.images[0] : null);
@@ -117,21 +118,73 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                 )}
 
                 <div className={compact ? "space-y-1.5 mb-3 flex-1" : "space-y-3 mb-6"}>
-                    <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2' : 'gap-3'}`}>
-                        <Calendar size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
-                        <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>
-                            {program.is_recruiting === false ? (
-                                `[${formatProgramDays(program.program_days)}] ${formatTimeOnly(program.program_date || program.program_start_date)}`
-                            ) : (
-                                formatDate(program.program_date)
-                            )}
-                        </span>
-                    </div>
-                    {program.program_duration && !compact && (
-                        <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
-                            <Clock size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
-                            <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>소요시간: {program.program_duration}</span>
+                    {program.is_recruiting === false ? (
+                        <div className="space-y-1.5 my-1 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/50">
+                            {/* Days Visualization */}
+                            <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-black text-tossGrey400 shrink-0`}>요일</span>
+                                <div className="flex gap-1 items-center">
+                                    {['일', '월', '화', '수', '목', '금', '토'].map((d, idx) => {
+                                        const isActive = program.program_days?.includes(idx);
+                                        return (
+                                            <span 
+                                                key={idx} 
+                                                className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-black shrink-0 transition-all ${
+                                                    isActive 
+                                                        ? 'bg-tossBlue text-white shadow-sm' 
+                                                        : 'bg-tossGrey100 text-tossGrey400 font-medium'
+                                                }`}
+                                            >
+                                                {d}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            {/* Time range */}
+                            <div className="flex items-center gap-2">
+                                <Clock size={14} className="shrink-0 text-tossGrey400" />
+                                <span className={`font-black text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-xs'}`}>
+                                    {(() => {
+                                        const targetDate = program.program_date || program.program_start_date;
+                                        if (!targetDate) return '시간 미정';
+                                        const startDate = new Date(targetDate);
+                                        
+                                        const formatSingleTime = (date) => {
+                                            let hours = date.getHours();
+                                            const minutes = date.getMinutes();
+                                            const ampm = hours >= 12 ? '오후' : '오전';
+                                            hours = hours % 12;
+                                            hours = hours ? hours : 12;
+                                            const minStr = String(minutes).padStart(2, '0');
+                                            return `${ampm} ${hours}:${minStr}`;
+                                        };
+                                        
+                                        const startText = formatSingleTime(startDate);
+                                        const minutes = parseDurationToMinutes(program.program_duration);
+                                        if (minutes > 0) {
+                                            const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
+                                            const endText = formatSingleTime(endDate);
+                                            return `${startText} ~ ${endText}`;
+                                        }
+                                        return startText;
+                                    })()}
+                                </span>
+                            </div>
                         </div>
+                    ) : (
+                        <>
+                            <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2' : 'gap-3'}`}>
+                                <Calendar size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
+                                <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{formatDate(program.program_date)}</span>
+                            </div>
+                            {program.program_duration && !compact && (
+                                <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
+                                    <Clock size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
+                                    <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>소요시간: {program.program_duration}</span>
+                                </div>
+                            )}
+                        </>
                     )}
                     {program.program_location && (
                         <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>

@@ -99,7 +99,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     await hyphenApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
                 } else {
                     const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    const adminId = admin?.id || 'admin';
+                    const adminId = admin?.id || null;
                     await hyphenApi.grantOpenProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
                 }
                 await fetchParticipants(selectedNotice);
@@ -109,7 +109,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 // Hyphen Reward Logic
                 if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
                     const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    const adminId = admin?.id || 'admin';
+                    const adminId = admin?.id || null;
                     if (!currentAttended) {
                         if (!selectedNotice.is_review_required) {
                             await hyphenApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
@@ -179,7 +179,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             // Hyphen Reward Logic (Bulk)
             if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
-                const adminId = admin?.id || 'admin';
+                const adminId = admin?.id || null;
                 const newlyAttendedUsers = participantList.JOIN.filter(u => !u.is_attended);
                 
                 // Process sequentially to avoid slamming the DB
@@ -230,7 +230,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             if (selectedNotice.is_recruiting === false) {
                 const dateStr = selectedDate;
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
-                const adminId = admin?.id || 'admin';
+                const adminId = admin?.id || null;
                 await hyphenApi.grantOpenProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
                 
                 // Optimistic Update & Immediate Feedback
@@ -245,7 +245,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 // Hyphen Reward Logic (Walk-in)
                 if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
                     const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    const adminId = admin?.id || 'admin';
+                    const adminId = admin?.id || null;
                     await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
                 }
 
@@ -276,7 +276,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             if (selectedNotice.is_recruiting === false) {
                 const dateStr = selectedDate;
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
-                const adminId = admin?.id || 'admin';
+                const adminId = admin?.id || null;
                 for (const user of users) {
                     try {
                         await hyphenApi.grantOpenProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
@@ -303,7 +303,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     
                     if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
                         const admin = JSON.parse(localStorage.getItem('admin_user'));
-                        const adminId = admin?.id || 'admin';
+                        const adminId = admin?.id || null;
                         try {
                             await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
                         } catch (e) {
