@@ -36,6 +36,27 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
         return `${month}/${day}(${dayOfWeek}) ${ampm} ${hours}시${minuteStr}`;
     };
 
+    const formatProgramDays = (daysArray) => {
+        if (!daysArray || daysArray.length === 0) return '요일 미지정';
+        const labels = ['일', '월', '화', '수', '목', '금', '토'];
+        const sortedDays = [...daysArray].sort((a, b) => a - b);
+        return sortedDays.map(d => labels[d]).join(', ');
+    };
+
+    const formatTimeOnly = (dateString) => {
+        if (!dateString) return '시간 미정';
+        const date = new Date(dateString);
+        let hours = date.getHours();
+        const minutes = date.getMinutes();
+        const ampm = hours >= 12 ? '오후' : '오전';
+        
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        
+        const minuteStr = minutes > 0 ? ` ${minutes}분` : '';
+        return `${ampm} ${hours}시${minuteStr}`;
+    };
+
     const isPast = program.program_date && new Date(program.program_date) < startOfDay(new Date());
 
     return (
@@ -98,7 +119,13 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                 <div className={compact ? "space-y-1.5 mb-3 flex-1" : "space-y-3 mb-6"}>
                     <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2' : 'gap-3'}`}>
                         <Calendar size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
-                        <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{formatDate(program.program_date)}</span>
+                        <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>
+                            {program.is_recruiting === false ? (
+                                `[${formatProgramDays(program.program_days)}] ${formatTimeOnly(program.program_date || program.program_start_date)}`
+                            ) : (
+                                formatDate(program.program_date)
+                            )}
+                        </span>
                     </div>
                     {program.program_duration && !compact && (
                         <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>

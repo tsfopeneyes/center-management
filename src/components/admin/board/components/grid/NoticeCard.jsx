@@ -15,6 +15,27 @@ const NoticeCard = ({
     onEdit, 
     onDelete 
 }) => {
+    const formatProgramDays = (daysArray) => {
+        if (!daysArray || daysArray.length === 0) return '요일 미지정';
+        const labels = ['일', '월', '화', '수', '목', '금', '토'];
+        const sortedDays = [...daysArray].sort((a, b) => a - b);
+        return sortedDays.map(d => labels[d]).join(', ');
+    };
+
+    const formatTimeOnly = (dateString) => {
+        if (!dateString) return '시간 미정';
+        const date = new Date(dateString);
+        let hours = date.getHours();
+        const minutes = date.getMinutes();
+        const ampm = hours >= 12 ? '오후' : '오전';
+        
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        
+        const minuteStr = minutes > 0 ? ` ${minutes}분` : '';
+        return `${ampm} ${hours}시${minuteStr}`;
+    };
+
     // Card styles
     let cardClass = "bg-white border border-gray-100 transition-all duration-300 flex group shadow-sm hover:shadow-xl hover:shadow-blue-500/5 ";
     let contentClass = "flex ";
@@ -108,10 +129,14 @@ const NoticeCard = ({
                         {notice.title}
                     </h3>
                     
-                    {mode === CATEGORIES.PROGRAM && notice.program_date ? (
+                    {mode === CATEGORIES.PROGRAM ? (
                         <div className="mt-1 flex flex-col">
                             <span className="text-xs md:text-sm font-black text-blue-600 flex items-center gap-1">
-                                📅 {new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                                📅 {notice.is_recruiting === false ? (
+                                    `[${formatProgramDays(notice.program_days)}] ${formatTimeOnly(notice.program_date || notice.program_start_date)}`
+                                ) : (
+                                    new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })
+                                )}
                             </span>
                             <span className="text-[9px] font-bold text-gray-300 mt-0.5">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
                         </div>
@@ -123,18 +148,20 @@ const NoticeCard = ({
 
             {/* Actions & Stats */}
             <div className={viewMode === 'list' ? "flex items-center gap-4 shrink-0" : "mt-auto space-y-2 md:space-y-3"}>
-                {(notice.is_recruiting || notice.is_poll) && noticeStats[notice.id] && (
+                {(mode === CATEGORIES.PROGRAM || notice.is_poll) && (
                     <div className={`p-2 lg:p-3 rounded-xl flex justify-between items-center transition-all shadow-sm ${isActive ? 'bg-blue-50/50 group-hover:bg-blue-600 group-hover:text-white' : 'bg-gray-100/50 opacity-60'} ${viewMode === 'list' ? 'shrink-0 min-w-[130px] md:min-w-[150px]' : ''}`}>
                         <div className={`flex gap-3 font-black ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
                             {notice.is_poll ? (
                                 <span className={isActive ? "text-purple-600 group-hover:text-white" : ""}>
-                                    투표 {noticeStats[notice.id].pollTotal || 0}
+                                    투표 {noticeStats[notice.id]?.pollTotal || 0}
                                 </span>
-                            ) : (
+                            ) : notice.is_recruiting ? (
                                 <>
-                                    <span className={isActive ? "text-blue-600 group-hover:text-white" : ""}>신청 {noticeStats[notice.id].JOIN || 0}</span>
-                                    {viewMode !== 'smaller' && <span className={isActive ? "text-orange-500 group-hover:text-orange-200" : ""}>대기 {noticeStats[notice.id].WAITLIST || 0}</span>}
+                                    <span className={isActive ? "text-blue-600 group-hover:text-white" : ""}>신청 {noticeStats[notice.id]?.JOIN || 0}</span>
+                                    {viewMode !== 'smaller' && <span className={isActive ? "text-orange-500 group-hover:text-orange-200" : ""}>대기 {noticeStats[notice.id]?.WAITLIST || 0}</span>}
                                 </>
+                            ) : (
+                                <span className={isActive ? "text-green-600 group-hover:text-white font-extrabold" : ""}>오픈 프로그램 명단</span>
                             )}
                         </div>
                         <button onClick={() => onOpenParticipants(notice)} className={`text-[9px] md:text-[10px] px-2 py-1 rounded-md font-black transition-all shadow-sm ${isActive ? 'bg-white text-blue-600 hover:bg-blue-50' : 'bg-gray-200 text-gray-500'}`}>

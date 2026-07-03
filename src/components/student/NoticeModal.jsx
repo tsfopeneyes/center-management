@@ -19,7 +19,13 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     const [zoomedImage, setZoomedImage] = useState(null);
 
     const { cleanContent, duration, location } = extractProgramInfo(notice.content);
-    const formattedSchedule = formatProgramSchedule(notice.program_date, notice.program_duration || duration);
+    const formattedSchedule = formatProgramSchedule(
+        notice.program_date,
+        notice.program_duration || duration,
+        notice.is_recruiting,
+        notice.program_days,
+        notice.program_start_date
+    );
 
     const isAdmin = user?.role === 'admin';
 

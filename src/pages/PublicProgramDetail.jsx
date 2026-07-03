@@ -138,7 +138,13 @@ const PublicProgramDetail = () => {
     }
 
     const { cleanContent, duration, location } = extractProgramInfo(notice.content);
-    const formattedSchedule = formatProgramSchedule(notice.program_date, notice.program_duration || duration);
+    const formattedSchedule = formatProgramSchedule(
+        notice.program_date,
+        notice.program_duration || duration,
+        notice.is_recruiting,
+        notice.program_days,
+        notice.program_start_date
+    );
 
     return (
         <div className="w-full md:max-w-lg mx-auto min-h-screen bg-white relative pb-24 shadow-2xl">

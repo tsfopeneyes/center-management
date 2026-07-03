@@ -164,7 +164,28 @@ export const parseDurationToMinutes = (durationStr) => {
     return 0; // Default or fallback
 };
 
-export const formatProgramSchedule = (dateStr, durationStr) => {
+export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true, programDays = [], programStartDate = null) => {
+    if (isRecruiting === false) {
+        if (!programDays || programDays.length === 0) return '요일 미지정';
+        const labels = ['일', '월', '화', '수', '목', '금', '토'];
+        const sortedDays = [...programDays].sort((a, b) => a - b);
+        const daysPart = sortedDays.map(d => labels[d]).join(', ');
+        
+        let timePart = '시간 미정';
+        const targetDate = dateStr || programStartDate;
+        if (targetDate) {
+            const date = new Date(targetDate);
+            let hours = date.getHours();
+            const minutes = date.getMinutes();
+            const ampm = hours >= 12 ? '오후' : '오전';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const minuteStr = minutes > 0 ? ` ${minutes}분` : '';
+            timePart = `${ampm} ${hours}시${minuteStr}`;
+        }
+        return `[${daysPart}] ${timePart}`;
+    }
+
     if (!dateStr || dateStr === '미정') return '미정';
     
     const startDate = new Date(dateStr);
