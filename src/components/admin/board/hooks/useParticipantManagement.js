@@ -8,6 +8,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const [participantList, setParticipantList] = useState({ JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] });
     const [pollModalResults, setPollModalResults] = useState(null);
     const [modalLoading, setModalLoading] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
     
     // Walk-in search state
     const [searchQuery, setSearchQuery] = useState('');
@@ -21,26 +22,52 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         setPollModalResults(null);
         
         try {
-            // Fetch normal RSVPs
-            const { data, error } = await supabase
-                .from('notice_responses')
-                .select('status, is_attended, is_staff, challenge_mission_statuses, users(id, name, school, phone_back4, is_leader)')
-                .eq('notice_id', notice.id);
+            if (notice.is_recruiting === false) {
+                // 오픈 프로그램 (날짜별 수동 관리)
+                const dateStr = selectedDate;
+                const descMatch = `[오픈 프로그램 참여] ${notice.title} (${dateStr})`;
                 
-            if (error) throw error;
-            
-            const list = { JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] };
-            data?.forEach(r => {
-                if (list[r.status]) {
-                    list[r.status].push({ 
-                        ...r.users, 
-                        is_attended: r.is_attended, 
-                        is_staff: r.is_staff,
-                        challenge_mission_statuses: r.challenge_mission_statuses
-                    });
-                }
-            });
-            setParticipantList(list);
+                const { data, error } = await supabase
+                    .from('hyphen_transactions')
+                    .select('user_id, users(id, name, school, phone_back4, is_leader)')
+                    .eq('source_description', descMatch)
+                    .eq('transaction_type', 'EARN');
+                    
+                if (error) throw error;
+                
+                const list = { JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] };
+                data?.forEach(tx => {
+                    if (tx.users) {
+                        list.JOIN.push({ 
+                            ...tx.users, 
+                            is_attended: true, 
+                            is_staff: false
+                        });
+                    }
+                });
+                setParticipantList(list);
+            } else {
+                // 신청 프로그램 (기존 동일)
+                const { data, error } = await supabase
+                    .from('notice_responses')
+                    .select('status, is_attended, is_staff, challenge_mission_statuses, users(id, name, school, phone_back4, is_leader)')
+                    .eq('notice_id', notice.id);
+                    
+                if (error) throw error;
+                
+                const list = { JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] };
+                data?.forEach(r => {
+                    if (list[r.status]) {
+                        list[r.status].push({ 
+                            ...r.users, 
+                            is_attended: r.is_attended, 
+                            is_staff: r.is_staff,
+                            challenge_mission_statuses: r.challenge_mission_statuses
+                        });
+                    }
+                });
+                setParticipantList(list);
+            }
 
             // Fetch Poll Responses if applicable
             if (notice.is_poll) {
@@ -61,31 +88,43 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         } finally {
             setModalLoading(false);
         }
-    }, []);
+    }, [selectedDate]);
 
     const handleAttendanceToggle = async (userId, currentAttended) => {
         if (!selectedNotice) return;
         try {
-            await noticesApi.updateAttendance(selectedNotice.id, userId, !currentAttended);
-            
-            // Hyphen Reward Logic
-            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
-                const admin = JSON.parse(localStorage.getItem('admin_user'));
-                const adminId = admin?.id || 'admin';
-                if (!currentAttended) {
-                    if (!selectedNotice.is_review_required) {
-                        await hyphenApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
-                    }
+            if (selectedNotice.is_recruiting === false) {
+                const dateStr = selectedDate;
+                if (currentAttended) {
+                    await hyphenApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
                 } else {
-                    await hyphenApi.revokeProgramReward(userId, selectedNotice.title);
+                    const admin = JSON.parse(localStorage.getItem('admin_user'));
+                    const adminId = admin?.id || 'admin';
+                    await hyphenApi.grantOpenProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
                 }
-            }
+                await fetchParticipants(selectedNotice);
+            } else {
+                await noticesApi.updateAttendance(selectedNotice.id, userId, !currentAttended);
+                
+                // Hyphen Reward Logic
+                if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+                    const admin = JSON.parse(localStorage.getItem('admin_user'));
+                    const adminId = admin?.id || 'admin';
+                    if (!currentAttended) {
+                        if (!selectedNotice.is_review_required) {
+                            await hyphenApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                        }
+                    } else {
+                        await hyphenApi.revokeProgramReward(userId, selectedNotice.title);
+                    }
+                }
 
-            setParticipantList(prev => {
-                const next = { ...prev };
-                next.JOIN = next.JOIN.map(u => u.id === userId ? { ...u, is_attended: !currentAttended } : u);
-                return next;
-            });
+                setParticipantList(prev => {
+                    const next = { ...prev };
+                    next.JOIN = next.JOIN.map(u => u.id === userId ? { ...u, is_attended: !currentAttended } : u);
+                    return next;
+                });
+            }
         } catch (err) {
             console.error(err);
             alert('출석 상태 변경 실패: ' + err.message);
@@ -109,15 +148,21 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
 
     const handleDeleteParticipant = async (userId, userName) => {
         if (!selectedNotice) return;
-        if (!window.confirm(`[${userName}] 학생의 신청 내역을 정말 삭제하시겠습니까?`)) return;
+        if (!window.confirm(`[${userName}] 학생의 내역을 정말 삭제하시겠습니까?`)) return;
         try {
-            await noticesApi.deleteResponse(selectedNotice.id, userId);
-            setParticipantList(prev => {
-                const next = { ...prev };
-                next.JOIN = next.JOIN.filter(u => u.id !== userId);
-                next.WAITLIST = next.WAITLIST.filter(u => u.id !== userId);
-                return next;
-            });
+            if (selectedNotice.is_recruiting === false) {
+                const dateStr = selectedDate;
+                await hyphenApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
+                await fetchParticipants(selectedNotice);
+            } else {
+                await noticesApi.deleteResponse(selectedNotice.id, userId);
+                setParticipantList(prev => {
+                    const next = { ...prev };
+                    next.JOIN = next.JOIN.filter(u => u.id !== userId);
+                    next.WAITLIST = next.WAITLIST.filter(u => u.id !== userId);
+                    return next;
+                });
+            }
             if (onRefreshData) onRefreshData();
         } catch (err) {
             console.error('Failed to delete participant:', err);
@@ -137,7 +182,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const adminId = admin?.id || 'admin';
                 const newlyAttendedUsers = participantList.JOIN.filter(u => !u.is_attended);
                 
-                // Process sequentially to avoid slamming the DB (or use Promise.all if preferred, but sequential is safer for now)
+                // Process sequentially to avoid slamming the DB
                 for (const u of newlyAttendedUsers) {
                     try {
                         await hyphenApi.grantProgramReward(u.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
@@ -182,20 +227,33 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const addWalkIn = async (user) => {
         if (!selectedNotice) return;
         try {
-            await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
-            await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
-
-            // Hyphen Reward Logic (Walk-in)
-            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
+            if (selectedNotice.is_recruiting === false) {
+                const dateStr = selectedDate;
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
                 const adminId = admin?.id || 'admin';
-                await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
-            }
+                await hyphenApi.grantOpenProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
+                
+                // Optimistic Update & Immediate Feedback
+                const newUser = { ...user, is_attended: true, is_staff: false };
+                if (!participantList.JOIN.some(u => u.id === user.id)) {
+                    setParticipantList(prev => ({ ...prev, JOIN: [newUser, ...prev.JOIN] }));
+                }
+            } else {
+                await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
+                await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
 
-            // Optimistic Update & Immediate Feedback
-            const newUser = { ...user, is_attended: true };
-            if (!participantList.JOIN.some(u => u.id === user.id)) {
-                setParticipantList(prev => ({ ...prev, JOIN: [newUser, ...prev.JOIN] }));
+                // Hyphen Reward Logic (Walk-in)
+                if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
+                    const admin = JSON.parse(localStorage.getItem('admin_user'));
+                    const adminId = admin?.id || 'admin';
+                    await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                }
+
+                // Optimistic Update & Immediate Feedback
+                const newUser = { ...user, is_attended: true };
+                if (!participantList.JOIN.some(u => u.id === user.id)) {
+                    setParticipantList(prev => ({ ...prev, JOIN: [newUser, ...prev.JOIN] }));
+                }
             }
             
             setSearchQuery('');
@@ -203,7 +261,6 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             setLastAddedUser(user);
             setTimeout(() => setLastAddedUser(null), 3000);
 
-            // Refresh poll stats if also a poll (rare but possible)
             await fetchParticipants(selectedNotice);
             if (onRefreshData) onRefreshData();
             
@@ -216,33 +273,57 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const addMultipleWalkIns = async (users) => {
         if (!selectedNotice || !users.length) return;
         try {
-            // Process sequentially to be safe
-            for (const user of users) {
-                await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
-                await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
-                
-                if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
-                    const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    const adminId = admin?.id || 'admin';
+            if (selectedNotice.is_recruiting === false) {
+                const dateStr = selectedDate;
+                const admin = JSON.parse(localStorage.getItem('admin_user'));
+                const adminId = admin?.id || 'admin';
+                for (const user of users) {
                     try {
-                        await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                        await hyphenApi.grantOpenProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
                     } catch (e) {
                          console.error('Walk-in reward error for user', user.id, e);
                     }
                 }
-            }
 
-            setParticipantList(prev => {
-                const next = { ...prev };
-                const newJoins = [];
-                users.forEach(user => {
-                    if (!next.JOIN.some(u => u.id === user.id)) {
-                        newJoins.push({ ...user, is_attended: true });
-                    }
+                setParticipantList(prev => {
+                    const next = { ...prev };
+                    const newJoins = [];
+                    users.forEach(user => {
+                        if (!next.JOIN.some(u => u.id === user.id)) {
+                            newJoins.push({ ...user, is_attended: true, is_staff: false });
+                        }
+                    });
+                    next.JOIN = [...newJoins, ...next.JOIN];
+                    return next;
                 });
-                next.JOIN = [...newJoins, ...next.JOIN];
-                return next;
-            });
+            } else {
+                for (const user of users) {
+                    await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
+                    await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
+                    
+                    if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
+                        const admin = JSON.parse(localStorage.getItem('admin_user'));
+                        const adminId = admin?.id || 'admin';
+                        try {
+                            await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                        } catch (e) {
+                             console.error('Walk-in reward error for user', user.id, e);
+                        }
+                    }
+                }
+
+                setParticipantList(prev => {
+                    const next = { ...prev };
+                    const newJoins = [];
+                    users.forEach(user => {
+                        if (!next.JOIN.some(u => u.id === user.id)) {
+                            newJoins.push({ ...user, is_attended: true });
+                        }
+                    });
+                    next.JOIN = [...newJoins, ...next.JOIN];
+                    return next;
+                });
+            }
             
             setSearchQuery('');
             setSearchResults([]);
@@ -323,7 +404,9 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         lastAddedUser,
         addWalkIn,
         addMultipleWalkIns,
-        activeSpaceUsers
+        activeSpaceUsers,
+        selectedDate,
+        setSelectedDate
     };
 };
 

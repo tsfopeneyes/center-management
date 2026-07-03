@@ -27,7 +27,9 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
         lastAddedUser,
         addWalkIn,
         addMultipleWalkIns,
-        activeSpaceUsers
+        activeSpaceUsers,
+        selectedDate,
+        setSelectedDate
     } = useParticipantManagement(notice, onRefresh);
 
     useEffect(() => {
@@ -80,8 +82,23 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
 
                     {!notice.is_poll && (
                         <div className="p-6 flex-1 text-sm text-gray-500 space-y-4 font-medium">
-                            <p>학생들의 참석 여부를 확인하고<br/>수동으로 출석 체크 할 수 있습니다.</p>
-                            <p>사전 신청하지 않은 학생은<br/>'상단 버튼'을 클릭하여<br/>현장에서 바로 추가 가능합니다.</p>
+                            {notice.is_recruiting === false ? (
+                                <div className="space-y-2 bg-blue-50/50 border border-blue-100 p-4 rounded-2xl">
+                                    <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">조회/등록 날짜</label>
+                                    <input 
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={e => setSelectedDate(e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs focus:border-blue-500 transition cursor-pointer"
+                                    />
+                                    <p className="text-[10px] text-slate-400 font-medium">오픈 프로그램은 지정한 날짜별로 참석 명단을 관리하고 하이픈을 지급합니다.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <p>학생들의 참석 여부를 확인하고<br/>수동으로 출석 체크 할 수 있습니다.</p>
+                                    <p>사전 신청하지 않은 학생은<br/>'상단 버튼'을 클릭하여<br/>현장에서 바로 추가 가능합니다.</p>
+                                </>
+                            )}
                             
                             <button 
                                 onClick={() => exportParticipantsToExcel(participantList.JOIN, notice.title)}
@@ -148,6 +165,8 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
                                         onMarkAllAttended={handleMarkAllAttended}
                                         showEntranceList={showEntranceList}
                                         setShowEntranceList={setShowEntranceList}
+                                        selectedDate={selectedDate}
+                                        setSelectedDate={setSelectedDate}
                                     />
                                 </>
                             )

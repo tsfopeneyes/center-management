@@ -49,6 +49,46 @@ export const hyphenApi = {
         if (error) throw error;
     },
 
+    async grantOpenProgramReward(userId, noticeId, rewardAmount, adminId, noticeTitle, dateStr) {
+        if (!rewardAmount || rewardAmount <= 0) return;
+        const descMatch = `[오픈 프로그램 참여] ${noticeTitle} (${dateStr})`;
+
+        const { data: existing, error: checkErr } = await supabase
+            .from('hyphen_transactions')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('source_description', descMatch)
+            .maybeSingle();
+
+        if (checkErr) throw checkErr;
+        if (existing) return;
+
+        const { error: insertErr } = await supabase
+            .from('hyphen_transactions')
+            .insert([{
+                user_id: userId,
+                amount: rewardAmount,
+                transaction_type: 'EARN',
+                source_description: descMatch,
+                admin_id: adminId
+            }]);
+
+        if (insertErr) throw insertErr;
+    },
+
+    async revokeOpenProgramReward(userId, noticeTitle, dateStr) {
+        const descMatch = `[오픈 프로그램 참여] ${noticeTitle} (${dateStr})`;
+        
+        const { error } = await supabase
+            .from('hyphen_transactions')
+            .delete()
+            .eq('user_id', userId)
+            .eq('source_description', descMatch)
+            .eq('transaction_type', 'EARN');
+
+        if (error) throw error;
+    },
+
     async manualAdjustment(userId, amount, reason, adminId) {
         if (amount === 0) return;
         
