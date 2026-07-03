@@ -164,6 +164,37 @@ export const parseDurationToMinutes = (durationStr) => {
     return 0; // Default or fallback
 };
 
+export const formatKoreanTimeRange = (startDateStr, durationStr) => {
+    if (!startDateStr) return '시간 미정';
+    const startDate = new Date(startDateStr);
+    if (isNaN(startDate.getTime())) return '시간 미정';
+    
+    const formatPart = (date) => {
+        let hours = date.getHours();
+        const minutes = date.getMinutes();
+        const ampm = hours >= 12 ? '오후' : '오전';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        
+        const minText = minutes > 0 ? ` ${minutes}분` : '';
+        return { ampm, hours, minText, text: `${ampm} ${hours}시${minText}` };
+    };
+    
+    const start = formatPart(startDate);
+    const durationMinutes = parseDurationToMinutes(durationStr);
+    if (durationMinutes > 0) {
+        const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+        const end = formatPart(endDate);
+        
+        if (start.ampm === end.ampm) {
+            return `${start.text} ~ ${end.hours}시${end.minText}`;
+        } else {
+            return `${start.text} ~ ${end.text}`;
+        }
+    }
+    return start.text;
+};
+
 export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true, programDays = [], programStartDate = null) => {
     if (isRecruiting === false) {
         if (!programDays || programDays.length === 0) return '요일 미지정';
@@ -171,18 +202,7 @@ export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true,
         const sortedDays = [...programDays].sort((a, b) => a - b);
         const daysPart = sortedDays.map(d => labels[d]).join(', ');
         
-        let timePart = '시간 미정';
-        const targetDate = dateStr || programStartDate;
-        if (targetDate) {
-            const date = new Date(targetDate);
-            let hours = date.getHours();
-            const minutes = date.getMinutes();
-            const ampm = hours >= 12 ? '오후' : '오전';
-            hours = hours % 12;
-            hours = hours ? hours : 12;
-            const minuteStr = minutes > 0 ? ` ${minutes}분` : '';
-            timePart = `${ampm} ${hours}시${minuteStr}`;
-        }
+        const timePart = formatKoreanTimeRange(dateStr || programStartDate, durationStr);
         return `[${daysPart}] ${timePart}`;
     }
 

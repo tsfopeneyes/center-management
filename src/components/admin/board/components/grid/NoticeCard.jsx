@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { parseISO } from 'date-fns';
 import { RefreshCw, CheckCircle2, Eye, Edit2, Trash2, ImageIcon } from 'lucide-react';
 import { CATEGORIES } from '../../utils/constants';
-import { parseDurationToMinutes } from '../../../../../utils/dateUtils';
+import { parseDurationToMinutes, formatKoreanTimeRange } from '../../../../../utils/dateUtils';
 
 const NoticeCard = ({ 
     notice, 
@@ -23,35 +23,7 @@ const NoticeCard = ({
         return sortedDays.map(d => labels[d]).join(', ');
     };
 
-    const formatTimeRangeCompact = (dateString, durationStr) => {
-        if (!dateString) return '시간 미정';
-        const startDate = new Date(dateString);
-        if (isNaN(startDate.getTime())) return '시간 미정';
-        
-        const formatTimePart = (date) => {
-            let hours = date.getHours();
-            const minutes = date.getMinutes();
-            const ampm = hours >= 12 ? '오후' : '오전';
-            hours = hours % 12;
-            hours = hours ? hours : 12;
-            const minStr = String(minutes).padStart(2, '0');
-            return { ampm, hours, minStr, text: `${ampm} ${hours}:${minStr}` };
-        };
-        
-        const start = formatTimePart(startDate);
-        const minutes = parseDurationToMinutes(durationStr);
-        if (minutes > 0) {
-            const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
-            const end = formatTimePart(endDate);
-            
-            if (start.ampm === end.ampm) {
-                return `${start.text} ~ ${end.hours}:${end.minStr}`;
-            } else {
-                return `${start.text} ~ ${end.text}`;
-            }
-        }
-        return start.text;
-    };
+
 
     // Card styles
     let cardClass = "bg-white border border-gray-100 transition-all duration-300 flex group shadow-sm hover:shadow-xl hover:shadow-blue-500/5 ";
@@ -154,7 +126,7 @@ const NoticeCard = ({
                                         📅 매주 {formatProgramDays(notice.program_days)}
                                     </span>
                                     <span className="text-xs md:text-sm font-bold text-gray-700 flex items-center gap-1">
-                                        🕒 {formatTimeRangeCompact(notice.program_date || notice.program_start_date, notice.program_duration)}
+                                        🕒 {formatKoreanTimeRange(notice.program_date || notice.program_start_date, notice.program_duration)}
                                     </span>
                                 </>
                             ) : (

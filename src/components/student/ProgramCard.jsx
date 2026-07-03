@@ -2,7 +2,7 @@ import React from 'react';
 import { stripHtml } from '../../utils/textUtils';
 import { parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { MapPin, Calendar, Clock, ChevronRight, Users, CheckCircle2 } from 'lucide-react';
-import { parseDurationToMinutes } from '../../utils/dateUtils';
+import { parseDurationToMinutes, formatKoreanTimeRange } from '../../utils/dateUtils';
 
 const ProgramCard = ({ program, onClick, compact = false }) => {
     const thumb = program.image_url || (program.images?.length > 0 ? program.images[0] : null);
@@ -44,35 +44,7 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
         return sortedDays.map(d => labels[d]).join(', ');
     };
 
-    const formatTimeRangeCompact = (dateString, durationStr) => {
-        if (!dateString) return '시간 미정';
-        const startDate = new Date(dateString);
-        if (isNaN(startDate.getTime())) return '시간 미정';
-        
-        const formatTimePart = (date) => {
-            let hours = date.getHours();
-            const minutes = date.getMinutes();
-            const ampm = hours >= 12 ? '오후' : '오전';
-            hours = hours % 12;
-            hours = hours ? hours : 12;
-            const minStr = String(minutes).padStart(2, '0');
-            return { ampm, hours, minStr, text: `${ampm} ${hours}:${minStr}` };
-        };
-        
-        const start = formatTimePart(startDate);
-        const minutes = parseDurationToMinutes(durationStr);
-        if (minutes > 0) {
-            const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
-            const end = formatTimePart(endDate);
-            
-            if (start.ampm === end.ampm) {
-                return `${start.text} ~ ${end.hours}:${end.minStr}`;
-            } else {
-                return `${start.text} ~ ${end.text}`;
-            }
-        }
-        return start.text;
-    };
+
 
     const isPast = program.program_date && new Date(program.program_date) < startOfDay(new Date());
 
@@ -145,7 +117,7 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                             <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
                                 <Clock size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
                                 <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>
-                                    {formatTimeRangeCompact(program.program_date || program.program_start_date, program.program_duration)}
+                                    {formatKoreanTimeRange(program.program_date || program.program_start_date, program.program_duration)}
                                 </span>
                             </div>
                         </>
