@@ -13,7 +13,7 @@ import NoticeCarousel from './components/NoticeCarousel';
 import NoticeHeader from './components/NoticeHeader';
 import WriteForm from '../admin/board/components/forms/WriteForm';
 
-const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, onResponse, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete }) => {
+const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, onResponse, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
     const [zoomedImage, setZoomedImage] = useState(null);
@@ -64,6 +64,9 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
+                // Ignore ESC key if a higher-level overlay is currently open
+                if (document.querySelector('.dropdown-overlay')) return;
+
                 if (zoomedImage) {
                     setZoomedImage(null);
                 } else if (isEditing) {
@@ -210,19 +213,28 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                              </div>
                                              {notice.max_capacity > 0 && <div className="bg-tossSuccess/10 text-tossSuccess px-3 py-1.5 rounded-toss-md text-xs font-bold">{joinCount} / {notice.max_capacity}명</div>}
                                          </div>
-                                         <button
-                                             disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
-                                             onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
-                                             className={`w-full py-3.5 rounded-toss-xl font-bold text-white transition-all active:scale-[0.98] ${
-                                                 responses[notice.id]
-                                                     ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none'
-                                                     : (notice.max_capacity > 0 && joinCount >= notice.max_capacity
-                                                         ? 'bg-tossWarning hover:bg-tossWarning/90'
-                                                         : 'bg-tossBlue hover:bg-tossBlueHover')
-                                             }`}
-                                         >
-                                             {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
-                                         </button>
+                                         {isAdmin ? (
+                                             <button
+                                                 onClick={() => onViewParticipants && onViewParticipants(notice)}
+                                                 className="w-full py-3.5 rounded-toss-xl font-bold text-white transition-all bg-tossBlue hover:bg-tossBlueHover flex items-center justify-center gap-2"
+                                             >
+                                                 신청자 명단 ({joinCount}명)
+                                             </button>
+                                         ) : (
+                                             <button
+                                                 disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
+                                                 onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
+                                                 className={`w-full py-3.5 rounded-toss-xl font-bold text-white transition-all active:scale-[0.98] ${
+                                                     responses[notice.id]
+                                                         ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none'
+                                                         : (notice.max_capacity > 0 && joinCount >= notice.max_capacity
+                                                             ? 'bg-tossWarning hover:bg-tossWarning/90'
+                                                             : 'bg-tossBlue hover:bg-tossBlueHover')
+                                                 }`}
+                                             >
+                                                 {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
+                                             </button>
+                                         )}
                                      </div>
                                  ) : null
                              )}
@@ -276,7 +288,16 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                              {timeLeft}
                          </div>
                      )}
-                     {notice.is_recruiting ? (
+                     {isAdmin ? (
+                         <div className="p-4 flex gap-3">
+                             <button
+                                 onClick={() => onViewParticipants && onViewParticipants(notice)}
+                                 className="flex-1 py-3.5 rounded-toss-xl font-bold text-white text-base bg-tossBlue hover:bg-tossBlueHover transition transform active:scale-[0.98] flex items-center justify-center gap-2"
+                             >
+                                 {notice.is_recruiting ? `신청자 명단 (${joinCount}명)` : '참석자 명단'}
+                             </button>
+                         </div>
+                     ) : notice.is_recruiting ? (
                          <div className="p-4 flex gap-3">
                              <button
                                  disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}

@@ -43,9 +43,9 @@ export const calculateAge = (birthDate) => {
     // Adjust threshold as needed. 30 seems safe for now.
     const year = (yy <= 30) ? 2000 + yy : 1900 + yy;
 
-    let age = currentYear - year;
+    let age = currentYear - year + 1;
 
-    // Year Age (연나이) calculation: simply current year - birth year
+    // Year Age (연나이) calculation: simply current year - birth year + 1
     // No month/day adjustment needed as requested by user for grade grouping.
 
     return age;

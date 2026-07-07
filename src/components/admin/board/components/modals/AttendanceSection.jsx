@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Trash2, UserPlus, Calendar } from 'lucide-react';
+import { Trash2, UserPlus, Calendar, ClipboardList } from 'lucide-react';
+import { exportParticipantsToExcel } from '../../../../../utils/exportUtils';
 
 const AttendanceSection = ({ 
     notice, 
@@ -34,7 +35,7 @@ const AttendanceSection = ({
                 </div>
             )}
 
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white p-4 rounded-xl shadow-sm gap-3">
                 <div>
                     <h3 className="font-bold text-gray-800 flex items-center gap-2">
                         참여자 명단
@@ -49,20 +50,26 @@ const AttendanceSection = ({
                         }
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
                     {!isOpenProgram && (
                         <button 
                             onClick={onMarkAllAttended}
-                            className="px-3 py-1.5 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 transition shadow-sm"
+                            className="flex-1 sm:flex-none text-center px-3 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 transition shadow-sm"
                         >
                             전체 참석 처리
                         </button>
                     )}
                     <button 
                         onClick={() => setShowEntranceList(!showEntranceList)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition shadow-sm flex items-center gap-1.5 ${showEntranceList ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                        className={`flex-1 sm:flex-none text-center px-3 py-2 text-xs font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-1.5 ${showEntranceList ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                     >
                         <UserPlus size={14} /> 명단 추가 (지급)
+                    </button>
+                    <button 
+                        onClick={() => exportParticipantsToExcel(participantList.JOIN, notice.title)}
+                        className="md:hidden flex-1 text-center px-3 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 transition shadow-sm border border-green-200/50 flex items-center justify-center gap-1"
+                    >
+                        <ClipboardList size={14} /> 엑셀 다운로드
                     </button>
                 </div>
             </div>
@@ -144,7 +151,7 @@ const AttendanceSection = ({
             </div>
 
             {!isOpenProgram && (
-                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-100/50">
                         <h4 className="font-bold text-orange-700 mb-2 flex justify-between text-[10px] uppercase tracking-wider">
                             대기 <span className="bg-white px-2 rounded-full">{participantList.WAITLIST?.length || 0}</span>

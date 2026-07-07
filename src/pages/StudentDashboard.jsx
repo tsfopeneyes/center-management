@@ -31,6 +31,7 @@ import ProgramHistoryModal from '../components/student/modals/ProgramHistoryModa
 import QRModal from '../components/student/modals/QRModal';
 import VerificationWriteModal from '../components/student/modals/VerificationWriteModal';
 import { useFCM } from '../hooks/useFCM';
+import ParticipantModal from '../components/admin/board/components/modals/ParticipantModal';
 
 const StudentDashboard = () => {
     const hookData = useStudentDashboard();
@@ -65,6 +66,7 @@ const StudentDashboard = () => {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [showMenuDrawer, setShowMenuDrawer] = useState(false);
     const [hideMainHeader, setHideMainHeader] = useState(false);
+    const [activeParticipantNotice, setActiveParticipantNotice] = useState(null);
 
     const navigate = useNavigate();
 
@@ -312,6 +314,30 @@ const StudentDashboard = () => {
                                     console.error(e);
                                     alert('삭제 중 오류가 발생했습니다.');
                                 }
+                            }
+                        }}
+                        onViewParticipants={setActiveParticipantNotice}
+                    />
+                )}
+
+                {activeParticipantNotice && (
+                    <ParticipantModal
+                        notice={activeParticipantNotice}
+                        onClose={() => setActiveParticipantNotice(null)}
+                        onRefresh={() => {
+                            fetchNotices();
+                            if (selectedNotice && selectedNotice.id === activeParticipantNotice.id) {
+                                noticesApi.fetchAll().then(data => {
+                                    const latest = data?.find(n => n.id === selectedNotice.id);
+                                    if (latest) {
+                                        const countsMap = noticesApi.fetchAllJoinCounts().then(counts => {
+                                            setSelectedNotice({
+                                                ...latest,
+                                                current_applicants: counts[latest.id] || 0
+                                            });
+                                        });
+                                    }
+                                });
                             }
                         }}
                     />
@@ -575,6 +601,7 @@ const StudentDashboard = () => {
                     refreshTrigger={refreshTrigger}
                     setRefreshTrigger={setRefreshTrigger}
                     selectedRegion={hookData.selectedRegion}
+                    studentRegion={studentRegion}
                 />
             )}
 

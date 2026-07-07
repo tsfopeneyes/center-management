@@ -1,4 +1,4 @@
-import { getWeekIdentifier, getKSTDateString } from './dateUtils';
+import { getWeekIdentifier, getKSTDateString, calculateAge } from './dateUtils';
 import { isAdminOrStaff } from './userUtils';
 
 /**
@@ -46,14 +46,7 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
                 name: user.name,
                 birth: user.birth || '-',
                 phone: user.phone || (user.phone_back4 ? `***-****-${user.phone_back4}` : '-'),
-                age: (() => {
-                    if (user.birth && user.birth.length === 6) {
-                        const yy = parseInt(user.birth.substring(0, 2));
-                        const fullYear = yy <= 40 ? 2000 + yy : 1900 + yy;
-                        return new Date().getFullYear() - fullYear;
-                    }
-                    return '-';
-                })(),
+                age: calculateAge(user.birth) || '-',
                 rawLogs: []
             };
         }

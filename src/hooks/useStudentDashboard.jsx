@@ -196,19 +196,19 @@ export const useStudentDashboard = () => {
         fetchRealtimeStatusData();
         fetchNotifications(parsedUser);
 
-        // Fetch student's region based on their school region mapping
+        // Fetch student's region based on their school
         if (parsedUser.school) {
-            const mappedName = parsedUser.school.includes('강서') ? '강서' : '강동';
             supabase
                 .from('schools')
                 .select('region')
-                .eq('region', mappedName)
+                .eq('name', parsedUser.school)
                 .maybeSingle()
                 .then(({ data, error }) => {
-                    if (!error && data) {
+                    if (!error && data && data.region) {
                         setStudentRegion(data.region);
                     } else {
-                        // Fallback region state directly
+                        // Fallback region state directly based on name check if not found in DB
+                        const mappedName = parsedUser.school.includes('강서') ? '강서' : '강동';
                         setStudentRegion(mappedName);
                     }
                 });
@@ -430,7 +430,14 @@ export const useStudentDashboard = () => {
         if (n.category !== CATEGORIES.PROGRAM) return false;
         const targets = n.target_regions || [];
         if (targets.length === 0 || targets.length === 2) return true;
-        if (user?.role === 'admin' || user?.user_group === '관리자') return true;
+        
+        // Admin preview switcher logic
+        if (user?.role === 'admin' || user?.user_group === '관리자') {
+            if (selectedRegion === 'GANGDONG') return targets.includes('강동');
+            if (selectedRegion === 'GANGSEO') return targets.includes('강서');
+            return true; // Show all if 'ALL'
+        }
+        
         if (!studentRegion) return false;
         return targets.includes(studentRegion);
     });

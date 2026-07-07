@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 const ZoneDetailModal = ({
@@ -6,11 +6,30 @@ const ZoneDetailModal = ({
     setZoneDetailModal,
     handleForceCheckout
 }) => {
+    // ESC key listener to close modal
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setZoneDetailModal(prev => ({ ...prev, isOpen: false }));
+            }
+        };
+        if (zoneDetailModal.isOpen) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [zoneDetailModal.isOpen, setZoneDetailModal]);
+
     if (!zoneDetailModal.isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden max-h-[80vh] flex flex-col">
+        <div 
+            className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4 animate-fade-in"
+            onClick={() => setZoneDetailModal({ ...zoneDetailModal, isOpen: false })}
+        >
+            <div 
+                className="bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden max-h-[80vh] flex flex-col"
+                onClick={e => e.stopPropagation()}
+            >
                 <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-blue-50">
                     <div>
                         <h3 className="font-bold text-blue-800 text-lg">{zoneDetailModal.locationName}</h3>

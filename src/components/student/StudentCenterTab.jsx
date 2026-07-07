@@ -14,7 +14,8 @@ const StudentCenterTab = ({
     openNoticeDetail,
     refreshTrigger,
     setRefreshTrigger,
-    selectedRegion
+    selectedRegion,
+    studentRegion
 }) => {
     const [contents, setContents] = useState([]);
     const [rentals, setRentals] = useState([]);
@@ -27,10 +28,10 @@ const StudentCenterTab = ({
     const [showBookingModal, setShowBookingModal] = useState(false);
     const [showMyBookings, setShowMyBookings] = useState(false);
 
-    // Get mapped center name based on student school
+    // Get mapped center name based on student school/region
     // 강동 -> 하이픈, 강서 -> 이높플레이스
     const studentSchool = user?.school || '';
-    const centerName = studentSchool.includes('강서') ? '이높플레이스' : '하이픈';
+    const centerName = studentRegion === '강서' ? '이높플레이스' : '하이픈';
 
     // Region switcher states are now passed as props from parent (Student Dashboard / Home Tab)
     useEffect(() => {
@@ -52,20 +53,10 @@ const StudentCenterTab = ({
                 const { data: schs } = await supabase.from('schools').select('id').eq('region', '강서');
                 query = query.in('school_id', schs?.map(s => s.id) || []);
             } else if (user?.role !== 'admin') {
-                // Regular student query - exact school name matching
-                const { data: schoolData } = await supabase
-                    .from('schools')
-                    .select('id')
-                    .eq('name', studentSchool)
-                    .maybeSingle();
-                
-                if (schoolData) {
-                    query = query.eq('school_id', schoolData.id);
-                } else {
-                    const schoolRegion = studentSchool.includes('강서') ? '강서' : '강동';
-                    const { data: schs } = await supabase.from('schools').select('id').eq('region', schoolRegion);
-                    query = query.in('school_id', schs?.map(s => s.id) || []);
-                }
+                // Query by region instead of individual school name to show all items in the region
+                const region = studentRegion || (studentSchool.includes('강서') ? '강서' : '강동');
+                const { data: schs } = await supabase.from('schools').select('id').eq('region', region);
+                query = query.in('school_id', schs?.map(s => s.id) || []);
             }
 
             const { data, error } = await query;
@@ -90,20 +81,10 @@ const StudentCenterTab = ({
                 const { data: schs } = await supabase.from('schools').select('id').eq('region', '강서');
                 query = query.in('school_id', schs?.map(s => s.id) || []);
             } else if (user?.role !== 'admin') {
-                // Regular student query - exact school name matching
-                const { data: schoolData } = await supabase
-                    .from('schools')
-                    .select('id')
-                    .eq('name', studentSchool)
-                    .maybeSingle();
-                
-                if (schoolData) {
-                    query = query.eq('school_id', schoolData.id);
-                } else {
-                    const schoolRegion = studentSchool.includes('강서') ? '강서' : '강동';
-                    const { data: schs } = await supabase.from('schools').select('id').eq('region', schoolRegion);
-                    query = query.in('school_id', schs?.map(s => s.id) || []);
-                }
+                // Query by region instead of individual school name to show all spaces in the region
+                const region = studentRegion || (studentSchool.includes('강서') ? '강서' : '강동');
+                const { data: schs } = await supabase.from('schools').select('id').eq('region', region);
+                query = query.in('school_id', schs?.map(s => s.id) || []);
             }
 
             const { data, error } = await query;

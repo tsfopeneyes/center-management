@@ -53,7 +53,7 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
     if (!notice) return null;
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 md:p-6 backdrop-blur-sm animate-fade-in dropdown-overlay">
+        <div className="fixed inset-0 z-[150] bg-black/50 flex items-center justify-center p-4 md:p-6 backdrop-blur-sm animate-fade-in dropdown-overlay">
             <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row overflow-hidden animate-fade-in-up" onClick={e => e.stopPropagation()}>
                 
                 {/* Mobile Header (Hidden on md+) */}
@@ -146,29 +146,18 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
                                     alreadyJoinedUserIds={new Set((participantList.JOIN || []).map(u => u.id))}
                                 />
                             ) : (
-                                <>
-                                    {/* Mobile Excel Button */}
-                                    <div className="md:hidden p-4 border-b border-gray-100 bg-white flex justify-end">
-                                        <button 
-                                            onClick={() => exportParticipantsToExcel(participantList.JOIN, notice.title)}
-                                            className="px-4 py-2 bg-green-50 text-green-700 rounded-lg flex items-center gap-2 font-bold text-xs border border-green-200"
-                                        >
-                                            <ClipboardList size={14} /> 엑셀 다운로드
-                                        </button>
-                                    </div>
-                                    <AttendanceSection 
-                                        notice={notice}
-                                        participantList={participantList}
-                                        onAttendanceToggle={handleAttendanceToggle}
-                                        onStaffToggle={handleStaffToggle}
-                                        onDeleteParticipant={handleDeleteParticipant}
-                                        onMarkAllAttended={handleMarkAllAttended}
-                                        showEntranceList={showEntranceList}
-                                        setShowEntranceList={setShowEntranceList}
-                                        selectedDate={selectedDate}
-                                        setSelectedDate={setSelectedDate}
-                                    />
-                                </>
+                                <AttendanceSection 
+                                    notice={notice}
+                                    participantList={participantList}
+                                    onAttendanceToggle={handleAttendanceToggle}
+                                    onStaffToggle={handleStaffToggle}
+                                    onDeleteParticipant={handleDeleteParticipant}
+                                    onMarkAllAttended={handleMarkAllAttended}
+                                    showEntranceList={showEntranceList}
+                                    setShowEntranceList={setShowEntranceList}
+                                    selectedDate={selectedDate}
+                                    setSelectedDate={setSelectedDate}
+                                />
                             )
                         )
                     )}
