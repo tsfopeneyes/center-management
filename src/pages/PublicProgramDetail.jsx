@@ -223,8 +223,8 @@ const PublicProgramDetail = () => {
                     </div>
                 )}
 
-                {/* Sticky Section Tabs */}
-                {notice.category === 'PROGRAM' && (
+                {/* Sticky Section Tabs: Only show when both Introduction and Host sections are active */}
+                {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
                     <div className="flex border-b border-gray-100 sticky top-14 bg-white/95 backdrop-blur z-20 mb-6">
                         <button
                             onClick={() => scrollToSection('intro')}
@@ -234,16 +234,14 @@ const PublicProgramDetail = () => {
                         >
                             소개
                         </button>
-                        {notice.program_type === 'CENTER' && hostUser && (
-                            <button
-                                onClick={() => scrollToSection('host')}
-                                className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
-                                    activeTab === 'host' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
-                                }`}
-                            >
-                                호스트
-                            </button>
-                        )}
+                        <button
+                            onClick={() => scrollToSection('host')}
+                            className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
+                                activeTab === 'host' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+                            }`}
+                        >
+                            호스트
+                        </button>
                     </div>
                 )}
 
@@ -266,10 +264,10 @@ const PublicProgramDetail = () => {
                 )}
 
                 {/* Body Content */}
-                {notice.category === 'PROGRAM' && (
-                    <h3 ref={introRef} className="text-base font-extrabold text-gray-900 mt-4 mb-4 scroll-mt-28">프로그램 소개</h3>
+                {notice.category === 'PROGRAM' && !(notice.program_type === 'CENTER' && hostUser) && (
+                    <h3 className="text-base font-extrabold text-gray-900 mt-8 mb-4">프로그램 소개</h3>
                 )}
-                <div className="prose max-w-none text-gray-800 leading-snug mb-8">
+                <div ref={notice.program_type === 'CENTER' && hostUser ? introRef : null} className={`prose max-w-none text-gray-800 leading-snug mb-8 ${notice.program_type === 'CENTER' && hostUser ? 'scroll-mt-28' : ''}`}>
                     <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
                     {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                 </div>
@@ -277,7 +275,6 @@ const PublicProgramDetail = () => {
                 {/* Host Intro: conditionally visible only for CENTER programs */}
                 {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
                     <div ref={hostRef} className="mt-8 pt-6 border-t border-gray-100 mb-8 scroll-mt-28">
-                        <h3 className="text-base font-extrabold text-gray-900 mb-4">호스트 소개</h3>
                         <div className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
                             {/* Simple inline avatar view as helper */}
                             <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
