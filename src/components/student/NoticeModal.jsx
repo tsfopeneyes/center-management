@@ -196,10 +196,19 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                 </div>
                             )}
 
-                            {notice.category === 'PROGRAM' && !(notice.program_type === 'CENTER' && hostUser) && (
-                                <h3 className="text-base font-extrabold text-tossGrey900 mt-8 mb-4">프로그램 소개</h3>
+                            {notice.category === 'PROGRAM' && (
+                                <h3 
+                                    ref={notice.program_type === 'CENTER' && hostUser ? introRef : null} 
+                                    className={`font-extrabold scroll-mt-16 ${
+                                        notice.program_type === 'CENTER' && hostUser 
+                                            ? 'text-[15px] text-tossBlue mt-4 mb-4' 
+                                            : 'text-base text-tossGrey900 mt-8 mb-4'
+                                    }`}
+                                >
+                                    프로그램 소개
+                                </h3>
                             )}
-                            <div ref={notice.program_type === 'CENTER' && hostUser ? introRef : null} className={`prose max-w-none text-tossGrey850 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden ${notice.program_type === 'CENTER' && hostUser ? 'scroll-mt-16' : ''}`}>
+                            <div className="prose max-w-none text-tossGrey850 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden">
                                 <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
                                 {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                             </div>
@@ -207,6 +216,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             {/* Host Intro: conditionally visible only for CENTER programs */}
                             {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
                                 <div ref={hostRef} className="mt-8 pt-6 border-t border-tossGrey100 mb-6 scroll-mt-16">
+                                    <h4 className="text-[15px] font-extrabold text-tossBlue mb-4">호스트 소개</h4>
                                     <div className="flex items-center gap-3.5 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">
                                         <UserAvatar user={hostUser} size="w-12 h-12" />
                                         <div className="flex flex-col min-w-0">
