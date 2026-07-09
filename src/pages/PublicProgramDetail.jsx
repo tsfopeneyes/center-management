@@ -266,16 +266,19 @@ const PublicProgramDetail = () => {
 
                 {/* Body Content */}
                 {notice.category === 'PROGRAM' && (
-                    <h3 
+                    <div 
                         ref={notice.program_type === 'CENTER' && hostUser ? introRef : null} 
-                        className={`font-extrabold scroll-mt-28 ${
-                            notice.program_type === 'CENTER' && hostUser 
-                                ? 'text-[15px] text-blue-600 mt-4 mb-4' 
-                                : 'text-base text-gray-900 mt-8 mb-4'
+                        className={`flex items-center gap-2 scroll-mt-28 ${
+                            notice.program_type === 'CENTER' && hostUser ? 'mt-4 mb-4' : 'mt-8 mb-4'
                         }`}
                     >
-                        프로그램 소개
-                    </h3>
+                        <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
+                        <h3 className={`font-extrabold text-[15px] leading-none ${
+                            notice.program_type === 'CENTER' && hostUser ? 'text-blue-600' : 'text-gray-900'
+                        }`}>
+                            프로그램 소개
+                        </h3>
+                    </div>
                 )}
                 <div className="prose max-w-none text-gray-800 leading-snug mb-8">
                     <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
@@ -285,7 +288,10 @@ const PublicProgramDetail = () => {
                 {/* Host Intro: conditionally visible only for CENTER programs */}
                 {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
                     <div ref={hostRef} className="mt-8 pt-6 border-t border-gray-100 mb-8 scroll-mt-28">
-                        <h4 className="text-[15px] font-extrabold text-blue-600 mb-4">호스트 소개</h4>
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
+                            <h4 className="text-[15px] font-extrabold text-blue-600 leading-none">호스트</h4>
+                        </div>
                         <div className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
                             {/* Simple inline avatar view as helper */}
                             <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
