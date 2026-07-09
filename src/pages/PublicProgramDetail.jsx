@@ -17,6 +17,17 @@ const PublicProgramDetail = () => {
     const [pollTimeLeft, setPollTimeLeft] = useState('');
     const [isPollExpired, setIsPollExpired] = useState(false);
     const [hostUser, setHostUser] = useState(null);
+    const introRef = React.useRef(null);
+    const hostRef = React.useRef(null);
+    const [activeTab, setActiveTab] = useState('intro');
+
+    const scrollToSection = (section) => {
+        setActiveTab(section);
+        const target = section === 'intro' ? introRef.current : hostRef.current;
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
 
     useEffect(() => {
         if (notice && notice.host_id) {
@@ -199,7 +210,7 @@ const PublicProgramDetail = () => {
                     <div className="bg-[#f8fafc] rounded-2xl p-5 space-y-4 mb-6">
                         <div className="flex text-sm leading-relaxed">
                             <span className="w-16 text-gray-500 font-semibold shrink-0">일정</span>
-                            <span className="text-gray-900 font-extrabold">{formattedSchedule}</span>
+                            <span className="text-blue-600 font-extrabold">{formattedSchedule}</span>
                         </div>
                         <div className="flex text-sm leading-relaxed">
                             <span className="w-16 text-gray-500 font-semibold shrink-0">장소</span>
@@ -209,6 +220,30 @@ const PublicProgramDetail = () => {
                             <span className="w-16 text-gray-500 font-semibold shrink-0">인원</span>
                             <span className="text-gray-900 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
                         </div>
+                    </div>
+                )}
+
+                {/* Sticky Section Tabs */}
+                {notice.category === 'PROGRAM' && (
+                    <div className="flex border-b border-gray-100 sticky top-14 bg-white/95 backdrop-blur z-20 mb-6">
+                        <button
+                            onClick={() => scrollToSection('intro')}
+                            className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
+                                activeTab === 'intro' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+                            }`}
+                        >
+                            소개
+                        </button>
+                        {notice.program_type === 'CENTER' && hostUser && (
+                            <button
+                                onClick={() => scrollToSection('host')}
+                                className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
+                                    activeTab === 'host' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+                                }`}
+                            >
+                                호스트
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -232,7 +267,7 @@ const PublicProgramDetail = () => {
 
                 {/* Body Content */}
                 {notice.category === 'PROGRAM' && (
-                    <h3 className="text-base font-extrabold text-gray-900 mt-8 mb-4">프로그램 소개</h3>
+                    <h3 ref={introRef} className="text-base font-extrabold text-gray-900 mt-4 mb-4 scroll-mt-28">프로그램 소개</h3>
                 )}
                 <div className="prose max-w-none text-gray-800 leading-snug mb-8">
                     <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
@@ -241,7 +276,7 @@ const PublicProgramDetail = () => {
 
                 {/* Host Intro: conditionally visible only for CENTER programs */}
                 {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
-                    <div className="mt-8 pt-6 border-t border-gray-100 mb-8">
+                    <div ref={hostRef} className="mt-8 pt-6 border-t border-gray-100 mb-8 scroll-mt-28">
                         <h3 className="text-base font-extrabold text-gray-900 mb-4">호스트 소개</h3>
                         <div className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
                             {/* Simple inline avatar view as helper */}
