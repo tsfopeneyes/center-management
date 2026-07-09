@@ -195,8 +195,38 @@ export const formatKoreanTimeRange = (startDateStr, durationStr) => {
     return start.text;
 };
 
-export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true, programDays = [], programStartDate = null) => {
+export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true, programDays = [], programStartDate = null, programEndDate = null) => {
     if (isRecruiting === false) {
+        const start = programStartDate || dateStr;
+        const end = programEndDate;
+        let isShortPeriod = false;
+        
+        if (start && end) {
+            const s = new Date(start);
+            const e = new Date(end);
+            if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+                const diffDays = Math.abs(Math.round((e - s) / (24 * 60 * 60 * 1000)));
+                if (diffDays <= 7) {
+                    isShortPeriod = true;
+                }
+            }
+        } else if (start && !end) {
+            isShortPeriod = true;
+        }
+
+        if (isShortPeriod && start) {
+            const targetDate = new Date(start);
+            if (!isNaN(targetDate.getTime())) {
+                const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+                const month = targetDate.getMonth() + 1;
+                const day = targetDate.getDate();
+                const dayOfWeek = daysOfWeek[targetDate.getDay()];
+                
+                const timePart = formatKoreanTimeRange(dateStr || programStartDate, durationStr);
+                return `${month}/${day}(${dayOfWeek}) ${timePart}`;
+            }
+        }
+
         if (!programDays || programDays.length === 0) return '요일 미지정';
         const labels = ['일', '월', '화', '수', '목', '금', '토'];
         const sortedDays = [...programDays].sort((a, b) => a - b);

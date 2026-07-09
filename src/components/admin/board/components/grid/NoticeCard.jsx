@@ -148,7 +148,37 @@ const NoticeCard = ({
                                 <>
                                     <div className="flex items-center gap-1.5 text-[#4e5968]">
                                         <Calendar size={13} className="text-[#8b95a1] shrink-0" />
-                                        <span>매주 {formatProgramDays(notice.program_days)}</span>
+                                        <span>
+                                            {(() => {
+                                                const start = notice.program_start_date || notice.program_date;
+                                                const end = notice.program_end_date;
+                                                let isShortPeriod = false;
+                                                
+                                                if (start && end) {
+                                                    const s = new Date(start);
+                                                    const e = new Date(end);
+                                                    if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+                                                        const diffDays = Math.abs(Math.round((e - s) / (24 * 60 * 60 * 1000)));
+                                                        if (diffDays <= 7) {
+                                                            isShortPeriod = true;
+                                                        }
+                                                    }
+                                                } else if (start && !end) {
+                                                    isShortPeriod = true;
+                                                }
+
+                                                if (isShortPeriod && start) {
+                                                    const d = new Date(start);
+                                                    if (!isNaN(d.getTime())) {
+                                                        const month = d.getMonth() + 1;
+                                                        const day = d.getDate();
+                                                        const days = ['일', '월', '화', '수', '목', '금', '토'];
+                                                        return `${month}/${day}(${days[d.getDay()]})`;
+                                                    }
+                                                }
+                                                return `매주 ${formatProgramDays(notice.program_days)}`;
+                                            })()}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-1.5 text-[#4e5968]">
                                         <Clock size={13} className="text-[#8b95a1] shrink-0" />

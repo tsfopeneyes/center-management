@@ -58,7 +58,8 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         notice.program_duration || duration,
         notice.is_recruiting,
         notice.program_days,
-        notice.program_start_date
+        notice.program_start_date,
+        notice.program_end_date
     );
 
     const isAdmin = user?.role === 'admin';

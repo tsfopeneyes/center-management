@@ -176,7 +176,8 @@ const PublicProgramDetail = () => {
         notice.program_duration || duration,
         notice.is_recruiting,
         notice.program_days,
-        notice.program_start_date
+        notice.program_start_date,
+        notice.program_end_date
     );
 
     return (

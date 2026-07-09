@@ -111,7 +111,35 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
                             <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2' : 'gap-3'}`}>
                                 <Calendar size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
                                 <span className={`font-bold text-tossBlue ${compact ? 'text-[11px]' : 'text-sm'}`}>
-                                    매주 {formatProgramDays(program.program_days)}
+                                    {(() => {
+                                        const start = program.program_start_date || program.program_date;
+                                        const end = program.program_end_date;
+                                        let isShortPeriod = false;
+                                        
+                                        if (start && end) {
+                                            const s = new Date(start);
+                                            const e = new Date(end);
+                                            if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+                                                const diffDays = Math.abs(Math.round((e - s) / (24 * 60 * 60 * 1000)));
+                                                if (diffDays <= 7) {
+                                                    isShortPeriod = true;
+                                                }
+                                            }
+                                        } else if (start && !end) {
+                                            isShortPeriod = true;
+                                        }
+
+                                        if (isShortPeriod && start) {
+                                            const d = new Date(start);
+                                            if (!isNaN(d.getTime())) {
+                                                const month = d.getMonth() + 1;
+                                                const day = d.getDate();
+                                                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                                                return `${month}/${day}(${days[d.getDay()]})`;
+                                            }
+                                        }
+                                        return `매주 ${formatProgramDays(program.program_days)}`;
+                                    })()}
                                 </span>
                             </div>
                             <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
