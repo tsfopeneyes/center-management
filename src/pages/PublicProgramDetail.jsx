@@ -196,20 +196,18 @@ const PublicProgramDetail = () => {
                 <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-4">{notice.title}</h1>
                 
                 {notice.category === 'PROGRAM' && (
-                    <div className="bg-slate-50/40 border border-gray-100 rounded-2xl p-4.5 space-y-3 mb-6">
-                        <div className="flex justify-between items-center text-[13px]">
-                            <span className="text-gray-500 font-semibold">일정</span>
-                            <span className="text-gray-800 font-extrabold text-right">{formattedSchedule}</span>
+                    <div className="bg-[#f8fafc] rounded-2xl p-5 space-y-4 mb-6">
+                        <div className="flex text-sm leading-relaxed">
+                            <span className="w-16 text-gray-500 font-semibold shrink-0">일정</span>
+                            <span className="text-gray-900 font-extrabold">{formattedSchedule}</span>
                         </div>
-                        <div className="h-[1px] bg-gray-100/50 w-full" />
-                        <div className="flex justify-between items-center text-[13px]">
-                            <span className="text-gray-500 font-semibold">장소</span>
-                            <span className="text-gray-800 font-extrabold text-right">{notice.program_location || location || '미정'}</span>
+                        <div className="flex text-sm leading-relaxed">
+                            <span className="w-16 text-gray-500 font-semibold shrink-0">장소</span>
+                            <span className="text-gray-900 font-extrabold">{notice.program_location || location || '미정'}</span>
                         </div>
-                        <div className="h-[1px] bg-gray-100/50 w-full" />
-                        <div className="flex justify-between items-center text-[13px]">
-                            <span className="text-gray-500 font-semibold">인원</span>
-                            <span className="text-gray-800 font-extrabold text-right">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                        <div className="flex text-sm leading-relaxed">
+                            <span className="w-16 text-gray-500 font-semibold shrink-0">인원</span>
+                            <span className="text-gray-900 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
                         </div>
                     </div>
                 )}

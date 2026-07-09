@@ -146,20 +146,18 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                         <>
                             <h1 className="text-2xl font-bold text-tossGrey900 leading-tight mb-4">{notice.title}</h1>
                             {notice.category === 'PROGRAM' && (
-                                <div className="bg-tossGrey50/40 border border-tossGrey100 rounded-toss-xl p-4.5 space-y-3 mb-6">
-                                    <div className="flex justify-between items-center text-[13px]">
-                                        <span className="text-tossGrey500 font-semibold">일정</span>
-                                        <span className="text-tossGrey900 font-extrabold text-right">{formattedSchedule}</span>
+                                <div className="bg-tossGrey50 rounded-toss-xl p-5 space-y-4 mb-6">
+                                    <div className="flex text-sm leading-relaxed">
+                                        <span className="w-16 text-tossGrey500 font-semibold shrink-0">일정</span>
+                                        <span className="text-tossGrey900 font-extrabold">{formattedSchedule}</span>
                                     </div>
-                                    <div className="h-[1px] bg-tossGrey100/50 w-full" />
-                                    <div className="flex justify-between items-center text-[13px]">
-                                        <span className="text-tossGrey500 font-semibold">장소</span>
-                                        <span className="text-tossGrey900 font-extrabold text-right">{notice.program_location || location || '미정'}</span>
+                                    <div className="flex text-sm leading-relaxed">
+                                        <span className="w-16 text-tossGrey500 font-semibold shrink-0">장소</span>
+                                        <span className="text-tossGrey900 font-extrabold">{notice.program_location || location || '미정'}</span>
                                     </div>
-                                    <div className="h-[1px] bg-tossGrey100/50 w-full" />
-                                    <div className="flex justify-between items-center text-[13px]">
-                                        <span className="text-tossGrey500 font-semibold">인원</span>
-                                        <span className="text-tossGrey900 font-extrabold text-right">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                                    <div className="flex text-sm leading-relaxed">
+                                        <span className="w-16 text-tossGrey500 font-semibold shrink-0">인원</span>
+                                        <span className="text-tossGrey900 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
                                     </div>
                                 </div>
                             )}
