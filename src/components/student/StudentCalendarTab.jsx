@@ -79,10 +79,22 @@ const StudentCalendarTab = ({
                                 } catch (err) { }
                             }
 
-                            const rawDate = new Date(e.start_date || e.program_date);
-                            const isRental = e.category_id === 'RENTAL';
-                            const start = (isProgram || isRental) ? rawDate : startOfDay(rawDate);
-                            const end = (isProgram || isRental) ? new Date(e.end_date || e.start_date) : startOfDay(new Date(e.end_date || e.start_date));
+                             const rawDate = new Date(e.start_date || e.program_date);
+                             const isRental = e.category_id === 'RENTAL';
+                             
+                             let start;
+                             let end;
+                             
+                             if (isProgram) {
+                                 start = new Date(e.program_date || e.program_start_date);
+                                 end = new Date(e.program_end_date || e.program_start_date || e.program_date);
+                             } else if (isRental) {
+                                 start = rawDate;
+                                 end = new Date(e.end_date || e.start_date);
+                             } else {
+                                 start = startOfDay(rawDate);
+                                 end = startOfDay(new Date(e.end_date || e.start_date));
+                             }
 
                             return {
                                 ...e,
