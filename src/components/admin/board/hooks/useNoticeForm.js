@@ -25,7 +25,9 @@ const INITIAL_NOTICE_STATE = {
     hyphen_reward: 5,
     program_start_date: '',
     program_end_date: '',
-    program_days: []
+    program_days: [],
+    host_id: '',
+    host_one_liner: ''
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
@@ -63,12 +65,9 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
                     return { isValid: false, message: '프로그램 날짜를 선택해주세요.' };
                 }
             } else {
-                // 오픈 프로그램
-                const startDate = formData.program_start_date || formData.program_date || formData.challenge_start_date;
-                const endDate = formData.program_end_date || formData.recurring_end_date || formData.challenge_end_date;
-                const days = (formData.program_days && formData.program_days.length > 0) 
-                    ? formData.program_days 
-                    : ((formData.recurring_days && formData.recurring_days.length > 0) ? formData.recurring_days : []);
+                const startDate = formData.program_start_date || formData.program_date;
+                const endDate = formData.program_end_date;
+                const days = formData.program_days || [];
 
                 if (!startDate) {
                     return { isValid: false, message: '진행 시작일을 선택해주세요.' };

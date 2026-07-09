@@ -110,6 +110,8 @@ export const prepareNoticeForEdit = (notice) => {
         is_review_required: notice.is_review_required || false,
         program_start_date: notice.program_start_date ? formatToLocalISO(notice.program_start_date).split('T')[0] : '',
         program_end_date: notice.program_end_date ? formatToLocalISO(notice.program_end_date).split('T')[0] : '',
-        program_days: notice.program_days || []
+        program_days: notice.program_days || [],
+        host_id: notice.host_id || '',
+        host_one_liner: notice.host_one_liner || ''
     };
 };

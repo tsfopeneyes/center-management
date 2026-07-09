@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2 } from 'lucide-react';
+import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { supabase } from '../../supabaseClient';
 import ModernEditor from '../common/ModernEditor';
 import UserAvatar from '../common/UserAvatar';
 import LinkPreview from '../common/LinkPreview';
@@ -17,6 +18,28 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
     const [zoomedImage, setZoomedImage] = useState(null);
+    const [hostUser, setHostUser] = useState(null);
+
+    useEffect(() => {
+        if (notice.host_id) {
+            const fetchHost = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('users')
+                        .select('id, name, avatar_url, school, role')
+                        .eq('id', notice.host_id)
+                        .single();
+                    if (error) throw error;
+                    setHostUser(data);
+                } catch (err) {
+                    console.error('Error fetching host user:', err);
+                }
+            };
+            fetchHost();
+        } else {
+            setHostUser(null);
+        }
+    }, [notice.host_id]);
 
     const { cleanContent, duration, location } = extractProgramInfo(notice.content);
     const formattedSchedule = formatProgramSchedule(
@@ -124,31 +147,66 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             <h1 className="text-2xl font-bold text-tossGrey900 leading-tight mb-4">{notice.title}</h1>
                             {notice.category === 'PROGRAM' && (
                                 <>
-                                    <hr className="border-tossGrey100 my-6" />
-                                    <div className="bg-tossGrey50 border border-tossGrey200/50 rounded-toss-lg p-5 space-y-3 mb-6">
-                                        <div className="flex text-sm">
-                                            <span className="w-12 text-tossGrey500 font-bold shrink-0">일정</span>
-                                            <span className="text-tossGrey800 font-bold">{formattedSchedule}</span>
+                                    <div className="bg-tossGrey50/80 border border-tossGrey100/50 rounded-toss-xl p-5 space-y-4 mb-6 shadow-toss-subtle">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-tossBlueLight text-tossBlue flex items-center justify-center shrink-0">
+                                                <CalendarIcon size={16} strokeWidth={2.5} />
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-[10px] text-tossGrey400 font-bold uppercase leading-none mb-1">일정</span>
+                                                <span className="text-tossGrey800 font-extrabold text-sm leading-tight">{formattedSchedule}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex text-sm">
-                                            <span className="w-12 text-tossGrey500 font-bold shrink-0">장소</span>
-                                            <span className="text-tossGrey800 font-bold">{notice.program_location || location || '미정'}</span>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-tossBlueLight text-tossBlue flex items-center justify-center shrink-0">
+                                                <MapPin size={16} strokeWidth={2.5} />
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-[10px] text-tossGrey400 font-bold uppercase leading-none mb-1">장소</span>
+                                                <span className="text-tossGrey800 font-extrabold text-sm leading-tight">{notice.program_location || location || '미정'}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex text-sm">
-                                            <span className="w-12 text-tossGrey500 font-bold shrink-0">인원</span>
-                                            <span className="text-tossGrey800 font-bold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-tossBlueLight text-tossBlue flex items-center justify-center shrink-0">
+                                                <Users size={16} strokeWidth={2.5} />
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-[10px] text-tossGrey400 font-bold uppercase leading-none mb-1">인원</span>
+                                                <span className="text-tossGrey800 font-extrabold text-sm leading-tight">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <hr className="border-tossGrey100 my-6" />
                                 </>
                             )}
                             {notice.category === 'PROGRAM' && (
-                                <h3 className="text-[15px] font-bold text-tossBlue mb-3">프로그램 소개</h3>
+                                <h3 className="text-[15px] font-extrabold text-tossGrey900 mb-3 flex items-center gap-1.5">
+                                    <span className="w-1 h-3.5 rounded-full bg-tossBlue"></span>
+                                    프로그램 소개
+                                </h3>
                             )}
-                            <div className="prose max-w-none text-tossGrey800 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden">
+                            <div className="prose max-w-none text-tossGrey850 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden">
                                 <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
                                 {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                             </div>
+
+                            {/* Host Intro: conditionally visible only for CENTER programs */}
+                            {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
+                                <div className="mt-8 pt-6 border-t border-tossGrey100 mb-6">
+                                    <h3 className="text-[15px] font-extrabold text-tossGrey900 mb-3.5 flex items-center gap-1.5">
+                                        <span className="w-1 h-3.5 rounded-full bg-tossBlue"></span>
+                                        호스트 소개
+                                    </h3>
+                                    <div className="flex items-center gap-3.5 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">
+                                        <UserAvatar user={hostUser} size="w-12 h-12" />
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="font-extrabold text-tossGrey900 text-sm leading-snug">{hostUser.name}</span>
+                                            {notice.host_one_liner && (
+                                                <span className="text-xs text-tossGrey600 font-semibold mt-1 break-keep leading-relaxed">{notice.host_one_liner}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Polls */}
                             {notice.is_poll && notice.poll_options?.length > 0 && (

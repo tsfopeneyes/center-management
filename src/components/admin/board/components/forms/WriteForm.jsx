@@ -75,16 +75,12 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
             let finalContent = formData.content;
 
             if (isProgram) {
-                const isChallenge = formData.program_type === 'CHALLENGE';
                 let validJoinedDate = '';
-                
-                if (!isChallenge) {
-                    const pVal = formData.program_date;
-                    if (pVal && pVal !== '') {
-                        const parsed = new Date(pVal);
-                        if (!isNaN(parsed.getTime())) {
-                            validJoinedDate = pVal;
-                        }
+                const pVal = formData.program_date;
+                if (pVal && pVal !== '') {
+                    const parsed = new Date(pVal);
+                    if (!isNaN(parsed.getTime())) {
+                        validJoinedDate = pVal;
                     }
                 }
 
@@ -191,15 +187,18 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.program_location = formData.program_location || '';
                 
                 noticeData.program_type = formData.program_type;
+                
+                const isCenter = formData.program_type === 'CENTER';
+                noticeData.host_id = isCenter ? (formData.host_id || null) : null;
+                noticeData.host_one_liner = isCenter ? (formData.host_one_liner || null) : null;
+
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;
                 noticeData.is_leader_only = formData.is_leader_only;
                 noticeData.hyphen_reward = formData.hyphen_reward ? parseInt(formData.hyphen_reward, 10) : 0;
                 noticeData.is_review_required = formData.is_review_required || false;
-                const startDate = formData.program_start_date || formData.program_date || formData.challenge_start_date;
-                const endDate = formData.program_end_date || formData.recurring_end_date || formData.challenge_end_date;
-                const days = (formData.program_days && formData.program_days.length > 0) 
-                    ? formData.program_days 
-                    : ((formData.recurring_days && formData.recurring_days.length > 0) ? formData.recurring_days : []);
+                const startDate = formData.program_start_date || formData.program_date;
+                const endDate = formData.program_end_date;
+                const days = formData.program_days || [];
 
                 noticeData.program_start_date = (!formData.is_recruiting && startDate)
                     ? new Date(startDate).toISOString().split('T')[0]

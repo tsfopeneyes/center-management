@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { Calendar, User, ArrowLeft, Share, AlertCircle } from 'lucide-react';
+import { Calendar, User, ArrowLeft, Share, AlertCircle, MapPin, Users } from 'lucide-react';
 import NoticeCarousel from '../components/student/components/NoticeCarousel';
 import LinkPreview from '../components/common/LinkPreview';
 import { extractUrls, extractProgramInfo } from '../utils/textUtils';
@@ -16,6 +16,28 @@ const PublicProgramDetail = () => {
     const [timeLeft, setTimeLeft] = useState('');
     const [pollTimeLeft, setPollTimeLeft] = useState('');
     const [isPollExpired, setIsPollExpired] = useState(false);
+    const [hostUser, setHostUser] = useState(null);
+
+    useEffect(() => {
+        if (notice && notice.host_id) {
+            const fetchHost = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('users')
+                        .select('id, name, avatar_url, school, role')
+                        .eq('id', notice.host_id)
+                        .single();
+                    if (error) throw error;
+                    setHostUser(data);
+                } catch (err) {
+                    console.error('Error fetching host user:', err);
+                }
+            };
+            fetchHost();
+        } else {
+            setHostUser(null);
+        }
+    }, [notice]);
     
     // Auto redirect if already logged in
     useEffect(() => {
@@ -45,7 +67,7 @@ const PublicProgramDetail = () => {
         try {
             const { data, error } = await supabase
                 .from('notices')
-                .select('*')
+                .select('*, host:users(id, name, avatar_url, school, role)')
                 .eq('id', id)
                 .single();
                 
@@ -175,22 +197,35 @@ const PublicProgramDetail = () => {
                 
                 {notice.category === 'PROGRAM' && (
                     <>
-                        <hr className="border-gray-100 my-6" />
-                        <div className="bg-[#f8fafc] border border-gray-100 rounded-2xl p-5 space-y-3 mb-6">
-                            <div className="flex text-sm">
-                                <span className="w-12 text-gray-500 font-bold shrink-0">일정</span>
-                                <span className="text-gray-800 font-extrabold">{formattedSchedule}</span>
+                        <div className="bg-slate-50/80 border border-gray-100 rounded-2xl p-5 space-y-4 mb-6 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                    <Calendar size={16} strokeWidth={2.5} />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">일정</span>
+                                    <span className="text-gray-800 font-extrabold text-sm leading-tight">{formattedSchedule}</span>
+                                </div>
                             </div>
-                            <div className="flex text-sm">
-                                <span className="w-12 text-gray-500 font-bold shrink-0">장소</span>
-                                <span className="text-gray-800 font-extrabold">{notice.program_location || location || '미정'}</span>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                    <MapPin size={16} strokeWidth={2.5} />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">장소</span>
+                                    <span className="text-gray-800 font-extrabold text-sm leading-tight">{notice.program_location || location || '미정'}</span>
+                                </div>
                             </div>
-                            <div className="flex text-sm">
-                                <span className="w-12 text-gray-500 font-bold shrink-0">인원</span>
-                                <span className="text-gray-800 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                    <Users size={16} strokeWidth={2.5} />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">인원</span>
+                                    <span className="text-gray-800 font-extrabold text-sm leading-tight">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                                </div>
                             </div>
                         </div>
-                        <hr className="border-gray-100 my-6" />
                     </>
                 )}
 
@@ -214,12 +249,41 @@ const PublicProgramDetail = () => {
 
                 {/* Body Content */}
                 {notice.category === 'PROGRAM' && (
-                    <h3 className="text-[15px] font-black text-blue-600 mb-3">프로그램 소개</h3>
+                    <h3 className="text-[15px] font-extrabold text-gray-900 mb-3 flex items-center gap-1.5">
+                        <span className="w-1 h-3.5 rounded-full bg-blue-500"></span>
+                        프로그램 소개
+                    </h3>
                 )}
                 <div className="prose max-w-none text-gray-800 leading-snug mb-8">
                     <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
                     {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                 </div>
+
+                {/* Host Intro: conditionally visible only for CENTER programs */}
+                {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
+                    <div className="mt-8 pt-6 border-t border-gray-100 mb-8">
+                        <h3 className="text-[15px] font-extrabold text-gray-900 mb-3.5 flex items-center gap-1.5">
+                            <span className="w-1 h-3.5 rounded-full bg-blue-500"></span>
+                            호스트 소개
+                        </h3>
+                        <div className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
+                            {/* Simple inline avatar view as helper */}
+                            <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
+                                {hostUser.avatar_url ? (
+                                    <img src={hostUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                    <User size={20} className="text-blue-500" />
+                                )}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="font-extrabold text-gray-900 text-sm leading-snug">{hostUser.name}</span>
+                                {notice.host_one_liner && (
+                                    <span className="text-xs text-gray-600 font-semibold mt-1 break-keep leading-relaxed">{notice.host_one_liner}</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Read-only Poll */}
                 {notice.is_poll && notice.poll_options?.length > 0 && (

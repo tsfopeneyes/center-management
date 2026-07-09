@@ -4,6 +4,7 @@ import IntuitiveTimePicker from '../../../../common/IntuitiveTimePicker';
 import { splitDateTime, joinDateTime } from '../../utils/noticeHelpers';
 import { PROGRAM_TYPES } from '../../utils/constants';
 import { Calendar, Clock, MapPin, Gift, CheckSquare, Users } from 'lucide-react';
+import { supabase } from '../../../../../supabaseClient';
 
 const HYPHEN_DETAILS = [
     'B1F STAGE',
@@ -17,6 +18,25 @@ const HYPHEN_DETAILS = [
 ];
 
 const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
+    const [admins, setAdmins] = React.useState([]);
+
+    React.useEffect(() => {
+        const fetchAdmins = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, name, school')
+                    .eq('role', 'admin')
+                    .order('name');
+                if (error) throw error;
+                setAdmins(data || []);
+            } catch (err) {
+                console.error('Error fetching admins:', err);
+            }
+        };
+        fetchAdmins();
+    }, []);
+
     // Local state to keep track of selection category without losing state when parent is empty
     const [localMain, setLocalMain] = React.useState(() => {
         const locationStr = formData.program_location || '';
@@ -607,6 +627,53 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Host settings: conditionally visible for CENTER programs */}
+            {(!formData.program_type || formData.program_type === 'CENTER') && (
+                <div className="space-y-4 pt-6 border-t border-slate-100">
+                    <div className="space-y-2">
+                        <span className="text-xs font-semibold text-slate-500 ml-1">호스트 설정</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Host Selector */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 지정</label>
+                                <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                    <Users className="text-slate-400 shrink-0 mr-2" size={15} />
+                                    <select
+                                        value={formData.host_id || ''}
+                                        onChange={e => updateField('host_id', e.target.value)}
+                                        className="w-full py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+                                    >
+                                        <option value="">호스트 미지정 (기본값)</option>
+                                        {admins.map(admin => (
+                                            <option key={admin.id} value={admin.id}>
+                                                {admin.name} ({admin.school || '관리자'})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Host One-liner */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 한마디</label>
+                                <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                    <input
+                                        type="text"
+                                        placeholder="호스트의 다짐이나 한마디를 입력해주세요."
+                                        value={formData.host_one_liner || ''}
+                                        onChange={e => updateField('host_one_liner', e.target.value)}
+                                        className="w-full py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-medium ml-1">
+                            센터 프로그램으로 진행할 때 해당 프로그램을 책임지고 운영할 호스트를 설정합니다.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
