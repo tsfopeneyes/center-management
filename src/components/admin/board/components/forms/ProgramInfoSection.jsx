@@ -633,52 +633,89 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                 <div className="space-y-4 pt-6 border-t border-slate-100">
                     <div className="space-y-2">
                         <span className="text-xs font-semibold text-slate-500 ml-1">호스트 설정</span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {/* Host Selector (Multiple) */}
-                            <div className="flex flex-col gap-1.5 sm:col-span-2">
-                                <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 지정 (다수 선택 가능)</label>
-                                <div className="border border-slate-200/80 rounded-xl bg-slate-50/20 p-3 max-h-[160px] overflow-y-auto space-y-2">
-                                    {admins.map(admin => {
-                                        const selectedIds = formData.host_ids || [];
-                                        const isChecked = selectedIds.includes(admin.id);
-                                        return (
-                                            <label key={admin.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={() => {
-                                                        const nextIds = isChecked
-                                                            ? selectedIds.filter(id => id !== admin.id)
-                                                            : [...selectedIds, admin.id];
-                                                        updateField('host_ids', nextIds);
-                                                        // Backwards compatibility for single host_id:
-                                                        updateField('host_id', nextIds[0] || '');
-                                                    }}
-                                                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                                                />
-                                                {admin.name} ({admin.school || '관리자'})
-                                            </label>
-                                        );
-                                    })}
-                                    {admins.length === 0 && (
-                                        <p className="text-xs text-slate-400 text-center py-2">등록된 관리자가 없습니다.</p>
-                                    )}
-                                </div>
-                            </div>
+                        <div className="space-y-4">
+                            {/* Dynamic Multi-Host Settings */}
+                            {(() => {
+                                const currentHosts = (formData.hosts && Array.isArray(formData.hosts)) && formData.hosts.length > 0
+                                    ? formData.hosts
+                                    : [{ host_id: formData.host_id || '', one_liner: formData.host_one_liner || '' }];
+                                return (
+                                    <div className="flex flex-col gap-4 sm:col-span-2">
+                                        <div className="space-y-4">
+                                            {currentHosts.map((host, index) => (
+                                                <div key={index} className="bg-slate-50/50 border border-slate-200/80 rounded-xl p-4 space-y-3 relative">
+                                                    {currentHosts.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const nextHosts = currentHosts.filter((_, i) => i !== index);
+                                                                updateField('hosts', nextHosts);
+                                                            }}
+                                                            className="absolute top-3 right-3 text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 px-2.5 py-1 rounded-md transition-colors"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    )}
+                                                    <div className="font-semibold text-xs text-slate-500">호스트 #{index + 1}</div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                        {/* Host Selector */}
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 지정</label>
+                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-600 transition-all px-3">
+                                                                <Users className="text-slate-400 shrink-0 mr-2" size={15} />
+                                                                <select
+                                                                    value={host.host_id || ''}
+                                                                    onChange={e => {
+                                                                        const nextHosts = [...currentHosts];
+                                                                        nextHosts[index] = { ...nextHosts[index], host_id: e.target.value };
+                                                                        updateField('hosts', nextHosts);
+                                                                    }}
+                                                                    className="w-full py-2.5 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+                                                                >
+                                                                    <option value="">호스트 선택</option>
+                                                                    {admins.map(admin => (
+                                                                        <option key={admin.id} value={admin.id}>
+                                                                            {admin.name} ({admin.school || '관리자'})
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
 
-                            {/* Host One-liner */}
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 한마디</label>
-                                <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
-                                    <input
-                                        type="text"
-                                        placeholder="호스트의 다짐이나 한마디를 입력해주세요."
-                                        value={formData.host_one_liner || ''}
-                                        onChange={e => updateField('host_one_liner', e.target.value)}
-                                        className="w-full py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
-                                    />
-                                </div>
-                            </div>
+                                                        {/* Host One-liner */}
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 한마디</label>
+                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-600 transition-all px-3">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="호스트의 다짐이나 한마디를 입력해주세요."
+                                                                    value={host.one_liner || ''}
+                                                                    onChange={e => {
+                                                                        const nextHosts = [...currentHosts];
+                                                                        nextHosts[index] = { ...nextHosts[index], one_liner: e.target.value };
+                                                                        updateField('hosts', nextHosts);
+                                                                    }}
+                                                                    className="w-full py-2.5 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const nextHosts = [...currentHosts, { host_id: '', one_liner: '' }];
+                                                updateField('hosts', nextHosts);
+                                            }}
+                                            className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-blue-500 rounded-xl font-bold text-slate-600 hover:text-blue-600 transition-all text-xs flex items-center justify-center gap-1.5"
+                                        >
+                                            + 호스트 추가
+                                        </button>
+                                    </div>
+                                );
+                            })()}
                         </div>
                         <p className="text-[11px] text-slate-400 font-medium ml-1">
                             센터 프로그램으로 진행할 때 해당 프로그램을 책임지고 운영할 호스트를 설정합니다.

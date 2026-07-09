@@ -189,9 +189,12 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.program_type = formData.program_type;
                 
                 const isCenter = formData.program_type === 'CENTER';
-                noticeData.host_id = isCenter ? (formData.host_id || null) : null;
-                noticeData.host_ids = isCenter ? (formData.host_ids || []) : [];
-                noticeData.host_one_liner = isCenter ? (formData.host_one_liner || null) : null;
+                const activeHosts = isCenter ? (formData.hosts || []).filter(h => h.host_id) : [];
+                
+                noticeData.hosts = activeHosts;
+                noticeData.host_id = activeHosts[0]?.host_id || null;
+                noticeData.host_ids = activeHosts.map(h => h.host_id);
+                noticeData.host_one_liner = activeHosts[0]?.one_liner || null;
 
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;
                 noticeData.is_leader_only = formData.is_leader_only;

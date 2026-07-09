@@ -31,7 +31,11 @@ const PublicProgramDetail = () => {
 
     useEffect(() => {
         if (notice) {
-            const ids = notice.host_ids || (notice.host_id ? [notice.host_id] : []);
+            const noticeHosts = notice.hosts || [];
+            const ids = noticeHosts.length > 0
+                ? noticeHosts.map(h => h.host_id).filter(Boolean)
+                : (notice.host_ids || (notice.host_id ? [notice.host_id] : []));
+
             if (ids && ids.length > 0) {
                 const fetchHosts = async () => {
                     try {
@@ -40,7 +44,15 @@ const PublicProgramDetail = () => {
                             .select('id, name, profile_image_url, school, role')
                             .in('id', ids);
                         if (error) throw error;
-                        setHostUsers(data || []);
+                        
+                        const mapped = (data || []).map(user => {
+                            const matchedHost = noticeHosts.find(h => h.host_id === user.id);
+                            return {
+                                ...user,
+                                one_liner: matchedHost ? matchedHost.one_liner : notice.host_one_liner
+                            };
+                        });
+                        setHostUsers(mapped);
                     } catch (err) {
                         console.error('Error fetching host users:', err);
                     }
@@ -302,8 +314,8 @@ const PublicProgramDetail = () => {
                                     </div>
                                     <div className="flex flex-col min-w-0">
                                         <span className="font-extrabold text-gray-900 text-sm leading-snug">{host.name}</span>
-                                        {notice.host_one_liner && (
-                                            <span className="text-xs text-gray-600 font-semibold mt-1 break-keep leading-relaxed">{notice.host_one_liner}</span>
+                                        {host.one_liner && (
+                                            <span className="text-xs text-gray-600 font-semibold mt-1 break-keep leading-relaxed">{host.one_liner}</span>
                                         )}
                                     </div>
                                 </div>
