@@ -35,7 +35,7 @@ const PublicProgramDetail = () => {
                 try {
                     const { data, error } = await supabase
                         .from('users')
-                        .select('id, name, avatar_url, school, role')
+                        .select('id, name, profile_image_url, school, role')
                         .eq('id', notice.host_id)
                         .single();
                     if (error) throw error;
@@ -278,8 +278,8 @@ const PublicProgramDetail = () => {
                         <div className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
                             {/* Simple inline avatar view as helper */}
                             <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
-                                {hostUser.avatar_url ? (
-                                    <img src={hostUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                                {hostUser.profile_image_url ? (
+                                    <img src={hostUser.profile_image_url} alt="" className="w-full h-full object-cover" />
                                 ) : (
                                     <User size={20} className="text-blue-500" />
                                 )}

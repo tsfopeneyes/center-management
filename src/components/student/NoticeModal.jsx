@@ -37,7 +37,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                 try {
                     const { data, error } = await supabase
                         .from('users')
-                        .select('id, name, avatar_url, school, role')
+                        .select('id, name, profile_image_url, school, role')
                         .eq('id', notice.host_id)
                         .single();
                     if (error) throw error;
