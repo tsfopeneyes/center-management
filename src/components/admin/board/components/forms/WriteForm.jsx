@@ -193,7 +193,6 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 
                 noticeData.hosts = activeHosts;
                 noticeData.host_id = activeHosts[0]?.host_id || null;
-                noticeData.host_ids = activeHosts.map(h => h.host_id);
                 noticeData.host_one_liner = activeHosts[0]?.one_liner || null;
 
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;
