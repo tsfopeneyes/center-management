@@ -277,17 +277,65 @@ const StudentHomeTab = ({
                                 </div>
                                 <button onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)} className="text-[11px] text-tossGrey600 font-bold px-2.5 py-1.5 bg-tossGrey100 rounded-toss-md hover:bg-tossGrey200 transition-colors">더보기</button>
                             </div>
-                            <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x no-swipe" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                {homePrograms.slice(0, config.count || 10).map(p => (
-                                    <div key={p.id} className="min-w-[160px] w-[160px] snap-start">
-                                        <ProgramCard
-                                            program={{ ...p, responseStatus: responses[p.id] }}
-                                            onClick={openNoticeDetail}
-                                            compact={true}
-                                        />
-                                    </div>
-                                ))}
-                                {homePrograms.length === 0 && <p className="text-center py-6 text-tossGrey400 text-xs w-full">신청 가능한 프로그램이 없습니다</p>}
+                            <div className="space-y-5">
+                                {(() => {
+                                    const openPrograms = homePrograms.filter(p => !p.is_recruiting);
+                                    if (openPrograms.length === 0) return null;
+                                    return (
+                                        <div>
+                                            <div className="mb-3 flex flex-col gap-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="w-1 h-3 rounded-full bg-tossSuccess shrink-0"></span>
+                                                    <h4 className="font-extrabold text-tossGrey800 text-[13.5px] sm:text-[14.5px] leading-none">오픈 프로그램</h4>
+                                                </div>
+                                                <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">누구나 신청 없이 함께할 수 있어요</p>
+                                            </div>
+                                            <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x no-swipe" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                                {openPrograms.slice(0, config.count || 10).map(p => (
+                                                    <div key={p.id} className="min-w-[160px] w-[160px] snap-start">
+                                                        <ProgramCard
+                                                            program={{ ...p, responseStatus: responses[p.id] }}
+                                                            onClick={openNoticeDetail}
+                                                            compact={true}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {(() => {
+                                    const openPrograms = homePrograms.filter(p => !p.is_recruiting);
+                                    const applyPrograms = homePrograms.filter(p => p.is_recruiting);
+                                    if (applyPrograms.length === 0) return null;
+                                    return (
+                                        <div className={openPrograms.length > 0 ? "pt-4 border-t border-tossGrey100" : ""}>
+                                            <div className="mb-3 flex flex-col gap-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="w-1 h-3 rounded-full bg-tossBlue shrink-0"></span>
+                                                    <h4 className="font-extrabold text-tossGrey800 text-[13.5px] sm:text-[14.5px] leading-none">신청 프로그램</h4>
+                                                </div>
+                                                <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">미리 신청하고 약속된 시간에 만나요!</p>
+                                            </div>
+                                            <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x no-swipe" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                                {applyPrograms.slice(0, config.count || 10).map(p => (
+                                                    <div key={p.id} className="min-w-[160px] w-[160px] snap-start">
+                                                        <ProgramCard
+                                                            program={{ ...p, responseStatus: responses[p.id] }}
+                                                            onClick={openNoticeDetail}
+                                                            compact={true}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {homePrograms.length === 0 && (
+                                    <p className="text-center py-6 text-tossGrey400 text-xs w-full">신청 가능한 프로그램이 없습니다</p>
+                                )}
                             </div>
                         </div>
                     );
