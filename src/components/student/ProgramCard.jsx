@@ -69,16 +69,7 @@ const ProgramCard = ({ program, onClick, compact = false }) => {
 
                 {/* Status Badges Overlaid */}
                 <div className={`absolute flex flex-col items-start ${compact ? 'top-2.5 left-2.5 gap-1.5' : 'top-4 left-4 gap-2'}`}>
-                    {!program.is_recruiting && !isPast && (
-                        <div className={`flex items-center bg-tossSuccess text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
-                            <Users size={compact ? 10 : 12} strokeWidth={2.5} /> 오픈 프로그램
-                        </div>
-                    )}
-                    {program.is_recruiting && !isClosingSoon && !isPast && (
-                        <div className={`flex items-center bg-tossBlue text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
-                            <Clock size={compact ? 10 : 12} strokeWidth={2.5} /> 신청 프로그램
-                        </div>
-                    )}
+
                     {program.is_recruiting && isClosingSoon && !isPast && (
                         <div className={`flex items-center bg-tossError text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
                             <CheckCircle2 size={compact ? 10 : 12} strokeWidth={2.5} /> 마감임박

@@ -18,7 +18,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
     const [zoomedImage, setZoomedImage] = useState(null);
-    const [hostUser, setHostUser] = useState(null);
+    const [hostUsers, setHostUsers] = useState([]);
     const introRef = React.useRef(null);
     const hostRef = React.useRef(null);
     const [activeTab, setActiveTab] = useState('intro');
@@ -32,25 +32,25 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     };
 
     useEffect(() => {
-        if (notice.host_id) {
-            const fetchHost = async () => {
+        const ids = notice.host_ids || (notice.host_id ? [notice.host_id] : []);
+        if (ids && ids.length > 0) {
+            const fetchHosts = async () => {
                 try {
                     const { data, error } = await supabase
                         .from('users')
                         .select('id, name, profile_image_url, school, role')
-                        .eq('id', notice.host_id)
-                        .single();
+                        .in('id', ids);
                     if (error) throw error;
-                    setHostUser(data);
+                    setHostUsers(data || []);
                 } catch (err) {
-                    console.error('Error fetching host user:', err);
+                    console.error('Error fetching host users:', err);
                 }
             };
-            fetchHost();
+            fetchHosts();
         } else {
-            setHostUser(null);
+            setHostUsers([]);
         }
-    }, [notice.host_id]);
+    }, [notice.host_id, notice.host_ids]);
 
     const { cleanContent, duration, location } = extractProgramInfo(notice.content);
     const formattedSchedule = formatProgramSchedule(
@@ -175,7 +175,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             )}
 
                             {/* Sticky Section Tabs: Only show when both Introduction and Host sections are active */}
-                            {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
+                            {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                                 <div className="flex border-b border-tossGrey100 sticky top-0 bg-white/95 backdrop-blur z-20 mb-6">
                                     <button
                                         onClick={() => scrollToSection('intro')}
@@ -198,14 +198,14 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
 
                             {notice.category === 'PROGRAM' && (
                                 <div 
-                                    ref={notice.program_type === 'CENTER' && hostUser ? introRef : null} 
+                                    ref={notice.program_type === 'CENTER' && hostUsers.length > 0 ? introRef : null} 
                                     className={`flex items-center gap-2 scroll-mt-20 ${
-                                        notice.program_type === 'CENTER' && hostUser ? 'mt-4 mb-4' : 'mt-8 mb-4'
+                                        notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
                                     }`}
                                 >
                                     <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
                                     <h3 className={`font-extrabold text-[15px] leading-none ${
-                                        notice.program_type === 'CENTER' && hostUser ? 'text-tossBlue' : 'text-tossGrey900'
+                                        notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'text-tossBlue' : 'text-tossGrey900'
                                     }`}>
                                         프로그램 소개
                                     </h3>
@@ -217,20 +217,20 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             </div>
 
                             {/* Host Intro: conditionally visible only for CENTER programs */}
-                            {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
+                            {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                                 <div ref={hostRef} className="mt-8 pt-6 border-t border-tossGrey100 mb-6 scroll-mt-20">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
-                                        <h4 className="text-[15px] font-extrabold text-tossBlue leading-none">호스트</h4>
-                                    </div>
-                                    <div className="flex items-center gap-3.5 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">
-                                        <UserAvatar user={hostUser} size="w-12 h-12" />
-                                        <div className="flex flex-col min-w-0">
-                                            <span className="font-extrabold text-tossGrey900 text-sm leading-snug">{hostUser.name}</span>
-                                            {notice.host_one_liner && (
-                                                <span className="text-xs text-tossGrey600 font-semibold mt-1 break-keep leading-relaxed">{notice.host_one_liner}</span>
-                                            )}
-                                        </div>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {hostUsers.map(host => (
+                                            <div key={host.id} className="flex items-center gap-3.5 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">
+                                                <UserAvatar user={host} size="w-12 h-12" />
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="font-extrabold text-tossGrey900 text-sm leading-snug">{host.name}</span>
+                                                    {notice.host_one_liner && (
+                                                        <span className="text-xs text-tossGrey600 font-semibold mt-1 break-keep leading-relaxed">{notice.host_one_liner}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}

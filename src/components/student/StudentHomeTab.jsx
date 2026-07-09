@@ -285,7 +285,7 @@ const StudentHomeTab = ({
                                         <div>
                                             <div className="mb-3 flex flex-col gap-1">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-1 h-3 rounded-full bg-tossSuccess shrink-0"></span>
+                                                    <span className="w-1 h-3 rounded-full bg-tossBlue shrink-0"></span>
                                                     <h4 className="font-extrabold text-tossGrey800 text-[13.5px] sm:text-[14.5px] leading-none">오픈 프로그램</h4>
                                                 </div>
                                                 <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">누구나 신청 없이 함께할 수 있어요</p>

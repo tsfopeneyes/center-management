@@ -27,6 +27,7 @@ const INITIAL_NOTICE_STATE = {
     program_end_date: '',
     program_days: [],
     host_id: '',
+    host_ids: [],
     host_one_liner: ''
 };
 

@@ -112,6 +112,7 @@ export const prepareNoticeForEdit = (notice) => {
         program_end_date: notice.program_end_date ? formatToLocalISO(notice.program_end_date).split('T')[0] : '',
         program_days: notice.program_days || [],
         host_id: notice.host_id || '',
+        host_ids: notice.host_ids || (notice.host_id ? [notice.host_id] : []),
         host_one_liner: notice.host_one_liner || ''
     };
 };

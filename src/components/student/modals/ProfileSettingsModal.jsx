@@ -161,7 +161,7 @@ const ProfileSettingsModal = ({
             </motion.div>
 
             {showCropModal && (
-                <div className="fixed inset-0 z-[110] bg-black flex flex-col animate-fade-in pb-20">
+                <div className="fixed inset-0 z-[150] bg-black flex flex-col animate-fade-in pb-20">
                     <div className="flex-1 relative bg-black">
                         <Cropper
                             image={photoURL}

@@ -16,7 +16,7 @@ const PublicProgramDetail = () => {
     const [timeLeft, setTimeLeft] = useState('');
     const [pollTimeLeft, setPollTimeLeft] = useState('');
     const [isPollExpired, setIsPollExpired] = useState(false);
-    const [hostUser, setHostUser] = useState(null);
+    const [hostUsers, setHostUsers] = useState([]);
     const introRef = React.useRef(null);
     const hostRef = React.useRef(null);
     const [activeTab, setActiveTab] = useState('intro');
@@ -30,23 +30,25 @@ const PublicProgramDetail = () => {
     };
 
     useEffect(() => {
-        if (notice && notice.host_id) {
-            const fetchHost = async () => {
-                try {
-                    const { data, error } = await supabase
-                        .from('users')
-                        .select('id, name, profile_image_url, school, role')
-                        .eq('id', notice.host_id)
-                        .single();
-                    if (error) throw error;
-                    setHostUser(data);
-                } catch (err) {
-                    console.error('Error fetching host user:', err);
-                }
-            };
-            fetchHost();
-        } else {
-            setHostUser(null);
+        if (notice) {
+            const ids = notice.host_ids || (notice.host_id ? [notice.host_id] : []);
+            if (ids && ids.length > 0) {
+                const fetchHosts = async () => {
+                    try {
+                        const { data, error } = await supabase
+                            .from('users')
+                            .select('id, name, profile_image_url, school, role')
+                            .in('id', ids);
+                        if (error) throw error;
+                        setHostUsers(data || []);
+                    } catch (err) {
+                        console.error('Error fetching host users:', err);
+                    }
+                };
+                fetchHosts();
+            } else {
+                setHostUsers([]);
+            }
         }
     }, [notice]);
     
@@ -225,7 +227,7 @@ const PublicProgramDetail = () => {
                 )}
 
                 {/* Sticky Section Tabs: Only show when both Introduction and Host sections are active */}
-                {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
+                {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                     <div className="flex border-b border-gray-100 sticky top-14 bg-white/95 backdrop-blur z-20 mb-6">
                         <button
                             onClick={() => scrollToSection('intro')}
@@ -267,14 +269,14 @@ const PublicProgramDetail = () => {
                 {/* Body Content */}
                 {notice.category === 'PROGRAM' && (
                     <div 
-                        ref={notice.program_type === 'CENTER' && hostUser ? introRef : null} 
+                        ref={notice.program_type === 'CENTER' && hostUsers.length > 0 ? introRef : null} 
                         className={`flex items-center gap-2 scroll-mt-28 ${
-                            notice.program_type === 'CENTER' && hostUser ? 'mt-4 mb-4' : 'mt-8 mb-4'
+                            notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
                         }`}
                     >
                         <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
                         <h3 className={`font-extrabold text-[15px] leading-none ${
-                            notice.program_type === 'CENTER' && hostUser ? 'text-blue-600' : 'text-gray-900'
+                            notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'text-blue-600' : 'text-gray-900'
                         }`}>
                             프로그램 소개
                         </h3>
@@ -286,27 +288,26 @@ const PublicProgramDetail = () => {
                 </div>
 
                 {/* Host Intro: conditionally visible only for CENTER programs */}
-                {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUser && (
+                {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                     <div ref={hostRef} className="mt-8 pt-6 border-t border-gray-100 mb-8 scroll-mt-28">
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
-                            <h4 className="text-[15px] font-extrabold text-blue-600 leading-none">호스트</h4>
-                        </div>
-                        <div className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
-                            {/* Simple inline avatar view as helper */}
-                            <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
-                                {hostUser.profile_image_url ? (
-                                    <img src={hostUser.profile_image_url} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                    <User size={20} className="text-blue-500" />
-                                )}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                                <span className="font-extrabold text-gray-900 text-sm leading-snug">{hostUser.name}</span>
-                                {notice.host_one_liner && (
-                                    <span className="text-xs text-gray-600 font-semibold mt-1 break-keep leading-relaxed">{notice.host_one_liner}</span>
-                                )}
-                            </div>
+                        <div className="grid grid-cols-1 gap-3">
+                            {hostUsers.map(host => (
+                                <div key={host.id} className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
+                                    <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
+                                        {host.profile_image_url ? (
+                                            <img src={host.profile_image_url} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User size={20} className="text-blue-500" />
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="font-extrabold text-gray-900 text-sm leading-snug">{host.name}</span>
+                                        {notice.host_one_liner && (
+                                            <span className="text-xs text-gray-600 font-semibold mt-1 break-keep leading-relaxed">{notice.host_one_liner}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}

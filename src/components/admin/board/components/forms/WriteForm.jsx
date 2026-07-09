@@ -190,6 +190,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 
                 const isCenter = formData.program_type === 'CENTER';
                 noticeData.host_id = isCenter ? (formData.host_id || null) : null;
+                noticeData.host_ids = isCenter ? (formData.host_ids || []) : [];
                 noticeData.host_one_liner = isCenter ? (formData.host_one_liner || null) : null;
 
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;

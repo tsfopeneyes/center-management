@@ -634,23 +634,35 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                     <div className="space-y-2">
                         <span className="text-xs font-semibold text-slate-500 ml-1">호스트 설정</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {/* Host Selector */}
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 지정</label>
-                                <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
-                                    <Users className="text-slate-400 shrink-0 mr-2" size={15} />
-                                    <select
-                                        value={formData.host_id || ''}
-                                        onChange={e => updateField('host_id', e.target.value)}
-                                        className="w-full py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
-                                    >
-                                        <option value="">호스트 미지정 (기본값)</option>
-                                        {admins.map(admin => (
-                                            <option key={admin.id} value={admin.id}>
+                            {/* Host Selector (Multiple) */}
+                            <div className="flex flex-col gap-1.5 sm:col-span-2">
+                                <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 지정 (다수 선택 가능)</label>
+                                <div className="border border-slate-200/80 rounded-xl bg-slate-50/20 p-3 max-h-[160px] overflow-y-auto space-y-2">
+                                    {admins.map(admin => {
+                                        const selectedIds = formData.host_ids || [];
+                                        const isChecked = selectedIds.includes(admin.id);
+                                        return (
+                                            <label key={admin.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => {
+                                                        const nextIds = isChecked
+                                                            ? selectedIds.filter(id => id !== admin.id)
+                                                            : [...selectedIds, admin.id];
+                                                        updateField('host_ids', nextIds);
+                                                        // Backwards compatibility for single host_id:
+                                                        updateField('host_id', nextIds[0] || '');
+                                                    }}
+                                                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                                />
                                                 {admin.name} ({admin.school || '관리자'})
-                                            </option>
-                                        ))}
-                                    </select>
+                                            </label>
+                                        );
+                                    })}
+                                    {admins.length === 0 && (
+                                        <p className="text-xs text-slate-400 text-center py-2">등록된 관리자가 없습니다.</p>
+                                    )}
                                 </div>
                             </div>
 
