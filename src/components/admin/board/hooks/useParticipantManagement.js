@@ -30,6 +30,23 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             if (error) throw error;
             
             const uniqueDates = new Set();
+
+            // Generate range of dates from start to end
+            const start = notice.program_start_date || (notice.program_date ? notice.program_date.split('T')[0] : null);
+            const end = notice.program_end_date || start;
+            if (start) {
+                try {
+                    let current = new Date(start);
+                    const endDate = new Date(end);
+                    while (current <= endDate && !isNaN(current.getTime()) && !isNaN(endDate.getTime())) {
+                        uniqueDates.add(current.toISOString().split('T')[0]);
+                        current.setDate(current.getDate() + 1);
+                    }
+                } catch (e) {
+                    console.error("Error generating date range:", e);
+                }
+            }
+            
             data?.forEach(tx => {
                 const match = tx.source_description.match(/\((\d{4}-\d{2}-\d{2})\)/);
                 if (match) {
@@ -429,6 +446,13 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             fetchActiveUsersInSpace();
         }
     }, [showEntranceList, fetchActiveUsersInSpace]);
+
+    // Automatically refetch participants when selectedNotice or selectedDate changes
+    useEffect(() => {
+        if (selectedNotice) {
+            fetchParticipants(selectedNotice);
+        }
+    }, [selectedNotice, selectedDate]);
 
     return {
         participantList,
