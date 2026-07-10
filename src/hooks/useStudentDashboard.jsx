@@ -445,7 +445,13 @@ export const useStudentDashboard = () => {
 
     const filteredPrograms = allPrograms.filter(n => {
         if (n.program_status === 'CANCELLED' || n.program_status === 'COMPLETED') return false;
-        if (n.program_date && new Date(n.program_date) < startOfDay(new Date())) return false;
+        
+        if (n.is_recruiting === false) {
+            const endDate = n.program_end_date || n.program_date;
+            if (endDate && new Date(endDate) < startOfDay(new Date())) return false;
+        } else {
+            if (n.program_date && new Date(n.program_date) < startOfDay(new Date())) return false;
+        }
         return true;
     });
 
