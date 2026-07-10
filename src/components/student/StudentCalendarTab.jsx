@@ -144,23 +144,27 @@ const StudentCalendarTab = ({
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className={`px-2 py-0.5 rounded-toss-md text-[9px] font-bold uppercase tracking-tight ${
-                                        event.type === 'PROGRAM'
-                                            ? (event.program_type === 'SCHOOL_CHURCH' ? 'bg-[#a234c7]/10 text-[#a234c7]' : 'bg-tossBlueLight text-tossBlue')
-                                            : event.category_id === 'RENTAL'
+                                    {event.type !== 'PROGRAM' && (
+                                        <span className={`px-2 py-0.5 rounded-toss-md text-[9px] font-bold uppercase tracking-tight ${
+                                            event.category_id === 'RENTAL'
                                                 ? 'bg-indigo-50 text-indigo-600'
                                                 : event.catName === '휴관' ? 'bg-tossError/10 text-tossError' : 'bg-tossGrey100 text-tossGrey600'
-                                    }`}>
-                                        {event.catName}
-                                    </span>
+                                        }`}>
+                                            {event.catName}
+                                        </span>
+                                    )}
                                     {(event.type === 'PROGRAM' || event.category_id === 'RENTAL') && (
-                                        <span className="text-[9px] font-bold text-tossGrey500 uppercase tracking-widest flex items-center gap-1">
-                                            <Clock size={10} />
-                                            {event.category_id === 'RENTAL' ? (
-                                                `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-                                            ) : (
-                                                new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
-                                            )}
+                                        <span className="text-[10px] font-bold text-tossGrey500 uppercase tracking-tight flex items-center gap-1 flex-wrap">
+                                            <Clock size={10} className="shrink-0" />
+                                            <span>
+                                                {event.type === 'PROGRAM' ? (
+                                                    `${event.program_time || new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}${event.program_location ? ` · ${event.program_location}` : ''}`
+                                                ) : event.category_id === 'RENTAL' ? (
+                                                    `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                                                ) : (
+                                                    new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+                                                )}
+                                            </span>
                                         </span>
                                     )}
                                 </div>
