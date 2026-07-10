@@ -16,6 +16,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const [searchResults, setSearchResults] = useState([]);
     const [showEntranceList, setShowEntranceList] = useState(false);
     const [lastAddedUser, setLastAddedUser] = useState(null);
+    const latestQueryDateRef = useRef(null);
 
     const fetchAvailableDates = useCallback(async (notice) => {
         if (!notice || notice.is_recruiting !== false) return;
@@ -80,6 +81,10 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
 
     const fetchParticipants = useCallback(async (notice) => {
         if (!notice) return;
+        
+        const dateQuerying = selectedDate;
+        latestQueryDateRef.current = dateQuerying;
+        
         setModalLoading(true);
         setPollModalResults(null);
         
@@ -95,6 +100,10 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     .eq('source_description', descMatch)
                     .eq('transaction_type', 'EARN');
                     
+                if (latestQueryDateRef.current !== dateQuerying) {
+                    // Stale query, ignore results to prevent race conditions
+                    return;
+                }
                 if (error) throw error;
                 
                 const list = { JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] };
@@ -148,7 +157,9 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             console.error(err);
             alert('명단 불러오기 실패: ' + err.message);
         } finally {
-            setModalLoading(false);
+            if (latestQueryDateRef.current === dateQuerying) {
+                setModalLoading(false);
+            }
         }
     }, [selectedDate]);
 
