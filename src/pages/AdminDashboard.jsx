@@ -59,10 +59,20 @@ const AdminDashboard = () => {
     const [isAlertEnabled, setIsAlertEnabled] = useState(localStorage.getItem('admin_alert_enabled') !== 'false');
     const [toasts, setToasts] = useState([]);
     const usersRef = React.useRef([]);
+    const locationsRef = React.useRef([]);
+    const currentAdminRef = React.useRef(null);
 
     useEffect(() => {
         usersRef.current = users;
     }, [users]);
+
+    useEffect(() => {
+        locationsRef.current = locations;
+    }, [locations]);
+
+    useEffect(() => {
+        currentAdminRef.current = currentAdmin;
+    }, [currentAdmin]);
 
     const playChime = useCallback(() => {
         try {
@@ -243,9 +253,52 @@ const AdminDashboard = () => {
             if (!isAlertOn) return;
             
             try {
+                const adminId = currentAdminRef.current?.id;
+                if (!adminId) return;
+
+                // 1. Fetch STAFF_PRESENCE_CONFIG and STATUS
+                const { data: configs } = await supabase
+                    .from('notices')
+                    .select('title, content')
+                    .eq('category', 'SYSTEM')
+                    .in('title', ['STAFF_PRESENCE_CONFIG', 'STAFF_PRESENCE_STATUS']);
+
+                let staffConfig = { "하이픈": [], "이높플레이스": [] };
+                let presenceStatus = {};
+
+                if (configs && configs.length > 0) {
+                    const configNotice = configs.find(c => c.title === 'STAFF_PRESENCE_CONFIG');
+                    const statusNotice = configs.find(c => c.title === 'STAFF_PRESENCE_STATUS');
+
+                    if (configNotice?.content) {
+                        try {
+                            const parsed = JSON.parse(configNotice.content);
+                            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                                staffConfig = parsed;
+                            } else if (Array.isArray(parsed)) {
+                                staffConfig = { "하이픈": parsed, "이높플레이스": parsed };
+                            }
+                        } catch (e) {}
+                    }
+                    if (statusNotice?.content) {
+                        try {
+                            presenceStatus = JSON.parse(statusNotice.content) || {};
+                        } catch (e) {}
+                    }
+                }
+
+                // 2. Check if admin is currently marked as working ("근무 중")
+                const isWorking = presenceStatus[adminId] === true;
+                if (!isWorking) return; // Skip alerts if not working
+
+                // 3. Determine admin's assigned branches
+                const isAdminAtHyphen = (staffConfig["하이픈"] || []).includes(adminId);
+                const isAdminAtInop = (staffConfig["이높플레이스"] || []).includes(adminId);
+
+                // 4. Fetch new check-in logs
                 const { data: newLogs } = await supabase
                     .from('logs')
-                    .select('id, user_id, type, created_at')
+                    .select('id, user_id, type, location_id, created_at')
                     .eq('type', 'CHECKIN')
                     .gt('created_at', lastCheckedTimeRef.current)
                     .order('created_at', { ascending: true });
@@ -254,9 +307,25 @@ const AdminDashboard = () => {
                     lastCheckedTimeRef.current = newLogs[newLogs.length - 1].created_at;
                     
                     newLogs.forEach(log => {
+                        // Find checked-in location
+                        const loc = locationsRef.current.find(l => l.id === log.location_id);
+                        if (!loc) return;
+
+                        const isLocHyphen = loc.name?.includes('하이픈');
+                        const isLocInop = loc.name?.includes('이높플레이스');
+
+                        // Filter by branch match
+                        let shouldAlert = false;
+                        if (isLocHyphen && isAdminAtHyphen) shouldAlert = true;
+                        else if (isLocInop && isAdminAtInop) shouldAlert = true;
+                        else if (!isLocHyphen && !isLocInop) shouldAlert = true; // Alert all if location doesn't match standard branches
+                        
+                        if (!shouldAlert) return; // Skip alert for this logged-in admin
+
                         const u = usersRef.current.find(user => user.id === log.user_id);
                         if (u) {
-                            const message = `${u.name} 학생이 등원했습니다.`;
+                            const branchName = isLocHyphen ? '하이픈' : (isLocInop ? '이높플레이스' : '센터');
+                            const message = `${u.name} 학생이 ${branchName}에 체크인했어요!`;
                             playChime();
                             
                             if (Notification.permission === 'granted') {
