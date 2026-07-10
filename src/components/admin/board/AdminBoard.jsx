@@ -241,6 +241,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                         } catch (err) { alert('수정 실패'); }
                     }}
                     onDelete={handleDeleteNotice}
+                    onViewParticipants={handleOpenParticipants}
                     comments={[]}
                     newComment=""
                     setNewComment={() => {}}
