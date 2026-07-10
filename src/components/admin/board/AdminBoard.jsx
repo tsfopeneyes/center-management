@@ -237,6 +237,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                     onUpdate={async (updated) => {
                         try {
                             await noticesApi.update(updated.id, updated);
+                            setViewNotice(updated);
                             fetchNotices();
                         } catch (err) { alert('수정 실패'); }
                     }}
