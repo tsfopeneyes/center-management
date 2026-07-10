@@ -206,28 +206,55 @@ export const noticesApi = {
     },
 
     async finalizeProgramLogs(noticeId, noticeData) {
-        // 1. Get all JOIN responses
-        const { data: responses, error: respError } = await supabase
-            .from('notice_responses')
-            .select('*')
-            .eq('notice_id', noticeId)
-            .eq('status', 'JOIN');
+        // 1. Get all JOIN responses or open program participants
+        let responses = [];
+        if (noticeData.is_recruiting === false) {
+            // Open program: Get participants from hyphen_transactions
+            const descPattern = `[오픈 프로그램 참여] ${noticeData.title}%`;
+            const { data: txData, error: txError } = await supabase
+                .from('hyphen_transactions')
+                .select('user_id, source_description')
+                .eq('transaction_type', 'EARN')
+                .like('source_description', descPattern);
+            if (txError) throw txError;
             
-        if (respError) throw respError;
+            responses = (txData || []).map(tx => {
+                const dateMatch = tx.source_description.match(/\((\d{4}-\d{2}-\d{2})\)/);
+                const dateStr = dateMatch ? dateMatch[1] : (noticeData.program_date || '');
+                return {
+                    user_id: tx.user_id,
+                    is_attended: true,
+                    is_staff: false,
+                    program_date: dateStr
+                };
+            });
+        } else {
+            // Regular recruiting program
+            const { data: respData, error: respError } = await supabase
+                .from('notice_responses')
+                .select('*')
+                .eq('notice_id', noticeId)
+                .eq('status', 'JOIN');
+                
+            if (respError) throw respError;
+            responses = respData || [];
+        }
+            
         if (!responses || responses.length === 0) return;
 
-        // 2. Format location_id using pipes: noticeId|title|date|time|location
-        const loc = `${noticeId}|${noticeData.title || ''}|${noticeData.program_date || ''}|${noticeData.program_time || ''}|${noticeData.location || ''}`;
-
-        // 3. Delete existing PRG logs for this program to avoid duplicates
+        // 2. Delete existing PRG logs for this program to avoid duplicates
         await supabase.from('logs').delete().like('location_id', `${noticeId}|%`);
 
-        // 4. Insert new logs based on attendance
-        const logsToInsert = responses.map(r => ({
-            user_id: r.user_id,
-            type: r.is_attended ? 'PRG_ATTENDED' : 'PRG_ABSENT',
-            location_id: loc
-        }));
+        // 3. Insert new logs based on attendance
+        const logsToInsert = responses.map(r => {
+            const dateStr = r.program_date || noticeData.program_date || '';
+            const loc = `${noticeId}|${noticeData.title || ''}|${dateStr}|${noticeData.program_time || ''}|${noticeData.location || ''}`;
+            return {
+                user_id: r.user_id,
+                type: r.is_attended ? 'PRG_ATTENDED' : 'PRG_ABSENT',
+                location_id: loc
+            };
+        });
 
         const { error: insertError } = await supabase.from('logs').insert(logsToInsert);
         if (insertError) throw insertError;
