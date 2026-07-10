@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import getCroppedImg, { compressImage } from '../../../../utils/imageUtils';
+import { hashPassword } from '../../../../utils/hashUtils';
 import { CATEGORIES } from '../../../../constants/appConstants';
 import { uploadSummaryToNotion, performFullSyncToGoogleSheets } from '../../../../utils/integrationUtils';
 import { processAnalyticsData, processUserAnalytics, processProgramAnalytics } from '../../../../utils/analyticsUtils';
@@ -253,7 +254,8 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
             if (newAdminPassword) {
                 if (newAdminPassword.length < 4) { alert('비밀번호는 4자리 이상이어야 합니다.'); setProfileLoading(false); return; }
                 if (newAdminPassword !== confirmAdminPassword) { alert('비밀번호가 일치하지 않습니다.'); setProfileLoading(false); return; }
-                updates.password = newAdminPassword;
+                const hashedPassword = await hashPassword(newAdminPassword);
+                updates.password = hashedPassword;
             }
 
             const { error } = await supabase.from('users').update(updates).eq('id', currentAdmin.id);

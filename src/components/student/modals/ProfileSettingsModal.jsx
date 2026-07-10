@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Image as ImageIcon, ZoomIn, RotateCw } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '../../../utils/imageUtils';
+import { hashPassword } from '../../../utils/hashUtils';
 
 const ProfileSettingsModal = ({ 
     user, 
@@ -64,7 +65,8 @@ const ProfileSettingsModal = ({
                 alert('비밀번호 확인이 일치하지 않습니다.');
                 return;
             }
-            updates.password = newPassword;
+            const hashedPassword = await hashPassword(newPassword);
+            updates.password = hashedPassword;
         }
 
         if (school !== user?.school) updates.school = school;

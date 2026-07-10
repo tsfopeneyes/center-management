@@ -28,6 +28,7 @@ import { stripHtml, extractUrls } from '../utils/textUtils';
 import { formatToLocalISO } from '../utils/dateUtils';
 import { subscribeToPush } from '../utils/pushUtils';
 import getCroppedImg from '../utils/imageUtils';
+import { hashPassword } from '../utils/hashUtils';
 
 import { useMessaging } from '../hooks/useMessaging';
 import { useNotices } from '../hooks/useNotices';
@@ -493,7 +494,8 @@ export const useStudentDashboard = () => {
                 alert('비밀번호 확인이 일치하지 않습니다.');
                 return;
             }
-            updates.password = newPassword;
+            const hashedPassword = await hashPassword(newPassword);
+            updates.password = hashedPassword;
         }
 
         const result = await updateProfile(updates, profileImage);

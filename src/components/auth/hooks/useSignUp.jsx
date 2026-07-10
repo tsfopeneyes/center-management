@@ -86,7 +86,15 @@ export const useSignUp = (onSuccess) => {
             let isAutoMerge = false;
 
             if (existing) {
-                const isTemporary = existing.user_group === '게스트' || existing.user_group === '미가입' || existing.preferences?.is_temporary === true;
+                // Check if they have a valid auth record in the database
+                const { data: candidates } = await supabase
+                    .rpc('get_login_candidates', { p_name: existing.name });
+                const hasAuthRecord = candidates?.some(c => c.id === existing.id && c.email !== null);
+
+                const isTemporary = existing.user_group === '게스트' || 
+                                    existing.user_group === '미가입' || 
+                                    existing.preferences?.is_temporary === true ||
+                                    !hasAuthRecord;
 
                 if (isTemporary) {
                     targetUserId = existing.id;
