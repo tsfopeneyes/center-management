@@ -14,7 +14,7 @@ import {
     List, ListOrdered, Quote, Heading1, Heading2,
     AlignLeft, AlignCenter, AlignRight,
     Link as LinkIcon, Image as ImageIcon,
-    Undo, Redo, Highlighter, Code
+    Undo, Redo, Highlighter, Code, Pipette
 } from 'lucide-react';
 
 const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
@@ -227,6 +227,19 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
                                 </button>
                             );
                         })}
+
+                        {/* Custom Color Selector */}
+                        <label className="relative w-4 h-4 rounded-full border border-gray-200 flex items-center justify-center cursor-pointer bg-gradient-to-tr from-[#ff4d4d] via-[#4dff4d] to-[#4d4dff] hover:scale-125 transition-all" title="직접 선택">
+                            <input
+                                type="color"
+                                value={editor.getAttributes('textStyle').color || '#191f28'}
+                                onChange={(e) => {
+                                    editor.chain().focus().setColor(e.target.value).run();
+                                }}
+                                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                            />
+                            <Pipette size={9} className="text-white drop-shadow-sm pointer-events-none" />
+                        </label>
                     </div>
                 </div>
 
