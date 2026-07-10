@@ -158,7 +158,7 @@ const StudentCalendarTab = ({
 
                                     {/* Right: Muted Typography & Flat Info Info */}
                                     <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-[#191f28] text-[15.5px] tracking-tight mb-1 truncate group-hover:text-[#3182f6] transition-colors">
+                                        <h4 className="font-bold text-[#3182f6] text-[15.5px] tracking-tight mb-1 truncate">
                                             {event.category_id === 'RENTAL' ? event.meetingName : event.title}
                                         </h4>
                                         
