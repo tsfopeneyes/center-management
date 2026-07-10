@@ -128,97 +128,65 @@ const StudentCalendarTab = ({
 
                     if (sortedEvents.length === 0) return <div className="text-center py-20 text-tossGrey400 font-bold">등록된 추가 일정이 없습니다.</div>;
 
-                    return sortedEvents.map((event, idx) => (
-                        <motion.div
-                            key={idx}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.05 }}
-                            className="px-5 py-4 bg-white rounded-2xl border border-gray-100 flex gap-4 items-center group active:scale-[0.98] transition-all text-left shadow-sm hover:shadow-md hover:border-gray-200"
-                            onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
-                        >
-                            {/* Left side: Date Badge */}
-                            {(() => {
-                                const dayOfWeek = event.start.getDay();
-                                const isSame = isSameDay(event.start, event.end);
-                                
-                                let badgeBg = 'bg-slate-50 border-slate-100/80';
-                                let monthColor = 'text-slate-400';
-                                let dateColor = 'text-slate-800';
-                                let weekdayBg = 'bg-slate-100 text-slate-600';
-                                
-                                if (dayOfWeek === 0) { // Sunday
-                                    badgeBg = 'bg-rose-50/50 border-rose-100/70';
-                                    monthColor = 'text-rose-400';
-                                    dateColor = 'text-rose-600';
-                                    weekdayBg = 'bg-rose-100/80 text-rose-600';
-                                } else if (dayOfWeek === 6) { // Saturday
-                                    badgeBg = 'bg-blue-50/50 border-blue-100/70';
-                                    monthColor = 'text-blue-400';
-                                    dateColor = 'text-blue-600';
-                                    weekdayBg = 'bg-blue-100/80 text-blue-600';
-                                }
-                                
-                                return (
-                                    <div className={`flex flex-col items-center justify-center min-w-[64px] py-2 ${badgeBg} rounded-2xl border text-center shrink-0`}>
-                                        <span className={`text-[9px] font-black uppercase tracking-wider ${monthColor} mb-0.5`}>
+                    return (
+                        <div className="bg-white rounded-3xl p-6 shadow-[0_4px_24px_rgba(0,0,0,0.02)] border border-[#f2f4f6] divide-y divide-[#f2f4f6]">
+                            {sortedEvents.map((event, idx) => (
+                                <motion.div
+                                    key={idx}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.03 }}
+                                    className={`flex gap-5 items-center py-4 text-left group cursor-pointer ${idx === 0 ? 'pt-0' : ''} ${idx === sortedEvents.length - 1 ? 'pb-0' : ''}`}
+                                    onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
+                                >
+                                    {/* Left: Flat Date */}
+                                    <div className="flex flex-col items-center justify-center min-w-[50px] shrink-0 text-center">
+                                        <span className="text-[11px] font-bold text-[#8b95a1] uppercase mb-0.5">
                                             {event.start.getMonth() + 1}월
                                         </span>
-                                        <span className={`text-2xl font-black tracking-tight leading-none mb-1.5 ${dateColor}`}>
+                                        <span className="text-[22px] font-extrabold text-[#191f28] tracking-tight leading-none">
                                             {event.start.getDate()}
                                         </span>
-                                        {isSame ? (
-                                            <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black ${weekdayBg}`}>
-                                                {event.start.toLocaleDateString('ko-KR', { weekday: 'short' })}
-                                            </span>
-                                        ) : (
-                                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-md text-[9px] font-black">
-                                                ~{event.end.getDate()}일
-                                            </span>
-                                        )}
+                                        <span className={`text-[12px] font-bold mt-1 ${
+                                            event.start.getDay() === 0 ? 'text-[#f04438]' : event.start.getDay() === 6 ? 'text-[#3182f6]' : 'text-[#4e5968]'
+                                        }`}>
+                                            {event.start.toLocaleDateString('ko-KR', { weekday: 'short' })}
+                                        </span>
                                     </div>
-                                );
-                            })()}
 
-                            {/* Right side: Information block */}
-                            <div className="flex-1 min-w-0 py-0.5">
-                                <h4 className="font-black text-gray-900 text-[15.5px] tracking-tight leading-snug truncate mb-2 group-hover:text-blue-600 transition-colors">
-                                    {event.category_id === 'RENTAL' ? event.meetingName : event.title}
-                                </h4>
-                                
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-y-1 gap-x-3 text-xs font-semibold text-gray-500">
-                                    {/* Time Info */}
-                                    <span className="flex items-center gap-1.5 text-gray-600">
-                                        <Clock size={12} className="text-gray-400 shrink-0" />
-                                        <span>
-                                            {event.type === 'PROGRAM' ? (
-                                                formatKoreanTimeRange(event.program_date || event.program_start_date || event.start, event.program_duration)
-                                            ) : event.category_id === 'RENTAL' ? (
-                                                `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-                                            ) : (
-                                                new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+                                    {/* Right: Muted Typography & Flat Info Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-[#191f28] text-[15.5px] tracking-tight mb-1 truncate group-hover:text-[#3182f6] transition-colors">
+                                            {event.category_id === 'RENTAL' ? event.meetingName : event.title}
+                                        </h4>
+                                        
+                                        <div className="flex items-center gap-2 text-[13px] font-semibold text-[#8b95a1]">
+                                            <span>
+                                                {event.type === 'PROGRAM' ? (
+                                                    formatKoreanTimeRange(event.program_date || event.program_start_date || event.start, event.program_duration)
+                                                ) : event.category_id === 'RENTAL' ? (
+                                                    `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                                                ) : (
+                                                    new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+                                                )}
+                                            </span>
+                                            
+                                            {(event.program_location || event.spaceName) && (
+                                                <>
+                                                    <span className="text-[#d1d6db] font-normal">|</span>
+                                                    <span className="text-[#4e5968] font-bold truncate max-w-[150px]">
+                                                        {event.category_id === 'RENTAL' ? event.spaceName : event.program_location}
+                                                    </span>
+                                                </>
                                             )}
-                                        </span>
-                                    </span>
+                                        </div>
+                                    </div>
 
-                                    {/* Location/Space Info */}
-                                    {(event.program_location || event.spaceName) && (
-                                        <span className="flex items-center gap-1.5 text-blue-600">
-                                            <MapPin size={12} className="text-blue-400 shrink-0" />
-                                            <span className="truncate max-w-[150px]">{event.category_id === 'RENTAL' ? event.spaceName : event.program_location}</span>
-                                            {event.category_id === 'RENTAL' && event.regionName && (
-                                                <span className="text-[9px] bg-blue-50 text-blue-600 px-1 py-0.2 rounded font-bold shrink-0">
-                                                    {event.regionName}
-                                                </span>
-                                            )}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-600 transition-colors shrink-0" />
-                        </motion.div>
-                    ));
+                                    <ChevronRight size={16} className="text-[#ccc] group-hover:text-[#3182f6] transition-colors shrink-0" />
+                                </motion.div>
+                            ))}
+                        </div>
+                    );
                 })()}
             </div>
             </div>
