@@ -231,11 +231,11 @@ const AdminDashboard = () => {
 
         const subscription = supabase
             .channel('public:updates')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs' }, (payload) => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, (payload) => {
                 const newLog = payload.new;
                 const isAlertOn = localStorage.getItem('admin_alert_enabled') !== 'false';
                 
-                if (isAlertOn && newLog.type === 'CHECKIN') {
+                if (isAlertOn && payload.eventType === 'INSERT' && newLog && newLog.type === 'CHECKIN') {
                     const u = usersRef.current.find(user => user.id === newLog.user_id);
                     if (u) {
                         const message = `${u.name} 학생이 등원했습니다.`;
