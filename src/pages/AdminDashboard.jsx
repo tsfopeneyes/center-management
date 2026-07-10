@@ -220,49 +220,73 @@ const AdminDashboard = () => {
         fetchData();
         subscribeToPush(admin.id); // Ask for notification permission
 
-        // Realtime Subscription with Debounce
+        // Realtime Subscription with Debounce (for UI updates)
         let debounceTimer;
         const debouncedFetch = () => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 fetchData();
-            }, 1000); // 1-second debounce to handle burst updates
+            }, 1000);
         };
 
         const subscription = supabase
             .channel('public:updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, (payload) => {
-                const newLog = payload.new;
-                const isAlertOn = localStorage.getItem('admin_alert_enabled') !== 'false';
-                
-                if (isAlertOn && payload.eventType === 'INSERT' && newLog && newLog.type === 'CHECKIN') {
-                    const u = usersRef.current.find(user => user.id === newLog.user_id);
-                    if (u) {
-                        const message = `${u.name} 학생이 등원했습니다.`;
-                        playChime();
-                        
-                        if (Notification.permission === 'granted') {
-                            new Notification('체크인 알림', {
-                                body: message,
-                                icon: '/favicon.ico'
-                            });
-                        }
-                        
-                        const toastId = Date.now() + Math.random();
-                        setToasts(prev => [...prev, { id: toastId, message, name: u.name, school: u.school }]);
-                        
-                        setTimeout(() => {
-                            setToasts(prev => prev.filter(t => t.id !== toastId));
-                        }, 5000);
-                    }
-                }
-                debouncedFetch();
-            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, debouncedFetch)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, debouncedFetch)
             .subscribe();
 
+        // 100% Reliable Polling Fallback for Check-in Alerts
+        const lastCheckedTimeRef = { current: new Date().toISOString() };
+        
+        const pollCheckins = async () => {
+            const isAlertOn = localStorage.getItem('admin_alert_enabled') !== 'false';
+            if (!isAlertOn) return;
+            
+            try {
+                const { data: newLogs } = await supabase
+                    .from('logs')
+                    .select('id, user_id, type, created_at')
+                    .eq('type', 'CHECKIN')
+                    .gt('created_at', lastCheckedTimeRef.current)
+                    .order('created_at', { ascending: true });
+                
+                if (newLogs && newLogs.length > 0) {
+                    lastCheckedTimeRef.current = newLogs[newLogs.length - 1].created_at;
+                    
+                    newLogs.forEach(log => {
+                        const u = usersRef.current.find(user => user.id === log.user_id);
+                        if (u) {
+                            const message = `${u.name} 학생이 등원했습니다.`;
+                            playChime();
+                            
+                            if (Notification.permission === 'granted') {
+                                new Notification('체크인 알림', {
+                                    body: message,
+                                    icon: '/favicon.ico'
+                                });
+                            }
+                            
+                            const toastId = Date.now() + Math.random();
+                            setToasts(prev => [...prev, { id: toastId, message, name: u.name, school: u.school }]);
+                            
+                            setTimeout(() => {
+                                setToasts(prev => prev.filter(t => t.id !== toastId));
+                            }, 5000);
+                        }
+                    });
+                    
+                    fetchData();
+                }
+            } catch (err) {
+                console.error("Failed to poll checkins:", err);
+            }
+        };
+
+        const pollInterval = setInterval(pollCheckins, 4000); // Poll every 4 seconds for fast response
+
         return () => {
             clearTimeout(debounceTimer);
+            clearInterval(pollInterval);
             supabase.removeChannel(subscription);
         };
     }, [navigate, fetchData, playChime]);
