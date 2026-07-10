@@ -94,6 +94,19 @@ const LineHeight = Extension.create({
 
 const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세요...' }) => {
     const [isCodeView, setIsCodeView] = React.useState(false);
+    const [recentColors, setRecentColors] = React.useState(['#f04438', '#3182f6', '#10b981', '#ff9c00', '#8b5cf6']);
+
+    const handleColorChange = (color) => {
+        editor.chain().focus().setColor(color).run();
+        setRecentColors(prev => {
+            const filtered = prev.filter(c => c.toLowerCase() !== color.toLowerCase());
+            return [color, ...filtered].slice(0, 7);
+        });
+    };
+
+    const handleClearColor = () => {
+        editor.chain().focus().unsetColor().run();
+    };
     const editor = useEditor({
         extensions: [
             SwapEnter,
@@ -193,49 +206,43 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
                 <div className="flex items-center gap-1.5 border-r border-gray-200 pr-1 mr-1 shrink-0">
                     <span className="text-[11px] text-gray-400 font-black px-1 select-none">글자색</span>
                     <div className="flex items-center gap-1">
-                        {[
-                            { name: '기본', value: '#191f28' },
-                            { name: '회색', value: '#8b95a1' },
-                            { name: '파랑', value: '#3182f6' },
-                            { name: '빨강', value: '#f04438' },
-                            { name: '초록', value: '#10b981' },
-                            { name: '주황', value: '#ff9c00' },
-                            { name: '보라', value: '#8b5cf6' },
-                        ].map((col) => {
-                            const isDefault = col.value === '#191f28';
-                            const active = isDefault 
-                                ? !editor.getAttributes('textStyle').color 
-                                : editor.isActive('textStyle', { color: col.value });
+                        {/* Default Color */}
+                        <button
+                            type="button"
+                            onClick={handleClearColor}
+                            title="기본색"
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all bg-[#191f28] ${
+                                !editor.getAttributes('textStyle').color ? 'scale-125 border-blue-600 ring-2 ring-blue-100' : 'border-gray-200 hover:scale-110'
+                            }`}
+                        >
+                            {!editor.getAttributes('textStyle').color && <span className="text-[8px] text-white font-black">✓</span>}
+                        </button>
+
+                        {/* Recent Colors */}
+                        {recentColors.map((color) => {
+                            const active = editor.isActive('textStyle', { color });
                             return (
                                 <button
-                                    key={col.value}
+                                    key={color}
                                     type="button"
-                                    onClick={() => {
-                                        if (isDefault) {
-                                            editor.chain().focus().unsetColor().run();
-                                        } else {
-                                            editor.chain().focus().setColor(col.value).run();
-                                        }
-                                    }}
-                                    title={col.name}
+                                    onClick={() => handleColorChange(color)}
+                                    title={color}
                                     className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
                                         active ? 'scale-125 border-blue-600 ring-2 ring-blue-100' : 'border-gray-200 hover:scale-110'
                                     }`}
-                                    style={{ backgroundColor: col.value }}
+                                    style={{ backgroundColor: color }}
                                 >
                                     {active && <span className="text-[8px] text-white font-black">✓</span>}
                                 </button>
                             );
                         })}
 
-                        {/* Custom Color Selector */}
+                        {/* Custom Color Selector (Color Picker) */}
                         <label className="relative w-4 h-4 rounded-full border border-gray-200 flex items-center justify-center cursor-pointer bg-gradient-to-tr from-[#ff4d4d] via-[#4dff4d] to-[#4d4dff] hover:scale-125 transition-all" title="직접 선택">
                             <input
                                 type="color"
                                 value={editor.getAttributes('textStyle').color || '#191f28'}
-                                onChange={(e) => {
-                                    editor.chain().focus().setColor(e.target.value).run();
-                                }}
+                                onChange={(e) => handleColorChange(e.target.value)}
                                 className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                             />
                             <Pipette size={9} className="text-white drop-shadow-sm pointer-events-none" />
