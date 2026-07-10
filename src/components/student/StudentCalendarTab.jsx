@@ -138,23 +138,47 @@ const StudentCalendarTab = ({
                             onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
                         >
                             {/* Left side: Date Badge */}
-                            <div className="flex flex-col items-center justify-center min-w-[64px] py-1.5 bg-gray-50/50 rounded-xl border border-gray-100/80 px-2 text-center shrink-0">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                                    {event.start.toLocaleString('ko-KR', { month: 'short' })}
-                                </span>
-                                <span className="text-xl font-black text-gray-800 tracking-tight leading-none mb-1">
-                                    {event.start.getDate()}
-                                </span>
-                                {isSameDay(event.start, event.end) ? (
-                                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[9px] font-extrabold">
-                                        {event.start.toLocaleDateString('ko-KR', { weekday: 'short' })}
-                                    </span>
-                                ) : (
-                                    <span className="px-1 py-0.5 bg-gray-100 text-gray-500 rounded-md text-[9px] font-bold">
-                                        ~{event.end.getDate()}일
-                                    </span>
-                                )}
-                            </div>
+                            {(() => {
+                                const dayOfWeek = event.start.getDay();
+                                const isSame = isSameDay(event.start, event.end);
+                                
+                                let badgeBg = 'bg-slate-50 border-slate-100/80';
+                                let monthColor = 'text-slate-400';
+                                let dateColor = 'text-slate-800';
+                                let weekdayBg = 'bg-slate-100 text-slate-600';
+                                
+                                if (dayOfWeek === 0) { // Sunday
+                                    badgeBg = 'bg-rose-50/50 border-rose-100/70';
+                                    monthColor = 'text-rose-400';
+                                    dateColor = 'text-rose-600';
+                                    weekdayBg = 'bg-rose-100/80 text-rose-600';
+                                } else if (dayOfWeek === 6) { // Saturday
+                                    badgeBg = 'bg-blue-50/50 border-blue-100/70';
+                                    monthColor = 'text-blue-400';
+                                    dateColor = 'text-blue-600';
+                                    weekdayBg = 'bg-blue-100/80 text-blue-600';
+                                }
+                                
+                                return (
+                                    <div className={`flex flex-col items-center justify-center min-w-[64px] py-2 ${badgeBg} rounded-2xl border text-center shrink-0`}>
+                                        <span className={`text-[9px] font-black uppercase tracking-wider ${monthColor} mb-0.5`}>
+                                            {event.start.getMonth() + 1}월
+                                        </span>
+                                        <span className={`text-2xl font-black tracking-tight leading-none mb-1.5 ${dateColor}`}>
+                                            {event.start.getDate()}
+                                        </span>
+                                        {isSame ? (
+                                            <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black ${weekdayBg}`}>
+                                                {event.start.toLocaleDateString('ko-KR', { weekday: 'short' })}
+                                            </span>
+                                        ) : (
+                                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-md text-[9px] font-black">
+                                                ~{event.end.getDate()}일
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })()}
 
                             {/* Right side: Information block */}
                             <div className="flex-1 min-w-0 py-0.5">
