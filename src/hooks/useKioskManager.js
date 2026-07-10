@@ -30,6 +30,7 @@ export const useKioskManager = (navigate) => {
     const [facingMode, setFacingMode] = useState('environment'); // 'environment' (back) or 'user' (front)
     const [lastScan, setLastScan] = useState({ code: '', time: 0 });
     const [challenges, setChallenges] = useState([]);
+    const [isBadgeSystemEnabled, setIsBadgeSystemEnabled] = useState(true);
 
     // 1. Initial Data Fetch
     useEffect(() => {
@@ -49,6 +50,22 @@ export const useKioskManager = (navigate) => {
         }
 
         const fetchChallenges = async () => {
+            try {
+                const { data: config } = await supabase
+                    .from('notices')
+                    .select('content')
+                    .eq('category', 'SYSTEM')
+                    .eq('title', 'BADGE_SYSTEM_CONFIG')
+                    .maybeSingle();
+                
+                if (config?.content) {
+                    const parsed = JSON.parse(config.content);
+                    setIsBadgeSystemEnabled(parsed.enabled !== false);
+                }
+            } catch (e) {
+                console.error("Failed to load BADGE_SYSTEM_CONFIG", e);
+            }
+
             const { data } = await supabase.from('challenges').select('*');
             if (data) setChallenges(data);
         };
@@ -239,11 +256,11 @@ export const useKioskManager = (navigate) => {
                 const currentVisitCount = totalVisitCount + 1;
                 const currentPrgCount = totalPrgCount || 0;
 
-                const visitBadge = (nextType === 'CHECKIN')
+                const visitBadge = (nextType === 'CHECKIN' && isBadgeSystemEnabled)
                     ? challenges.find(b => b.type === 'VISIT' && b.threshold === currentVisitCount)
                     : null;
 
-                const prgBadge = (activeProgram)
+                const prgBadge = (activeProgram && isBadgeSystemEnabled)
                     ? challenges.find(b => b.type === 'PROGRAM' && b.threshold === currentPrgCount)
                     : null;
 

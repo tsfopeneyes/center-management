@@ -53,6 +53,7 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
         handleMoveTabConfig, handleUpdateTabConfig, handleSaveTabConfig,
         operatingHours, hoursLoading,
         handleUpdateOperatingHours, handleSaveOperatingHours,
+        isBadgeSystemEnabled, setIsBadgeSystemEnabled,
         selectedStaffConfig, staffSaving, handleSaveStaffPresenceConfig
     } = useAdminSettings({
         currentAdmin, locations, locationGroups, fetchData, users, allLogs, responses, schoolLogs, notices
@@ -127,6 +128,8 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                         setNotionDbId={setNotionDbId}
                         kioskMasterPin={kioskMasterPin}
                         setKioskMasterPin={setKioskMasterPin}
+                        isBadgeSystemEnabled={isBadgeSystemEnabled}
+                        setIsBadgeSystemEnabled={setIsBadgeSystemEnabled}
                         isBackingUp={isBackingUp}
                         isUploadingNotion={isUploadingNotion}
                         syncProgress={syncProgress}

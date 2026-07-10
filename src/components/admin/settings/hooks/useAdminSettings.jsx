@@ -31,6 +31,7 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
     const [isBackingUp, setIsBackingUp] = useState(false);
     const [isUploadingNotion, setIsUploadingNotion] = useState(false);
     const [syncProgress, setSyncProgress] = useState('');
+    const [isBadgeSystemEnabled, setIsBadgeSystemEnabled] = useState(true);
 
     // 3. Location State
     const [tempGroupName, setTempGroupName] = useState('');
@@ -206,6 +207,20 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                 }
             }
 
+            const { data: badgeData } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'BADGE_SYSTEM_CONFIG')
+                .maybeSingle();
+
+            if (badgeData?.content) {
+                try {
+                    const parsed = JSON.parse(badgeData.content);
+                    setIsBadgeSystemEnabled(parsed.enabled !== false);
+                } catch (e) { console.error(e); }
+            }
+
         };
         loadConfigs();
     }, []);
@@ -362,12 +377,44 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
     };
 
     // --- Integration Logics ---
-    const handleSaveIntegrations = () => {
+    const handleSaveIntegrations = async () => {
         localStorage.setItem('gs_webhook_url', gsWebhookUrl);
         localStorage.setItem('notion_api_key', notionApiKey);
         localStorage.setItem('notion_db_id', notionDbId);
         localStorage.setItem('kiosk_master_pin', kioskMasterPin);
-        alert('연동 및 보안 설정이 브라우저에 저장되었습니다.');
+        
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'BADGE_SYSTEM_CONFIG')
+                .maybeSingle();
+                
+            const contentJson = JSON.stringify({ enabled: isBadgeSystemEnabled });
+            
+            if (existing?.id) {
+                await supabase
+                    .from('notices')
+                    .update({ content: contentJson })
+                    .eq('id', existing.id);
+            } else {
+                await supabase
+                    .from('notices')
+                    .insert([{
+                        title: 'BADGE_SYSTEM_CONFIG',
+                        content: contentJson,
+                        category: CATEGORIES.SYSTEM,
+                        is_recruiting: false,
+                        is_sticky: false,
+                        send_push: false
+                    }]);
+            }
+        } catch (e) {
+            console.error("Failed to save BADGE_SYSTEM_CONFIG:", e);
+        }
+        
+        alert('연동 및 보안 설정이 저장되었습니다.');
     };
 
     const handleGoogleSheetsBackup = async () => {
@@ -686,6 +733,8 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
 
         operatingHours, hoursLoading,
         handleUpdateOperatingHours, handleSaveOperatingHours,
+        
+        isBadgeSystemEnabled, setIsBadgeSystemEnabled,
 
         selectedStaffConfig, staffSaving,
         handleSaveStaffPresenceConfig
