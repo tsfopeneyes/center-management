@@ -167,7 +167,8 @@ const PublicProgramDetail = () => {
                                 one_liner: matchedHost ? matchedHost.one_liner : notice.host_one_liner
                             };
                         });
-                        setHostUsers(mapped);
+                        const sortedMapped = mapped.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+                        setHostUsers(sortedMapped);
                     } catch (err) {
                         console.error('Error fetching host users:', err);
                     }
