@@ -171,7 +171,7 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
     return (
         <div className="w-full border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm ring-1 ring-gray-950/5">
             {/* Main Toolbar */}
-            <div className="flex flex-nowrap overflow-x-auto items-center gap-1 p-2 border-b border-gray-50 bg-gray-50/50 sticky top-0 z-10 backdrop-blur-sm scrollbar-hide">
+            <div className="flex flex-wrap items-center gap-1.5 p-2 border-b border-gray-50 bg-gray-50/50 sticky top-0 z-10 backdrop-blur-sm">
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
                     <MenuButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo() || isCodeView} title="되돌리기"><Undo size={18} /></MenuButton>
                     <MenuButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo() || isCodeView} title="다시 실행"><Redo size={18} /></MenuButton>
