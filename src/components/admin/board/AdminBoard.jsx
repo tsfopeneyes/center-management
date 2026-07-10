@@ -18,6 +18,23 @@ import NoticeModal from '../../student/NoticeModal';
 // Constants
 import { CATEGORIES } from './utils/constants';
 
+const isNoticeFutureOrOngoing = (notice) => {
+    const today = new Date().toISOString().split('T')[0];
+    if (notice.is_recruiting === false) {
+        const endDate = notice.program_end_date || notice.program_start_date || notice.program_date;
+        if (endDate) {
+            const endDateStr = endDate.match(/\d{4}-\d{2}-\d{2}/) ? endDate.match(/\d{4}-\d{2}-\d{2}/)[0] : endDate;
+            return endDateStr >= today;
+        }
+    } else {
+        if (notice.program_date) {
+            const dateStr = notice.program_date.match(/\d{4}-\d{2}-\d{2}/) ? notice.program_date.match(/\d{4}-\d{2}-\d{2}/)[0] : notice.program_date;
+            return dateStr >= today;
+        }
+    }
+    return true;
+};
+
 const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
     const [notices, setNotices] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -236,8 +253,14 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                     onResponse={() => {}}
                     onUpdate={async (updated) => {
                         try {
-                            await noticesApi.update(updated.id, updated);
-                            setViewNotice(updated);
+                            let finalUpdate = { ...updated };
+                            if (updated.category === 'PROGRAM' && updated.program_status === 'COMPLETED') {
+                                if (isNoticeFutureOrOngoing(updated)) {
+                                    finalUpdate.program_status = 'ACTIVE';
+                                }
+                            }
+                            await noticesApi.update(finalUpdate.id, finalUpdate);
+                            setViewNotice(finalUpdate);
                             fetchNotices();
                         } catch (err) { alert('수정 실패'); }
                     }}

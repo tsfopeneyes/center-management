@@ -248,7 +248,21 @@ export const noticesApi = {
         // 3. Insert new logs based on attendance
         const logsToInsert = responses.map(r => {
             const dateStr = r.program_date || noticeData.program_date || '';
-            const loc = `${noticeId}|${noticeData.title || ''}|${dateStr}|${noticeData.program_time || ''}|${noticeData.location || ''}`;
+            let programTime = noticeData.program_time || '';
+            if (!programTime && noticeData.program_date) {
+                try {
+                    const dateObj = new Date(noticeData.program_date);
+                    if (!isNaN(dateObj.getTime())) {
+                        const hh = String(dateObj.getHours()).padStart(2, '0');
+                        const mm = String(dateObj.getMinutes()).padStart(2, '0');
+                        programTime = `${hh}:${mm}`;
+                    }
+                } catch (e) {
+                    console.error("Failed to parse program_time:", e);
+                }
+            }
+            const locationStr = noticeData.program_location || noticeData.location || '';
+            const loc = `${noticeId}|${noticeData.title || ''}|${dateStr}|${programTime}|${locationStr}`;
             return {
                 user_id: r.user_id,
                 type: r.is_attended ? 'PRG_ATTENDED' : 'PRG_ABSENT',

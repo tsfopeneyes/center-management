@@ -195,7 +195,19 @@ export const useAdminLogs = ({ allLogs, schoolLogs, users, locations, notices, f
             if (!groups[groupKey]) {
                 const notice = notices?.find(n => n.id === prgId);
                 const actualDate = date || notice?.program_date;
-                const actualTime = time || '';
+                let actualTime = time || '';
+                if (!actualTime && notice?.program_date) {
+                    try {
+                        const dateObj = new Date(notice.program_date);
+                        if (!isNaN(dateObj.getTime())) {
+                            const hh = String(dateObj.getHours()).padStart(2, '0');
+                            const mm = String(dateObj.getMinutes()).padStart(2, '0');
+                            actualTime = `${hh}:${mm}`;
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse program_time:", e);
+                    }
+                }
                 let sortTime = actualDate ? new Date(actualDate).getTime() : new Date(log.created_at).getTime();
                 if (actualDate?.length <= 10 && actualTime) sortTime = new Date(`${actualDate}T${actualTime}`).getTime();
                 const info = notice ? extractProgramInfo(notice.content) : null;
