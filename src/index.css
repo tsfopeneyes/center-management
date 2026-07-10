@@ -136,6 +136,7 @@
 
 .prose strong {
     @apply font-bold;
+    color: inherit !important;
 }
 
 .prose hr {
