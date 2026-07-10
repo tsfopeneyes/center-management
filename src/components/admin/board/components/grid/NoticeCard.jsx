@@ -181,7 +181,17 @@ const NoticeCard = ({
                             ) : (
                                 <div className="flex items-center gap-1.5 text-[#4e5968]">
                                     <Calendar size={13} className="text-[#8b95a1] shrink-0" />
-                                    <span>{new Date(notice.program_date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span>
+                                        {(() => {
+                                            if (!notice.program_date) return '미정';
+                                            const d = new Date(notice.program_date);
+                                            if (isNaN(d.getTime())) return '미정';
+                                            const days = ['일', '월', '화', '수', '목', '금', '토'];
+                                            const datePart = `${d.getMonth() + 1}/${d.getDate()}(${days[d.getDay()]})`;
+                                            const timePart = formatKoreanTimeRange(notice.program_date, notice.program_duration);
+                                            return `${datePart} ${timePart}`;
+                                        })()}
+                                    </span>
                                 </div>
                             )}
                             <span className="text-[10px] text-[#8b95a1] mt-1">작성일: {new Date(notice.created_at).toLocaleDateString()}</span>
