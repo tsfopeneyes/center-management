@@ -235,11 +235,14 @@ const PublicProgramDetail = () => {
                     setTimeLeft('마감됨');
                 } else {
                     const diff = deadline - now;
-                    let text = '';
                     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                    if (days > 0) text += `${days}일 `;
-                    text += `${Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))}시간 ${Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))}분 남음`;
-                    setTimeLeft(text);
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                    let timeStr = '신청 마감까지 ';
+                    if (days > 0) timeStr += `${days}일 `;
+                    timeStr += `${hours}시간 ${minutes}분 ${seconds}초 남았어요!`;
+                    setTimeLeft(timeStr);
                 }
             }
 
@@ -262,7 +265,7 @@ const PublicProgramDetail = () => {
         };
 
         updateTimer();
-        const interval = setInterval(updateTimer, 60000); // Check every minute
+        const interval = setInterval(updateTimer, 1000); // Check every second
         return () => clearInterval(interval);
     }, [notice]);
 
@@ -471,16 +474,17 @@ const PublicProgramDetail = () => {
             </div>
 
             {/* Bottom Floating Action Bar */}
-            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 p-4 pb-6 z-50 safe-area-bottom">
+            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 z-50 safe-area-bottom">
                 {notice.is_recruiting ? (
-                    <div className="flex flex-col gap-3">
-                        {/* Centered Deadline Badge above buttons */}
-                        <div className="flex items-center justify-center gap-1.5 py-1 text-center bg-red-50/50 rounded-xl">
-                            <span className="text-[10px] font-black text-red-400">모집마감</span>
-                            <span className={`text-xs font-black ${(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) ? 'text-gray-400' : 'text-red-500'}`}>{timeLeft || '기한없음'}</span>
-                        </div>
+                    <div className="flex flex-col">
+                        {/* Full-width Dark Deadline Bar */}
+                        {notice.recruitment_deadline && (
+                            <div className="w-full bg-[#1e293b] text-center py-2.5 px-4 text-xs font-bold text-amber-400 tracking-tight">
+                                {timeLeft}
+                            </div>
+                        )}
                         
-                        <div className="flex flex-col gap-2">
+                        <div className="p-4 flex flex-col gap-2">
                             {/* Primary Button: Log in and apply */}
                             <button 
                                 onClick={handleActionClick}
@@ -499,12 +503,14 @@ const PublicProgramDetail = () => {
                         </div>
                     </div>
                 ) : (
-                    <button 
-                        onClick={() => navigate('/')}
-                        className="w-full bg-gray-900 text-white rounded-2xl py-4 font-black"
-                    >
-                        SCI CENTER 메인홈 가기
-                    </button>
+                    <div className="p-4">
+                        <button 
+                            onClick={() => navigate('/')}
+                            className="w-full bg-gray-900 text-white rounded-2xl py-4 font-black"
+                        >
+                            SCI CENTER 메인홈 가기
+                        </button>
+                    </div>
                 )}
             </div>
 
