@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Trash2, Edit2, ChevronRight, Trophy } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronRight, Trophy, Award } from 'lucide-react';
 import { useAdminBadges } from './hooks/useAdminBadges';
 import BadgeItem from './components/BadgeItem';
 import BadgeModals from './components/BadgeModals';
@@ -19,6 +19,8 @@ const AdminBadges = () => {
         editingCategory, setEditingCategory,
         editingChallenge, setEditingChallenge,
         uploading,
+        isBadgeSystemEnabled,
+        handleToggleBadgeSystem,
         handleSaveCategory, handleDeleteCategory,
         handleSaveChallenge, handleDeleteChallenge,
         handleImageUpload, openCategoryModal, openChallengeModal,
@@ -54,6 +56,26 @@ const AdminBadges = () => {
                 icon={<Trophy />}
                 actions={actions}
             />
+
+            {/* Badge System Operational Status Toggle */}
+            <div className="bg-[#fff9db]/40 rounded-2xl border border-[#ffe066]/50 p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                    <Award className="text-yellow-600 shrink-0 mt-0.5" size={20} />
+                    <div>
+                        <h4 className="text-sm font-black text-gray-800">자동 뱃지 시스템 활성화</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">학생들의 키오스크 체크인 및 프로그램 참여에 따라 자동으로 뱃지를 획득하는 백그라운드 기능을 켜고 끕니다.</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => handleToggleBadgeSystem(!isBadgeSystemEnabled)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isBadgeSystemEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+                    >
+                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isBadgeSystemEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                    <span className="text-sm font-bold text-gray-700 w-12">{isBadgeSystemEnabled ? '활성화됨' : '비활성됨'}</span>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Categories List */}

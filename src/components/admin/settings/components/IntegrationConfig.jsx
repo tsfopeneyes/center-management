@@ -1,5 +1,5 @@
 import React from 'react';
-import { Share2, Database, FileText, ShieldAlert, Award } from 'lucide-react';
+import { Share2, Database, FileText, ShieldAlert } from 'lucide-react';
 
 const IntegrationConfig = ({
     gsWebhookUrl,
@@ -10,8 +10,6 @@ const IntegrationConfig = ({
     setNotionDbId,
     kioskMasterPin,
     setKioskMasterPin,
-    isBadgeSystemEnabled,
-    setIsBadgeSystemEnabled,
     isBackingUp,
     isUploadingNotion,
     syncProgress,
@@ -22,7 +20,7 @@ const IntegrationConfig = ({
     return (
         <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-6">
             <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight"><Share2 size={20} className="text-[#3182f6]" /> 외부 서비스 연동 및 운영 설정</h3>
+                <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight"><Share2 size={20} className="text-[#3182f6]" /> 외부 서비스 연동</h3>
                 <button onClick={handleSaveIntegrations} className="px-4 py-2 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-xs transition-colors shadow-sm">설정 저장</button>
             </div>
 
@@ -120,29 +118,6 @@ const IntegrationConfig = ({
                         </button>
                     </div>
                     <p className="text-[10px] text-gray-400 leading-relaxed">* 키오스크 진입 및 설정 변경 시 필요한 비밀번호입니다. 유출되지 않도록 주의하세요.</p>
-                </div>
-
-                {/* Badge System Activation */}
-                <div className="space-y-4 p-4 bg-yellow-50/50 rounded-2xl border border-yellow-100 md:col-span-2">
-                    <div className="flex items-center gap-2 text-yellow-600 font-bold mb-2">
-                        <Award size={18} />
-                        <span>뱃지 시스템 운영 설정</span>
-                    </div>
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div className="flex-1">
-                            <h4 className="text-sm font-bold text-gray-800">자동 뱃지 시스템 활성화</h4>
-                            <p className="text-xs text-gray-500 mt-1">학생들의 키오스크 체크인 및 프로그램 참여에 따라 자동으로 뱃지를 획득하는 백그라운드 기능을 활성화합니다.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => setIsBadgeSystemEnabled(!isBadgeSystemEnabled)}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${isBadgeSystemEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
-                            >
-                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isBadgeSystemEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                            </button>
-                            <span className="text-sm font-bold text-gray-700 w-12">{isBadgeSystemEnabled ? '활성화' : '비활성화'}</span>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

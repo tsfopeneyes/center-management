@@ -21,6 +21,7 @@ export const useAdminBadges = () => {
         name: '', description: '', category_id: '', type: 'VISIT', threshold: 0, criteria_label: '', image_url: ''
     });
     const [uploading, setUploading] = useState(false);
+    const [isBadgeSystemEnabled, setIsBadgeSystemEnabled] = useState(true);
 
     useEffect(() => {
         fetchData();
@@ -43,6 +44,22 @@ export const useAdminBadges = () => {
             setStudentUsers(uData || []);
             if (catData.length > 0 && !expandedCategory) {
                 setExpandedCategory(catData[0].id);
+            }
+
+            const { data: config } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', 'SYSTEM')
+                .eq('title', 'BADGE_SYSTEM_CONFIG')
+                .maybeSingle();
+            
+            if (config?.content) {
+                try {
+                    const parsed = JSON.parse(config.content);
+                    setIsBadgeSystemEnabled(parsed.enabled !== false);
+                } catch (e) {
+                    console.error("Failed to parse BADGE_SYSTEM_CONFIG:", e);
+                }
             }
         } catch (error) {
             console.error('Fetch error:', error);
@@ -161,6 +178,41 @@ export const useAdminBadges = () => {
         }
     };
 
+    const handleToggleBadgeSystem = async (enabled) => {
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', 'SYSTEM')
+                .eq('title', 'BADGE_SYSTEM_CONFIG')
+                .maybeSingle();
+                
+            const contentJson = JSON.stringify({ enabled });
+            
+            if (existing?.id) {
+                await supabase
+                    .from('notices')
+                    .update({ content: contentJson })
+                    .eq('id', existing.id);
+            } else {
+                await supabase
+                    .from('notices')
+                    .insert([{
+                        title: 'BADGE_SYSTEM_CONFIG',
+                        content: contentJson,
+                        category: 'SYSTEM',
+                        is_recruiting: false,
+                        is_sticky: false,
+                        send_push: false
+                    }]);
+            }
+            setIsBadgeSystemEnabled(enabled);
+        } catch (error) {
+            console.error('Error toggling badge system:', error);
+            alert('설정 변경에 실패했습니다.');
+        }
+    };
+
     return {
         categories, challenges, loading,
         expandedCategory, setExpandedCategory,
@@ -173,6 +225,8 @@ export const useAdminBadges = () => {
         editingCategory, setEditingCategory,
         editingChallenge, setEditingChallenge,
         uploading,
+        isBadgeSystemEnabled,
+        handleToggleBadgeSystem,
         handleSaveCategory, handleDeleteCategory,
         handleSaveChallenge, handleDeleteChallenge,
         handleImageUpload, openCategoryModal, openChallengeModal,
