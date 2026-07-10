@@ -71,8 +71,10 @@ async function performAutoCheckout() {
     for (const { userId, lastLog } of stuckUsers) {
         // Calculate duration: from checkin time to 22:00 (End of operation)
         const checkInTime = new Date(lastLog.created_at);
-        const autoCheckoutTime = new Date();
-        autoCheckoutTime.setHours(22, 0, 0, 0); // 10:00 PM
+        // Add 9 hours to get KST date string
+        const kstTime = new Date(checkInTime.getTime() + (9 * 60 * 60 * 1000));
+        const kstDateStr = kstTime.toISOString().split('T')[0];
+        const autoCheckoutTime = new Date(`${kstDateStr}T22:00:00+09:00`);
 
         // If check-in was after 22:00 (rare but possible), use current time or just 0 duration
         let duration = differenceInMinutes(autoCheckoutTime, checkInTime);

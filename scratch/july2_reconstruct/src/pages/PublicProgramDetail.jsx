@@ -45,7 +45,7 @@ const PublicProgramDetail = () => {
         try {
             const { data, error } = await supabase
                 .from('notices')
-                .select('*')
+                .select('*, host:users(id, name, profile_image_url, school, role)')
                 .eq('id', id)
                 .single();
                 

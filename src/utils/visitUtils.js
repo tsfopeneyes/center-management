@@ -24,41 +24,21 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
     const visitLogs = allLogs.filter(log => ['CHECKIN', 'CHECKOUT', 'MOVE', 'GUEST_ENTRY'].includes(log.type));
     const userMap = new Map(users.map(u => [u.id, u]));
     const locationMap = new Map(locations.map(l => [l.id, l]));
-    const userDateGroups = {};
 
+    // Group logs by user
+    const userLogs = {};
     visitLogs.forEach(log => {
-        const date = getKSTDateString(log.created_at);
-        if (!isWithinRange(date)) return;
-
-        const groupKey = `${log.user_id}_${date}`;
-
-        if (!userDateGroups[groupKey]) {
-            const user = userMap.get(log.user_id);
-            if (!user || isAdminOrStaff(user)) return;
-
-            userDateGroups[groupKey] = {
-                id: groupKey,
-                userId: log.user_id,
-                date,
-                weekId: getWeekIdentifier(log.created_at),
-                dayOfWeek: new Date(log.created_at).toLocaleDateString('ko-KR', { weekday: 'short' }),
-                school: user.school || '-',
-                name: user.name,
-                birth: user.birth || '-',
-                phone: user.phone || (user.phone_back4 ? `***-****-${user.phone_back4}` : '-'),
-                age: calculateAge(user.birth) || '-',
-                rawLogs: []
-            };
-        }
-        if (userDateGroups[groupKey]) {
-            userDateGroups[groupKey].rawLogs.push(log);
-        }
+        const user = userMap.get(log.user_id);
+        if (!user || isAdminOrStaff(user)) return;
+        if (!userLogs[log.user_id]) userLogs[log.user_id] = [];
+        userLogs[log.user_id].push(log);
     });
 
     const aggregated = [];
 
-    Object.values(userDateGroups).forEach(group => {
-        const sortedLogs = [...group.rawLogs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    Object.entries(userLogs).forEach(([userId, logs]) => {
+        const user = userMap.get(userId);
+        const sortedLogs = [...logs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
         const sessions = [];
         let currentLogs = [];
@@ -78,6 +58,9 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
         sessions.forEach(sessionLogs => {
             const firstCheckIn = sessionLogs.find(l => l.type === 'CHECKIN');
             const startAt = firstCheckIn ? new Date(firstCheckIn.created_at) : new Date(sessionLogs[0].created_at);
+            
+            const date = getKSTDateString(startAt);
+            if (!isWithinRange(date)) return;
 
             const lastCheckOut = [...sessionLogs].reverse().find(l => l.type === 'CHECKOUT');
             const endAt = lastCheckOut ? new Date(lastCheckOut.created_at) : new Date(sessionLogs[sessionLogs.length - 1].created_at);
@@ -100,10 +83,20 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
                 }
             });
 
+            const groupKey = `${userId}_${date}`;
+
             aggregated.push({
-                ...group,
-                id: `${group.id}_${startAt.getTime()}`,
-                rawLogs: sessionLogs, // Only include logs for this specific session
+                id: `${groupKey}_${startAt.getTime()}`,
+                userId,
+                date,
+                weekId: getWeekIdentifier(startAt.toISOString()),
+                dayOfWeek: startAt.toLocaleDateString('ko-KR', { weekday: 'short' }),
+                school: user.school || '-',
+                name: user.name,
+                birth: user.birth || '-',
+                phone: user.phone || (user.phone_back4 ? `***-****-${user.phone_back4}` : '-'),
+                age: calculateAge(user.birth) || '-',
+                rawLogs: sessionLogs,
                 startTime: startTimeStr,
                 endTime: lastCheckOut ? endAt.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '-',
                 durationStr,
