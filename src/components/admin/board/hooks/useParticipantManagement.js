@@ -9,12 +9,57 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const [pollModalResults, setPollModalResults] = useState(null);
     const [modalLoading, setModalLoading] = useState(false);
     const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [availableDates, setAvailableDates] = useState([]);
     
     // Walk-in search state
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [showEntranceList, setShowEntranceList] = useState(false);
     const [lastAddedUser, setLastAddedUser] = useState(null);
+
+    const fetchAvailableDates = useCallback(async (notice) => {
+        if (!notice || notice.is_recruiting !== false) return;
+        try {
+            const descPattern = `[오픈 프로그램 참여] ${notice.title}%`;
+            const { data, error } = await supabase
+                .from('hyphen_transactions')
+                .select('source_description')
+                .eq('transaction_type', 'EARN')
+                .like('source_description', descPattern);
+            
+            if (error) throw error;
+            
+            const uniqueDates = new Set();
+            data?.forEach(tx => {
+                const match = tx.source_description.match(/\((\d{4}-\d{2}-\d{2})\)/);
+                if (match) {
+                    uniqueDates.add(match[1]);
+                }
+            });
+            
+            const sorted = Array.from(uniqueDates).sort();
+            setAvailableDates(sorted);
+            
+            if (sorted.length > 0) {
+                // If there are recorded dates, make sure selectedDate points to one of them
+                setSelectedDate(prev => sorted.includes(prev) ? prev : sorted[sorted.length - 1]);
+            } else if (notice.program_date) {
+                // Default fallback if no participants yet
+                const fallbackDate = notice.program_date.match(/\d{4}-\d{2}-\d{2}/) 
+                    ? notice.program_date.match(/\d{4}-\d{2}-\d{2}/)[0] 
+                    : new Date().toISOString().split('T')[0];
+                setSelectedDate(fallbackDate);
+            }
+        } catch (err) {
+            console.error("Failed to fetch available dates:", err);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (selectedNotice && selectedNotice.is_recruiting === false) {
+            fetchAvailableDates(selectedNotice);
+        }
+    }, [selectedNotice, fetchAvailableDates]);
 
     const fetchParticipants = useCallback(async (notice) => {
         if (!notice) return;
@@ -406,7 +451,8 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         addMultipleWalkIns,
         activeSpaceUsers,
         selectedDate,
-        setSelectedDate
+        setSelectedDate,
+        availableDates
     };
 };
 

@@ -8,6 +8,19 @@ import AttendanceSection from './AttendanceSection';
 import WalkInSection from './WalkInSection';
 import PollResultsSection from './PollResultsSection';
 
+const getKoreanDayOfWeek = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        const dayOfWeek = days[date.getDay()];
+        const [year, month, day] = dateStr.split('-');
+        return `${parseInt(month)}/${parseInt(day)}(${dayOfWeek})`;
+    } catch (e) {
+        return dateStr;
+    }
+};
+
 const ParticipantModal = ({ notice, onClose, onRefresh }) => {
     const {
         participantList,
@@ -29,7 +42,8 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
         addMultipleWalkIns,
         activeSpaceUsers,
         selectedDate,
-        setSelectedDate
+        setSelectedDate,
+        availableDates
     } = useParticipantManagement(notice, onRefresh);
 
     useEffect(() => {
@@ -81,18 +95,37 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
                     </div>
 
                     {!notice.is_poll && (
-                        <div className="p-6 flex-1 text-sm text-gray-500 space-y-4 font-medium">
+                        <div className="p-6 flex-1 text-sm text-gray-500 space-y-4 font-medium overflow-y-auto">
                             {notice.is_recruiting === false ? (
-                                <div className="space-y-2 bg-blue-50/50 border border-blue-100 p-4 rounded-2xl">
-                                    <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">조회/등록 날짜</label>
-                                    <input 
-                                        type="date"
-                                        value={selectedDate}
-                                        onChange={e => setSelectedDate(e.target.value)}
-                                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs focus:border-blue-500 transition cursor-pointer"
-                                    />
-                                    <p className="text-[10px] text-slate-400 font-medium">오픈 프로그램은 지정한 날짜별로 참석 명단을 관리하고 하이픈을 지급합니다.</p>
-                                </div>
+                                availableDates.length <= 1 ? (
+                                    <div className="space-y-1 bg-slate-100/70 border border-slate-200/60 p-4 rounded-2xl shadow-sm">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">운영 날짜</span>
+                                        <span className="text-sm font-extrabold text-slate-700 block">{getKoreanDayOfWeek(selectedDate)}</span>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2.5 bg-blue-50/50 border border-blue-100 p-4 rounded-2xl">
+                                        <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">조회/등록 날짜</label>
+                                        <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto pr-1">
+                                            {availableDates.map(dateStr => {
+                                                const isActive = selectedDate === dateStr;
+                                                return (
+                                                    <button
+                                                        key={dateStr}
+                                                        onClick={() => setSelectedDate(dateStr)}
+                                                        className={`w-full py-2 px-3 rounded-xl font-extrabold text-xs transition-all text-left border ${
+                                                            isActive 
+                                                                ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-200' 
+                                                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                        }`}
+                                                    >
+                                                        {getKoreanDayOfWeek(dateStr)}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-medium leading-normal">프로그램이 실행된 날짜를 선택하여 참석자 명단을 확인하세요.</p>
+                                    </div>
+                                )
                             ) : (
                                 <>
                                     <p>학생들의 참석 여부를 확인하고<br/>수동으로 출석 체크 할 수 있습니다.</p>
