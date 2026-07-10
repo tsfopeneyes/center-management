@@ -436,22 +436,46 @@ const PublicProgramDetail = () => {
                         ))}
 
                         {/* Hosts without one-liners: grouped together in one card */}
-                        {hostUsers.some(h => !h.one_liner || h.one_liner.trim() === '') && (
-                            <div className="flex flex-wrap items-center justify-center gap-6 bg-slate-50/85 border border-gray-100 rounded-2xl p-5 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
-                                {hostUsers.filter(h => !h.one_liner || h.one_liner.trim() === '').map(host => (
-                                    <div key={host.id} className="flex flex-col items-center gap-1.5 text-center min-w-[50px]">
-                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
-                                            {host.profile_image_url ? (
-                                                <img src={host.profile_image_url} alt="" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <User size={16} className="text-blue-500" />
-                                            )}
+                        {(() => {
+                            const noOneLinerHosts = hostUsers.filter(h => !h.one_liner || h.one_liner.trim() === '');
+                            if (noOneLinerHosts.length === 0) return null;
+
+                            const count = noOneLinerHosts.length;
+                            let avatarSize = "w-10 h-10";
+                            let nameSize = "text-xs";
+                            let iconSize = 16;
+
+                            if (count >= 7) {
+                                avatarSize = "w-7 h-7";
+                                nameSize = "text-[10px]";
+                                iconSize = 12;
+                            } else if (count === 6) {
+                                avatarSize = "w-8 h-8";
+                                nameSize = "text-[11px]";
+                                iconSize = 14;
+                            } else if (count <= 3) {
+                                avatarSize = "w-12 h-12";
+                                nameSize = "text-sm";
+                                iconSize = 20;
+                            }
+
+                            return (
+                                <div className="flex flex-row items-center justify-center gap-2 sm:gap-4 bg-slate-50/85 border border-gray-100 rounded-2xl p-5 shadow-[0px_1px_3px_rgba(0,0,0,0.03)] w-full">
+                                    {noOneLinerHosts.map(host => (
+                                        <div key={host.id} className="flex flex-col items-center gap-1 text-center min-w-0 flex-1">
+                                            <div className={`${avatarSize} rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0`}>
+                                                {host.profile_image_url ? (
+                                                    <img src={host.profile_image_url} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User size={iconSize} className="text-blue-500" />
+                                                )}
+                                            </div>
+                                            <span className={`font-extrabold text-gray-900 ${nameSize} truncate w-full`}>{host.name}</span>
                                         </div>
-                                        <span className="font-extrabold text-gray-900 text-xs">{host.name}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                                    ))}
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 

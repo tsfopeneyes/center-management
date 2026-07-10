@@ -241,16 +241,40 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                     ))}
                                     
                                     {/* Hosts without one-liners: grouped together in one card */}
-                                    {hostUsers.some(h => !h.one_liner || h.one_liner.trim() === '') && (
-                                        <div className="flex flex-wrap items-center justify-center gap-6 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-5 shadow-toss-subtle">
-                                            {hostUsers.filter(h => !h.one_liner || h.one_liner.trim() === '').map(host => (
-                                                <div key={host.id} className="flex flex-col items-center gap-1.5 text-center min-w-[50px]">
-                                                    <UserAvatar user={host} size="w-10 h-10" />
-                                                    <span className="font-extrabold text-tossGrey900 text-xs">{host.name}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const noOneLinerHosts = hostUsers.filter(h => !h.one_liner || h.one_liner.trim() === '');
+                                        if (noOneLinerHosts.length === 0) return null;
+                                        
+                                        const count = noOneLinerHosts.length;
+                                        let avatarSize = "w-10 h-10";
+                                        let nameSize = "text-xs";
+                                        let textSize = "text-xs";
+                                        
+                                        if (count >= 7) {
+                                            avatarSize = "w-7 h-7";
+                                            nameSize = "text-[10px]";
+                                            textSize = "text-[9px]";
+                                        } else if (count === 6) {
+                                            avatarSize = "w-8 h-8";
+                                            nameSize = "text-[11px]";
+                                            textSize = "text-[10px]";
+                                        } else if (count <= 3) {
+                                            avatarSize = "w-12 h-12";
+                                            nameSize = "text-sm";
+                                            textSize = "text-xs";
+                                        }
+                                        
+                                        return (
+                                            <div className="flex flex-row items-center justify-center gap-2 sm:gap-4 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-5 shadow-toss-subtle w-full">
+                                                {noOneLinerHosts.map(host => (
+                                                    <div key={host.id} className="flex flex-col items-center gap-1 text-center min-w-0 flex-1">
+                                                        <UserAvatar user={host} size={avatarSize} textSize={textSize} />
+                                                        <span className={`font-extrabold text-tossGrey900 ${nameSize} truncate w-full`}>{host.name}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
 
