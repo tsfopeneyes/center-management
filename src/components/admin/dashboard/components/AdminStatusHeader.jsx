@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tablet, RotateCw, Activity, LogOut } from 'lucide-react';
+import { Tablet, RotateCw, Activity, LogOut, Bell, BellOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AdminPageHeader from '../../common/AdminPageHeader';
 
@@ -9,7 +9,9 @@ const AdminStatusHeader = ({
     currentLocations,
     adminIdsSet,
     handleBatchCheckout,
-    fetchData
+    fetchData,
+    isAlertEnabled,
+    handleToggleAlert
 }) => {
     const navigate = useNavigate();
 
@@ -36,7 +38,29 @@ const AdminStatusHeader = ({
                     <LogOut size={16} md:size={18} /> <span className="uppercase tracking-wider">전원 퇴실</span>
                 </button>
             )}
+            
+            {/* Desktop Notification Toggle */}
+            <button
+                onClick={() => handleToggleAlert(!isAlertEnabled)}
+                className={`hidden md:flex flex-1 md:flex-none px-5 py-3 rounded-2xl items-center justify-center gap-2 transition-all font-black shadow-lg border text-xs md:text-sm ${
+                    isAlertEnabled
+                        ? 'bg-[#3182f6] text-white border-[#1b64da] hover:bg-[#1b64da]'
+                        : 'bg-white text-[#4e5968] border-gray-100 hover:bg-gray-50'
+                }`}
+            >
+                {isAlertEnabled ? <Bell size={18} /> : <BellOff size={18} />}
+                <span className="uppercase tracking-wider">체크인 알림 {isAlertEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
             <div className="md:hidden flex gap-2 w-full md:w-auto">
+                <button
+                    onClick={() => handleToggleAlert(!isAlertEnabled)}
+                    className={`flex-1 p-2.5 rounded-xl border transition-all flex items-center justify-center ${
+                        isAlertEnabled ? 'bg-[#3182f6] text-white border-[#1b64da]' : 'bg-white text-[#4e5968] border-gray-100'
+                    }`}
+                >
+                    {isAlertEnabled ? <Bell size={18} /> : <BellOff size={18} />}
+                </button>
                 <button onClick={fetchData} className="flex-1 p-2.5 bg-white text-green-600 border border-green-100 rounded-xl transition-all shadow-sm flex items-center justify-center">
                     <RotateCw size={18} />
                 </button>

@@ -55,6 +55,47 @@ const AdminDashboard = () => {
     const [currentLocations, setCurrentLocations] = useState({}); // { userId: locationId }
     const [visitNotes, setVisitNotes] = useState([]);
 
+    // Alert & Realtime Notification State
+    const [isAlertEnabled, setIsAlertEnabled] = useState(localStorage.getItem('admin_alert_enabled') !== 'false');
+    const [toasts, setToasts] = useState([]);
+    const usersRef = React.useRef([]);
+
+    useEffect(() => {
+        usersRef.current = users;
+    }, [users]);
+
+    const playChime = useCallback(() => {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(659.25, audioCtx.currentTime); // E5
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            oscillator.start();
+            
+            oscillator.frequency.setValueAtTime(880.00, audioCtx.currentTime + 0.12); // A5
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime + 0.12);
+            
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+            oscillator.stop(audioCtx.currentTime + 0.6);
+        } catch (e) {
+            console.error("Audio play failed:", e);
+        }
+    }, []);
+
+    const handleToggleAlert = useCallback((enabled) => {
+        setIsAlertEnabled(enabled);
+        localStorage.setItem('admin_alert_enabled', String(enabled));
+        if (enabled && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    }, []);
+
     const fetchData = useCallback(async (isFullFetch = false) => {
         // Automatically perform full fetch if currently in statistics or report mode
         const needsFullFetch = isFullFetch || activeMenu === 'STATISTICS' || activeMenu === 'REPORTS';
@@ -190,7 +231,33 @@ const AdminDashboard = () => {
 
         const subscription = supabase
             .channel('public:updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, debouncedFetch)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs' }, (payload) => {
+                const newLog = payload.new;
+                const isAlertOn = localStorage.getItem('admin_alert_enabled') !== 'false';
+                
+                if (isAlertOn && newLog.type === 'CHECKIN') {
+                    const u = usersRef.current.find(user => user.id === newLog.user_id);
+                    if (u) {
+                        const message = `${u.name} 학생이 등원했습니다.`;
+                        playChime();
+                        
+                        if (Notification.permission === 'granted') {
+                            new Notification('체크인 알림', {
+                                body: message,
+                                icon: '/favicon.ico'
+                            });
+                        }
+                        
+                        const toastId = Date.now() + Math.random();
+                        setToasts(prev => [...prev, { id: toastId, message, name: u.name, school: u.school }]);
+                        
+                        setTimeout(() => {
+                            setToasts(prev => prev.filter(t => t.id !== toastId));
+                        }, 5000);
+                    }
+                }
+                debouncedFetch();
+            })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, debouncedFetch)
             .subscribe();
 
@@ -198,7 +265,7 @@ const AdminDashboard = () => {
             clearTimeout(debounceTimer);
             supabase.removeChannel(subscription);
         };
-    }, [navigate, fetchData]);
+    }, [navigate, fetchData, playChime]);
 
     const handleForceCheckout = useCallback(async (userId) => {
         if (!confirm('해당 회원을 강제 퇴실 처리하시겠습니까?')) return;
@@ -414,6 +481,8 @@ const AdminDashboard = () => {
                             dailyVisitStats={dailyVisitStats}
                             setActiveMenu={setActiveMenu}
                             handleForceCheckout={handleForceCheckout}
+                            isAlertEnabled={isAlertEnabled}
+                            handleToggleAlert={handleToggleAlert}
                         />
                     )}
                     {activeMenu === 'WORK_STATUS' && (
@@ -488,6 +557,30 @@ const AdminDashboard = () => {
                         <AdminSettings currentAdmin={currentAdmin} locations={locations} locationGroups={locationGroups} notices={notices} fetchData={fetchData} users={users} allLogs={allLogs} responses={responses} schoolLogs={schoolLogs} />
                     )}
                 </main>
+            </div>
+
+            {/* Realtime Toast Container */}
+            <div className="fixed top-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+                {toasts.map(toast => (
+                    <div
+                        key={toast.id}
+                        className="bg-white/90 backdrop-blur-md border border-blue-100 rounded-2xl p-4 shadow-xl flex items-start gap-3 pointer-events-auto transition-all hover:scale-[1.02] animate-fade-in"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 font-bold">
+                            🔔
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-400 font-black truncate">{toast.school || '센터 이용자'}</p>
+                            <p className="text-sm font-bold text-[#191f28] mt-0.5 leading-tight">{toast.message}</p>
+                        </div>
+                        <button
+                            onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                            className="text-gray-400 hover:text-gray-600 transition shrink-0 p-1 hover:bg-gray-100 rounded-lg"
+                        >
+                            <CloseIcon size={16} />
+                        </button>
+                    </div>
+                ))}
             </div>
         </div>
     );

@@ -19,7 +19,9 @@ const AdminStatus = ({
     fetchData,
     setActiveMenu,
     allLogs = [],
-    dailyVisitStats = {}
+    dailyVisitStats = {},
+    isAlertEnabled,
+    handleToggleAlert
 }) => {
     const {
         locationTab, setLocationTab,
@@ -42,6 +44,8 @@ const AdminStatus = ({
                 adminIdsSet={adminIdsSet}
                 handleBatchCheckout={handleBatchCheckout}
                 fetchData={fetchData}
+                isAlertEnabled={isAlertEnabled}
+                handleToggleAlert={handleToggleAlert}
             />
 
             <ZoneCards
