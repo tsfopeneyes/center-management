@@ -199,22 +199,26 @@ export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true,
     if (isRecruiting === false) {
         const start = programStartDate || dateStr;
         const end = programEndDate;
-        let isShortPeriod = false;
         
-        if (start && end) {
+        if (start && end && start !== end) {
             const s = new Date(start);
             const e = new Date(end);
             if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
-                const diffDays = Math.abs(Math.round((e - s) / (24 * 60 * 60 * 1000)));
-                if (diffDays <= 7) {
-                    isShortPeriod = true;
-                }
+                const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+                const sMonth = s.getMonth() + 1;
+                const sDay = s.getDate();
+                const sDayOfWeek = daysOfWeek[s.getDay()];
+                
+                const eMonth = e.getMonth() + 1;
+                const eDay = e.getDate();
+                const eDayOfWeek = daysOfWeek[e.getDay()];
+                
+                const timePart = formatKoreanTimeRange(dateStr || programStartDate, durationStr);
+                return `${sMonth}/${sDay}(${sDayOfWeek}) ~ ${eMonth}/${eDay}(${eDayOfWeek}) ${timePart}`;
             }
-        } else if (start && !end) {
-            isShortPeriod = true;
         }
 
-        if (isShortPeriod && start) {
+        if (start) {
             const targetDate = new Date(start);
             if (!isNaN(targetDate.getTime())) {
                 const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
