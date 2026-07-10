@@ -4,6 +4,7 @@ import { Info, Clock, ChevronRight } from 'lucide-react';
 import { startOfDay, isSameDay } from 'date-fns';
 import { CATEGORIES } from '../../constants/appConstants';
 import TodayOperatingWidget from './components/TodayOperatingWidget';
+import { formatKoreanTimeRange } from '../../utils/dateUtils';
 
 const StudentCalendarTab = ({
     adminSchedules,
@@ -127,35 +128,6 @@ const StudentCalendarTab = ({
 
                     if (sortedEvents.length === 0) return <div className="text-center py-20 text-tossGrey400 font-bold">등록된 추가 일정이 없습니다.</div>;
 
-                    const formatTimeRange = (timeRangeStr) => {
-                        if (!timeRangeStr) return '';
-                        const parts = timeRangeStr.split('~').map(p => p.trim());
-                        if (parts.length !== 2) return timeRangeStr;
-                        
-                        const formatSingleTime = (timeStr) => {
-                            const timeParts = timeStr.split(':');
-                            if (timeParts.length < 2) return timeStr;
-                            const hour = parseInt(timeParts[0], 10);
-                            const min = parseInt(timeParts[1], 10);
-                            
-                            const ampm = hour >= 12 ? '오후' : '오전';
-                            const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-                            const minStr = min > 0 ? ` ${min}분` : '';
-                            return `${ampm} ${displayHour}시${minStr}`;
-                        };
-                        
-                        const startStr = formatSingleTime(parts[0]);
-                        const endStr = formatSingleTime(parts[1]);
-                        
-                        const startAmpm = startStr.split(' ')[0];
-                        const endAmpm = endStr.split(' ')[0];
-                        if (startAmpm === endAmpm) {
-                            const endPartWithoutAmpm = endStr.replace(endAmpm + ' ', '');
-                            return `${startStr} ~ ${endPartWithoutAmpm}`;
-                        }
-                        return `${startStr} ~ ${endStr}`;
-                    };
-
                     return sortedEvents.map((event, idx) => (
                         <motion.div
                             key={idx}
@@ -191,7 +163,7 @@ const StudentCalendarTab = ({
                                             <Clock size={11} className="shrink-0 text-tossGrey400" />
                                             <span className="tracking-tight text-tossGrey600">
                                                 {event.type === 'PROGRAM' ? (
-                                                    `${formatTimeRange(event.program_time) || new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}${event.program_location ? ` · ${event.program_location}` : ''}`
+                                                    `${formatKoreanTimeRange(event.program_date || event.program_start_date || event.start, event.program_duration)}${event.program_location ? ` · ${event.program_location}` : ''}`
                                                 ) : event.category_id === 'RENTAL' ? (
                                                     `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
                                                 ) : (
