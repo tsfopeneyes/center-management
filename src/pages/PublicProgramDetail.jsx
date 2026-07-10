@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { Calendar, User, ArrowLeft, Share, AlertCircle, MapPin, Users } from 'lucide-react';
+import { Calendar, User, ArrowLeft, Share, AlertCircle, MapPin, Users, Smartphone, School, CheckCircle2, X } from 'lucide-react';
 import NoticeCarousel from '../components/student/components/NoticeCarousel';
 import LinkPreview from '../components/common/LinkPreview';
 import { extractUrls, extractProgramInfo } from '../utils/textUtils';
@@ -20,6 +20,121 @@ const PublicProgramDetail = () => {
     const introRef = React.useRef(null);
     const hostRef = React.useRef(null);
     const [activeTab, setActiveTab] = useState('intro');
+    const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+    const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+    const [guestForm, setGuestForm] = useState({
+        name: '',
+        school: '',
+        phone: ''
+    });
+    const [submitting, setSubmitting] = useState(false);
+
+    const handleGuestFormChange = (e) => {
+        const { name, value } = e.target;
+        setGuestForm(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleGuestPhoneChange = (e) => {
+        let val = e.target.value.replace(/[^0-9]/g, '');
+        if (val.length > 11) val = val.slice(0, 11);
+        let formatted = val;
+        if (val.length > 3 && val.length <= 7) {
+            formatted = `${val.slice(0, 3)}-${val.slice(3)}`;
+        } else if (val.length > 7) {
+            formatted = `${val.slice(0, 3)}-${val.slice(3, 7)}-${val.slice(7)}`;
+        }
+        setGuestForm(prev => ({ ...prev, phone: formatted }));
+    };
+
+    const handleGuestSubmit = async (e) => {
+        e.preventDefault();
+        if (guestForm.phone.replace(/[^0-9]/g, '').length < 11) {
+            alert('연락처 11자리를 올바르게 입력해주세요.');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            // 1. Check for existing user by phone
+            let userId = null;
+            const { data: existingUser, error: userCheckErr } = await supabase
+                .from('users')
+                .select('id, name')
+                .eq('phone', guestForm.phone)
+                .maybeSingle();
+
+            if (userCheckErr) throw userCheckErr;
+
+            if (existingUser) {
+                userId = existingUser.id;
+                // 2. Check if already signed up for this program
+                const { data: existingResponse, error: respCheckErr } = await supabase
+                    .from('notice_responses')
+                    .select('id')
+                    .eq('notice_id', id)
+                    .eq('user_id', userId)
+                    .maybeSingle();
+
+                if (respCheckErr) throw respCheckErr;
+
+                if (existingResponse) {
+                    alert('이미 이 연락처로 해당 프로그램 신청이 완료되어 있습니다!');
+                    setIsGuestModalOpen(false);
+                    setSubmitting(false);
+                    return;
+                }
+            } else {
+                // Create a new guest user
+                const phoneParts = guestForm.phone.split('-');
+                const back4 = phoneParts[2];
+                const newUserId = '00000000-0000-0000-0000-' + Math.floor(100000000000 + Math.random() * 900000000000);
+                const memoText = `[가입일: ${new Date().toLocaleDateString()}] [공유링크 프로그램 비회원 신청]`;
+
+                const { data: newUser, error: createErr } = await supabase
+                    .from('users')
+                    .insert([{
+                        id: newUserId,
+                        name: `${guestForm.name}(guest)`,
+                        gender: 'M',
+                        school: guestForm.school,
+                        phone: guestForm.phone,
+                        phone_back4: back4,
+                        user_group: '게스트',
+                        password: '0000',
+                        role: 'student',
+                        status: 'approved',
+                        memo: memoText
+                    }])
+                    .select()
+                    .single();
+
+                if (createErr) throw createErr;
+                userId = newUser.id;
+            }
+
+            // 3. Register to notice_responses
+            const { error: regErr } = await supabase
+                .from('notice_responses')
+                .insert({
+                    notice_id: parseInt(id),
+                    user_id: userId,
+                    status: 'JOIN',
+                    is_attended: false
+                });
+
+            if (regErr) throw regErr;
+
+            setIsGuestModalOpen(false);
+            setIsSuccessModalOpen(true);
+            setGuestForm({ name: '', school: '', phone: '' });
+
+        } catch (err) {
+            console.error('Guest Registration Error:', err);
+            alert(`신청 처리 중 오류가 발생했습니다.\n${err.message || '다시 시도해 주세요.'}`);
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     const scrollToSection = (section) => {
         setActiveTab(section);
@@ -364,10 +479,16 @@ const PublicProgramDetail = () => {
                             <span className={`text-xs font-bold ${(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) ? 'text-gray-400' : 'text-red-500 max-w-[80px] truncate'}`}>{timeLeft || '기한없음'}</span>
                         </div>
                         <button 
-                            onClick={handleActionClick}
+                            onClick={() => setIsGuestModalOpen(true)}
                             className="flex-1 bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200"
                         >
-                            로그인하고 신청하기
+                            로그인 없이 신청하기
+                        </button>
+                        <button 
+                            onClick={handleActionClick}
+                            className="px-4 bg-gray-100 text-gray-700 rounded-2xl py-4 font-black text-sm"
+                        >
+                            로그인
                         </button>
                     </div>
                 ) : (
@@ -379,6 +500,106 @@ const PublicProgramDetail = () => {
                     </button>
                 )}
             </div>
+
+            {/* Guest Form Modal */}
+            {isGuestModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] w-full max-w-md p-6 relative shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                        <button 
+                            onClick={() => setIsGuestModalOpen(false)}
+                            className="absolute right-6 top-6 p-2 hover:bg-gray-100 rounded-full transition text-gray-400"
+                        >
+                            <X size={20} />
+                        </button>
+                        
+                        <div className="mb-6">
+                            <h2 className="text-xl font-black text-gray-900 mb-1">프로그램 신청</h2>
+                            <p className="text-xs font-bold text-gray-400">로그인 없이 간단히 정보를 입력해 신청할 수 있습니다.</p>
+                        </div>
+
+                        <form onSubmit={handleGuestSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">이름</label>
+                                <div className="relative">
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        required
+                                        value={guestForm.name}
+                                        onChange={handleGuestFormChange}
+                                        placeholder="이름을 입력하세요"
+                                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">학교 / 소속</label>
+                                <div className="relative">
+                                    <School className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                                    <input
+                                        type="text"
+                                        name="school"
+                                        required
+                                        value={guestForm.school}
+                                        onChange={handleGuestFormChange}
+                                        placeholder="학교 또는 소속 단체 입력 (예: OO고)"
+                                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">연락처</label>
+                                <div className="relative">
+                                    <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                                    <input
+                                        type="text"
+                                        name="phone"
+                                        required
+                                        inputMode="tel"
+                                        value={guestForm.phone}
+                                        onChange={handleGuestPhoneChange}
+                                        placeholder="010-0000-0000"
+                                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm tracking-widest"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={submitting || !guestForm.name || !guestForm.school || guestForm.phone.replace(/[^0-9]/g, '').length < 11}
+                                className="w-full mt-6 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-100 disabled:bg-gray-200 disabled:shadow-none transition-all active:scale-[0.98] text-sm"
+                            >
+                                {submitting ? '신청 처리 중...' : '신청 완료하기'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Success Modal */}
+            {isSuccessModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] w-full max-w-sm p-6 text-center shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100">
+                            <CheckCircle2 size={32} />
+                        </div>
+                        <h3 className="text-lg font-black text-gray-900 mb-2">신청이 완료되었습니다!</h3>
+                        <p className="text-xs font-semibold text-gray-500 mb-6 leading-relaxed">
+                            프로그램 참여 정보가 안전하게 전달되었습니다.<br />
+                            프로그램 일정에 맞춰 늦지 않게 방문해 주세요! ✨
+                        </p>
+                        <button
+                            onClick={() => setIsSuccessModalOpen(false)}
+                            className="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-sm transition-all active:scale-[0.98]"
+                        >
+                            확인
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
