@@ -241,39 +241,11 @@ export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true,
     const startDate = new Date(dateStr);
     if (isNaN(startDate.getTime())) return '미정';
     
-    const minutes = parseDurationToMinutes(durationStr);
-    
     const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
     const month = startDate.getMonth() + 1;
     const day = startDate.getDate();
     const dayOfWeek = daysOfWeek[startDate.getDay()];
     
-    const formatTime = (date) => {
-        const hours = date.getHours();
-        const minutes = date.getMinutes();
-        const hour12 = hours % 12 || 12;
-        const minStr = minutes.toString().padStart(2, '0');
-        const ampm = hours >= 12 ? 'pm' : 'am';
-        return { hour12, minStr, ampm };
-    };
-    
-    const start = formatTime(startDate);
-    
-    if (minutes > 0) {
-        const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
-        const end = formatTime(endDate);
-        
-        const datePart = `${month}/${day}(${dayOfWeek})`;
-        
-        if (start.ampm === end.ampm) {
-            // e.g. "6/26(금) 5:30-6:30pm"
-            return `${datePart} ${start.hour12}:${start.minStr}-${end.hour12}:${end.minStr}${end.ampm}`;
-        } else {
-            // e.g. "6/26(금) 11:30am-1:30pm"
-            return `${datePart} ${start.hour12}:${start.minStr}${start.ampm}-${end.hour12}:${end.minStr}${end.ampm}`;
-        }
-    } else {
-        // No duration or 0 duration: e.g. "6/26(금) 5:30pm"
-        return `${month}/${day}(${dayOfWeek}) ${start.hour12}:${start.minStr}${start.ampm}`;
-    }
+    const timePart = formatKoreanTimeRange(dateStr, durationStr);
+    return `${month}/${day}(${dayOfWeek}) ${timePart}`;
 };

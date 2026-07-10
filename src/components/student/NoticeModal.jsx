@@ -216,9 +216,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                     }`}
                                 >
                                     <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
-                                    <h3 className={`font-extrabold text-[15px] leading-none ${
-                                        notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'text-tossBlue' : 'text-tossGrey900'
-                                    }`}>
+                                    <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
                                         프로그램 소개
                                     </h3>
                                 </div>

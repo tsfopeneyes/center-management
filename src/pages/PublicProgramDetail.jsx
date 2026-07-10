@@ -405,9 +405,7 @@ const PublicProgramDetail = () => {
                         }`}
                     >
                         <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
-                        <h3 className={`font-extrabold text-[15px] leading-none ${
-                            notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'text-blue-600' : 'text-gray-900'
-                        }`}>
+                        <h3 className="font-extrabold text-[15px] leading-none text-gray-900">
                             프로그램 소개
                         </h3>
                     </div>
