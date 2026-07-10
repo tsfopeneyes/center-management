@@ -95,13 +95,18 @@ const LineHeight = Extension.create({
 const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세요...' }) => {
     const [isCodeView, setIsCodeView] = React.useState(false);
     const [recentColors, setRecentColors] = React.useState(['#f04438', '#3182f6', '#10b981', '#ff9c00', '#8b5cf6']);
+    const debounceTimerRef = React.useRef(null);
 
     const handleColorChange = (color) => {
         editor.chain().focus().setColor(color).run();
-        setRecentColors(prev => {
-            const filtered = prev.filter(c => c.toLowerCase() !== color.toLowerCase());
-            return [color, ...filtered].slice(0, 7);
-        });
+        
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => {
+            setRecentColors(prev => {
+                const filtered = prev.filter(c => c.toLowerCase() !== color.toLowerCase());
+                return [color, ...filtered].slice(0, 7);
+            });
+        }, 300); // 300ms debounce to wait for user to stop dragging
     };
 
     const handleClearColor = () => {
