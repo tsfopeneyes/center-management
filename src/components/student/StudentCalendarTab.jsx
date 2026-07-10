@@ -140,18 +140,20 @@ const StudentCalendarTab = ({
                                     onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
                                 >
                                     {/* Left: Flat Date */}
-                                    <div className="flex flex-col items-center justify-center min-w-[50px] shrink-0 text-center">
-                                        <span className="text-[11px] font-bold text-[#8b95a1] uppercase mb-0.5">
+                                    <div className="flex flex-col items-start justify-center min-w-[56px] shrink-0 text-left">
+                                        <span className="text-[11px] font-bold text-[#8b95a1] uppercase mb-0.5 tracking-wider">
                                             {event.start.getMonth() + 1}월
                                         </span>
-                                        <span className="text-[22px] font-extrabold text-[#191f28] tracking-tight leading-none">
-                                            {event.start.getDate()}
-                                        </span>
-                                        <span className={`text-[12px] font-bold mt-1 ${
-                                            event.start.getDay() === 0 ? 'text-[#f04438]' : event.start.getDay() === 6 ? 'text-[#3182f6]' : 'text-[#4e5968]'
-                                        }`}>
-                                            {event.start.toLocaleDateString('ko-KR', { weekday: 'short' })}
-                                        </span>
+                                        <div className="flex items-baseline gap-0.5">
+                                            <span className="text-[22px] font-black text-[#191f28] tracking-tight leading-none">
+                                                {event.start.getDate()}
+                                            </span>
+                                            <span className={`text-[13px] font-bold ${
+                                                event.start.getDay() === 0 ? 'text-[#f04438]' : event.start.getDay() === 6 ? 'text-[#3182f6]' : 'text-[#8b95a1]'
+                                            }`}>
+                                                ({event.start.toLocaleDateString('ko-KR', { weekday: 'short' })})
+                                            </span>
+                                        </div>
                                     </div>
 
                                     {/* Right: Muted Typography & Flat Info Info */}
