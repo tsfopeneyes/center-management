@@ -695,11 +695,11 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-3">
                                                         {/* Host Selector */}
                                                         <div className="flex flex-col gap-1">
                                                             <label className="text-[10px] text-slate-400 font-bold ml-1">호스트 지정</label>
-                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:border-blue-600 transition-all px-2.5">
+                                                            <div className="h-9 relative flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:border-blue-600 transition-all px-2.5">
                                                                 <Users className="text-slate-400 shrink-0 mr-1.5" size={14} />
                                                                 <select
                                                                     value={host.host_id || ''}
@@ -708,7 +708,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                                         nextHosts[index] = { ...nextHosts[index], host_id: e.target.value };
                                                                         updateField('hosts', nextHosts);
                                                                     }}
-                                                                    className="w-full py-1.5 bg-transparent outline-none font-semibold text-slate-700 text-xs cursor-pointer"
+                                                                    className="w-full bg-transparent outline-none font-semibold text-slate-700 text-xs cursor-pointer"
                                                                 >
                                                                     <option value="">호스트 선택</option>
                                                                     {admins.map(admin => {
@@ -727,7 +727,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                         {/* Host One-liner */}
                                                         <div className="flex flex-col gap-1">
                                                             <label className="text-[10px] text-slate-400 font-bold ml-1">호스트 한마디</label>
-                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:border-blue-600 transition-all px-2.5">
+                                                            <div className="h-9 relative flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:border-blue-600 transition-all px-2.5">
                                                                 <input
                                                                     type="text"
                                                                     placeholder="호스트의 다짐이나 한마디를 입력해주세요."
