@@ -7,6 +7,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
+import { Color } from '@tiptap/extension-color';
+import TextStyle from '@tiptap/extension-text-style';
 import {
     Bold, Italic, Underline as UnderlineIcon,
     List, ListOrdered, Quote, Heading1, Heading2,
@@ -118,6 +120,8 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
             Highlight.configure({
                 multicolor: true,
             }),
+            TextStyle,
+            Color,
         ],
         content: content,
         onUpdate: ({ editor }) => {
@@ -183,6 +187,47 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
                     <MenuButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} disabled={isCodeView} title="기울임"><Italic size={18} /></MenuButton>
                     <MenuButton onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive('underline')} disabled={isCodeView} title="밑줄"><UnderlineIcon size={18} /></MenuButton>
                     <MenuButton onClick={() => editor.chain().focus().toggleHighlight().run()} isActive={editor.isActive('highlight')} disabled={isCodeView} title="형광펜"><Highlighter size={18} /></MenuButton>
+                </div>
+
+                {/* Color Selector */}
+                <div className="flex items-center gap-1.5 border-r border-gray-200 pr-1 mr-1 shrink-0">
+                    <span className="text-[11px] text-gray-400 font-black px-1 select-none">글자색</span>
+                    <div className="flex items-center gap-1">
+                        {[
+                            { name: '기본', value: '#191f28' },
+                            { name: '회색', value: '#8b95a1' },
+                            { name: '파랑', value: '#3182f6' },
+                            { name: '빨강', value: '#f04438' },
+                            { name: '초록', value: '#10b981' },
+                            { name: '주황', value: '#ff9c00' },
+                            { name: '보라', value: '#8b5cf6' },
+                        ].map((col) => {
+                            const isDefault = col.value === '#191f28';
+                            const active = isDefault 
+                                ? !editor.getAttributes('textStyle').color 
+                                : editor.isActive('textStyle', { color: col.value });
+                            return (
+                                <button
+                                    key={col.value}
+                                    type="button"
+                                    onClick={() => {
+                                        if (isDefault) {
+                                            editor.chain().focus().unsetColor().run();
+                                        } else {
+                                            editor.chain().focus().setColor(col.value).run();
+                                        }
+                                    }}
+                                    title={col.name}
+                                    className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                                        active ? 'scale-125 border-blue-600 ring-2 ring-blue-100' : 'border-gray-200 hover:scale-110'
+                                    }`}
+                                    style={{ backgroundColor: col.value }}
+                                >
+                                    {active && <span className="text-[8px] text-white font-black">✓</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">

@@ -135,7 +135,7 @@
 }
 
 .prose strong {
-    @apply font-black text-gray-900;
+    @apply font-bold text-gray-900;
 }
 
 .prose hr {
