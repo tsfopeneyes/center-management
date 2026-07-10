@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import IntuitiveTimePicker from '../../../../common/IntuitiveTimePicker';
 import { splitDateTime, joinDateTime } from '../../utils/noticeHelpers';
 import { PROGRAM_TYPES } from '../../utils/constants';
-import { Calendar, Clock, MapPin, Gift, CheckSquare, Users } from 'lucide-react';
+import { Calendar, Clock, MapPin, Gift, CheckSquare, Users, ChevronUp, ChevronDown } from 'lucide-react';
 import { supabase } from '../../../../../supabaseClient';
 
 const HYPHEN_DETAILS = [
@@ -643,26 +643,64 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                     <div className="flex flex-col gap-4 sm:col-span-2">
                                         <div className="space-y-4">
                                             {currentHosts.map((host, index) => (
-                                                <div key={index} className="bg-slate-50/50 border border-slate-200/80 rounded-xl p-4 space-y-3 relative">
-                                                    {currentHosts.length > 1 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const nextHosts = currentHosts.filter((_, i) => i !== index);
-                                                                updateField('hosts', nextHosts);
-                                                            }}
-                                                            className="absolute top-3 right-3 text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 px-2.5 py-1 rounded-md transition-colors"
-                                                        >
-                                                            삭제
-                                                        </button>
-                                                    )}
-                                                    <div className="font-semibold text-xs text-slate-500">호스트 #{index + 1}</div>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div key={index} className="bg-slate-50/50 border border-slate-200/80 rounded-xl p-3 space-y-2 relative">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-bold text-[11px] text-slate-500">호스트 #{index + 1}</span>
+                                                            <div className="flex gap-0.5">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={index === 0}
+                                                                    onClick={() => {
+                                                                        if (index === 0) return;
+                                                                        const nextHosts = [...currentHosts];
+                                                                        const temp = nextHosts[index];
+                                                                        nextHosts[index] = nextHosts[index - 1];
+                                                                        nextHosts[index - 1] = temp;
+                                                                        updateField('hosts', nextHosts);
+                                                                    }}
+                                                                    className={`p-0.5 rounded hover:bg-slate-200/80 transition ${index === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500'}`}
+                                                                    title="위로 이동"
+                                                                >
+                                                                    <ChevronUp size={13} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={index === currentHosts.length - 1}
+                                                                    onClick={() => {
+                                                                        if (index === currentHosts.length - 1) return;
+                                                                        const nextHosts = [...currentHosts];
+                                                                        const temp = nextHosts[index];
+                                                                        nextHosts[index] = nextHosts[index + 1];
+                                                                        nextHosts[index + 1] = temp;
+                                                                        updateField('hosts', nextHosts);
+                                                                    }}
+                                                                    className={`p-0.5 rounded hover:bg-slate-200/80 transition ${index === currentHosts.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500'}`}
+                                                                    title="아래로 이동"
+                                                                >
+                                                                    <ChevronDown size={13} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        {currentHosts.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const nextHosts = currentHosts.filter((_, i) => i !== index);
+                                                                    updateField('hosts', nextHosts);
+                                                                }}
+                                                                className="text-[11px] font-bold text-red-500 hover:text-red-700 bg-red-50 px-2 py-0.5 rounded transition-colors"
+                                                            >
+                                                                삭제
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                         {/* Host Selector */}
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 지정</label>
-                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-600 transition-all px-3">
-                                                                <Users className="text-slate-400 shrink-0 mr-2" size={15} />
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-[10px] text-slate-400 font-bold ml-1">호스트 지정</label>
+                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:border-blue-600 transition-all px-2.5">
+                                                                <Users className="text-slate-400 shrink-0 mr-1.5" size={14} />
                                                                 <select
                                                                     value={host.host_id || ''}
                                                                     onChange={e => {
@@ -670,22 +708,26 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                                         nextHosts[index] = { ...nextHosts[index], host_id: e.target.value };
                                                                         updateField('hosts', nextHosts);
                                                                     }}
-                                                                    className="w-full py-2.5 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+                                                                    className="w-full py-1.5 bg-transparent outline-none font-semibold text-slate-700 text-xs cursor-pointer"
                                                                 >
                                                                     <option value="">호스트 선택</option>
-                                                                    {admins.map(admin => (
-                                                                        <option key={admin.id} value={admin.id}>
-                                                                            {admin.name} ({admin.school || '관리자'})
-                                                                        </option>
-                                                                    ))}
+                                                                    {admins.map(admin => {
+                                                                        const hasNoSchoolOrHyphen = !admin.school || admin.school === '더작은재단';
+                                                                        const optionText = hasNoSchoolOrHyphen ? admin.name : `${admin.name} (${admin.school})`;
+                                                                        return (
+                                                                            <option key={admin.id} value={admin.id}>
+                                                                                {optionText}
+                                                                            </option>
+                                                                        );
+                                                                    })}
                                                                 </select>
                                                             </div>
                                                         </div>
 
                                                         {/* Host One-liner */}
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <label className="text-[11px] text-slate-400 font-bold ml-1">호스트 한마디</label>
-                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-600 transition-all px-3">
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-[10px] text-slate-400 font-bold ml-1">호스트 한마디</label>
+                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:border-blue-600 transition-all px-2.5">
                                                                 <input
                                                                     type="text"
                                                                     placeholder="호스트의 다짐이나 한마디를 입력해주세요."
