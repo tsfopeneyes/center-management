@@ -127,23 +127,56 @@ const StudentCalendarTab = ({
 
                     if (sortedEvents.length === 0) return <div className="text-center py-20 text-tossGrey400 font-bold">등록된 추가 일정이 없습니다.</div>;
 
+                    const formatTimeRange = (timeRangeStr) => {
+                        if (!timeRangeStr) return '';
+                        const parts = timeRangeStr.split('~').map(p => p.trim());
+                        if (parts.length !== 2) return timeRangeStr;
+                        
+                        const formatSingleTime = (timeStr) => {
+                            const timeParts = timeStr.split(':');
+                            if (timeParts.length < 2) return timeStr;
+                            const hour = parseInt(timeParts[0], 10);
+                            const min = parseInt(timeParts[1], 10);
+                            
+                            const ampm = hour >= 12 ? '오후' : '오전';
+                            const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+                            const minStr = min > 0 ? ` ${min}분` : '';
+                            return `${ampm} ${displayHour}시${minStr}`;
+                        };
+                        
+                        const startStr = formatSingleTime(parts[0]);
+                        const endStr = formatSingleTime(parts[1]);
+                        
+                        const startAmpm = startStr.split(' ')[0];
+                        const endAmpm = endStr.split(' ')[0];
+                        if (startAmpm === endAmpm) {
+                            const endPartWithoutAmpm = endStr.replace(endAmpm + ' ', '');
+                            return `${startStr} ~ ${endPartWithoutAmpm}`;
+                        }
+                        return `${startStr} ~ ${endStr}`;
+                    };
+
                     return sortedEvents.map((event, idx) => (
                         <motion.div
                             key={idx}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.05 }}
-                            className="px-4 py-3 bg-white rounded-toss-lg shadow-toss-subtle border-none flex gap-3 items-center group active:scale-[0.98] transition-all text-left"
+                            className="px-5 py-4 bg-white rounded-2xl border border-gray-100 flex gap-4 items-center group active:scale-[0.98] transition-all text-left shadow-sm hover:shadow-md hover:border-gray-200"
                             onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
                         >
                             <div className="flex flex-col items-center justify-center min-w-[70px] py-1 border-r border-tossGrey100 pr-4">
-                                <span className="text-[10px] font-bold text-tossGrey400 uppercase">{event.start.toLocaleString('ko-KR', { month: 'short' })}</span>
-                                <span className="text-xl font-bold text-tossGrey800 tracking-tighter">
-                                    {isSameDay(event.start, event.end) ? event.start.getDate() : `${event.start.getDate()}~${event.end.getDate()}`}
+                                <span className="text-[10px] font-extrabold text-tossGrey400 uppercase tracking-wider">{event.start.toLocaleString('ko-KR', { month: 'short' })}</span>
+                                <span className="text-lg font-black text-tossGrey800 tracking-tighter mt-0.5">
+                                    {isSameDay(event.start, event.end) ? (
+                                        `${event.start.getDate()}(${event.start.toLocaleDateString('ko-KR', { weekday: 'short' })})`
+                                    ) : (
+                                        `${event.start.getDate()}~${event.end.getDate()}`
+                                    )}
                                 </span>
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
+                                <div className="flex items-center gap-2 mb-1.5">
                                     {event.type !== 'PROGRAM' && (
                                         <span className={`px-2 py-0.5 rounded-toss-md text-[9px] font-bold uppercase tracking-tight ${
                                             event.category_id === 'RENTAL'
@@ -154,11 +187,11 @@ const StudentCalendarTab = ({
                                         </span>
                                     )}
                                     {(event.type === 'PROGRAM' || event.category_id === 'RENTAL') && (
-                                        <span className="text-[10px] font-bold text-tossGrey500 uppercase tracking-tight flex items-center gap-1 flex-wrap">
-                                            <Clock size={10} className="shrink-0" />
-                                            <span>
+                                        <span className="text-[11.5px] font-semibold text-tossGrey500 flex items-center gap-1.5 flex-wrap">
+                                            <Clock size={11} className="shrink-0 text-tossGrey400" />
+                                            <span className="tracking-tight text-tossGrey600">
                                                 {event.type === 'PROGRAM' ? (
-                                                    `${event.program_time || new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}${event.program_location ? ` · ${event.program_location}` : ''}`
+                                                    `${formatTimeRange(event.program_time) || new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}${event.program_location ? ` · ${event.program_location}` : ''}`
                                                 ) : event.category_id === 'RENTAL' ? (
                                                     `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
                                                 ) : (
@@ -170,7 +203,7 @@ const StudentCalendarTab = ({
                                 </div>
                                 {event.category_id === 'RENTAL' ? (
                                     <div className="space-y-0.5">
-                                        <h4 className="font-extrabold text-tossGrey850 text-[13.5px] truncate">
+                                        <h4 className="font-extrabold text-tossGrey900 text-[14.5px] tracking-tight leading-snug truncate">
                                             {event.meetingName}
                                         </h4>
                                         <p className="text-[10px] text-tossGrey500 font-bold flex items-center gap-1.5 mt-0.5">
@@ -181,10 +214,10 @@ const StudentCalendarTab = ({
                                         </p>
                                     </div>
                                 ) : (
-                                    <h4 className="font-bold text-tossGrey800 text-sm truncate">{event.title}</h4>
+                                    <h4 className="font-extrabold text-tossGrey950 text-[15px] tracking-tight leading-snug truncate">{event.title}</h4>
                                 )}
                             </div>
-                            <ChevronRight size={16} className="text-tossGrey300 group-active:text-tossBlue transition-colors" />
+                            <ChevronRight size={16} className="text-tossGrey300 group-hover:text-tossBlue transition-colors" />
                         </motion.div>
                     ));
                 })()}
