@@ -149,7 +149,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
             />
 
             <div className="flex-1 overflow-y-auto scrollbar-hide bg-white">
-                <div className="px-6 py-8">
+                <div className="px-6 pt-6 pb-3">
                     {!isEditing && <NoticeCarousel allImages={allImages} />}
 
                     {isEditing ? (
@@ -223,10 +223,10 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                     </h3>
                                 </div>
                             )}
-                            <div className="prose max-w-none text-tossGrey850 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-6 overflow-hidden">
-                                <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
-                                {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
-                            </div>
+                             <div className="prose max-w-none text-tossGrey850 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-4 overflow-hidden">
+                                 <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
+                                 {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
+                             </div>
 
                             {/* Host Intro: conditionally visible only for CENTER programs */}
                             {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
@@ -340,7 +340,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                  </div>
 
                  {/* Comments Section */}
-                 <div className="border-t border-tossGrey100 mt-4">
+                 <div className="border-t border-tossGrey100 mt-2">
                      <div className="px-4 py-4 text-sm font-bold text-tossGrey900 border-b border-tossGrey100">댓글 {comments?.length || 0}</div>
                      {comments?.map(c => (
                          <div key={c.id} className="px-4 py-4 flex gap-3 text-sm hover:bg-tossGrey50 transition group/notice-comment">
