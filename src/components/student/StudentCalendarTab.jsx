@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Info, Clock, ChevronRight } from 'lucide-react';
+import { Info, Clock, ChevronRight, MapPin } from 'lucide-react';
 import { startOfDay, isSameDay } from 'date-fns';
 import { CATEGORIES } from '../../constants/appConstants';
 import TodayOperatingWidget from './components/TodayOperatingWidget';
@@ -137,59 +137,62 @@ const StudentCalendarTab = ({
                             className="px-5 py-4 bg-white rounded-2xl border border-gray-100 flex gap-4 items-center group active:scale-[0.98] transition-all text-left shadow-sm hover:shadow-md hover:border-gray-200"
                             onClick={() => event.type === 'PROGRAM' ? openNoticeDetail(event) : null}
                         >
-                            <div className="flex flex-col items-center justify-center min-w-[70px] py-1 border-r border-tossGrey100 pr-4">
-                                <span className="text-[10px] font-extrabold text-tossGrey400 uppercase tracking-wider">{event.start.toLocaleString('ko-KR', { month: 'short' })}</span>
-                                <span className="text-lg font-black text-tossGrey800 tracking-tighter mt-0.5">
-                                    {isSameDay(event.start, event.end) ? (
-                                        `${event.start.getDate()}(${event.start.toLocaleDateString('ko-KR', { weekday: 'short' })})`
-                                    ) : (
-                                        `${event.start.getDate()}~${event.end.getDate()}`
-                                    )}
+                            {/* Left side: Date Badge */}
+                            <div className="flex flex-col items-center justify-center min-w-[64px] py-1.5 bg-gray-50/50 rounded-xl border border-gray-100/80 px-2 text-center shrink-0">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                                    {event.start.toLocaleString('ko-KR', { month: 'short' })}
                                 </span>
+                                <span className="text-xl font-black text-gray-800 tracking-tight leading-none mb-1">
+                                    {event.start.getDate()}
+                                </span>
+                                {isSameDay(event.start, event.end) ? (
+                                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[9px] font-extrabold">
+                                        {event.start.toLocaleDateString('ko-KR', { weekday: 'short' })}
+                                    </span>
+                                ) : (
+                                    <span className="px-1 py-0.5 bg-gray-100 text-gray-500 rounded-md text-[9px] font-bold">
+                                        ~{event.end.getDate()}일
+                                    </span>
+                                )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                    {event.type !== 'PROGRAM' && (
-                                        <span className={`px-2 py-0.5 rounded-toss-md text-[9px] font-bold uppercase tracking-tight ${
-                                            event.category_id === 'RENTAL'
-                                                ? 'bg-indigo-50 text-indigo-600'
-                                                : event.catName === '휴관' ? 'bg-tossError/10 text-tossError' : 'bg-tossGrey100 text-tossGrey600'
-                                        }`}>
-                                            {event.catName}
+
+                            {/* Right side: Information block */}
+                            <div className="flex-1 min-w-0 py-0.5">
+                                <h4 className="font-black text-gray-900 text-[15.5px] tracking-tight leading-snug truncate mb-2 group-hover:text-blue-600 transition-colors">
+                                    {event.category_id === 'RENTAL' ? event.meetingName : event.title}
+                                </h4>
+                                
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-y-1 gap-x-3 text-xs font-semibold text-gray-500">
+                                    {/* Time Info */}
+                                    <span className="flex items-center gap-1.5 text-gray-600">
+                                        <Clock size={12} className="text-gray-400 shrink-0" />
+                                        <span>
+                                            {event.type === 'PROGRAM' ? (
+                                                formatKoreanTimeRange(event.program_date || event.program_start_date || event.start, event.program_duration)
+                                            ) : event.category_id === 'RENTAL' ? (
+                                                `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                                            ) : (
+                                                new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+                                            )}
                                         </span>
-                                    )}
-                                    {(event.type === 'PROGRAM' || event.category_id === 'RENTAL') && (
-                                        <span className="text-[11.5px] font-semibold text-tossGrey500 flex items-center gap-1.5 flex-wrap">
-                                            <Clock size={11} className="shrink-0 text-tossGrey400" />
-                                            <span className="tracking-tight text-tossGrey600">
-                                                {event.type === 'PROGRAM' ? (
-                                                    `${formatKoreanTimeRange(event.program_date || event.program_start_date || event.start, event.program_duration)}${event.program_location ? ` · ${event.program_location}` : ''}`
-                                                ) : event.category_id === 'RENTAL' ? (
-                                                    `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-                                                ) : (
-                                                    new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
-                                                )}
-                                            </span>
+                                    </span>
+
+                                    {/* Location/Space Info */}
+                                    {(event.program_location || event.spaceName) && (
+                                        <span className="flex items-center gap-1.5 text-blue-600">
+                                            <MapPin size={12} className="text-blue-400 shrink-0" />
+                                            <span className="truncate max-w-[150px]">{event.category_id === 'RENTAL' ? event.spaceName : event.program_location}</span>
+                                            {event.category_id === 'RENTAL' && event.regionName && (
+                                                <span className="text-[9px] bg-blue-50 text-blue-600 px-1 py-0.2 rounded font-bold shrink-0">
+                                                    {event.regionName}
+                                                </span>
+                                            )}
                                         </span>
                                     )}
                                 </div>
-                                {event.category_id === 'RENTAL' ? (
-                                    <div className="space-y-0.5">
-                                        <h4 className="font-extrabold text-tossGrey900 text-[14.5px] tracking-tight leading-snug truncate">
-                                            {event.meetingName}
-                                        </h4>
-                                        <p className="text-[10px] text-tossGrey500 font-bold flex items-center gap-1.5 mt-0.5">
-                                            <span className="px-1.5 py-0.5 bg-tossGrey100 text-tossGrey600 rounded text-[9px]">
-                                                {event.regionName}
-                                            </span>
-                                            <span>{event.spaceName}</span>
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <h4 className="font-extrabold text-tossGrey950 text-[15px] tracking-tight leading-snug truncate">{event.title}</h4>
-                                )}
                             </div>
-                            <ChevronRight size={16} className="text-tossGrey300 group-hover:text-tossBlue transition-colors" />
+
+                            <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-600 transition-colors shrink-0" />
                         </motion.div>
                     ));
                 })()}
