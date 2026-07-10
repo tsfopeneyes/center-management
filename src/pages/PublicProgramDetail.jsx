@@ -416,40 +416,37 @@ const PublicProgramDetail = () => {
                 </div>
 
                 {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
-                    <div ref={hostRef} className="mb-8 scroll-mt-28">
-                        {hostUsers.some(h => h.one_liner && h.one_liner.trim() !== '') ? (
-                            <div className="grid grid-cols-1 gap-3">
-                                {hostUsers.map(host => (
-                                    <div key={host.id} className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
-                                        <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
-                                            {host.profile_image_url ? (
-                                                <img src={host.profile_image_url} alt="" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <User size={20} className="text-blue-500" />
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col min-w-0">
-                                            <span className="font-extrabold text-gray-900 text-sm leading-snug">{host.name}</span>
-                                            {host.one_liner && (
-                                                <span className="text-xs text-gray-600 font-semibold mt-1 break-keep leading-relaxed">{host.one_liner}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                    <div ref={hostRef} className="mb-8 scroll-mt-28 flex flex-col gap-3">
+                        {/* Hosts with one-liners: rendered individually */}
+                        {hostUsers.filter(h => h.one_liner && h.one_liner.trim() !== '').map(host => (
+                            <div key={host.id} className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
+                                <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
+                                    {host.profile_image_url ? (
+                                        <img src={host.profile_image_url} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <User size={20} className="text-blue-500" />
+                                    )}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="font-extrabold text-gray-900 text-sm leading-snug">{host.name}</span>
+                                    <span className="text-xs text-gray-600 font-semibold mt-1 break-keep leading-relaxed">{host.one_liner}</span>
+                                </div>
                             </div>
-                        ) : (
-                            <div className="flex flex-wrap items-center gap-4 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
-                                {hostUsers.map((host, idx) => (
-                                    <div key={host.id} className="flex items-center gap-2">
-                                        {idx > 0 && <div className="w-[1px] h-4 bg-gray-200 mr-2 shrink-0"></div>}
-                                        <div className="w-8 h-8 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
+                        ))}
+
+                        {/* Hosts without one-liners: grouped together in one card */}
+                        {hostUsers.some(h => !h.one_liner || h.one_liner.trim() === '') && (
+                            <div className="flex flex-wrap items-center justify-center gap-6 bg-slate-50/85 border border-gray-100 rounded-2xl p-5 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
+                                {hostUsers.filter(h => !h.one_liner || h.one_liner.trim() === '').map(host => (
+                                    <div key={host.id} className="flex flex-col items-center gap-1.5 text-center min-w-[50px]">
+                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-50 border border-gray-100 flex items-center justify-center shrink-0">
                                             {host.profile_image_url ? (
                                                 <img src={host.profile_image_url} alt="" className="w-full h-full object-cover" />
                                             ) : (
-                                                <User size={14} className="text-blue-500" />
+                                                <User size={16} className="text-blue-500" />
                                             )}
                                         </div>
-                                        <span className="font-extrabold text-gray-900 text-sm">{host.name}</span>
+                                        <span className="font-extrabold text-gray-900 text-xs">{host.name}</span>
                                     </div>
                                 ))}
                             </div>

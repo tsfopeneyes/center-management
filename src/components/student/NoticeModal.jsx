@@ -227,28 +227,25 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                              </div>
 
                             {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
-                                <div ref={hostRef} className="mb-6 scroll-mt-20">
-                                    {hostUsers.some(h => h.one_liner && h.one_liner.trim() !== '') ? (
-                                        <div className="grid grid-cols-1 gap-3">
-                                            {hostUsers.map(host => (
-                                                <div key={host.id} className="flex items-center gap-3.5 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">
-                                                    <UserAvatar user={host} size="w-12 h-12" />
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="font-extrabold text-tossGrey900 text-sm leading-snug">{host.name}</span>
-                                                        {host.one_liner && (
-                                                            <span className="text-xs text-tossGrey600 font-semibold mt-1 break-keep leading-relaxed">{host.one_liner}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                <div ref={hostRef} className="mb-6 scroll-mt-20 flex flex-col gap-3">
+                                    {/* Hosts with one-liners: rendered individually */}
+                                    {hostUsers.filter(h => h.one_liner && h.one_liner.trim() !== '').map(host => (
+                                        <div key={host.id} className="flex items-center gap-3.5 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">
+                                            <UserAvatar user={host} size="w-12 h-12" />
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="font-extrabold text-tossGrey900 text-sm leading-snug">{host.name}</span>
+                                                <span className="text-xs text-tossGrey600 font-semibold mt-1 break-keep leading-relaxed">{host.one_liner}</span>
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <div className="flex flex-wrap items-center gap-4 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">
-                                            {hostUsers.map((host, idx) => (
-                                                <div key={host.id} className="flex items-center gap-2">
-                                                    {idx > 0 && <div className="w-[1px] h-4 bg-tossGrey200/80 mr-2 shrink-0"></div>}
-                                                    <UserAvatar user={host} size="w-8 h-8" />
-                                                    <span className="font-extrabold text-tossGrey900 text-sm">{host.name}</span>
+                                    ))}
+                                    
+                                    {/* Hosts without one-liners: grouped together in one card */}
+                                    {hostUsers.some(h => !h.one_liner || h.one_liner.trim() === '') && (
+                                        <div className="flex flex-wrap items-center justify-center gap-6 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-5 shadow-toss-subtle">
+                                            {hostUsers.filter(h => !h.one_liner || h.one_liner.trim() === '').map(host => (
+                                                <div key={host.id} className="flex flex-col items-center gap-1.5 text-center min-w-[50px]">
+                                                    <UserAvatar user={host} size="w-10 h-10" />
+                                                    <span className="font-extrabold text-tossGrey900 text-xs">{host.name}</span>
                                                 </div>
                                             ))}
                                         </div>
