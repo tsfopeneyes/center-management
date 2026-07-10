@@ -471,25 +471,32 @@ const PublicProgramDetail = () => {
             </div>
 
             {/* Bottom Floating Action Bar */}
-            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 p-4 z-50 safe-area-bottom">
+            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 p-4 pb-6 z-50 safe-area-bottom">
                 {notice.is_recruiting ? (
-                    <div className="flex gap-3 items-center">
-                        <div className="flex flex-col pl-2 whitespace-nowrap min-w-fit">
-                            <span className="text-[10px] font-black text-gray-400">모집마감</span>
-                            <span className={`text-xs font-bold ${(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) ? 'text-gray-400' : 'text-red-500 max-w-[80px] truncate'}`}>{timeLeft || '기한없음'}</span>
+                    <div className="flex flex-col gap-3">
+                        {/* Centered Deadline Badge above buttons */}
+                        <div className="flex items-center justify-center gap-1.5 py-1 text-center bg-red-50/50 rounded-xl">
+                            <span className="text-[10px] font-black text-red-400">모집마감</span>
+                            <span className={`text-xs font-black ${(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) ? 'text-gray-400' : 'text-red-500'}`}>{timeLeft || '기한없음'}</span>
                         </div>
-                        <button 
-                            onClick={() => setIsGuestModalOpen(true)}
-                            className="flex-1 bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200"
-                        >
-                            로그인 없이 신청하기
-                        </button>
-                        <button 
-                            onClick={handleActionClick}
-                            className="px-4 bg-gray-100 text-gray-700 rounded-2xl py-4 font-black text-sm"
-                        >
-                            로그인
-                        </button>
+                        
+                        <div className="flex flex-col gap-2">
+                            {/* Primary Button: Log in and apply */}
+                            <button 
+                                onClick={handleActionClick}
+                                className="w-full bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200 text-base transition active:scale-[0.98]"
+                            >
+                                로그인하고 신청하기
+                            </button>
+                            
+                            {/* Secondary Button: Subtle guest application */}
+                            <button 
+                                onClick={() => setIsGuestModalOpen(true)}
+                                className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl py-3 font-bold text-xs border border-slate-100 transition active:scale-[0.98]"
+                            >
+                                로그인 없이 비회원으로 신청하기
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     <button 
@@ -544,7 +551,7 @@ const PublicProgramDetail = () => {
                                         required
                                         value={guestForm.school}
                                         onChange={handleGuestFormChange}
-                                        placeholder="학교 또는 소속 단체 입력 (예: OO고)"
+                                        placeholder="학교 또는 소속 단체 입력 (예: OO고등학교)"
                                         className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm"
                                     />
                                 </div>
