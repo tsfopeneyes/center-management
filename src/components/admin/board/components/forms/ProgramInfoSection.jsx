@@ -641,7 +641,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                     : [{ host_id: formData.host_id || '', one_liner: formData.host_one_liner || '' }];
                                 return (
                                     <div className="flex flex-col gap-4 sm:col-span-2">
-                                        <div className="space-y-4">
+                                        <div className={flat ? "space-y-4" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
                                             {currentHosts.map((host, index) => (
                                                 <div key={index} className="bg-slate-50/50 border border-slate-200/80 rounded-xl p-3 space-y-2 relative">
                                                     <div className="flex justify-between items-center">
@@ -695,7 +695,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-3">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-[150px_1fr] gap-3">
                                                         {/* Host Selector */}
                                                         <div className="flex flex-col gap-1">
                                                             <label className="text-[10px] text-slate-400 font-bold ml-1">호스트 지정</label>
