@@ -228,7 +228,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
 
                             {/* Host Intro: conditionally visible only for CENTER programs */}
                             {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
-                                <div ref={hostRef} className="mt-8 pt-6 border-t border-tossGrey100 mb-6 scroll-mt-20">
+                                <div ref={hostRef} className="mb-6 scroll-mt-20">
                                     <div className="grid grid-cols-1 gap-3">
                                         {hostUsers.map(host => (
                                             <div key={host.id} className="flex items-center gap-3.5 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">

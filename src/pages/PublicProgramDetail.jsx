@@ -417,7 +417,7 @@ const PublicProgramDetail = () => {
 
                 {/* Host Intro: conditionally visible only for CENTER programs */}
                 {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
-                    <div ref={hostRef} className="mt-8 pt-6 border-t border-gray-100 mb-8 scroll-mt-28">
+                    <div ref={hostRef} className="mb-8 scroll-mt-28">
                         <div className="grid grid-cols-1 gap-3">
                             {hostUsers.map(host => (
                                 <div key={host.id} className="flex items-center gap-3.5 bg-slate-50/85 border border-gray-100 rounded-2xl p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.03)]">
