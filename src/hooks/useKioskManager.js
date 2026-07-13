@@ -545,11 +545,139 @@ export const useKioskManager = (navigate) => {
 
             if (error) throw error;
 
+            // 1. Fetch branch name
+            let branchKorean = '센터';
+            if (selectedLocation?.group_id) {
+                const { data: grp } = await supabase
+                    .from('location_groups')
+                    .select('name')
+                    .eq('id', selectedLocation.group_id)
+                    .maybeSingle();
+                if (grp?.name) {
+                    if (grp.name.includes('하이픈') || grp.name.includes('HYPHEN') || grp.name.includes('강동')) {
+                        branchKorean = '하이픈';
+                    } else if (grp.name.includes('이높플레이스') || grp.name.includes('ENOF') || grp.name.includes('이높') || grp.name.includes('강서')) {
+                        branchKorean = '이높플레이스';
+                    } else {
+                        branchKorean = grp.name;
+                    }
+                }
+            }
+
+            // 2. Fetch today's earned points
+            const now = new Date();
+            const kstOffset = 9 * 60 * 60 * 1000;
+            const kstTodayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const kstStartISO = new Date(kstTodayStart.getTime() - kstOffset).toISOString();
+            const kstEndISO = new Date(kstTodayStart.getTime() + (24 * 60 * 60 * 1000) - 1 - kstOffset).toISOString();
+
+            const { data: todayTxs } = await supabase
+                .from('hyphen_transactions')
+                .select('amount')
+                .eq('user_id', pendingCheckoutUser.id)
+                .eq('transaction_type', 'EARN')
+                .gte('created_at', kstStartISO)
+                .lte('created_at', kstEndISO);
+            const todayEarned = todayTxs ? todayTxs.reduce((sum, tx) => sum + tx.amount, 0) : 0;
+
+            // 3. Fetch cumulative points balance
+            const { data: allTxs } = await supabase
+                .from('hyphen_transactions')
+                .select('amount')
+                .eq('user_id', pendingCheckoutUser.id);
+            const balance = allTxs ? allTxs.reduce((sum, tx) => sum + tx.amount, 0) : 0;
+
+            // 4. Fetch operating hours config
+            const { data: opData } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', 'SYSTEM')
+                .eq('title', 'OPERATING_HOURS_CONFIG')
+                .maybeSingle();
+            const operatingHours = opData?.content ? JSON.parse(opData.content) : null;
+
+            // 5. Fetch schedules for the current week to check special closures
+            const dayOfToday = now.getDay();
+            const diff = now.getDate() - dayOfToday + (dayOfToday === 0 ? -6 : 1);
+            const monday = new Date(now.setDate(diff));
+            monday.setHours(0,0,0,0);
+
+            const weekEnd = new Date(monday);
+            weekEnd.setDate(monday.getDate() + 7);
+            const { data: schData } = await supabase
+                .from('admin_schedules')
+                .select('*')
+                .gte('start_date', monday.toISOString())
+                .lte('start_date', weekEnd.toISOString());
+            const weeklySchedules = schData || [];
+
+            const { data: catData } = await supabase
+                .from('calendar_categories')
+                .select('*');
+            const calendarCategories = catData || [];
+
+            const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
+            const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            const openDays = [];
+
+            for (let i = 0; i < 7; i++) {
+                const targetDate = new Date(monday);
+                targetDate.setDate(monday.getDate() + i);
+                
+                const isClosed = weeklySchedules.some(sch => {
+                    const cat = calendarCategories.find(c => c.id === sch.category_id);
+                    if (cat?.name !== '휴관') return false;
+
+                    const start = new Date(sch.start_date);
+                    start.setHours(0,0,0,0);
+                    const end = new Date(sch.end_date);
+                    end.setHours(23,59,59,999);
+
+                    if (targetDate >= start && targetDate <= end) {
+                        let closedSpaces = [];
+                        try {
+                            const parsed = JSON.parse(sch.content);
+                            if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                                closedSpaces = parsed.closed_spaces;
+                            }
+                        } catch (e) {}
+
+                        if (branchKorean === '하이픈') {
+                            return closedSpaces.includes('HYPHEN');
+                        } else if (branchKorean === '이높플레이스') {
+                            return closedSpaces.includes('INOP') || closedSpaces.includes('ENOF');
+                        }
+                        return true;
+                    }
+                    return false;
+                });
+
+                if (!isClosed) {
+                    const dayOfWeekStr = dayKeys[i];
+                    const dayConfig = operatingHours ? operatingHours[dayOfWeekStr] : null;
+                    if (dayConfig && dayConfig.isOpen) {
+                        openDays.push(dayNames[i]);
+                    }
+                }
+            }
+
+            let openDaysText = '';
+            if (openDays.length > 0) {
+                const lastDay = openDays.pop();
+                openDaysText = openDays.length > 0 
+                    ? `${openDays.join(', ')}, ${lastDay}요일`
+                    : `${lastDay}요일`;
+            }
+
+            const scheduleMsg = openDaysText 
+                ? `${branchKorean}은 이번 주 ${openDaysText}에 열려 있어요`
+                : `${branchKorean}은 이번 주 운영 일정이 없습니다.`;
+
             setResult({
                 type: 'SUCCESS',
-                message: checkoutHyphenMsg ? '다음에 또 만나요! +1H' : '다음에 또 만나요!',
-                subMessage: checkoutHyphenMsg ? `${pendingCheckoutUser.name}님 체크아웃 완료\n${checkoutHyphenMsg}` : `${pendingCheckoutUser.name}님 체크아웃 완료`,
-                color: checkoutHyphenMsg ? 'bg-blue-500' : 'bg-orange-500'
+                message: `${pendingCheckoutUser.name}님 다음에 또 만나요!`,
+                subMessage: `오늘의 하이픈: ${todayEarned}H / 누적 하이픈: ${balance}H\n${scheduleMsg}`,
+                color: 'bg-indigo-600'
             });
 
             // Reset all kiosk states
@@ -559,7 +687,7 @@ export const useKioskManager = (navigate) => {
             setStatus('IDLE');
             setPincode('');
             setMatchingUsers([]);
-            setTimeout(() => setResult(null), 1500);
+            setTimeout(() => setResult(null), 5000);
 
         } catch (err) {
             console.error('Checkout Purpose Error:', err);
