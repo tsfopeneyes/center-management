@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS checkin_surveys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    location_id UUID REFERENCES locations(id) ON DELETE CASCADE,
+    location_id TEXT REFERENCES locations(id) ON DELETE CASCADE,
     selections TEXT[] NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now()
 );
