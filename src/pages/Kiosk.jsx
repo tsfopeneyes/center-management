@@ -92,7 +92,10 @@ const Kiosk = () => {
             </div>
 
             {/* Giant Background Branding Typography */}
-            <div className="absolute left-10 bottom-10 text-[9vw] font-black uppercase text-slate-350 tracking-wide leading-none select-none pointer-events-none opacity-[0.07] z-0 hidden md:block">
+            <div 
+                className="absolute left-10 bottom-10 text-[11vw] font-black uppercase text-transparent tracking-widest leading-none select-none pointer-events-none z-0 hidden md:block"
+                style={{ WebkitTextStroke: '2px rgba(99, 102, 241, 0.16)' }}
+            >
                 {engName}
             </div>
 
