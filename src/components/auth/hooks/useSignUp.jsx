@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { TERMS_VERSION } from '../../../constants/appConstants';
 import { hashPassword } from '../../../utils/hashUtils';
+import { normalizeSchoolName } from '../../../utils/userUtils';
 
 export const useSignUp = (onSuccess) => {
     const [formData, setFormData] = useState({
@@ -110,7 +111,7 @@ export const useSignUp = (onSuccess) => {
             const hashedPassword = await hashPassword(formData.password);
 
             const userData = {
-                name: formData.name, gender: formData.gender, school: formData.school, church: formData.church,
+                name: formData.name, gender: formData.gender, school: normalizeSchoolName(formData.school), church: formData.church,
                 birth: formData.birth, phone: formData.phone, phone_back4: back4,
                 user_group: formData.user_group, password: hashedPassword,
                 role: 'user', status: under14 ? 'pending' : 'approved',

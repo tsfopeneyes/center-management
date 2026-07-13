@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { normalizeSchoolName } from '../utils/userUtils';
 
 export const userApi = {
     async fetchLogs(userId) {
@@ -50,6 +51,9 @@ export const userApi = {
     },
 
     async updateProfile(userId, updates) {
+        if (updates && updates.school) {
+            updates.school = normalizeSchoolName(updates.school);
+        }
         const { error } = await supabase
             .from('users')
             .update(updates)

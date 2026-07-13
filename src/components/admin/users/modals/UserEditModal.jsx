@@ -6,6 +6,7 @@ import { feedbackApi } from '../../../../api/feedbackApi';
 import { extractProgramInfo } from '../../../../utils/textUtils';
 import UserAvatar from '../../../common/UserAvatar';
 import { aggregateVisitSessions } from '../../../../utils/visitUtils';
+import { normalizeSchoolName } from '../../../../utils/userUtils';
 
 const getRevealedPassword = (user) => {
     if (!user || !user.password) return '미등록';
@@ -281,7 +282,7 @@ const UserEditModal = ({
         try {
             const { error } = await supabase.from('users').update({
                 name: editFormData.name,
-                school: editFormData.school,
+                school: normalizeSchoolName(editFormData.school),
                 church: editFormData.church,
                 phone: editFormData.phone,
                 user_group: editFormData.user_group,
