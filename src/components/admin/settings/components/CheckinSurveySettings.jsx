@@ -86,7 +86,7 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                         </button>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                         {options.map((option, idx) => (
                             <div key={option.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl relative flex flex-col gap-3">
                                 <button
@@ -98,8 +98,8 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                                     <Trash2 size={12} />
                                 </button>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-6">
-                                    {/* Left: Button Config */}
+                                <div className="space-y-3 pr-4">
+                                    {/* Button Config */}
                                     <div className="space-y-1.5">
                                         <div className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest ml-0.5">
                                             <Smile size={11} />
@@ -122,7 +122,7 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                                                     type="text"
                                                     value={option.label}
                                                     onChange={(e) => handleOptionChange(idx, 'label', e.target.value)}
-                                                    placeholder="버튼 라벨 (예: 밥 먹고 쉬고 싶어요)"
+                                                    placeholder="버튼 라벨"
                                                     className="w-full p-2 bg-white border border-gray-200 rounded-xl font-bold text-xs outline-none focus:border-blue-500"
                                                     required
                                                 />
@@ -130,7 +130,9 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                                         </div>
                                     </div>
 
-                                    {/* Right: Recommendation Config */}
+                                    <div className="border-t border-slate-200/50 my-1"></div>
+
+                                    {/* Recommendation Config */}
                                     <div className="space-y-1.5">
                                         <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-500 uppercase tracking-widest ml-0.5">
                                             <Sparkles size={11} />
@@ -149,7 +151,7 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                                                 value={option.recommendText}
                                                 onChange={(e) => handleOptionChange(idx, 'recommendText', e.target.value)}
                                                 placeholder="학생 추천 공간 안내문 및 설명 팁"
-                                                className="w-full px-2.5 py-1.5 h-11 bg-white border border-gray-200 rounded-lg text-[10px] leading-normal font-semibold outline-none focus:border-blue-500 resize-none"
+                                                className="w-full px-2.5 py-1.5 h-14 bg-white border border-gray-200 rounded-lg text-[10px] leading-normal font-semibold outline-none focus:border-blue-500 resize-none"
                                                 required
                                             />
                                         </div>
