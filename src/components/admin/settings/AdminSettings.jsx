@@ -13,6 +13,7 @@ import LayoutDesigner from './components/LayoutDesigner';
 import DutyChecklistSettings from './components/DutyChecklistSettings';
 import OperatingHoursSettings from './components/OperatingHoursSettings';
 import StaffPresenceSettings from './components/StaffPresenceSettings';
+import CheckinSurveySettings from './components/CheckinSurveySettings';
 import AdminPageHeader from '../common/AdminPageHeader';
 
 const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, fetchData, users, allLogs, responses = [], schoolLogs = [] }) => {
@@ -54,7 +55,8 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
         operatingHours, hoursLoading,
         handleUpdateOperatingHours, handleSaveOperatingHours,
         isBadgeSystemEnabled, setIsBadgeSystemEnabled,
-        selectedStaffConfig, staffSaving, handleSaveStaffPresenceConfig
+        selectedStaffConfig, staffSaving, handleSaveStaffPresenceConfig,
+        checkinSurveyConfig, surveySaving, handleSaveCheckinSurveyConfig
     } = useAdminSettings({
         currentAdmin, locations, locationGroups, fetchData, users, allLogs, responses, schoolLogs, notices
     });
@@ -117,6 +119,11 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                         selectedStaffConfig={selectedStaffConfig}
                         onSave={handleSaveStaffPresenceConfig}
                         isSaving={staffSaving}
+                        />
+                        <CheckinSurveySettings
+                        checkinSurveyConfig={checkinSurveyConfig}
+                        onSave={handleSaveCheckinSurveyConfig}
+                        isSaving={surveySaving}
                         />
                         <DutyChecklistSettings isMaster={isMaster} />
                         <IntegrationConfig

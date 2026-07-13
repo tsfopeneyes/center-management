@@ -88,6 +88,21 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
     const [selectedStaffConfig, setSelectedStaffConfig] = useState({ "하이픈": [], "이높플레이스": [] });
     const [staffSaving, setStaffSaving] = useState(false);
 
+    // 7. Checkin Survey Config State
+    const defaultSurveyConfig = {
+        question: '오늘 하이픈에서 무엇을 하고 싶나요?',
+        options: [
+            { id: '1', emoji: '🍽️', label: '밥 먹고 쉬고 싶어요.', recommendTitle: '식사 & 휴게 공간', recommendText: '푸드존에서 맛있는 간식이나 컵라면을 끓여먹고 빈백 코너에서 쉴 수 있습니다!' },
+            { id: '2', emoji: '🎲', label: '친구들과 놀고 싶어요.', recommendTitle: '보드게임 & 멀티미디어존', recommendText: '인포데스크에서 루미큐브, 다빈치코드 등 보드게임을 대여해 친구들과 즐겨보세요!' },
+            { id: '3', emoji: '☕', label: '누군가와 이야기하고 싶어요.', recommendTitle: '상담 & 멘토링 서비스', recommendText: '인포데스크 또는 선생님을 찾아 1:1 따뜻한 대화를 나누어보세요!' },
+            { id: '4', emoji: '🙏', label: '기도하거나 예배하고 싶어요.', recommendTitle: '기도실 & 예배 안내', recommendText: '채플실에서 조용히 개인 기도 시간을 갖거나 스쿨처치 모임에 동참할 수 있습니다.' },
+            { id: '5', emoji: '📚', label: '조용히 있고 싶어요.', recommendTitle: '스터디 및 도서 공간', recommendText: '북카페나 조용한 좌석에서 독서 또는 학습에 집중할 수 있습니다.' },
+            { id: '6', emoji: '🤷', label: '아직 잘 모르겠어요.', recommendTitle: '센터 둘러보기', recommendText: '자유롭게 센터의 아늑한 시설들을 둘러보거나 오늘 공지사항을 확인해 보세요!' }
+        ]
+    };
+    const [checkinSurveyConfig, setCheckinSurveyConfig] = useState(defaultSurveyConfig);
+    const [surveySaving, setSurveySaving] = useState(false);
+
 
     // --- EFFECT: Load Layout Configurations ---
     useEffect(() => {
@@ -218,6 +233,22 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                 try {
                     const parsed = JSON.parse(badgeData.content);
                     setIsBadgeSystemEnabled(parsed.enabled !== false);
+                } catch (e) { console.error(e); }
+            }
+
+            const { data: surveyData } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'CHECKIN_SURVEY_CONFIG')
+                .maybeSingle();
+
+            if (surveyData?.content) {
+                try {
+                    const parsed = JSON.parse(surveyData.content);
+                    if (parsed && parsed.question && Array.isArray(parsed.options)) {
+                        setCheckinSurveyConfig(parsed);
+                    }
                 } catch (e) { console.error(e); }
             }
 
@@ -695,6 +726,41 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         }
     };
 
+    const handleSaveCheckinSurveyConfig = async (newConfig) => {
+        setSurveySaving(true);
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', CATEGORIES.SYSTEM)
+                .eq('title', 'CHECKIN_SURVEY_CONFIG')
+                .maybeSingle();
+
+            const payload = {
+                title: 'CHECKIN_SURVEY_CONFIG',
+                content: JSON.stringify(newConfig),
+                category: CATEGORIES.SYSTEM,
+                is_sticky: false,
+                is_recruiting: false
+            };
+
+            if (existing) {
+                const { error: updateError } = await supabase.from('notices').update(payload).eq('id', existing.id);
+                if (updateError) throw updateError;
+            } else {
+                const { error: insertError } = await supabase.from('notices').insert([payload]);
+                if (insertError) throw insertError;
+            }
+            setCheckinSurveyConfig(newConfig);
+            alert('체크인 설문 설정이 저장되었습니다.');
+        } catch (err) {
+            console.error(err);
+            alert('체크인 설문 설정 저장 실패: ' + err.message);
+        } finally {
+            setSurveySaving(false);
+        }
+    };
+
     return {
         profileImage, setProfileImage,
         profilePreview, setProfilePreview,
@@ -737,7 +803,9 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         isBadgeSystemEnabled, setIsBadgeSystemEnabled,
 
         selectedStaffConfig, staffSaving,
-        handleSaveStaffPresenceConfig
+        handleSaveStaffPresenceConfig,
+        checkinSurveyConfig, surveySaving,
+        handleSaveCheckinSurveyConfig
     };
 };
 

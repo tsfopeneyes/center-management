@@ -26,6 +26,11 @@ export const useKioskManager = (navigate) => {
     const [checkoutVisitDate, setCheckoutVisitDate] = useState('');
     const [checkoutHyphenMsg, setCheckoutHyphenMsg] = useState('');
 
+    // Checkin Survey States
+    const [pendingCheckinFeedback, setPendingCheckinFeedback] = useState(null);
+    const [surveySelections, setSurveySelections] = useState([]);
+    const [checkinSurveyConfig, setCheckinSurveyConfig] = useState(null);
+
     // Scanner Settings
     const [facingMode, setFacingMode] = useState('environment'); // 'environment' (back) or 'user' (front)
     const [lastScan, setLastScan] = useState({ code: '', time: 0 });
@@ -68,6 +73,22 @@ export const useKioskManager = (navigate) => {
 
             const { data } = await supabase.from('challenges').select('*');
             if (data) setChallenges(data);
+
+            const { data: surveyData } = await supabase
+                .from('notices')
+                .select('content')
+                .eq('category', 'SYSTEM')
+                .eq('title', 'CHECKIN_SURVEY_CONFIG')
+                .maybeSingle();
+            
+            if (surveyData?.content) {
+                try {
+                    const parsed = JSON.parse(surveyData.content);
+                    setCheckinSurveyConfig(parsed);
+                } catch (e) {
+                    console.error("Failed to load CHECKIN_SURVEY_CONFIG", e);
+                }
+            }
         };
         fetchChallenges();
 
@@ -403,27 +424,32 @@ export const useKioskManager = (navigate) => {
                 if (earnedCheckinMsg) {
                     sub += earnedCheckinMsg;
                 }
+
+                // Intercept CHECKIN to ask survey
+                setPendingKioskUser(user);
+                setPendingCheckinFeedback({
+                    msg, sub, color, streakCount, activeBadge, isFirstEver, activeProgram
+                });
+                setStatus('SHOW_SURVEY');
+                setPincode('');
+                setMatchingUsers([]);
+                return;
             }
 
             setResult({
                 type: 'SUCCESS',
-                message: activeBadge ? `축하해요! [${activeBadge.name}] 획득!` : msg,
-                subMessage: activeBadge ? '새로운 뱃지를 획득하셨습니다✨' : sub,
-                color: activeBadge ? 'bg-yellow-500' : color,
-                streak: streakCount > 1 ? streakCount : null,
-                isFirst: isFirstEver,
-                program: activeProgram,
-                badge: activeBadge
+                message: msg,
+                subMessage: sub,
+                color: color
             });
 
             setStatus('IDLE');
             setPincode('');
             setMatchingUsers([]);
 
-            const delay = (isFirstToday || activeProgram || streakCount > 1 || activeBadge) ? 3000 : 800;
             setTimeout(() => {
                 setResult(null);
-            }, delay);
+            }, 800);
 
         } catch (err) {
             console.error('Kiosk Action Error:', err);
@@ -523,12 +549,62 @@ export const useKioskManager = (navigate) => {
                 subMessage: '퇴실 처리에 오류가 발생했습니다. (내용: ' + (err.message || 'Unknown') + ')',
                 color: 'bg-red-500'
             });
-            // We still reset on error to allow the next person to use it, 
-            // but we show the error long enough to be seen.
             setTimeout(() => {
                 setResult(null);
                 setStatus('IDLE');
             }, 3000);
+        }
+    };
+
+    const handleSurveySubmit = async (selections) => {
+        if (!pendingKioskUser || !selectedLocation) {
+            console.error('Missing data for checkin survey submit:', { pendingKioskUser, selectedLocation });
+            resetState();
+            return;
+        }
+
+        try {
+            setStatus('LOADING');
+
+            // Save survey selections to checkin_surveys table
+            if (selections && selections.length > 0) {
+                const { error } = await supabase.from('checkin_surveys').insert([{
+                    user_id: pendingKioskUser.id,
+                    location_id: selectedLocation.id,
+                    selections: selections
+                }]);
+                if (error) throw error;
+            }
+
+            // Load feedback result calculated during processKioskAction
+            const { msg, sub, color, streakCount, activeBadge, isFirstEver, activeProgram } = pendingCheckinFeedback || {};
+
+            setResult({
+                type: 'SUCCESS',
+                message: activeBadge ? `축하해요! [${activeBadge.name}] 획득!` : msg,
+                subMessage: activeBadge ? '새로운 뱃지를 획득하셨습니다✨' : sub,
+                color: activeBadge ? 'bg-yellow-500' : color,
+                streak: streakCount > 1 ? streakCount : null,
+                isFirst: isFirstEver,
+                program: activeProgram,
+                badge: activeBadge
+            });
+
+            setSurveySelections(selections);
+            setStatus('SHOW_RECOMMENDATIONS');
+            setPincode('');
+            setMatchingUsers([]);
+
+        } catch (err) {
+            console.error('Survey submit error:', err);
+            setResult({
+                type: 'ERROR',
+                message: '저장 실패',
+                subMessage: err.message || '설문 저장 중 오류가 발생했습니다.',
+                color: 'bg-red-500'
+            });
+            setStatus('IDLE');
+            setTimeout(() => resetState(), 2000);
         }
     };
 
@@ -671,7 +747,9 @@ export const useKioskManager = (navigate) => {
         // Handlers
         handleSetLocation, resetLocation, handleMasterPinSubmit, handleResetLocation,
         processKioskAction, handleVerifyNumeric, handleNumberClick, handleQrScan, handleIdentifyUser, resetState,
-        handleKioskTermsAgree, handleCheckoutPurpose,
+        handleKioskTermsAgree, handleCheckoutPurpose, handleSurveySubmit,
+        // Checkin Survey States
+        checkinSurveyConfig, surveySelections, pendingCheckinFeedback,
         // Missing states for checkout purpose
         pendingCheckoutUser, checkoutVisitDate
     };

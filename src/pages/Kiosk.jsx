@@ -21,7 +21,8 @@ const Kiosk = () => {
         setShowMasterPin, setShowOptionsMenu, setMasterPinInput, setShowSignupForm, setShowGuestForm, setFacingMode, setAfterPinAction,
         handleSetLocation, resetLocation, handleMasterPinSubmit, handleResetLocation,
         processKioskAction, handleIdentifyUser, handleVerifyNumeric, handleNumberClick, handleQrScan, resetState,
-        handleKioskTermsAgree, handleCheckoutPurpose
+        handleKioskTermsAgree, handleCheckoutPurpose, handleSurveySubmit,
+        checkinSurveyConfig, surveySelections
     } = useKioskManager(navigate);
 
     if (!selectedLocation) {
@@ -114,6 +115,9 @@ const Kiosk = () => {
                 pendingCheckoutUser={pendingCheckoutUser}
                 handleCheckoutPurpose={handleCheckoutPurpose}
                 resetState={resetState}
+                checkinSurveyConfig={checkinSurveyConfig}
+                surveySelections={surveySelections}
+                handleSurveySubmit={handleSurveySubmit}
             />
 
             <style>{`

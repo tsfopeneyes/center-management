@@ -5,6 +5,7 @@ import SignUpForm from '../../components/auth/SignUpForm';
 import GuestEntryForm from '../../components/kiosk/GuestEntryForm';
 import TermsConsentModal from '../../components/auth/TermsConsentModal';
 import PurposeSelectionModal from './PurposeSelectionModal';
+import CheckinSurveyModal from './CheckinSurveyModal';
 
 const KioskModals = ({
     showMasterPin,
@@ -25,7 +26,11 @@ const KioskModals = ({
     handleKioskTermsAgree,
     pendingCheckoutUser,
     handleCheckoutPurpose,
-    resetState
+    resetState,
+    checkinSurveyConfig,
+    surveySelections,
+    handleSurveySubmit,
+    pendingKioskUser
 }) => {
     return (
         <>
@@ -181,6 +186,16 @@ const KioskModals = ({
                 isOpen={status === 'REQUIRE_PURPOSE'}
                 user={pendingCheckoutUser}
                 onComplete={handleCheckoutPurpose}
+            />
+
+            <CheckinSurveyModal
+                isOpen={status === 'SHOW_SURVEY' || status === 'SHOW_RECOMMENDATIONS'}
+                status={status}
+                surveyConfig={checkinSurveyConfig}
+                selections={surveySelections}
+                onComplete={handleSurveySubmit}
+                onClose={resetState}
+                user={pendingKioskUser}
             />
         </>
     );
