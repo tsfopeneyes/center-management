@@ -86,68 +86,73 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
                         {options.map((option, idx) => (
-                            <div key={option.id} className="p-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] relative group flex flex-col gap-3">
+                            <div key={option.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl relative flex flex-col gap-3">
                                 <button
                                     type="button"
                                     onClick={() => handleDeleteOption(idx)}
-                                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-xl transition duration-150 shadow-sm"
+                                    className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition duration-150 shadow-sm z-10"
                                     title="선택지 삭제"
                                 >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={12} />
                                 </button>
 
-                                <div className="flex gap-2.5">
-                                    <div className="w-12">
-                                        <label className="block text-[9px] font-bold text-gray-400 mb-1 ml-0.5">이모지</label>
-                                        <input
-                                            type="text"
-                                            value={option.emoji}
-                                            onChange={(e) => handleOptionChange(idx, 'emoji', e.target.value)}
-                                            className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-center font-bold text-sm outline-none focus:border-blue-500"
-                                            maxLength={2}
-                                        />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-6">
+                                    {/* Left: Button Config */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest ml-0.5">
+                                            <Smile size={11} />
+                                            <span>선택 버튼 설정</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="w-12 shrink-0">
+                                                <input
+                                                    type="text"
+                                                    value={option.emoji}
+                                                    onChange={(e) => handleOptionChange(idx, 'emoji', e.target.value)}
+                                                    className="w-full p-2 bg-white border border-gray-200 rounded-xl text-center font-bold text-sm outline-none focus:border-blue-500"
+                                                    maxLength={2}
+                                                    placeholder="😊"
+                                                    title="이모지"
+                                                />
+                                            </div>
+                                            <div className="flex-1">
+                                                <input
+                                                    type="text"
+                                                    value={option.label}
+                                                    onChange={(e) => handleOptionChange(idx, 'label', e.target.value)}
+                                                    placeholder="버튼 라벨 (예: 밥 먹고 쉬고 싶어요)"
+                                                    className="w-full p-2 bg-white border border-gray-200 rounded-xl font-bold text-xs outline-none focus:border-blue-500"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex-1">
-                                        <label className="block text-[9px] font-bold text-gray-400 mb-1 ml-0.5">버튼 라벨</label>
-                                        <input
-                                            type="text"
-                                            value={option.label}
-                                            onChange={(e) => handleOptionChange(idx, 'label', e.target.value)}
-                                            placeholder="예: 밥 먹고 쉬고 싶어요"
-                                            className="w-full p-2.5 bg-white border border-gray-200 rounded-xl font-bold text-xs outline-none focus:border-blue-500"
-                                            required
-                                        />
-                                    </div>
-                                </div>
 
-                                <div className="border-t border-slate-200/50 my-1"></div>
-
-                                <div className="space-y-2 bg-white/70 p-3 rounded-xl border border-slate-200/30">
-                                    <div className="flex items-center gap-1.5 text-[9px] font-black text-blue-500 tracking-wider">
-                                        <Sparkles size={10} />
-                                        <span>추천 매칭 콘텐츠</span>
-                                    </div>
-                                    
-                                    <div>
-                                        <input
-                                            type="text"
-                                            value={option.recommendTitle}
-                                            onChange={(e) => handleOptionChange(idx, 'recommendTitle', e.target.value)}
-                                            placeholder="추천 콘텐츠 타이틀 (예: 🍽️ 스낵존 안내)"
-                                            className="w-full p-2 bg-white border border-gray-200 rounded-lg font-bold text-[11px] outline-none focus:border-blue-500"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <textarea
-                                            value={option.recommendText}
-                                            onChange={(e) => handleOptionChange(idx, 'recommendText', e.target.value)}
-                                            placeholder="학생들에게 보여줄 추천 공간 이용 안내 팁이나 안내문구 설명"
-                                            className="w-full p-2 h-14 bg-white border border-gray-200 rounded-lg text-[10px] leading-relaxed font-bold outline-none focus:border-blue-500 resize-none"
-                                            required
-                                        />
+                                    {/* Right: Recommendation Config */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-500 uppercase tracking-widest ml-0.5">
+                                            <Sparkles size={11} />
+                                            <span>추천 콘텐츠 매칭</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <input
+                                                type="text"
+                                                value={option.recommendTitle}
+                                                onChange={(e) => handleOptionChange(idx, 'recommendTitle', e.target.value)}
+                                                placeholder="추천 제목 (예: 🍽️ 스낵존 안내)"
+                                                className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg font-bold text-[11px] outline-none focus:border-blue-500"
+                                                required
+                                            />
+                                            <textarea
+                                                value={option.recommendText}
+                                                onChange={(e) => handleOptionChange(idx, 'recommendText', e.target.value)}
+                                                placeholder="학생 추천 공간 안내문 및 설명 팁"
+                                                className="w-full px-2.5 py-1.5 h-11 bg-white border border-gray-200 rounded-lg text-[10px] leading-normal font-semibold outline-none focus:border-blue-500 resize-none"
+                                                required
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
