@@ -87,6 +87,7 @@ const Kiosk = () => {
                     <KioskWelcomeSection
                         setShowSignupForm={setShowSignupForm}
                         setShowGuestForm={setShowGuestForm}
+                        selectedLocation={selectedLocation}
                     />
                 </div>
 
