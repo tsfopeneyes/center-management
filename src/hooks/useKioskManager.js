@@ -547,8 +547,8 @@ export const useKioskManager = (navigate) => {
 
             setResult({
                 type: 'SUCCESS',
-                message: checkoutHyphenMsg ? '오늘도 즐거웠어요✨ +1H' : '오늘도 즐거웠어요✨',
-                subMessage: checkoutHyphenMsg ? `퇴실 완료 | 방문 목적 저장됨\n${checkoutHyphenMsg}` : '퇴실 완료 | 방문 목적이 저장되었습니다.',
+                message: checkoutHyphenMsg ? '다음에 또 만나요! +1H' : '다음에 또 만나요!',
+                subMessage: checkoutHyphenMsg ? `${pendingCheckoutUser.name}님 체크아웃 완료\n${checkoutHyphenMsg}` : `${pendingCheckoutUser.name}님 체크아웃 완료`,
                 color: checkoutHyphenMsg ? 'bg-blue-500' : 'bg-orange-500'
             });
 
