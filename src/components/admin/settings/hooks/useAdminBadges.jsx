@@ -190,26 +190,27 @@ export const useAdminBadges = () => {
             const contentJson = JSON.stringify({ enabled });
             
             if (existing?.id) {
-                await supabase
+                const { error: updateError } = await supabase
                     .from('notices')
                     .update({ content: contentJson })
                     .eq('id', existing.id);
+                if (updateError) throw updateError;
             } else {
-                await supabase
+                const { error: insertError } = await supabase
                     .from('notices')
                     .insert([{
                         title: 'BADGE_SYSTEM_CONFIG',
                         content: contentJson,
                         category: 'SYSTEM',
                         is_recruiting: false,
-                        is_sticky: false,
-                        send_push: false
+                        is_sticky: false
                     }]);
+                if (insertError) throw insertError;
             }
             setIsBadgeSystemEnabled(enabled);
         } catch (error) {
             console.error('Error toggling badge system:', error);
-            alert('설정 변경에 실패했습니다.');
+            alert('설정 변경에 실패했습니다: ' + error.message);
         }
     };
 
