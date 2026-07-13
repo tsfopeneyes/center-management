@@ -30,7 +30,8 @@ const KioskModals = ({
     checkinSurveyConfig,
     surveySelections,
     handleSurveySubmit,
-    pendingKioskUser
+    pendingKioskUser,
+    setStatus
 }) => {
     return (
         <>
@@ -195,6 +196,7 @@ const KioskModals = ({
                 selections={surveySelections}
                 onComplete={handleSurveySubmit}
                 onClose={resetState}
+                onBack={() => setStatus('SHOW_SURVEY')}
                 user={pendingKioskUser}
             />
         </>

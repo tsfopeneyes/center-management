@@ -566,14 +566,20 @@ export const useKioskManager = (navigate) => {
         try {
             setStatus('LOADING');
 
-            // Save survey selections to checkin_surveys table
+            // Save survey selections to checkin_surveys table (gracefully handle missing table/network errors)
             if (selections && selections.length > 0) {
-                const { error } = await supabase.from('checkin_surveys').insert([{
-                    user_id: pendingKioskUser.id,
-                    location_id: selectedLocation.id,
-                    selections: selections
-                }]);
-                if (error) throw error;
+                try {
+                    const { error } = await supabase.from('checkin_surveys').insert([{
+                        user_id: pendingKioskUser.id,
+                        location_id: selectedLocation.id,
+                        selections: selections
+                    }]);
+                    if (error) {
+                        console.error('Database checkin_surveys insert warning:', error.message);
+                    }
+                } catch (dbErr) {
+                    console.error('Failed to log checkin survey to database:', dbErr);
+                }
             }
 
             // Load feedback result calculated during processKioskAction

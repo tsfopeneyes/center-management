@@ -118,6 +118,7 @@ const Kiosk = () => {
                 checkinSurveyConfig={checkinSurveyConfig}
                 surveySelections={surveySelections}
                 handleSurveySubmit={handleSurveySubmit}
+                setStatus={setStatus}
             />
 
             <style>{`

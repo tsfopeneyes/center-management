@@ -9,6 +9,7 @@ const CheckinSurveyModal = ({
     selections,
     onComplete,
     onClose,
+    onBack,
     user
 }) => {
     const [selectedIds, setSelectedIds] = useState([]);
@@ -21,7 +22,8 @@ const CheckinSurveyModal = ({
         }
     }, [isOpen, status]);
 
-    // Handle 10-second countdown in recommendation view
+    // Handle 10-second countdown in recommendation view (Temporarily commented out for checking layout)
+    /*
     useEffect(() => {
         let timer;
         if (isOpen && status === 'SHOW_RECOMMENDATIONS') {
@@ -39,6 +41,7 @@ const CheckinSurveyModal = ({
         }
         return () => clearInterval(timer);
     }, [isOpen, status, onClose]);
+    */
 
     if (!isOpen) return null;
 
@@ -94,7 +97,7 @@ const CheckinSurveyModal = ({
                                     >
                                         <span className="text-3xl shrink-0">{opt.emoji}</span>
                                         <div className="flex-1 min-w-0">
-                                            <p className={`font-black text-sm sm:text-base truncate ${isSelected ? 'text-blue-600' : 'text-slate-700'}`}>
+                                            <p className={`font-black text-sm sm:text-base whitespace-normal break-keep ${isSelected ? 'text-blue-600' : 'text-slate-700'}`}>
                                                 {opt.label}
                                             </p>
                                         </div>
@@ -137,8 +140,8 @@ const CheckinSurveyModal = ({
                                 <span className="text-xs font-black uppercase tracking-wider">입실 등록 성공</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold bg-slate-800/50 px-3 py-1.5 rounded-full">
-                                <Clock size={12} className="animate-spin" />
-                                <span>{countdown}초 후 자동 닫힘</span>
+                                <Clock size={12} />
+                                <span>자동 닫힘 비활성화됨</span>
                             </div>
                         </div>
 
@@ -173,11 +176,18 @@ const CheckinSurveyModal = ({
                             )}
                         </div>
 
-                        <div className="border-t border-slate-800 pt-6 shrink-0">
+                        <div className="border-t border-slate-800 pt-6 shrink-0 flex gap-4">
+                            <button
+                                type="button"
+                                onClick={onBack}
+                                className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black transition-all active:scale-95 text-center text-sm"
+                            >
+                                뒤로가기
+                            </button>
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all active:scale-95 text-center text-sm"
+                                className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black transition-all active:scale-95 text-center text-sm shadow-lg shadow-blue-900/20"
                             >
                                 닫기
                             </button>
