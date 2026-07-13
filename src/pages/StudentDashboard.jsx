@@ -249,6 +249,10 @@ const StudentDashboard = () => {
         );
     }
 
+    const effectiveRegion = user?.role === 'admin'
+        ? (hookData.selectedRegion === 'GANGDONG' ? '강동' : hookData.selectedRegion === 'GANGSEO' ? '강서' : null)
+        : studentRegion;
+
     return (
         <div 
             className="w-full md:max-w-lg mx-auto min-h-screen bg-tossGrey50 pb-20 font-sans transition-all duration-300 pt-[max(env(safe-area-inset-top),0px)]"
@@ -573,7 +577,7 @@ const StudentDashboard = () => {
                     activeUserCountByGroup={activeUserCountByGroup}
                     dynamicChallenges={dynamicChallenges}
                     specialStats={specialStats}
-                    studentRegion={studentRegion}
+                    studentRegion={effectiveRegion}
                     selectedRegion={hookData.selectedRegion}
                     setSelectedRegion={hookData.setSelectedRegion}
                 />
@@ -601,7 +605,7 @@ const StudentDashboard = () => {
                     refreshTrigger={refreshTrigger}
                     setRefreshTrigger={setRefreshTrigger}
                     selectedRegion={hookData.selectedRegion}
-                    studentRegion={studentRegion}
+                    studentRegion={effectiveRegion}
                 />
             )}
 
@@ -630,7 +634,7 @@ const StudentDashboard = () => {
                     notices={filteredPrograms}
                     calendarCategories={calendarCategories}
                     openNoticeDetail={openNoticeDetail}
-                    studentRegion={studentRegion}
+                    studentRegion={effectiveRegion}
                 />
             )}
 

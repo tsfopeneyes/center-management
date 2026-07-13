@@ -348,7 +348,19 @@ const EventEditModal = ({
                                     ))}
                                 </div>
                             )}
-                            <input type="text" placeholder="일정 제목을 입력하세요" value={formData.title} onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 font-bold transition shadow-inner text-sm" required />
+                            {(() => {
+                                const isClosedDay = dynamicCategories?.find(c => c.id === formData.category_id)?.name === '휴관';
+                                return (
+                                    <input 
+                                        type="text" 
+                                        placeholder={isClosedDay ? "일정 제목 (선택사항 - 기본값: '휴관')" : "일정 제목을 입력하세요"} 
+                                        value={formData.title} 
+                                        onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))} 
+                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:bg-white focus:border-blue-500 font-bold transition shadow-inner text-sm" 
+                                        required={!isClosedDay} 
+                                    />
+                                );
+                            })()}
                             
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">

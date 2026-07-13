@@ -9,6 +9,7 @@ import { startOfDay } from 'date-fns';
 import { TAB_NAMES, CATEGORIES } from '../../constants/appConstants';
 import { stripHtml } from '../../utils/textUtils';
 import TodayOperatingWidget from './components/TodayOperatingWidget';
+import WeeklyOperatingWidget from './components/WeeklyOperatingWidget';
 
 const StudentHomeTab = ({
     user,
@@ -200,6 +201,13 @@ const StudentHomeTab = ({
 
                 {/* 1. Today Operating Widget */}
                 <TodayOperatingWidget studentRegion={studentRegion} />
+
+                {/* 1-2. Weekly Operating Widget */}
+                <WeeklyOperatingWidget 
+                    studentRegion={studentRegion} 
+                    adminSchedules={adminSchedules} 
+                    calendarCategories={calendarCategories} 
+                />
 
                 {/* 2. Notices (공지사항) */}
                 {(() => {

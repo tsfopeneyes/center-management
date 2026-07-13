@@ -4,6 +4,7 @@ import { Info, Clock, ChevronRight, MapPin } from 'lucide-react';
 import { startOfDay, isSameDay } from 'date-fns';
 import { CATEGORIES } from '../../constants/appConstants';
 import TodayOperatingWidget from './components/TodayOperatingWidget';
+import WeeklyOperatingWidget from './components/WeeklyOperatingWidget';
 import { formatKoreanTimeRange } from '../../utils/dateUtils';
 
 const StudentCalendarTab = ({
@@ -25,8 +26,13 @@ const StudentCalendarTab = ({
             </div>
 
             <div className="px-5">
-                <div className="mb-4">
+                <div className="mb-4 space-y-4">
                     <TodayOperatingWidget studentRegion={studentRegion} />
+                    <WeeklyOperatingWidget 
+                        studentRegion={studentRegion} 
+                        adminSchedules={adminSchedules} 
+                        calendarCategories={calendarCategories} 
+                    />
                 </div>
 
             <div className="space-y-2.5">
@@ -74,8 +80,14 @@ const StudentCalendarTab = ({
                                 try {
                                     const parsed = JSON.parse(e.content);
                                     if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
-                                        const spaces = parsed.closed_spaces.map(s => s === 'HYPHEN' ? '하이픈' : '이높').join(', ');
-                                        if (spaces) baseTitle = `[${spaces}] ${e.title}`;
+                                        if (studentRegion === '강동') {
+                                            baseTitle = '하이픈 휴무';
+                                        } else if (studentRegion === '강서') {
+                                            baseTitle = '이높플레이스 휴무';
+                                        } else {
+                                            const spaces = parsed.closed_spaces.map(s => s === 'HYPHEN' ? '하이픈' : '이높플레이스').join(', ');
+                                            baseTitle = spaces ? `${spaces} 휴무` : '센터 휴무';
+                                        }
                                     }
                                 } catch (err) { }
                             }
@@ -111,6 +123,23 @@ const StudentCalendarTab = ({
                             // Filter rental bookings: only show if they match current student's region
                             if (e.category_id === 'RENTAL' && e.region && studentRegion) {
                                 return e.region === studentRegion;
+                            }
+                            return true;
+                        })
+                        .filter(e => {
+                            // Only show closure events if they apply to the student's region
+                            if (e.catName === '휴관') {
+                                try {
+                                    const parsed = JSON.parse(e.content);
+                                    if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                                        const closedSpaces = parsed.closed_spaces;
+                                        if (studentRegion === '강동') {
+                                            return closedSpaces.includes('HYPHEN');
+                                        } else if (studentRegion === '강서') {
+                                            return closedSpaces.includes('INOP') || closedSpaces.includes('ENOF');
+                                        }
+                                    }
+                                } catch (err) { }
                             }
                             return true;
                         })
@@ -156,35 +185,40 @@ const StudentCalendarTab = ({
                                         </div>
                                     </div>
 
-                                    {/* Right: Muted Typography & Flat Info Info */}
+                                    {/* Right: Clean stacked typography with icons */}
                                     <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-[#3182f6] text-[15.5px] tracking-tight mb-1 truncate">
+                                        <h4 className="font-bold text-[#191f28] text-[16px] tracking-tight mb-1.5 truncate group-hover:text-[#3182f6] transition-colors">
                                             {event.category_id === 'RENTAL' ? event.meetingName : event.title}
                                         </h4>
                                         
-                                        <div className="flex items-center gap-2 text-[13px] font-semibold text-[#8b95a1]">
-                                            <span>
-                                                {event.type === 'PROGRAM' ? (
-                                                    formatKoreanTimeRange(event.program_date || event.program_start_date || event.start, event.program_duration)
-                                                ) : event.category_id === 'RENTAL' ? (
-                                                    `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-                                                ) : (
-                                                    new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
-                                                )}
-                                            </span>
+                                        <div className="flex flex-col gap-1 text-[13px] text-[#8b95a1] font-semibold">
+                                            {event.catName !== '휴관' && (
+                                                <div className="flex items-center gap-1">
+                                                    <Clock size={13} className="shrink-0 text-[#8b95a1]" />
+                                                    <span>
+                                                        {event.type === 'PROGRAM' ? (
+                                                            formatKoreanTimeRange(event.program_date || event.program_start_date || event.start, event.program_duration)
+                                                        ) : event.category_id === 'RENTAL' ? (
+                                                            `${event.start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${event.end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                                                        ) : (
+                                                            new Date(event.start).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            )}
                                             
                                             {(event.program_location || event.spaceName) && (
-                                                <>
-                                                    <span className="text-[#d1d6db] font-normal">|</span>
-                                                    <span className="text-[#4e5968] font-bold truncate max-w-[150px]">
+                                                <div className="flex items-center gap-1 text-[#4e5968] font-bold truncate mt-0.5">
+                                                    <MapPin size={13} className="shrink-0 text-[#8b95a1]" />
+                                                    <span className="truncate">
                                                         {event.category_id === 'RENTAL' ? event.spaceName : event.program_location}
                                                     </span>
-                                                </>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
 
-                                    <ChevronRight size={16} className="text-[#ccc] group-hover:text-[#3182f6] transition-colors shrink-0" />
+                                    <ChevronRight size={18} className="text-[#ccc] group-hover:text-[#3182f6] group-hover:translate-x-0.5 transition-all shrink-0" />
                                 </motion.div>
                             ))}
                         </div>

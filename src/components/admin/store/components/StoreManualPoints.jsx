@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../supabaseClient';
-import { Search, UserPlus, History, Award, CheckCircle2, X } from 'lucide-react';
+import { Search, UserPlus, History, Award, CheckCircle2, X, Trash2 } from 'lucide-react';
 
 const AMOUNTS = [1, 3, 5, 10, 15, 20, 30];
 
@@ -42,6 +42,7 @@ const StoreManualPoints = ({ users: propUsers }) => {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(false);
     const [submitLoading, setSubmitLoading] = useState(false);
+    const [filterType, setFilterType] = useState('ALL'); // ALL, MANUAL, EARN, SPEND
 
     const fetchData = async () => {
         setLoading(true);
@@ -55,13 +56,12 @@ const StoreManualPoints = ({ users: propUsers }) => {
                 .order('name');
             setUsers(userData || []);
 
-            // Fetch recent manual transactions
+            // Fetch recent transactions (manual & automatic)
             const { data: historyData } = await supabase
                 .from('hyphen_transactions')
                 .select('*, users(name, school)')
-                .eq('transaction_type', 'MANUAL')
                 .order('created_at', { ascending: false })
-                .limit(10);
+                .limit(50);
             setHistory(historyData || []);
         } catch (err) {
             console.error(err);
@@ -86,9 +86,8 @@ const StoreManualPoints = ({ users: propUsers }) => {
                     const { data: historyData } = await supabase
                         .from('hyphen_transactions')
                         .select('*, users(name, school)')
-                        .eq('transaction_type', 'MANUAL')
                         .order('created_at', { ascending: false })
-                        .limit(10);
+                        .limit(50);
                     setHistory(historyData || []);
                 } catch (err) {
                     console.error(err);
@@ -100,12 +99,52 @@ const StoreManualPoints = ({ users: propUsers }) => {
         }
     }, [propUsers]);
 
+    const handleDeleteTransaction = async (id, userName, amountVal) => {
+        const actionType = amountVal > 0 ? '회수' : '원복';
+        const confirmMsg = `${userName} 학생의 ${amountVal > 0 ? '+' : ''}${amountVal}H 내역을 삭제하시겠습니까?\n삭제 시 사용자의 잔액에서 자동으로 ${actionType} 처리가 진행됩니다.`;
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            const { error } = await supabase
+                .from('hyphen_transactions')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            alert('내역이 성공적으로 삭제 및 반영되었습니다.');
+            
+            // Refresh history/users
+            if (propUsers && propUsers.length > 0) {
+                const { data: historyData } = await supabase
+                    .from('hyphen_transactions')
+                    .select('*, users(name, school)')
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+                setHistory(historyData || []);
+            } else {
+                fetchData();
+            }
+        } catch (error) {
+            console.error('내역 삭제 오류:', error);
+            alert('삭제에 실패했습니다: ' + error.message);
+        }
+    };
+
     const filteredUsers = users.filter(u => 
         (u.name?.includes(searchTerm) || 
         u.school?.includes(searchTerm) || 
         (u.phone_back4 && u.phone_back4.includes(searchTerm))) &&
         !selectedUsers.some(selected => selected.id === u.id)
     );
+
+    const filteredHistory = history.filter(item => {
+        if (filterType === 'ALL') return true;
+        if (filterType === 'MANUAL') return item.transaction_type === 'MANUAL';
+        if (filterType === 'EARN') return item.transaction_type === 'EARN';
+        if (filterType === 'SPEND') return item.transaction_type === 'SPEND' || item.transaction_type === 'RESET';
+        return true;
+    });
 
     const handleSelectUser = (user) => {
         if (!selectedUsers.some(u => u.id === user.id)) {
@@ -386,37 +425,82 @@ const StoreManualPoints = ({ users: propUsers }) => {
 
             {/* Right Column: History */}
             <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col h-[600px]">
-                <h3 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2 shrink-0">
-                    <History size={20} className="text-gray-400" />
-                    최근 수동 지급 내역
-                </h3>
+                <div className="flex flex-col gap-4 mb-6 shrink-0">
+                    <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
+                        <History size={20} className="text-gray-400" />
+                        하이픈 지급/소모 통합 내역
+                    </h3>
+                    {/* Filter Tabs */}
+                    <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+                        {[
+                            { id: 'ALL', label: '전체' },
+                            { id: 'MANUAL', label: '수동지급' },
+                            { id: 'EARN', label: '자동적립' },
+                            { id: 'SPEND', label: '소모' }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setFilterType(tab.id)}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                    filterType === tab.id
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-900'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 
                 <div className="flex-1 overflow-y-auto pr-2 space-y-3">
                     {loading ? (
                         <div className="text-center py-10 text-gray-400 font-bold">로딩 중...</div>
-                    ) : history.length > 0 ? (
-                        history.map(item => (
-                            <div key={item.id} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center justify-between hover:bg-gray-100 transition-colors">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-bold text-gray-900">{item.users?.name}</span>
+                    ) : filteredHistory.length > 0 ? (
+                        filteredHistory.map(item => (
+                            <div key={item.id} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center justify-between hover:bg-gray-100/70 transition-all">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-gray-900">{item.users?.name || '탈퇴한 회원'}</span>
                                         <span className="text-xs text-gray-500 font-medium">{item.users?.school}</span>
+                                        {/* Badge for type */}
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                                            item.transaction_type === 'MANUAL' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                                            item.transaction_type === 'EARN' ? 'bg-green-50 text-green-700 border border-green-100' :
+                                            item.transaction_type === 'SPEND' ? 'bg-red-50 text-red-700 border border-red-100' :
+                                            'bg-gray-100 text-gray-700'
+                                        }`}>
+                                            {item.transaction_type === 'MANUAL' ? '수동' :
+                                             item.transaction_type === 'EARN' ? '자동' :
+                                             item.transaction_type === 'SPEND' ? '소모' : '초기화'}
+                                        </span>
                                     </div>
                                     <p className="text-sm text-gray-600 font-bold flex items-center gap-1.5">
                                         <CheckCircle2 size={14} className="text-green-500" />
-                                        {item.source_description.replace('[관리자 지급] ', '')}
+                                        {item.source_description ? item.source_description.replace('[관리자 지급] ', '') : ''}
                                     </p>
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-lg font-black text-blue-600">+{item.amount}H</span>
-                                    <p className="text-[10px] text-gray-400 mt-1">{new Date(item.created_at).toLocaleDateString()}</p>
+                                <div className="flex items-center gap-3">
+                                    <div className="text-right">
+                                        <span className={`text-lg font-black ${item.amount > 0 ? 'text-blue-600' : 'text-red-500'}`}>
+                                            {item.amount > 0 ? `+${item.amount}` : item.amount}H
+                                        </span>
+                                        <p className="text-[10px] text-gray-400 mt-0.5">{new Date(item.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleDeleteTransaction(item.id, item.users?.name || '알 수 없음', item.amount)}
+                                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                        title="내역 삭제 및 회수/원복"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             </div>
                         ))
                     ) : (
                         <div className="text-center py-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-2xl">
                             <History size={32} className="text-gray-300 mb-3" />
-                            <p className="text-sm font-bold text-gray-400">아직 수동으로 지급한 내역이 없습니다.</p>
+                            <p className="text-sm font-bold text-gray-400">내역이 존재하지 않습니다.</p>
                         </div>
                     )}
                 </div>

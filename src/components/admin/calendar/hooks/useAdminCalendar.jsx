@@ -353,7 +353,7 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
             if (formData.type === 'SCHEDULE') {
                 const isClosedDay = dynamicCategories.find(c => c.id === formData.category_id)?.name === '휴관';
                 const basePayload = {
-                    title: formData.title,
+                    title: isClosedDay && !formData.title ? '휴관' : formData.title,
                     category_id: formData.category_id,
                     created_by: (JSON.parse(localStorage.getItem('admin_user')))?.id
                 };

@@ -45,7 +45,14 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
         let sessionHasCheckout = false;
 
         sortedLogs.forEach(log => {
-            if (log.type === 'CHECKIN' && sessionHasCheckout) {
+            const logDate = getKSTDateString(log.created_at);
+            const currentSessionDate = currentLogs.length > 0 ? getKSTDateString(currentLogs[0].created_at) : null;
+
+            if (currentSessionDate && logDate !== currentSessionDate) {
+                sessions.push(currentLogs);
+                currentLogs = [];
+                sessionHasCheckout = false;
+            } else if (log.type === 'CHECKIN' && sessionHasCheckout) {
                 sessions.push(currentLogs);
                 currentLogs = [];
                 sessionHasCheckout = false;
@@ -63,7 +70,24 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
             if (!isWithinRange(date)) return;
 
             const lastCheckOut = [...sessionLogs].reverse().find(l => l.type === 'CHECKOUT');
-            const endAt = lastCheckOut ? new Date(lastCheckOut.created_at) : new Date(sessionLogs[sessionLogs.length - 1].created_at);
+            let endAt;
+            let isAutoCheckOut = false;
+
+            if (lastCheckOut) {
+                endAt = new Date(lastCheckOut.created_at);
+            } else {
+                // If checkout is missing, default to 22:00 of the same day (KST)
+                const startLocal = new Date(startAt);
+                // Adjust hours in local timezone to 22:00
+                const fallbackEnd = new Date(startLocal.getFullYear(), startLocal.getMonth(), startLocal.getDate(), 22, 0, 0, 0);
+                
+                if (startAt >= fallbackEnd) {
+                    endAt = startAt;
+                } else {
+                    endAt = fallbackEnd;
+                    isAutoCheckOut = true;
+                }
+            }
 
             const durationMs = endAt - startAt;
             const durationMin = Math.max(0, Math.floor(durationMs / 60000));
@@ -98,7 +122,7 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
                 age: calculateAge(user.birth) || '-',
                 rawLogs: sessionLogs,
                 startTime: startTimeStr,
-                endTime: lastCheckOut ? endAt.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '-',
+                endTime: (lastCheckOut || isAutoCheckOut) ? endAt.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '-',
                 durationStr,
                 durationMin: `${durationMin}분`,
                 usedSpaces: spaceChain.join('-'),
