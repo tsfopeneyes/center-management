@@ -148,9 +148,9 @@ const CheckinSurveyModal = ({
                         <div className="flex-1 overflow-y-auto space-y-4 max-h-[50vh] pr-1">
                             <div className="text-center py-4">
                                 <h3 className="text-xl sm:text-2xl font-black text-slate-800 leading-tight">
-                                    오늘의 맞춤형 공간 가이드 ✨
+                                    오늘의 하이픈 추천 ✨
                                 </h3>
-                                <p className="text-slate-500 text-xs mt-1">선택하신 목적에 따른 추천 및 이용 규칙 안내입니다.</p>
+                                <p className="text-slate-500 text-xs mt-1">하이픈에서 오늘의 나에게 맞는 콘텐츠를 제안해드립니다</p>
                             </div>
 
                             {matchedRecommendations.length === 0 ? (
