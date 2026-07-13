@@ -132,14 +132,14 @@ const CheckinSurveyModal = ({
                         initial={{ scale: 0.95, opacity: 0, y: 20 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: -20 }}
-                        className="bg-slate-900 text-white w-full max-w-2xl rounded-[3rem] p-8 sm:p-12 shadow-2xl relative flex flex-col gap-6 border border-slate-800"
+                        className="bg-white text-slate-800 w-full max-w-2xl rounded-[3rem] p-8 sm:p-12 shadow-2xl relative flex flex-col gap-6 border border-slate-50"
                     >
-                        <div className="flex justify-between items-center border-b border-slate-800 pb-5 shrink-0">
-                            <div className="flex items-center gap-2 text-emerald-400">
-                                <CheckCircle size={20} className="fill-emerald-400/10" />
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-5 shrink-0">
+                            <div className="flex items-center gap-2 text-emerald-600">
+                                <CheckCircle size={20} className="fill-emerald-50" />
                                 <span className="text-xs font-black uppercase tracking-wider">입실 등록 성공</span>
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold bg-slate-800/50 px-3 py-1.5 rounded-full">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-full">
                                 <Clock size={12} />
                                 <span>자동 닫힘 비활성화됨</span>
                             </div>
@@ -147,27 +147,27 @@ const CheckinSurveyModal = ({
 
                         <div className="flex-1 overflow-y-auto space-y-4 max-h-[50vh] pr-1">
                             <div className="text-center py-4">
-                                <h3 className="text-xl sm:text-2xl font-black text-white leading-tight">
+                                <h3 className="text-xl sm:text-2xl font-black text-slate-800 leading-tight">
                                     오늘의 맞춤형 공간 가이드 ✨
                                 </h3>
-                                <p className="text-slate-400 text-xs mt-1">선택하신 목적에 따른 추천 및 이용 규칙 안내입니다.</p>
+                                <p className="text-slate-500 text-xs mt-1">선택하신 목적에 따른 추천 및 이용 규칙 안내입니다.</p>
                             </div>
 
                             {matchedRecommendations.length === 0 ? (
-                                <div className="p-6 bg-slate-800/40 rounded-[2rem] border border-slate-800 text-center text-slate-400 text-xs font-bold leading-relaxed">
+                                <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 text-center text-slate-500 text-xs font-bold leading-relaxed">
                                     자유롭게 공간을 둘러보세요!<br />
                                     이용 중 질문이나 필요한 것이 있으면 언제든 선생님께 문의해 주세요 👋
                                 </div>
                             ) : (
                                 matchedRecommendations.map(rec => (
-                                    <div key={rec.id} className="p-6 bg-slate-800/60 rounded-[2rem] border border-slate-800/60 flex gap-4 items-start">
-                                        <span className="text-3xl shrink-0 p-2 bg-slate-800 rounded-2xl">{rec.emoji}</span>
+                                    <div key={rec.id} className="p-6 bg-slate-50/50 hover:bg-slate-50 rounded-[2rem] border border-slate-100 flex gap-4 items-start transition-colors duration-150">
+                                        <span className="text-3xl shrink-0 p-2.5 bg-white border border-slate-100/60 shadow-sm rounded-2xl">{rec.emoji}</span>
                                         <div className="space-y-1">
-                                            <h4 className="font-black text-sm sm:text-base text-blue-400 flex items-center gap-1.5">
-                                                <Sparkles size={14} className="text-blue-400 shrink-0" />
+                                            <h4 className="font-black text-sm sm:text-base text-blue-600 flex items-center gap-1.5">
+                                                <Sparkles size={14} className="text-blue-500 shrink-0" />
                                                 {rec.recommendTitle}
                                             </h4>
-                                            <p className="text-slate-300 text-xs leading-relaxed font-bold break-all">
+                                            <p className="text-slate-600 text-xs leading-relaxed font-bold break-all">
                                                 {rec.recommendText}
                                             </p>
                                         </div>
@@ -176,18 +176,18 @@ const CheckinSurveyModal = ({
                             )}
                         </div>
 
-                        <div className="border-t border-slate-800 pt-6 shrink-0 flex gap-4">
+                        <div className="border-t border-slate-100 pt-6 shrink-0 flex gap-4">
                             <button
                                 type="button"
                                 onClick={onBack}
-                                className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black transition-all active:scale-95 text-center text-sm"
+                                className="flex-1 py-4 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 rounded-2xl font-black transition-all active:scale-95 text-center text-sm"
                             >
                                 뒤로가기
                             </button>
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black transition-all active:scale-95 text-center text-sm shadow-lg shadow-blue-900/20"
+                                className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black transition-all active:scale-95 text-center text-sm shadow-lg shadow-blue-100"
                             >
                                 닫기
                             </button>
