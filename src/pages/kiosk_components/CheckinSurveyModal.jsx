@@ -22,8 +22,7 @@ const CheckinSurveyModal = ({
         }
     }, [isOpen, status]);
 
-    // Handle 10-second countdown in recommendation view (Temporarily commented out for checking layout)
-    /*
+    // Handle 10-second countdown in recommendation view
     useEffect(() => {
         let timer;
         if (isOpen && status === 'SHOW_RECOMMENDATIONS') {
@@ -41,7 +40,6 @@ const CheckinSurveyModal = ({
         }
         return () => clearInterval(timer);
     }, [isOpen, status, onClose]);
-    */
 
     if (!isOpen) return null;
 
@@ -139,9 +137,9 @@ const CheckinSurveyModal = ({
                                 <CheckCircle size={20} className="fill-emerald-50" />
                                 <span className="text-xs font-black uppercase tracking-wider">입실 등록 성공</span>
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-full">
+                            <div className="flex items-center gap-1.5 text-xs text-blue-600 font-black bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-full animate-pulse">
                                 <Clock size={12} />
-                                <span>자동 닫힘 비활성화됨</span>
+                                <span>{countdown}초 후 자동 닫힘</span>
                             </div>
                         </div>
 
@@ -176,20 +174,13 @@ const CheckinSurveyModal = ({
                             )}
                         </div>
 
-                        <div className="border-t border-slate-100 pt-6 shrink-0 flex gap-4">
-                            <button
-                                type="button"
-                                onClick={onBack}
-                                className="flex-1 py-4 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 rounded-2xl font-black transition-all active:scale-95 text-center text-sm"
-                            >
-                                뒤로가기
-                            </button>
+                        <div className="flex gap-4 mt-2 shrink-0">
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black transition-all active:scale-95 text-center text-sm shadow-lg shadow-blue-100"
+                                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black transition-all active:scale-95 text-center text-sm shadow-lg shadow-blue-100"
                             >
-                                닫기
+                                확인
                             </button>
                         </div>
                     </motion.div>
