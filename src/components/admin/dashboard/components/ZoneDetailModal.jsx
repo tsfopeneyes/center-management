@@ -60,14 +60,18 @@ const ZoneDetailModal = ({
                                             const userSurvey = checkinSurveys
                                                 ?.filter(s => s.user_id === u.id)
                                                 ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-                                            const selectionsText = userSurvey?.selections?.map(sid => {
+                                            const selectionsList = userSurvey?.selections?.map(sid => {
                                                 const opt = surveyConfig?.options?.find(o => o.id === sid);
                                                 return opt ? `${opt.emoji} ${opt.label}` : sid;
-                                            }).join(', ');
+                                            }) || [];
                                             
-                                            return selectionsText ? (
-                                                <div className="text-[10px] font-bold text-emerald-600 mt-0.5 max-w-[200px] truncate" title={selectionsText}>
-                                                    목적: {selectionsText}
+                                            return selectionsList.length > 0 ? (
+                                                <div className="flex flex-col gap-1 mt-1">
+                                                    {selectionsList.map((sel, idx) => (
+                                                        <div key={idx} className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md w-fit">
+                                                            {sel}
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             ) : null;
                                         })()}

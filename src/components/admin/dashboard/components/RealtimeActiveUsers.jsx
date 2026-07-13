@@ -59,10 +59,10 @@ const RealtimeActiveUsers = ({
                                     const userSurvey = checkinSurveys
                                         ?.filter(s => s.user_id === user.id)
                                         ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-                                    const selectionsText = userSurvey?.selections?.map(sid => {
+                                    const selectionsList = userSurvey?.selections?.map(sid => {
                                         const opt = surveyConfig?.options?.find(o => o.id === sid);
                                         return opt ? `${opt.emoji} ${opt.label}` : sid;
-                                    }).join(', ') || '-';
+                                    }) || [];
 
                                     return (
                                         <tr key={user.id} className="hover:bg-blue-50/20 transition-all duration-300 group">
@@ -73,7 +73,19 @@ const RealtimeActiveUsers = ({
                                             </td>
                                             <td className="p-6 text-blue-600 font-black">{user.currentLocationName}</td>
                                             <td className="p-6 text-gray-700 font-bold whitespace-nowrap">{formatStayDuration(user.checkInTime)}</td>
-                                            <td className="p-6 text-gray-500 font-bold max-w-[280px] whitespace-normal break-keep" title={selectionsText}>{selectionsText}</td>
+                                            <td className="p-6 text-gray-500 font-bold whitespace-nowrap">
+                                                {selectionsList.length > 0 ? (
+                                                    <div className="flex flex-col gap-1.5 align-start justify-center">
+                                                        {selectionsList.map((sel, idx) => (
+                                                            <div key={idx} className="text-xs text-gray-600 bg-slate-100/70 border border-slate-200/50 px-2 py-0.5 rounded-lg w-fit whitespace-nowrap">
+                                                                {sel}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    '-'
+                                                )}
+                                            </td>
                                             <td className="p-6 text-gray-500 font-medium">{user.school || '-'}</td>
                                             <td className="p-6">
                                                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-600' :
@@ -124,15 +136,19 @@ const RealtimeActiveUsers = ({
                                             const userSurvey = checkinSurveys
                                                 ?.filter(s => s.user_id === user.id)
                                                 ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-                                            const selectionsText = userSurvey?.selections?.map(sid => {
+                                            const selectionsList = userSurvey?.selections?.map(sid => {
                                                 const opt = surveyConfig?.options?.find(o => o.id === sid);
                                                 return opt ? `${opt.emoji} ${opt.label}` : sid;
-                                            }).join(', ');
+                                            }) || [];
                                             
-                                            return selectionsText ? (
-                                                <span className="bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded-lg text-[10px] truncate max-w-[200px]" title={selectionsText}>
-                                                    목적: {selectionsText}
-                                                </span>
+                                            return selectionsList.length > 0 ? (
+                                                <div className="flex flex-col gap-1 w-full mt-1.5">
+                                                    {selectionsList.map((sel, idx) => (
+                                                        <span key={idx} className="bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded-lg text-[10px] w-fit">
+                                                            {sel}
+                                                        </span>
+                                                    ))}
+                                                </div>
                                             ) : null;
                                         })()}
                                     </div>
