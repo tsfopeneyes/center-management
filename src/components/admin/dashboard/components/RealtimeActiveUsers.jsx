@@ -73,7 +73,7 @@ const RealtimeActiveUsers = ({
                                             </td>
                                             <td className="p-6 text-blue-600 font-black">{user.currentLocationName}</td>
                                             <td className="p-6 text-gray-700 font-bold whitespace-nowrap">{formatStayDuration(user.checkInTime)}</td>
-                                            <td className="p-6 text-gray-500 font-bold max-w-[200px] truncate" title={selectionsText}>{selectionsText}</td>
+                                            <td className="p-6 text-gray-500 font-bold max-w-[280px] whitespace-normal break-keep" title={selectionsText}>{selectionsText}</td>
                                             <td className="p-6 text-gray-500 font-medium">{user.school || '-'}</td>
                                             <td className="p-6">
                                                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-600' :
