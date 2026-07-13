@@ -91,12 +91,19 @@ const Kiosk = () => {
                 <motion.div animate={{ scale: [1.2, 1, 1.2], rotate: 360 }} transition={{ duration: 30, repeat: Infinity, ease: "linear" }} className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-pink-100/20 rounded-full blur-[40px] md:blur-[120px] gpu-accelerated" />
             </div>
 
-            {/* Giant Background Branding Typography */}
-            <div 
-                className="absolute left-10 bottom-10 text-[11vw] font-black uppercase text-transparent tracking-widest leading-none select-none pointer-events-none z-0 hidden md:block"
-                style={{ WebkitTextStroke: '2px rgba(99, 102, 241, 0.16)' }}
-            >
-                {engName}
+            {/* Repeated Background Branding Typography Pattern */}
+            <div className="absolute inset-0 overflow-hidden opacity-[0.04] z-0 select-none pointer-events-none flex flex-col justify-around rotate-[-12deg] scale-125 origin-center">
+                {Array.from({ length: 7 }).map((_, rIdx) => (
+                    <div 
+                        key={rIdx} 
+                        className={`text-[5vw] font-black uppercase tracking-[0.25em] whitespace-nowrap leading-none flex gap-12 ${rIdx % 2 === 0 ? 'justify-start' : 'justify-end'}`}
+                        style={{ WebkitTextStroke: '2px #6366f1' }}
+                    >
+                        {Array.from({ length: 6 }).map((_, cIdx) => (
+                            <span key={cIdx}>{engName}</span>
+                        ))}
+                    </div>
+                ))}
             </div>
 
             <KioskHeader
