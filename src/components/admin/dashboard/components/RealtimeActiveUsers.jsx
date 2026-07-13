@@ -3,7 +3,9 @@ import UserAvatar from '../../../common/UserAvatar';
 
 const RealtimeActiveUsers = ({
     activeUsersList,
-    handleForceCheckout
+    handleForceCheckout,
+    checkinSurveys = [],
+    surveyConfig
 }) => {
     const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -46,40 +48,52 @@ const RealtimeActiveUsers = ({
                                     <th className="p-6 pl-10">이름</th>
                                     <th className="p-6">현재 위치</th>
                                     <th className="p-6">입실 시간</th>
+                                    <th className="p-6">설문 선택</th>
                                     <th className="p-6">학교</th>
                                     <th className="p-6">그룹</th>
                                     <th className="p-6 pr-10 text-right">관리</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 text-sm">
-                                {activeUsersList.map(user => (
-                                    <tr key={user.id} className="hover:bg-blue-50/20 transition-all duration-300 group">
-                                        <td className="p-6 pl-10 font-bold text-gray-700 flex items-center gap-3">
-                                            <UserAvatar user={user} size="w-10 h-10" textSize="text-sm" />
-                                            {user.name}
-                                            {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
-                                        </td>
-                                        <td className="p-6 text-blue-600 font-black">{user.currentLocationName}</td>
-                                        <td className="p-6 text-gray-700 font-bold whitespace-nowrap">{formatStayDuration(user.checkInTime)}</td>
-                                        <td className="p-6 text-gray-500 font-medium">{user.school || '-'}</td>
-                                        <td className="p-6">
-                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-600' :
-                                                user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' :
-                                                    'bg-blue-100 text-blue-600'
-                                                }`}>
-                                                {user.user_group || '재학생'}
-                                            </span>
-                                        </td>
-                                        <td className="p-6 pr-10 text-right">
-                                            <button
-                                                onClick={() => handleForceCheckout(user.id)}
-                                                className="px-4 py-2 bg-white border border-red-100 text-red-500 text-[11px] font-black rounded-xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-300 shadow-sm"
-                                            >
-                                                강제 퇴실
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {activeUsersList.map(user => {
+                                    const userSurvey = checkinSurveys
+                                        ?.filter(s => s.user_id === user.id)
+                                        ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+                                    const selectionsText = userSurvey?.selections?.map(sid => {
+                                        const opt = surveyConfig?.options?.find(o => o.id === sid);
+                                        return opt ? `${opt.emoji} ${opt.label}` : sid;
+                                    }).join(', ') || '-';
+
+                                    return (
+                                        <tr key={user.id} className="hover:bg-blue-50/20 transition-all duration-300 group">
+                                            <td className="p-6 pl-10 font-bold text-gray-700 flex items-center gap-3">
+                                                <UserAvatar user={user} size="w-10 h-10" textSize="text-sm" />
+                                                {user.name}
+                                                {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                            </td>
+                                            <td className="p-6 text-blue-600 font-black">{user.currentLocationName}</td>
+                                            <td className="p-6 text-gray-700 font-bold whitespace-nowrap">{formatStayDuration(user.checkInTime)}</td>
+                                            <td className="p-6 text-gray-500 font-bold max-w-[200px] truncate" title={selectionsText}>{selectionsText}</td>
+                                            <td className="p-6 text-gray-500 font-medium">{user.school || '-'}</td>
+                                            <td className="p-6">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-600' :
+                                                    user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' :
+                                                        'bg-blue-100 text-blue-600'
+                                                    }`}>
+                                                    {user.user_group || '재학생'}
+                                                </span>
+                                            </td>
+                                            <td className="p-6 pr-10 text-right">
+                                                <button
+                                                    onClick={() => handleForceCheckout(user.id)}
+                                                    className="px-4 py-2 bg-white border border-red-100 text-red-500 text-[11px] font-black rounded-xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-300 shadow-sm"
+                                                >
+                                                    강제 퇴실
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -103,9 +117,24 @@ const RealtimeActiveUsers = ({
                                         )}
                                     </div>
                                     {/* 2행: 입실 위치 + 체류 시간 */}
-                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
                                         <span className="bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded-lg flex-shrink-0 text-[11px]">{user.currentLocationName}</span>
                                         <span className="font-semibold text-gray-600 whitespace-nowrap flex-shrink-0">{formatStayDuration(user.checkInTime)}</span>
+                                        {(() => {
+                                            const userSurvey = checkinSurveys
+                                                ?.filter(s => s.user_id === user.id)
+                                                ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+                                            const selectionsText = userSurvey?.selections?.map(sid => {
+                                                const opt = surveyConfig?.options?.find(o => o.id === sid);
+                                                return opt ? `${opt.emoji} ${opt.label}` : sid;
+                                            }).join(', ');
+                                            
+                                            return selectionsText ? (
+                                                <span className="bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded-lg text-[10px] truncate max-w-[200px]" title={selectionsText}>
+                                                    목적: {selectionsText}
+                                                </span>
+                                            ) : null;
+                                        })()}
                                     </div>
                                 </div>
                                 <button

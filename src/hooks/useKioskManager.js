@@ -425,31 +425,51 @@ export const useKioskManager = (navigate) => {
                     sub += earnedCheckinMsg;
                 }
 
-                // Intercept CHECKIN to ask survey
-                setPendingKioskUser(user);
-                setPendingCheckinFeedback({
-                    msg, sub, color, streakCount, activeBadge, isFirstEver, activeProgram
-                });
-                setStatus('SHOW_SURVEY');
-                setPincode('');
-                setMatchingUsers([]);
-                return;
+                // Check if it is Hyphen branch first
+                let isHyphenBranch = false;
+                if (selectedLocation?.group_id) {
+                    const { data: grp } = await supabase
+                        .from('location_groups')
+                        .select('name')
+                        .eq('id', selectedLocation.group_id)
+                        .maybeSingle();
+                    if (grp && (grp.name.includes('하이픈') || grp.name.includes('HYPHEN') || grp.name.includes('강동'))) {
+                        isHyphenBranch = true;
+                    }
+                }
+
+                if (isHyphenBranch) {
+                    // Intercept CHECKIN to ask survey
+                    setPendingKioskUser(user);
+                    setPendingCheckinFeedback({
+                        msg, sub, color, streakCount, activeBadge, isFirstEver, activeProgram
+                    });
+                    setStatus('SHOW_SURVEY');
+                    setPincode('');
+                    setMatchingUsers([]);
+                    return;
+                }
             }
 
             setResult({
                 type: 'SUCCESS',
-                message: msg,
-                subMessage: sub,
-                color: color
+                message: activeBadge ? `축하해요! [${activeBadge.name}] 획득!` : msg,
+                subMessage: activeBadge ? '새로운 뱃지를 획득하셨습니다✨' : sub,
+                color: activeBadge ? 'bg-yellow-500' : color,
+                streak: streakCount > 1 ? streakCount : null,
+                isFirst: isFirstEver,
+                program: activeProgram,
+                badge: activeBadge
             });
 
             setStatus('IDLE');
             setPincode('');
             setMatchingUsers([]);
 
+            const delay = (isFirstToday || activeProgram || streakCount > 1 || activeBadge) ? 3000 : 800;
             setTimeout(() => {
                 setResult(null);
-            }, 800);
+            }, delay);
 
         } catch (err) {
             console.error('Kiosk Action Error:', err);

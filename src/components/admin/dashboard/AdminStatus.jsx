@@ -21,7 +21,9 @@ const AdminStatus = ({
     allLogs = [],
     dailyVisitStats = {},
     isAlertEnabled,
-    handleToggleAlert
+    handleToggleAlert,
+    checkinSurveys,
+    surveyConfig
 }) => {
     const {
         locationTab, setLocationTab,
@@ -62,12 +64,16 @@ const AdminStatus = ({
             <RealtimeActiveUsers
                 activeUsersList={activeUsersList}
                 handleForceCheckout={handleForceCheckout}
+                checkinSurveys={checkinSurveys}
+                surveyConfig={surveyConfig}
             />
 
             <ZoneDetailModal
                 zoneDetailModal={zoneDetailModal}
                 setZoneDetailModal={setZoneDetailModal}
                 handleForceCheckout={handleForceCheckout}
+                checkinSurveys={checkinSurveys}
+                surveyConfig={surveyConfig}
             />
         </div>
     );

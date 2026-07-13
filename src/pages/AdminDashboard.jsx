@@ -54,6 +54,7 @@ const AdminDashboard = () => {
     const [dailyVisitStats, setDailyVisitStats] = useState({});
     const [currentLocations, setCurrentLocations] = useState({}); // { userId: locationId }
     const [visitNotes, setVisitNotes] = useState([]);
+    const [checkinSurveys, setCheckinSurveys] = useState([]);
 
     // Alert & Realtime Notification State
     const [isAlertEnabled, setIsAlertEnabled] = useState(localStorage.getItem('admin_alert_enabled') !== 'false');
@@ -138,6 +139,19 @@ const AdminDashboard = () => {
 
             const { data: vNotesData } = await supabase.from('visit_notes').select('*');
             setVisitNotes(vNotesData || []);
+
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            let surveyDataList = [];
+            try {
+                const { data: sData } = await supabase
+                    .from('checkin_surveys')
+                    .select('*')
+                    .gte('created_at', todayStr + 'T00:00:00Z');
+                surveyDataList = sData || [];
+            } catch (e) {
+                console.error("Failed to fetch today checkin surveys:", e);
+            }
+            setCheckinSurveys(surveyDataList);
 
             // Stats Calculation - Increase limit for initial load and allow full fetch for statistics
             const logLimit = isFullFetch ? 10000 : 3000;
@@ -576,6 +590,14 @@ const AdminDashboard = () => {
                             handleForceCheckout={handleForceCheckout}
                             isAlertEnabled={isAlertEnabled}
                             handleToggleAlert={handleToggleAlert}
+                            checkinSurveys={checkinSurveys}
+                            surveyConfig={(() => {
+                                const notice = notices.find(n => n.category === 'SYSTEM' && n.title === 'CHECKIN_SURVEY_CONFIG');
+                                if (notice?.content) {
+                                    try { return JSON.parse(notice.content); } catch (e) {}
+                                }
+                                return null;
+                            })()}
                         />
                     )}
                     {activeMenu === 'WORK_STATUS' && (

@@ -4,7 +4,9 @@ import { X } from 'lucide-react';
 const ZoneDetailModal = ({
     zoneDetailModal,
     setZoneDetailModal,
-    handleForceCheckout
+    handleForceCheckout,
+    checkinSurveys = [],
+    surveyConfig
 }) => {
     // ESC key listener to close modal
     useEffect(() => {
@@ -47,13 +49,30 @@ const ZoneDetailModal = ({
                             <div key={u.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
                                 <div className="flex items-center gap-2">
                                     <div>
-                                        <span className="font-bold text-gray-700 flex items-center gap-1">
-                                            {u.name}
-                                            {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
-                                        </span>
-                                        <span className="text-xs text-gray-500 ml-1">({u.school})</span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="font-bold text-gray-700 flex items-center gap-1">
+                                                {u.name}
+                                                {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                            </span>
+                                            <span className="text-[10px] text-gray-400">({u.school || '-'})</span>
+                                        </div>
+                                        {(() => {
+                                            const userSurvey = checkinSurveys
+                                                ?.filter(s => s.user_id === u.id)
+                                                ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+                                            const selectionsText = userSurvey?.selections?.map(sid => {
+                                                const opt = surveyConfig?.options?.find(o => o.id === sid);
+                                                return opt ? `${opt.emoji} ${opt.label}` : sid;
+                                            }).join(', ');
+                                            
+                                            return selectionsText ? (
+                                                <div className="text-[10px] font-bold text-emerald-600 mt-0.5 max-w-[200px] truncate" title={selectionsText}>
+                                                    목적: {selectionsText}
+                                                </div>
+                                            ) : null;
+                                        })()}
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' :
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${u.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' :
                                         u.user_group === '일반인' ? 'bg-orange-100 text-orange-600' :
                                             'bg-white border border-gray-100 text-blue-500'
                                         }`}>
