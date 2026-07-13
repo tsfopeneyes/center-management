@@ -72,20 +72,26 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
             const lastCheckOut = [...sessionLogs].reverse().find(l => l.type === 'CHECKOUT');
             let endAt;
             let isAutoCheckOut = false;
+            let isActiveNow = false;
 
             if (lastCheckOut) {
                 endAt = new Date(lastCheckOut.created_at);
             } else {
-                // If checkout is missing, default to 22:00 of the same day (KST)
-                const startLocal = new Date(startAt);
-                // Adjust hours in local timezone to 22:00
-                const fallbackEnd = new Date(startLocal.getFullYear(), startLocal.getMonth(), startLocal.getDate(), 22, 0, 0, 0);
-                
-                if (startAt >= fallbackEnd) {
-                    endAt = startAt;
+                const todayStr = getKSTDateString(new Date().toISOString());
+                if (date === todayStr) {
+                    endAt = new Date();
+                    isActiveNow = true;
                 } else {
-                    endAt = fallbackEnd;
-                    isAutoCheckOut = true;
+                    // If checkout is missing on a past day, default to 22:00 of the same day (KST)
+                    const startLocal = new Date(startAt);
+                    const fallbackEnd = new Date(startLocal.getFullYear(), startLocal.getMonth(), startLocal.getDate(), 22, 0, 0, 0);
+                    
+                    if (startAt >= fallbackEnd) {
+                        endAt = startAt;
+                    } else {
+                        endAt = fallbackEnd;
+                        isAutoCheckOut = true;
+                    }
                 }
             }
 
