@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Clock, DoorOpen, DoorClosed } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import UserAvatar from '../../common/UserAvatar';
+import { startOfDay } from 'date-fns';
 
-const TodayOperatingWidget = ({ studentRegion }) => {
+const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCategories = [] }) => {
     const [operatingHours, setOperatingHours] = useState(null);
     const [staffConfig, setStaffConfig] = useState({ "하이픈": [], "이높플레이스": [] });
     const [presenceStatus, setPresenceStatus] = useState({});
@@ -209,7 +210,35 @@ const TodayOperatingWidget = ({ studentRegion }) => {
     const dayOfWeekStr = dayMap[today.getDay()];
     const todayConfig = operatingHours ? operatingHours[dayOfWeekStr] : null;
 
-    const isOpen = todayConfig ? todayConfig.isOpen : false;
+    // Check if today is closed due to special schedule
+    const isTodayClosedBySchedule = adminSchedules.some(sch => {
+        const cat = calendarCategories.find(c => c.id === sch.category_id);
+        if (cat?.name !== '휴관') return false;
+
+        const start = startOfDay(new Date(sch.start_date));
+        const end = startOfDay(new Date(sch.end_date));
+        const targetDate = startOfDay(today);
+
+        if (targetDate >= start && targetDate <= end) {
+            let closedSpaces = [];
+            try {
+                const parsed = JSON.parse(sch.content);
+                if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                    closedSpaces = parsed.closed_spaces;
+                }
+            } catch (e) { }
+
+            if (studentRegion === '강동') {
+                return closedSpaces.includes('HYPHEN');
+            } else if (studentRegion === '강서') {
+                return closedSpaces.includes('INOP') || closedSpaces.includes('ENOF');
+            }
+            return true;
+        }
+        return false;
+    });
+
+    const isOpen = (todayConfig && !isTodayClosedBySchedule) ? todayConfig.isOpen : false;
     const openTime = todayConfig ? todayConfig.open : '10:00';
     const closeTime = todayConfig ? todayConfig.close : '18:00';
 

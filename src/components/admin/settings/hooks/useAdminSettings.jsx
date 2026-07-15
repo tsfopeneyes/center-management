@@ -25,11 +25,11 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
 
     // 2. Integration State
     const [gsWebhookUrl, setGsWebhookUrl] = useState(localStorage.getItem('gs_webhook_url') || '');
-    const [notionApiKey, setNotionApiKey] = useState(localStorage.getItem('notion_api_key') || '');
-    const [notionDbId, setNotionDbId] = useState(localStorage.getItem('notion_db_id') || '');
+    const [lineChannelAccessToken, setLineChannelAccessToken] = useState(localStorage.getItem('line_channel_access_token') || '');
+    const [lineGroupId, setLineGroupId] = useState(localStorage.getItem('line_group_id') || '');
+    const [discordWebhookUrl, setDiscordWebhookUrl] = useState(localStorage.getItem('discord_webhook_url') || '');
     const [kioskMasterPin, setKioskMasterPin] = useState(localStorage.getItem('kiosk_master_pin') || '1801');
     const [isBackingUp, setIsBackingUp] = useState(false);
-    const [isUploadingNotion, setIsUploadingNotion] = useState(false);
     const [syncProgress, setSyncProgress] = useState('');
     const [isBadgeSystemEnabled, setIsBadgeSystemEnabled] = useState(true);
 
@@ -410,8 +410,9 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
     // --- Integration Logics ---
     const handleSaveIntegrations = async () => {
         localStorage.setItem('gs_webhook_url', gsWebhookUrl);
-        localStorage.setItem('notion_api_key', notionApiKey);
-        localStorage.setItem('notion_db_id', notionDbId);
+        localStorage.setItem('line_channel_access_token', lineChannelAccessToken);
+        localStorage.setItem('line_group_id', lineGroupId);
+        localStorage.setItem('discord_webhook_url', discordWebhookUrl);
         localStorage.setItem('kiosk_master_pin', kioskMasterPin);
         
         try {
@@ -493,20 +494,6 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         }
     };
 
-    const handleNotionUpload = async () => {
-        if (!notionApiKey || !notionDbId) return alert('노션 API 키와 데이터베이스 ID를 입력해주세요.');
-
-        setIsUploadingNotion(true);
-        try {
-            const analytics = processAnalyticsData(allLogs, locations, users, new Date(), 'MONTHLY');
-            await uploadSummaryToNotion(notionApiKey, notionDbId, analytics);
-            alert('노션 요약 업로드가 완료되었습니다.');
-        } catch (err) {
-            alert('노션 업로드 실패: ' + err.message + '\n\n*브라우저 CORS 정책으로 인해 실패할 수 있습니다. 운영 환경에선 서버리스 함수가 필요합니다.');
-        } finally {
-            setIsUploadingNotion(false);
-        }
-    };
 
     // --- Config Logics ---
     const handleMoveConfig = (index, direction) => {
@@ -776,11 +763,12 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         handleAdminProfileImageSelect, handleSaveCroppedImage, handleSaveAdminProfile,
 
         gsWebhookUrl, setGsWebhookUrl,
-        notionApiKey, setNotionApiKey,
-        notionDbId, setNotionDbId,
+        lineChannelAccessToken, setLineChannelAccessToken,
+        lineGroupId, setLineGroupId,
+        discordWebhookUrl, setDiscordWebhookUrl,
         kioskMasterPin, setKioskMasterPin,
-        isBackingUp, isUploadingNotion, syncProgress,
-        handleSaveIntegrations, handleGoogleSheetsBackup, handleNotionUpload,
+        isBackingUp, syncProgress,
+        handleSaveIntegrations, handleGoogleSheetsBackup,
 
         tempGroupName, setTempGroupName,
         editGroupId, setEditGroupId,

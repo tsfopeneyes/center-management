@@ -35,7 +35,7 @@ const AdminStatus = ({
         totalActive,
         activeUsersList,
         handleZoneClick
-    } = useAdminStatus({ users, locations, locationGroups, zoneStats, currentLocations, dailyVisitStats });
+    } = useAdminStatus({ users, locations, locationGroups, zoneStats, currentLocations, dailyVisitStats, allLogs });
 
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">

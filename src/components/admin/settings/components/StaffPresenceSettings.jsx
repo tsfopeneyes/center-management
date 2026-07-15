@@ -72,7 +72,7 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
     };
 
     return (
-        <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm col-span-1 lg:col-span-2 flex flex-col gap-5">
+        <div className="w-full bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-5">
             <div className="flex items-center justify-between pb-3 border-b border-gray-50">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[#3182f6]/10 text-[#3182f6] flex items-center justify-center shrink-0">

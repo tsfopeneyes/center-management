@@ -41,6 +41,46 @@ const StudentHomeTab = ({
     setSelectedRegion
 }) => {
     // 뱃지 관련 로직 제거됨
+    const today = startOfDay(new Date());
+    const todayClosure = adminSchedules.find(sch => {
+        const cat = calendarCategories.find(c => c.id === sch.category_id);
+        if (cat?.name !== '휴관') return false;
+        const start = startOfDay(new Date(sch.start_date));
+        const end = startOfDay(new Date(sch.end_date));
+        return today >= start && today <= end;
+    });
+
+    let isTodayClosed = false;
+    let closureMessage = "";
+
+    if (todayClosure) {
+        let closedSpaces = todayClosure.closed_spaces || [];
+        try {
+            const parsed = JSON.parse(todayClosure.content);
+            if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                closedSpaces = parsed.closed_spaces;
+            }
+        } catch (e) { }
+
+        const isHyphenClosed = closedSpaces.includes('HYPHEN') || closedSpaces.length === 0;
+        const isEnofClosed = closedSpaces.includes('ENOF') || closedSpaces.includes('INOP') || closedSpaces.length === 0;
+
+        if (studentRegion === '강동') {
+            isTodayClosed = isHyphenClosed;
+        } else if (studentRegion === '강서') {
+            isTodayClosed = isEnofClosed;
+        } else {
+            isTodayClosed = isHyphenClosed || isEnofClosed;
+        }
+
+        if (isHyphenClosed && isEnofClosed) {
+            closureMessage = "오늘은 센터가 쉬는 날이에요!";
+        } else if (isHyphenClosed) {
+            closureMessage = "오늘은 하이픈이 쉬는 날이에요!";
+        } else if (isEnofClosed) {
+            closureMessage = "오늘은 이높플레이스가 쉬는 날이에요!";
+        }
+    }
 
     return (
         <>
@@ -158,49 +198,27 @@ const StudentHomeTab = ({
             {/* Main Content Area: Aligned Stack */}
             <div className="px-4 py-4 pb-28 space-y-4 relative z-0">
                 {/* Today's Closure Notification */}
-                {(() => {
-                    const today = startOfDay(new Date());
-                    const todayClosure = adminSchedules.find(sch => {
-                        const cat = calendarCategories.find(c => c.id === sch.category_id);
-                        if (cat?.name !== '휴관') return false;
-                        const start = startOfDay(new Date(sch.start_date));
-                        const end = startOfDay(new Date(sch.end_date));
-                        return today >= start && today <= end;
-                    });
-
-                    if (!todayClosure) return null;
-
-                    let closedSpaces = todayClosure.closed_spaces || [];
-                    try {
-                        const parsed = JSON.parse(todayClosure.content);
-                        if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
-                            closedSpaces = parsed.closed_spaces;
-                        }
-                    } catch (e) { }
-
-                    const isHyphenClosed = closedSpaces.includes('HYPHEN');
-                    const isEnofClosed = closedSpaces.includes('ENOF');
-
-                    let message = "오늘은 센터 전체 휴관일입니다";
-                    if (isHyphenClosed && !isEnofClosed) message = "오늘은 하이픈 휴관일입니다";
-                    else if (!isHyphenClosed && isEnofClosed) message = "오늘은 이높플레이스 휴관일입니다";
-
-                    return (
-                        <motion.div
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-4 rounded-toss-xl bg-tossError/10 border border-tossError/20 shadow-toss-subtle flex items-center justify-center relative overflow-hidden"
-                        >
-                            <div className="flex items-center gap-2">
-                                <AlertCircle size={18} strokeWidth={2.5} className="text-tossError" />
-                                <p className="text-tossError font-bold text-[14px] tracking-wide">{message}</p>
-                            </div>
-                        </motion.div>
-                    );
-                })()}
+                {isTodayClosed && closureMessage && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 rounded-toss-xl bg-tossError/10 border border-tossError/20 shadow-toss-subtle flex items-center justify-center relative overflow-hidden"
+                    >
+                        <div className="flex items-center gap-2">
+                            <AlertCircle size={18} strokeWidth={2.5} className="text-tossError" />
+                            <p className="text-tossError font-bold text-[14px] tracking-wide">{closureMessage}</p>
+                        </div>
+                    </motion.div>
+                )}
 
                 {/* 1. Today Operating Widget */}
-                <TodayOperatingWidget studentRegion={studentRegion} />
+                {!isTodayClosed && (
+                    <TodayOperatingWidget 
+                        studentRegion={studentRegion} 
+                        adminSchedules={adminSchedules} 
+                        calendarCategories={calendarCategories} 
+                    />
+                )}
 
                 {/* 1-2. Weekly Operating Widget */}
                 <WeeklyOperatingWidget 

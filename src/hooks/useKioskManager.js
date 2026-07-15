@@ -4,6 +4,90 @@ import { isConsecutiveWorkingDay } from '../utils/analyticsUtils';
 import confetti from 'canvas-confetti';
 import { TERMS_VERSION } from '../constants/appConstants';
 
+const sendRealtimeNotification = async (user, type, location, metadata = {}) => {
+    const lineToken = localStorage.getItem('line_channel_access_token');
+    const lineGroupId = localStorage.getItem('line_group_id');
+    const gsWebhookUrl = localStorage.getItem('gs_webhook_url');
+    const discordWebhookUrl = localStorage.getItem('discord_webhook_url');
+
+    // 0. Check if it is Hyphen branch to prevent LINE usage on ENOF
+    let isHyphenBranch = false;
+    try {
+        if (location?.group_id) {
+            const { data: grp } = await supabase
+                .from('location_groups')
+                .select('name')
+                .eq('id', location.group_id)
+                .maybeSingle();
+            if (grp && (grp.name.includes('하이픈') || grp.name.includes('HYPHEN') || grp.name.includes('강동'))) {
+                isHyphenBranch = true;
+            }
+        }
+    } catch (err) {
+        console.error("Failed to check branch for notification:", err);
+    }
+
+    const timeStr = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+    let message = '';
+    
+    if (type === 'CHECKIN') {
+        const surveyText = metadata.survey 
+            ? `\n▪ ${metadata.survey.split(', ').join('\n▪ ')}` 
+            : '';
+        message = `[CHECK-IN]\n💌 ${user.name}님이 ${location.name}에 방문했어요 (${timeStr})${surveyText}`;
+    } else if (type === 'CHECKOUT') {
+        const durationText = metadata.duration ? `\n🕑 ${metadata.duration} 이용` : '';
+        const purposeText = metadata.purpose 
+            ? `\n▪ ${metadata.purpose.split(', ').join('\n▪ ')}` 
+            : '';
+        message = `[CHECK-OUT]\n💙 ${user.name}님이 ${location.name}에서 나갔어요 (${timeStr})${durationText}${purposeText}`;
+    } else {
+        message = `🔔 [이동] ${user.name}님이 ${location.name}에 이동했습니다. (${timeStr})`;
+    }
+
+    console.log("sendRealtimeNotification diagnostic:", {
+        hasLineToken: !!lineToken,
+        hasLineGroupId: !!lineGroupId,
+        hasGsWebhookUrl: !!gsWebhookUrl,
+        discordWebhookUrl: !!discordWebhookUrl,
+        isHyphenBranch,
+        message
+    });
+
+    // 1. Send Discord Webhook
+    if (discordWebhookUrl) {
+        try {
+            await fetch(discordWebhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: message })
+            });
+        } catch (e) {
+            console.error("Failed to send Discord webhook:", e);
+        }
+    }
+
+    // 2. Send LINE Message via Google Apps Script Webhook (Only for Hyphen branch!)
+    if (lineToken && lineGroupId && gsWebhookUrl && isHyphenBranch) {
+        try {
+            await fetch(gsWebhookUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
+                    action: 'LINE_NOTIFY',
+                    token: lineToken,
+                    to: lineGroupId,
+                    message: message
+                })
+            });
+            console.log("LINE Notification fetch sent to Google Sheets Webhook successfully.");
+        } catch (e) {
+            console.error("Failed to send LINE notification:", e);
+        }
+    }
+};
+
 export const useKioskManager = (navigate) => {
     // Logic States
     const [locations, setLocations] = useState([]);
@@ -25,6 +109,7 @@ export const useKioskManager = (navigate) => {
     const [pendingCheckoutUser, setPendingCheckoutUser] = useState(null);
     const [checkoutVisitDate, setCheckoutVisitDate] = useState('');
     const [checkoutHyphenMsg, setCheckoutHyphenMsg] = useState('');
+    const [checkoutDuration, setCheckoutDuration] = useState('');
 
     // Checkin Survey States
     const [pendingCheckinFeedback, setPendingCheckinFeedback] = useState(null);
@@ -290,6 +375,19 @@ export const useKioskManager = (navigate) => {
                 }
             }
 
+            // Check if it is Hyphen branch early
+            let isHyphenBranch = false;
+            if (selectedLocation?.group_id) {
+                const { data: grp } = await supabase
+                    .from('location_groups')
+                    .select('name')
+                    .eq('id', selectedLocation.group_id)
+                    .maybeSingle();
+                if (grp && (grp.name.includes('하이픈') || grp.name.includes('HYPHEN') || grp.name.includes('강동'))) {
+                    isHyphenBranch = true;
+                }
+            }
+
             // C. Insert Log
             const { error: insertError } = await supabase.from('logs').insert([{
                 user_id: user.id,
@@ -298,6 +396,12 @@ export const useKioskManager = (navigate) => {
             }]);
 
             if (insertError) throw insertError;
+
+            // Send real-time notification (Delay for checkin-survey or checkout-purpose)
+            const shouldDelayNotification = nextType === 'CHECKOUT' || (nextType === 'CHECKIN' && isHyphenBranch);
+            if (!shouldDelayNotification) {
+                sendRealtimeNotification(user, nextType, selectedLocation);
+            }
 
             // D. If guest user checking in, also insert GUEST_ENTRY for statistics
             if (nextType === 'CHECKIN' && user.user_group === '게스트') {
@@ -364,6 +468,13 @@ export const useKioskManager = (navigate) => {
                         const checkoutTime = new Date().getTime();
                         const durationHours = (checkoutTime - checkinTime) / (1000 * 60 * 60);
 
+                        // Calculate stay duration text: X시간 Y분
+                        const durationMinutes = Math.max(1, Math.floor((checkoutTime - checkinTime) / (1000 * 60)));
+                        const hours = Math.floor(durationMinutes / 60);
+                        const mins = durationMinutes % 60;
+                        const durationText = hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`;
+                        setCheckoutDuration(durationText);
+
                         if (durationHours >= 1) {
                             const { data: existingPoints } = await supabase
                                 .from('hyphen_transactions')
@@ -423,19 +534,6 @@ export const useKioskManager = (navigate) => {
                 
                 if (earnedCheckinMsg) {
                     sub += earnedCheckinMsg;
-                }
-
-                // Check if it is Hyphen branch first
-                let isHyphenBranch = false;
-                if (selectedLocation?.group_id) {
-                    const { data: grp } = await supabase
-                        .from('location_groups')
-                        .select('name')
-                        .eq('id', selectedLocation.group_id)
-                        .maybeSingle();
-                    if (grp && (grp.name.includes('하이픈') || grp.name.includes('HYPHEN') || grp.name.includes('강동'))) {
-                        isHyphenBranch = true;
-                    }
                 }
 
                 if (isHyphenBranch) {
@@ -544,6 +642,12 @@ export const useKioskManager = (navigate) => {
             }, { onConflict: 'user_id,visit_date' });
 
             if (error) throw error;
+
+            // Trigger the delayed checkout LINE notification
+            sendRealtimeNotification(pendingCheckoutUser, 'CHECKOUT', selectedLocation, {
+                duration: checkoutDuration,
+                purpose: purposeString
+            });
 
             // 1. Fetch branch name
             let branchKorean = '센터';
@@ -730,6 +834,23 @@ export const useKioskManager = (navigate) => {
                 }
             }
 
+            // Trigger the delayed check-in LINE notification with survey selections (mapped to labels)
+            let surveyLabels = [];
+            if (selections && selections.length > 0) {
+                if (checkinSurveyConfig && checkinSurveyConfig.options) {
+                    surveyLabels = selections.map(id => {
+                        const opt = checkinSurveyConfig.options.find(o => String(o.id) === String(id));
+                        return opt ? opt.label : id;
+                    });
+                } else {
+                    surveyLabels = selections;
+                }
+            }
+            const surveyString = surveyLabels.join(', ');
+            sendRealtimeNotification(pendingKioskUser, 'CHECKIN', selectedLocation, {
+                survey: surveyString
+            });
+
             // Load feedback result calculated during processKioskAction
             const { msg, sub, color, streakCount, activeBadge, isFirstEver, activeProgram } = pendingCheckinFeedback || {};
 
@@ -887,6 +1008,11 @@ export const useKioskManager = (navigate) => {
         setStatus('IDLE');
         setMatchingUsers([]);
         setResult(null);
+        setCheckoutDuration('');
+        setPendingCheckoutUser(null);
+        setCheckoutVisitDate('');
+        setCheckoutHyphenMsg('');
+        setPendingKioskUser(null);
     };
 
     return {

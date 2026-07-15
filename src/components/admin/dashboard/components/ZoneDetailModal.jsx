@@ -35,7 +35,7 @@ const ZoneDetailModal = ({
                 <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-blue-50">
                     <div>
                         <h3 className="font-bold text-blue-800 text-lg">{zoneDetailModal.locationName}</h3>
-                        <p className="text-xs text-blue-500">현재 이용자 명단 ({zoneDetailModal.activeUsers.length}명)</p>
+                        <p className="text-xs text-blue-500">오늘 이용 현황 (총 {zoneDetailModal.activeUsers.length}명 | 이용 중 {zoneDetailModal.activeUsers.filter(u => u.isActive).length}명)</p>
                     </div>
                     <button onClick={() => setZoneDetailModal({ ...zoneDetailModal, isOpen: false })}>
                         <X size={20} className="text-blue-300 hover:text-blue-500" />
@@ -43,10 +43,10 @@ const ZoneDetailModal = ({
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                     {zoneDetailModal.activeUsers.length === 0 ? (
-                        <div className="text-center py-10 text-gray-400 text-sm">현재 이용자가 없습니다.</div>
+                        <div className="text-center py-10 text-gray-400 text-sm">오늘 이용한 사람이 없습니다.</div>
                     ) : (
                         zoneDetailModal.activeUsers.map(u => (
-                            <div key={u.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                            <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border ${u.isActive ? 'bg-blue-50/35 border-blue-100/50' : 'bg-gray-50/50 border-gray-100'}`}>
                                 <div className="flex items-center gap-2">
                                     <div>
                                         <div className="flex items-center gap-1">
@@ -76,19 +76,30 @@ const ZoneDetailModal = ({
                                             ) : null;
                                         })()}
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${u.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' :
-                                        u.user_group === '일반인' ? 'bg-orange-100 text-orange-600' :
-                                            'bg-white border border-gray-100 text-blue-500'
-                                        }`}>
-                                        {u.user_group || '재학생'}
-                                    </span>
+                                    <div className="flex flex-col gap-1">
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 text-center ${u.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' :
+                                            u.user_group === '일반인' ? 'bg-orange-100 text-orange-600' :
+                                                'bg-white border border-gray-100 text-blue-500'
+                                            }`}>
+                                            {u.user_group || '재학생'}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black shrink-0 text-center uppercase tracking-wider ${u.isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
+                                            {u.isActive ? '이용 중' : '퇴실 완료'}
+                                        </span>
+                                    </div>
                                 </div>
-                                <button
-                                    onClick={() => handleForceCheckout(u.id)}
-                                    className="text-[10px] bg-white text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-500 hover:text-white transition whitespace-nowrap font-bold"
-                                >
-                                    퇴실
-                                </button>
+                                {u.isActive ? (
+                                    <button
+                                        onClick={() => handleForceCheckout(u.id)}
+                                        className="text-[10px] bg-white text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-500 hover:text-white transition whitespace-nowrap font-bold shrink-0"
+                                    >
+                                        퇴실
+                                    </button>
+                                ) : (
+                                    <span className="text-[10px] font-semibold text-gray-400 select-none px-2 py-1.5">
+                                        {u.checkInTime ? new Date(u.checkInTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' 입실' : ''}
+                                    </span>
+                                )}
                             </div>
                         ))
                     )}

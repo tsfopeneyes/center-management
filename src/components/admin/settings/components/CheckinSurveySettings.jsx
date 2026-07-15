@@ -44,22 +44,20 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
     };
 
     return (
-        <div className="bg-white rounded-[2rem] border border-gray-100 p-6 md:p-8 shadow-sm flex flex-col gap-6 col-span-1 lg:col-span-2">
-            <div className="flex items-start gap-4 border-b border-gray-50 pb-5">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
-                    <HelpCircle size={24} />
-                </div>
-                <div>
-                    <h3 className="text-lg font-black text-gray-800">체크인 입실 설문 설정</h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                        학생들이 키오스크 체크인을 완료할 때 띄우는 질문과 활동 요구 옵션을 관리합니다. 선택된 목적에 맞춘 콘텐츠 추천 카드가 노출됩니다.
-                    </p>
-                </div>
+        <div className="w-full bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-6">
+            <div className="flex flex-col gap-1 border-b border-gray-50 pb-5">
+                <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight">
+                    <HelpCircle size={20} className="text-[#3182f6]" />
+                    체크인 입실 설문 설정
+                </h3>
+                <p className="text-xs md:text-sm text-[#8b95a1] mt-1 font-medium leading-relaxed">
+                    학생들이 키오스크 체크인을 완료할 때 띄우는 질문과 활동 요구 옵션을 관리합니다. 선택된 목적에 맞춘 콘텐츠 추천 카드가 노출됩니다.
+                </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="w-full space-y-6">
                 <div>
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                    <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">
                         체크인 질문 문구
                     </label>
                     <input
@@ -67,14 +65,14 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                         value={question}
                         onChange={(e) => setQuestion(e.target.value)}
                         placeholder="예: 오늘 하이픈에서 무엇을 하고 싶나요?"
-                        className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-800 text-sm"
+                        className="w-full px-4 py-3 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
                         required
                     />
                 </div>
 
                 <div className="space-y-4">
                     <div className="flex justify-between items-center ml-1">
-                        <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">
                             선택지 및 맞춤 콘텐츠 매칭 리스트
                         </label>
                         <button
@@ -86,7 +84,7 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <div className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                         {options.map((option, idx) => (
                             <div key={option.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl relative flex flex-col gap-3">
                                 <button
@@ -98,11 +96,11 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                                     <Trash2 size={12} />
                                 </button>
 
-                                <div className="space-y-3 pr-4">
+                                <div className="space-y-3 pr-2">
                                     {/* Button Config */}
                                     <div className="space-y-1.5">
-                                        <div className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest ml-0.5">
-                                            <Smile size={11} />
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 ml-0.5">
+                                            <Smile size={12} />
                                             <span>선택 버튼 설정</span>
                                         </div>
                                         <div className="flex gap-2">
@@ -111,7 +109,7 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                                                     type="text"
                                                     value={option.emoji}
                                                     onChange={(e) => handleOptionChange(idx, 'emoji', e.target.value)}
-                                                    className="w-full p-2 bg-white border border-gray-200 rounded-xl text-center font-bold text-sm outline-none focus:border-blue-500"
+                                                    className="w-full p-2.5 bg-white border border-gray-100 rounded-xl text-center font-bold text-sm outline-none focus:border-[#3182f6]"
                                                     maxLength={2}
                                                     placeholder="😊"
                                                     title="이모지"
@@ -123,7 +121,7 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                                                     value={option.label}
                                                     onChange={(e) => handleOptionChange(idx, 'label', e.target.value)}
                                                     placeholder="버튼 라벨"
-                                                    className="w-full p-2 bg-white border border-gray-200 rounded-xl font-bold text-xs outline-none focus:border-blue-500"
+                                                    className="w-full p-2.5 bg-white border border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3182f6]"
                                                     required
                                                 />
                                             </div>
@@ -134,8 +132,8 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
 
                                     {/* Recommendation Config */}
                                     <div className="space-y-1.5">
-                                        <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-500 uppercase tracking-widest ml-0.5">
-                                            <Sparkles size={11} />
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-500 ml-0.5">
+                                            <Sparkles size={12} />
                                             <span>추천 콘텐츠 매칭</span>
                                         </div>
                                         <div className="flex flex-col gap-1.5">
@@ -144,14 +142,14 @@ const CheckinSurveySettings = ({ checkinSurveyConfig, onSave, isSaving }) => {
                                                 value={option.recommendTitle}
                                                 onChange={(e) => handleOptionChange(idx, 'recommendTitle', e.target.value)}
                                                 placeholder="추천 제목 (예: 🍽️ 스낵존 안내)"
-                                                className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg font-bold text-[11px] outline-none focus:border-blue-500"
+                                                className="w-full px-3 py-2 bg-white border border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3182f6]"
                                                 required
                                             />
                                             <textarea
                                                 value={option.recommendText}
                                                 onChange={(e) => handleOptionChange(idx, 'recommendText', e.target.value)}
                                                 placeholder="학생 추천 공간 안내문 및 설명 팁"
-                                                className="w-full px-2.5 py-1.5 h-14 bg-white border border-gray-200 rounded-lg text-[10px] leading-normal font-semibold outline-none focus:border-blue-500 resize-none"
+                                                className="w-full px-3 py-2 h-16 bg-white border border-gray-100 rounded-xl text-xs leading-normal font-semibold outline-none focus:border-[#3182f6] resize-none"
                                                 required
                                             />
                                         </div>

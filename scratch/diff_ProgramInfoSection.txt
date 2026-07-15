@@ -1,0 +1,841 @@
+diff --git a/src/components/admin/board/components/forms/ProgramInfoSection.jsx b/src/components/admin/board/components/forms/ProgramInfoSection.jsx
+index 5a1df0b..8526a19 100644
+--- a/src/components/admin/board/components/forms/ProgramInfoSection.jsx
++++ b/src/components/admin/board/components/forms/ProgramInfoSection.jsx
+@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
+ import IntuitiveTimePicker from '../../../../common/IntuitiveTimePicker';
+ import { splitDateTime, joinDateTime } from '../../utils/noticeHelpers';
+ import { PROGRAM_TYPES } from '../../utils/constants';
+-import { Calendar, Clock, MapPin, Gift, CheckSquare, Users } from 'lucide-react';
++import { Calendar, Clock, MapPin, Gift, CheckSquare, Users, Plus, Trash2, HelpCircle } from 'lucide-react';
+ 
+ const HYPHEN_DETAILS = [
+     'B1F STAGE',
+@@ -108,6 +108,39 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
+         updateField('program_location', val);
+     };
+ 
++    // ──────────────────────────────────────────
++    // 챌린지 미션 핸들러
++    // ──────────────────────────────────────────
++    const handleAddMission = () => {
++        const currentMissions = formData.challenge_missions || [];
++        const newMission = {
++            id: `m_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
++            title: '',
++            location: '2F SQUARE',
++            desc: ''
++        };
++        updateField('challenge_missions', [...currentMissions, newMission]);
++    };
++
++    const handleRemoveMission = (idx) => {
++        const currentMissions = formData.challenge_missions || [];
++        const nextMissions = currentMissions.filter((_, i) => i !== idx);
++        updateField('challenge_missions', nextMissions);
++    };
++
++    const handleUpdateMission = (idx, field, value) => {
++        const currentMissions = formData.challenge_missions || [];
++        const nextMissions = currentMissions.map((m, i) => {
++            if (i === idx) {
++                return { ...m, [field]: value };
++            }
++            return m;
++        });
++        updateField('challenge_missions', nextMissions);
++    };
++
++    const isChallenge = formData.program_type === PROGRAM_TYPES.CHALLENGE;
++
+     return (
+         <div className="space-y-6">
+             {/* Top Config: Program Type & Tags */}
+@@ -122,7 +155,9 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
+                 }>
+                     <button
+                         type="button"
+-                        onClick={() => updateField('program_type', PROGRAM_TYPES.CENTER)}
++                        onClick={() => {
++                            updateField('program_type', PROGRAM_TYPES.CENTER);
++                        }}
+                         className={flat 
+                             ? `flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                                 (!formData.program_type || formData.program_type === PROGRAM_TYPES.CENTER)
+@@ -140,7 +175,9 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
+                     </button>
+                     <button
+                         type="button"
+-                        onClick={() => updateField('program_type', PROGRAM_TYPES.SCHOOL_CHURCH)}
++                        onClick={() => {
++                            updateField('program_type', PROGRAM_TYPES.SCHOOL_CHURCH);
++                        }}
+                         className={flat 
+                             ? `flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                                 formData.program_type === PROGRAM_TYPES.SCHOOL_CHURCH
+@@ -156,6 +193,32 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
+                     >
+                         스처 프로그램
+                     </button>
++                    <button
++                        type="button"
++                        onClick={() => {
++                            updateField('program_type', PROGRAM_TYPES.CHALLENGE);
++                            updateField('is_recruiting', false);
++                            updateField('max_capacity', 0);
++                            updateField('is_review_required', false);
++                            if (!formData.hyphen_reward) {
++                                updateField('hyphen_reward', 30);
++                            }
++                        }}
++                        className={flat 
++                            ? `flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
++                                formData.program_type === PROGRAM_TYPES.CHALLENGE
++                                    ? 'bg-white text-slate-900 shadow-sm font-extrabold'
++                                    : 'text-slate-600 hover:text-slate-900'
++                              }`
++                            : `px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
++                                formData.program_type === PROGRAM_TYPES.CHALLENGE
++                                    ? 'bg-white text-slate-900 shadow-sm font-extrabold'
++                                    : 'text-slate-600 hover:text-slate-900'
++                              }`
++                        }
++                    >
++                        뱃지 프로그램
++                    </button>
+                 </div>
+ 
+                 {/* Right: Target Region and Leader only Chips */}
+@@ -203,313 +266,461 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
+                 </div>
+             </div>
+ 
+-            {/* Participation Type (Open vs Application) Selection Cards */}
+-            <div className="space-y-2">
+-                <span className="text-xs font-semibold text-slate-500 ml-1">운영 방식</span>
+-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+-                    {/* Open Program Card */}
+-                    <button
+-                        type="button"
+-                        onClick={() => {
+-                            updateField('is_recruiting', false);
+-                            updateField('max_capacity', '');
+-                        }}
+-                        className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
+-                            formData.is_recruiting === false
+-                                ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
+-                                : 'border-slate-100 bg-white hover:border-slate-200'
+-                        }`}
+-                    >
+-                        <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+-                            formData.is_recruiting === false ? 'border-blue-600' : 'border-slate-300'
+-                        }`}>
+-                            {formData.is_recruiting === false && (
+-                                <div className="w-2 h-2 rounded-full bg-blue-600" />
+-                            )}
+-                        </div>
+-                        <div className="space-y-1">
+-                            <p className="text-sm font-bold text-slate-800">오픈 프로그램</p>
+-                            <p className="text-xs text-slate-400 font-medium leading-relaxed">별도의 신청 절차 없이 모든 학생이 자유롭게 참여할 수 있습니다.</p>
++            {isChallenge ? (
++                // ──────────────────────────────────────────
++                // 뱃지 상세 설정 카드 폼
++                // ──────────────────────────────────────────
++                <div className="space-y-4">
++                    <span className="text-xs font-semibold text-slate-500 ml-1">뱃지 상세 설정</span>
++                    <div className="border border-slate-200/70 rounded-2xl bg-white overflow-hidden shadow-sm p-5 space-y-5">
++                        
++                        {/* 1. 진행 기간 (시작일 & 종료일) */}
++                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
++                            <div className="space-y-2">
++                                <label className="flex items-center gap-2 text-xs font-bold text-slate-500">
++                                    <Calendar size={15} className="text-slate-400" />
++                                    <span>뱃지 시작일</span>
++                                </label>
++                                <input
++                                    type="date"
++                                    value={formData.challenge_start_date || ''}
++                                    onChange={e => updateField('challenge_start_date', e.target.value)}
++                                    className="w-full p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none font-semibold text-slate-700 text-sm focus:border-blue-600 focus:bg-white transition-all"
++                                    required
++                                />
++                            </div>
++                            <div className="space-y-2">
++                                <label className="flex items-center gap-2 text-xs font-bold text-slate-500">
++                                    <Calendar size={15} className="text-slate-400" />
++                                    <span>뱃지 종료일</span>
++                                </label>
++                                <input
++                                    type="date"
++                                    value={formData.challenge_end_date || ''}
++                                    onChange={e => updateField('challenge_end_date', e.target.value)}
++                                    className="w-full p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none font-semibold text-slate-700 text-sm focus:border-blue-600 focus:bg-white transition-all"
++                                    required
++                                />
++                            </div>
+                         </div>
+-                    </button>
+ 
+-                    {/* Recruiting Program Card */}
+-                    <button
+-                        type="button"
+-                        onClick={() => updateField('is_recruiting', true)}
+-                        className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
+-                            formData.is_recruiting === true
+-                                ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
+-                                : 'border-slate-100 bg-white hover:border-slate-200'
+-                        }`}
+-                    >
+-                        <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+-                            formData.is_recruiting === true ? 'border-blue-600' : 'border-slate-300'
+-                        }`}>
+-                            {formData.is_recruiting === true && (
+-                                <div className="w-2 h-2 rounded-full bg-blue-600" />
+-                            )}
+-                        </div>
+-                        <div className="space-y-1">
+-                            <p className="text-sm font-bold text-slate-800">신청 프로그램</p>
+-                            <p className="text-xs text-slate-400 font-medium leading-relaxed">선착순 마감 등 사전 신청을 하고 승인받은 학생만 참여합니다.</p>
++                        {/* 2. 성공 보상 */}
++                        <div className="border-t border-slate-100 pt-4">
++                            <div className="space-y-2 max-w-md">
++                                <label className="flex items-center gap-2 text-xs font-bold text-slate-500">
++                                    <Gift size={15} className="text-slate-400" />
++                                    <span>성공 보상 (하이픈)</span>
++                                </label>
++                                <input
++                                    type="number"
++                                    placeholder="예: 30"
++                                    min="0"
++                                    value={formData.hyphen_reward || ''}
++                                    onChange={e => updateField('hyphen_reward', e.target.value)}
++                                    className="w-full p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none font-semibold text-slate-700 text-sm focus:border-blue-600 focus:bg-white transition-all"
++                                    required
++                                />
++                                <p className="text-[10px] text-slate-400 ml-1">모든 미션을 완료한 경우, 학생 지갑으로 해당 수량만큼 H가 자동 지급됩니다.</p>
++                            </div>
+                         </div>
+-                    </button>
+-                </div>
+-            </div>
+ 
+-            {/* Unified Program Information Section Card */}
+-            <div className="space-y-2">
+-                <span className="text-xs font-semibold text-slate-500 ml-1">상세 설정</span>
+-                
+-                <div className="border border-slate-200/70 rounded-2xl bg-white overflow-hidden shadow-sm transition-all focus-within:border-blue-500">
+-                    
+-                    {/* Row 1: Schedule & Duration */}
+-                    <div className={flat ? "flex flex-col" : "flex flex-col md:flex-row border-b border-slate-100"}>
+-                        {/* Left: Schedule */}
+-                        <div className={flat 
+-                            ? "p-4 border-b border-slate-100 space-y-2" 
+-                            : "flex-1 p-4 border-b md:border-b-0 md:border-r border-slate-100 space-y-2"
+-                        }>
+-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+-                                <Calendar size={15} className="text-slate-400" />
+-                                <span>프로그램 일정</span>
++                        {/* 3. 미션 생성 목록 (동적 리스트) */}
++                        <div className="border-t border-slate-100 pt-4 space-y-3">
++                            <div className="flex items-center justify-between">
++                                <span className="text-xs font-bold text-slate-600">뱃지 미션 구성 ({formData.challenge_missions?.length || 0}개)</span>
++                                <button
++                                    type="button"
++                                    onClick={handleAddMission}
++                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-all"
++                                >
++                                    <Plus size={14} />
++                                    <span>미션 추가</span>
++                                </button>
+                             </div>
+-                            <div className="flex flex-col sm:flex-row gap-3">
+-                                <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+-                                    <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
+-                                    <input
+-                                        type="date"
+-                                        value={splitDateTime(formData.program_date).date}
+-                                        onChange={e => {
+-                                            const newDate = joinDateTime(e.target.value, splitDateTime(formData.program_date).time);
+-                                            updateField('program_date', newDate);
+-                                            if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
+-                                                updateField('recruitment_deadline', newDate);
+-                                            }
+-                                        }}
+-                                        className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
+-                                        required
+-                                    />
+-                                </div>
+-                                <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+-                                    <Clock className="text-slate-400 shrink-0 mr-2" size={15} />
+-                                    <div className="flex-1">
+-                                        <IntuitiveTimePicker
+-                                            value={splitDateTime(formData.program_date).time}
+-                                            onChange={time => {
+-                                                const newDate = joinDateTime(splitDateTime(formData.program_date).date, time);
+-                                                updateField('program_date', newDate);
+-                                                if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
+-                                                    updateField('recruitment_deadline', newDate);
+-                                                }
+-                                            }}
+-                                        />
++
++                            <div className="space-y-3">
++                                {(!formData.challenge_missions || formData.challenge_missions.length === 0) ? (
++                                    <div className="text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl text-slate-400 text-xs font-medium">
++                                        추가된 미션이 없습니다. [미션 추가] 버튼을 눌러 미션을 작성해 주세요.
+                                     </div>
+-                                </div>
++                                ) : (
++                                    formData.challenge_missions.map((mission, idx) => (
++                                        <div key={mission.id} className="p-4 bg-slate-50/60 border border-slate-200/60 rounded-2xl space-y-3 relative group">
++                                            <button
++                                                type="button"
++                                                onClick={() => handleRemoveMission(idx)}
++                                                className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors p-1"
++                                                title="미션 삭제"
++                                            >
++                                                <Trash2 size={15} />
++                                            </button>
++
++                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-8">
++                                                {/* 미션 이름 */}
++                                                <div className="space-y-1">
++                                                    <label className="text-[10px] font-bold text-slate-500">미션명</label>
++                                                    <input
++                                                        type="text"
++                                                        placeholder="예: 고요한 연결"
++                                                        value={mission.title || ''}
++                                                        onChange={e => handleUpdateMission(idx, 'title', e.target.value)}
++                                                        className="w-full px-3 py-2 bg-white border border-slate-200/80 rounded-lg outline-none font-semibold text-slate-700 text-xs focus:border-blue-600"
++                                                        required
++                                                    />
++                                                </div>
++
++                                                {/* 진행 장소 */}
++                                                <div className="space-y-1">
++                                                    <label className="text-[10px] font-bold text-slate-500">위치 (장소)</label>
++                                                    <select
++                                                        value={mission.location || ''}
++                                                        onChange={e => handleUpdateMission(idx, 'location', e.target.value)}
++                                                        className="w-full px-3 py-2 bg-white border border-slate-200/80 rounded-lg outline-none font-semibold text-slate-700 text-xs focus:border-blue-600 cursor-pointer"
++                                                        required
++                                                    >
++                                                        <option value="이높플레이스">이높플레이스</option>
++                                                        {HYPHEN_DETAILS.map(detail => (
++                                                            <option key={detail} value={`하이픈 ${detail}`}>{`하이픈 ${detail}`}</option>
++                                                        ))}
++                                                        <option value="기타">기타 직접 입력</option>
++                                                    </select>
++                                                </div>
++                                            </div>
++
++                                            {/* 미션 세부 내용 및 인증 가이드 */}
++                                            <div className="space-y-1">
++                                                <label className="text-[10px] font-bold text-slate-500">수행 방법 (인증 기준)</label>
++                                                <textarea
++                                                    placeholder="예: 말씀을 통해 하나님과 연결되는 기쁨! 공간에서 말씀 1장 필사하기"
++                                                    value={mission.desc || ''}
++                                                    onChange={e => handleUpdateMission(idx, 'desc', e.target.value)}
++                                                    className="w-full p-3 bg-white border border-slate-200/80 rounded-lg outline-none font-semibold text-slate-700 text-xs focus:border-blue-600 h-16 resize-none"
++                                                    required
++                                                />
++                                            </div>
++                                        </div>
++                                    ))
++                                )}
+                             </div>
+-                            <p className="text-[11px] text-slate-400 font-medium ml-1">
+-                                실제 진행되는 시작 날짜와 시간입니다.
+-                            </p>
+                         </div>
+ 
+-                        {/* Right: Duration */}
+-                        <div className={flat 
+-                            ? "p-4 border-b border-slate-100 space-y-2" 
+-                            : "w-full md:w-1/3 p-4 space-y-2"
+-                        }>
+-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+-                                <Clock size={15} className="text-slate-400" />
+-                                <span>소요 시간</span>
+-                            </div>
+-                            <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+-                                <Clock className="absolute left-3 text-slate-400 shrink-0" size={15} />
+-                                <input
+-                                    type="text"
+-                                    placeholder="예: 2시간 또는 1.5시간"
+-                                    value={formData.program_duration}
+-                                    onChange={e => updateField('program_duration', e.target.value)}
+-                                    className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+-                                    required
+-                                />
+-                            </div>
+-                            <p className="text-[11px] text-slate-400 font-medium ml-1">
+-                                마감 시각 자동 계산용입니다. (예: 2시간)
+-                            </p>
++                    </div>
++                </div>
++            ) : (
++                // ──────────────────────────────────────────
++                // 기존 프로그램 상세 설정 폼
++                // ──────────────────────────────────────────
++                <>
++                    {/* Participation Type (Open vs Application) Selection Cards */}
++                    <div className="space-y-2">
++                        <span className="text-xs font-semibold text-slate-500 ml-1">운영 방식</span>
++                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
++                            {/* Open Program Card */}
++                            <button
++                                type="button"
++                                onClick={() => {
++                                    updateField('is_recruiting', false);
++                                    updateField('max_capacity', '');
++                                }}
++                                className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
++                                    formData.is_recruiting === false
++                                        ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
++                                        : 'border-slate-100 bg-white hover:border-slate-200'
++                                }`}
++                            >
++                                <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
++                                    formData.is_recruiting === false ? 'border-blue-600' : 'border-slate-300'
++                                }`}>
++                                    {formData.is_recruiting === false && (
++                                        <div className="w-2 h-2 rounded-full bg-blue-600" />
++                                    )}
++                                </div>
++                                <div className="space-y-1">
++                                    <p className="text-sm font-bold text-slate-800">오픈 프로그램</p>
++                                    <p className="text-xs text-slate-400 font-medium leading-relaxed">별도의 신청 절차 없이 모든 학생이 자유롭게 참여할 수 있습니다.</p>
++                                </div>
++                            </button>
++
++                            {/* Recruiting Program Card */}
++                            <button
++                                type="button"
++                                onClick={() => updateField('is_recruiting', true)}
++                                className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
++                                    formData.is_recruiting === true
++                                        ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
++                                        : 'border-slate-100 bg-white hover:border-slate-200'
++                                }`}
++                            >
++                                <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
++                                    formData.is_recruiting === true ? 'border-blue-600' : 'border-slate-300'
++                                }`}>
++                                    {formData.is_recruiting === true && (
++                                        <div className="w-2 h-2 rounded-full bg-blue-600" />
++                                    )}
++                                </div>
++                                <div className="space-y-1">
++                                    <p className="text-sm font-bold text-slate-800">신청 프로그램</p>
++                                    <p className="text-xs text-slate-400 font-medium leading-relaxed">선착순 마감 등 사전 신청을 하고 승인받은 학생만 참여합니다.</p>
++                                </div>
++                            </button>
+                         </div>
+                     </div>
+ 
+-                    {/* Row 2: Recruitment Deadline & Capacity (Conditional on is_recruiting) */}
+-                    {formData.is_recruiting && (
+-                        <div className={flat 
+-                            ? "flex flex-col bg-slate-50/20 border-b border-slate-100 animate-fade-in" 
+-                            : "flex flex-col md:flex-row border-b border-slate-100 bg-slate-50/20 animate-fade-in"
+-                        }>
+-                            {/* Left: Deadline */}
+-                            <div className={flat 
+-                                ? "p-4 border-b border-slate-100 space-y-2" 
+-                                : "flex-1 p-4 border-b md:border-b-0 md:border-r border-slate-100 space-y-2"
+-                            }>
+-                                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+-                                    <Clock size={15} className="text-slate-400" />
+-                                    <span>신청 마감 시간</span>
++                    {/* Unified Program Information Section Card */}
++                    <div className="space-y-2">
++                        <span className="text-xs font-semibold text-slate-500 ml-1">상세 설정</span>
++                        
++                        <div className="border border-slate-200/70 rounded-2xl bg-white overflow-hidden shadow-sm transition-all focus-within:border-blue-500">
++                            
++                            {/* Row 1: Schedule & Duration */}
++                            <div className={flat ? "flex flex-col" : "flex flex-col md:flex-row border-b border-slate-100"}>
++                                {/* Left: Schedule */}
++                                <div className={flat 
++                                    ? "p-4 border-b border-slate-100 space-y-2" 
++                                    : "flex-1 p-4 border-b md:border-b-0 md:border-r border-slate-100 space-y-2"
++                                }>
++                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
++                                        <Calendar size={15} className="text-slate-400" />
++                                        <span>프로그램 일정</span>
++                                    </div>
++                                    <div className="flex flex-col sm:flex-row gap-3">
++                                        <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
++                                            <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
++                                            <input
++                                                type="date"
++                                                value={splitDateTime(formData.program_date).date}
++                                                onChange={e => {
++                                                    const newDate = joinDateTime(e.target.value, splitDateTime(formData.program_date).time);
++                                                    updateField('program_date', newDate);
++                                                    if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
++                                                        updateField('recruitment_deadline', newDate);
++                                                    }
++                                                }}
++                                                className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
++                                                required
++                                            />
++                                        </div>
++                                        <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
++                                            <Clock className="text-slate-400 shrink-0 mr-2" size={15} />
++                                            <div className="flex-1">
++                                                <IntuitiveTimePicker
++                                                    value={splitDateTime(formData.program_date).time}
++                                                    onChange={time => {
++                                                        const newDate = joinDateTime(splitDateTime(formData.program_date).date, time);
++                                                        updateField('program_date', newDate);
++                                                        if (!formData.recruitment_deadline || formData.recruitment_deadline === formData.program_date) {
++                                                            updateField('recruitment_deadline', newDate);
++                                                        }
++                                                    }}
++                                                />
++                                            </div>
++                                        </div>
++                                    </div>
++                                    <p className="text-[11px] text-slate-400 font-medium ml-1">
++                                        실제 진행되는 시작 날짜와 시간입니다.
++                                    </p>
+                                 </div>
+-                                <div className="flex flex-col sm:flex-row gap-3">
+-                                    <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+-                                        <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
++
++                                {/* Right: Duration */}
++                                <div className={flat 
++                                    ? "p-4 border-b border-slate-100 space-y-2" 
++                                    : "w-full md:w-1/3 p-4 space-y-2"
++                                }>
++                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
++                                        <Clock size={15} className="text-slate-400" />
++                                        <span>소요 시간</span>
++                                    </div>
++                                    <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
++                                        <Clock className="absolute left-3 text-slate-400 shrink-0" size={15} />
+                                         <input
+-                                            type="date"
+-                                            value={splitDateTime(formData.recruitment_deadline).date}
+-                                            onChange={e => {
+-                                                const newDate = joinDateTime(e.target.value, splitDateTime(formData.recruitment_deadline).time);
+-                                                updateField('recruitment_deadline', newDate);
+-                                            }}
+-                                            className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
++                                            type="text"
++                                            placeholder="예: 2시간 또는 1.5시간"
++                                            value={formData.program_duration}
++                                            onChange={e => updateField('program_duration', e.target.value)}
++                                            className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
++                                            required
+                                         />
+                                     </div>
+-                                    <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+-                                        <Clock className="text-slate-400 shrink-0 mr-2" size={15} />
+-                                        <div className="flex-1">
+-                                            <IntuitiveTimePicker
+-                                                value={splitDateTime(formData.recruitment_deadline).time}
+-                                                onChange={time => {
+-                                                    const newDate = joinDateTime(splitDateTime(formData.recruitment_deadline).date, time);
+-                                                    updateField('recruitment_deadline', newDate);
+-                                                }}
++                                    <p className="text-[11px] text-slate-400 font-medium ml-1">
++                                        마감 시각 자동 계산용입니다. (예: 2시간)
++                                    </p>
++                                </div>
++                            </div>
++
++                            {/* Row 2: Recruitment Deadline & Capacity (Conditional on is_recruiting) */}
++                            {formData.is_recruiting && (
++                                <div className={flat 
++                                    ? "flex flex-col bg-slate-50/20 border-b border-slate-100 animate-fade-in" 
++                                    : "flex flex-col md:flex-row border-b border-slate-100 bg-slate-50/20 animate-fade-in"
++                                }>
++                                    {/* Left: Deadline */}
++                                    <div className={flat 
++                                        ? "p-4 border-b border-slate-100 space-y-2" 
++                                        : "flex-1 p-4 border-b md:border-b-0 md:border-r border-slate-100 space-y-2"
++                                    }>
++                                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
++                                            <Clock size={15} className="text-slate-400" />
++                                            <span>신청 마감 시간</span>
++                                        </div>
++                                        <div className="flex flex-col sm:flex-row gap-3">
++                                            <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
++                                                <Calendar className="absolute left-3 text-slate-400 shrink-0" size={15} />
++                                                <input
++                                                    type="date"
++                                                    value={splitDateTime(formData.recruitment_deadline).date}
++                                                    onChange={e => {
++                                                        const newDate = joinDateTime(e.target.value, splitDateTime(formData.recruitment_deadline).time);
++                                                        updateField('recruitment_deadline', newDate);
++                                                    }}
++                                                    className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm cursor-pointer"
++                                                />
++                                            </div>
++                                            <div className="flex-1 flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
++                                                <Clock className="text-slate-400 shrink-0 mr-2" size={15} />
++                                                <div className="flex-1">
++                                                    <IntuitiveTimePicker
++                                                        value={splitDateTime(formData.recruitment_deadline).time}
++                                                        onChange={time => {
++                                                            const newDate = joinDateTime(splitDateTime(formData.recruitment_deadline).date, time);
++                                                            updateField('recruitment_deadline', newDate);
++                                                        }}
++                                                    />
++                                                </div>
++                                            </div>
++                                        </div>
++                                        <p className="text-[11px] text-slate-400 font-medium ml-1">
++                                            생략하면 프로그램 시작 시간과 같아집니다.
++                                        </p>
++                                    </div>
++
++                                    {/* Right: Capacity */}
++                                    <div className={flat 
++                                        ? "p-4 space-y-2" 
++                                        : "w-full md:w-1/3 p-4 space-y-2"
++                                    }>
++                                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
++                                            <Users size={15} className="text-slate-400" />
++                                            <span>모집 정원</span>
++                                        </div>
++                                        <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
++                                            <Users className="absolute left-3 text-slate-400 shrink-0" size={15} />
++                                            <input
++                                                type="number"
++                                                placeholder="예: 10 (0: 무제한)"
++                                                value={formData.max_capacity}
++                                                onChange={e => updateField('max_capacity', e.target.value)}
++                                                className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+                                             />
+                                         </div>
++                                        <p className="text-[11px] text-slate-400 font-medium ml-1">
++                                            0을 입력하면 인원 제한이 없어집니다.
++                                        </p>
+                                     </div>
+                                 </div>
++                            )}
++
++                            {/* Row 3: Location */}
++                            <div className="p-4 border-b border-slate-100 space-y-2">
++                                <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
++                                    <MapPin size={15} className="text-slate-400" />
++                                    <span>진행 장소</span>
++                                </div>
++                                <div className="flex flex-col sm:flex-row gap-3">
++                                    <select
++                                        value={localMain}
++                                        onChange={handleMainChange}
++                                        className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
++                                        required
++                                    >
++                                        <option value="">공간 선택</option>
++                                        <option value="하이픈">하이픈</option>
++                                        <option value="이높플레이스">이높플레이스</option>
++                                        <option value="기타">기타</option>
++                                    </select>
++
++                                    {localMain === '하이픈' && (
++                                        <select
++                                            value={selectedDetail}
++                                            onChange={handleDetailChange}
++                                            className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all cursor-pointer animate-fade-in"
++                                            required
++                                        >
++                                            <option value="">세부 공간 선택</option>
++                                            {HYPHEN_DETAILS.map(opt => (
++                                                <option key={opt} value={opt}>{opt}</option>
++                                            ))}
++                                        </select>
++                                    )}
++
++                                    {localMain === '기타' && (
++                                        <input
++                                            type="text"
++                                            placeholder="예: 오아센터 (자유롭게 입력)"
++                                            value={customVal}
++                                            onChange={handleCustomChange}
++                                            className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all animate-fade-in"
++                                            required
++                                        />
++                                    )}
++                                </div>
+                                 <p className="text-[11px] text-slate-400 font-medium ml-1">
+-                                    생략하면 프로그램 시작 시간과 같아집니다.
++                                    {localMain === '하이픈' && "공간 이름 - 세부 공간 이름 순으로 표기됩니다. (예: '하이픈 B1F STAGE')"}
++                                    {localMain === '이높플레이스' && "공간 이름만 표기됩니다. (예: '이높플레이스')"}
++                                    {localMain === '기타' && "입력하신 텍스트가 그대로 표기됩니다. (예: '오아센터')"}
++                                    {!localMain && "공간 유형을 선택해 주세요."}
+                                 </p>
+                             </div>
+ 
+-                            {/* Right: Capacity */}
+-                            <div className={flat 
+-                                ? "p-4 space-y-2" 
+-                                : "w-full md:w-1/3 p-4 space-y-2"
+-                            }>
++                            {/* Row 4: Hyphen Points */}
++                            <div className="p-4 space-y-2">
+                                 <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+-                                    <Users size={15} className="text-slate-400" />
+-                                    <span>모집 정원</span>
++                                    <Gift size={15} className="text-slate-400" />
++                                    <span>지급 포인트 및 리뷰 설정</span>
+                                 </div>
+-                                <div className="relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+-                                    <Users className="absolute left-3 text-slate-400 shrink-0" size={15} />
+-                                    <input
+-                                        type="number"
+-                                        placeholder="예: 10 (0: 무제한)"
+-                                        value={formData.max_capacity}
+-                                        onChange={e => updateField('max_capacity', e.target.value)}
+-                                        className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+-                                    />
++                                <div className="flex flex-col sm:flex-row gap-3">
++                                    <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
++                                        <Gift className="absolute left-3 text-slate-400 shrink-0" size={15} />
++                                        <input
++                                            type="number"
++                                            placeholder="단위: 하이픈 (지급 포인트)"
++                                            min="0"
++                                            value={formData.hyphen_reward || ''}
++                                            onChange={e => updateField('hyphen_reward', e.target.value)}
++                                            className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
++                                        />
++                                    </div>
++                                    
++                                    <label className={`flex-1 flex items-center gap-2.5 px-3 py-3 border rounded-xl cursor-pointer transition-all duration-200 ${
++                                        formData.is_review_required 
++                                            ? 'bg-blue-50/20 border-blue-500/30 text-blue-600' 
++                                            : 'bg-slate-50/50 border-slate-200/80 text-slate-400 hover:bg-slate-100/50'
++                                    }`}>
++                                        <CheckSquare className="shrink-0" size={16} />
++                                        <input
++                                            type="checkbox"
++                                            checked={formData.is_review_required || false}
++                                            onChange={(e) => updateField('is_review_required', e.target.checked)}
++                                            className="hidden"
++                                        />
++                                        <div className="flex flex-col justify-center text-left">
++                                            <span className={`text-xs font-bold leading-tight ${formData.is_review_required ? 'text-blue-700' : 'text-slate-700'}`}>리뷰 작성 필수</span>
++                                            <span className="text-[10px] font-medium text-slate-400 leading-tight block mt-0.5">리뷰 완료 시 포인트 자동 지급</span>
++                                        </div>
++                                    </label>
+                                 </div>
+                                 <p className="text-[11px] text-slate-400 font-medium ml-1">
+-                                    0을 입력하면 인원 제한이 없어집니다.
++                                    프로그램 참여 학생에게 지급할 HP(하이픈 포인트)를 입력하고, 리뷰 작성을 필수로 제한할지 결정합니다.
+                                 </p>
+                             </div>
+                         </div>
+-                    )}
+-
+-                    {/* Row 3: Location */}
+-                    <div className="p-4 border-b border-slate-100 space-y-2">
+-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+-                            <MapPin size={15} className="text-slate-400" />
+-                            <span>진행 장소</span>
+-                        </div>
+-                        <div className="flex flex-col sm:flex-row gap-3">
+-                            <select
+-                                value={localMain}
+-                                onChange={handleMainChange}
+-                                className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
+-                                required
+-                            >
+-                                <option value="">공간 선택</option>
+-                                <option value="하이픈">하이픈</option>
+-                                <option value="이높플레이스">이높플레이스</option>
+-                                <option value="기타">기타</option>
+-                            </select>
+-
+-                            {localMain === '하이픈' && (
+-                                <select
+-                                    value={selectedDetail}
+-                                    onChange={handleDetailChange}
+-                                    className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all cursor-pointer animate-fade-in"
+-                                    required
+-                                >
+-                                    <option value="">세부 공간 선택</option>
+-                                    {HYPHEN_DETAILS.map(opt => (
+-                                        <option key={opt} value={opt}>{opt}</option>
+-                                    ))}
+-                                </select>
+-                            )}
+-
+-                            {localMain === '기타' && (
+-                                <input
+-                                    type="text"
+-                                    placeholder="예: 오아센터 (자유롭게 입력)"
+-                                    value={customVal}
+-                                    onChange={handleCustomChange}
+-                                    className="flex-1 p-3 bg-slate-50/50 border border-slate-200/80 rounded-xl outline-none text-sm font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all animate-fade-in"
+-                                    required
+-                                />
+-                            )}
+-                        </div>
+-                        <p className="text-[11px] text-slate-400 font-medium ml-1">
+-                            {localMain === '하이픈' && "공간 이름 - 세부 공간 이름 순으로 표기됩니다. (예: '하이픈 B1F STAGE')"}
+-                            {localMain === '이높플레이스' && "공간 이름만 표기됩니다. (예: '이높플레이스')"}
+-                            {localMain === '기타' && "입력하신 텍스트가 그대로 표기됩니다. (예: '오아센터')"}
+-                            {!localMain && "공간 유형을 선택해 주세요."}
+-                        </p>
+-                    </div>
+-
+-                    {/* Row 4: Hyphen Points */}
+-                    <div className="p-4 space-y-2">
+-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+-                            <Gift size={15} className="text-slate-400" />
+-                            <span>지급 포인트 및 리뷰 설정</span>
+-                        </div>
+-                        <div className="flex flex-col sm:flex-row gap-3">
+-                            <div className="flex-1 relative flex items-center bg-slate-50/50 border border-slate-200/80 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
+-                                <Gift className="absolute left-3 text-slate-400 shrink-0" size={15} />
+-                                <input
+-                                    type="number"
+-                                    placeholder="단위: 하이픈 (지급 포인트)"
+-                                    min="0"
+-                                    value={formData.hyphen_reward || ''}
+-                                    onChange={e => updateField('hyphen_reward', e.target.value)}
+-                                    className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
+-                                />
+-                            </div>
+-                            
+-                            <label className={`flex-1 flex items-center gap-2.5 px-3 py-3 border rounded-xl cursor-pointer transition-all duration-200 ${
+-                                formData.is_review_required 
+-                                    ? 'bg-blue-50/20 border-blue-500/30 text-blue-600' 
+-                                    : 'bg-slate-50/50 border-slate-200/80 text-slate-400 hover:bg-slate-100/50'
+-                            }`}>
+-                                <CheckSquare className="shrink-0" size={16} />
+-                                <input
+-                                    type="checkbox"
+-                                    checked={formData.is_review_required || false}
+-                                    onChange={(e) => updateField('is_review_required', e.target.checked)}
+-                                    className="hidden"
+-                                />
+-                                <div className="flex flex-col justify-center text-left">
+-                                    <span className={`text-xs font-bold leading-tight ${formData.is_review_required ? 'text-blue-700' : 'text-slate-700'}`}>리뷰 작성 필수</span>
+-                                    <span className="text-[10px] font-medium text-slate-400 leading-tight block mt-0.5">리뷰 완료 시 포인트 자동 지급</span>
+-                                </div>
+-                            </label>
+-                        </div>
+-                        <p className="text-[11px] text-slate-400 font-medium ml-1">
+-                            프로그램 참여 학생에게 지급할 HP(하이픈 포인트)를 입력하고, 리뷰 작성을 필수로 제한할지 결정합니다.
+-                        </p>
+                     </div>
+-                </div>
+-            </div>
++                </>
++            )}
+         </div>
+     );
+ };
+ 
++
+ ProgramInfoSection.propTypes = {
+     formData: PropTypes.object.isRequired,
+     updateField: PropTypes.func.isRequired,

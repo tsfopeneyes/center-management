@@ -42,7 +42,10 @@ export const backupLogsToGoogleSheets = async (webhookUrl, logs, users, location
         u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
     ).map(u => u.id));
 
-    const formatted = logs.filter(l => !adminIds.has(l.user_id)).map(log => {
+    const formatted = logs
+        .filter(l => !adminIds.has(l.user_id))
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        .map(log => {
         const user = users.find(u => u.id === log.user_id);
         const location = locations.find(l => l.id === log.location_id);
 
@@ -195,18 +198,21 @@ export const performFullSyncToGoogleSheets = async ({
     })).filter(row => row['공간 방문 횟수'] > 0 || row['프로그램 신청'] > 0);
 
     // 3. 공간로그 (Space Logs)
-    const logRows = logs.filter(l => !l.type?.startsWith('PRG_') && !adminIds.has(l.user_id)).map(log => {
-        const u = users.find(user => user.id === log.user_id);
-        const loc = locations.find(l => l.id === log.location_id);
-        return {
-            '일시': format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss'),
-            '이름': u ? u.name : '알 수 없음',
-            '학교': u ? u.school : '-',
-            '장소': loc ? loc.name : '-',
-            '유형': log.type === 'CHECKIN' ? '입실' : log.type === 'CHECKOUT' ? '퇴실' : log.type === 'MOVE' ? '이동' : log.type,
-            '체류시간(분)': log.duration || 0
-        };
-    });
+    const logRows = logs
+        .filter(l => !l.type?.startsWith('PRG_') && !adminIds.has(l.user_id))
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        .map(log => {
+            const u = users.find(user => user.id === log.user_id);
+            const loc = locations.find(l => l.id === log.location_id);
+            return {
+                '일시': format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss'),
+                '이름': u ? u.name : '알 수 없음',
+                '학교': u ? u.school : '-',
+                '장소': loc ? loc.name : '-',
+                '유형': log.type === 'CHECKIN' ? '입실' : log.type === 'CHECKOUT' ? '퇴실' : log.type === 'MOVE' ? '이동' : log.type,
+                '체류시간(분)': log.duration || 0
+            };
+        });
 
     // 4. 프로그램 실적
     const prgStats = processProgramAnalytics(notices, responses, new Date(), 'YEARLY');
@@ -267,27 +273,33 @@ export const performFullSyncToGoogleSheets = async ({
             '방문목적': note.purpose || '',
             '비고': note.remarks || ''
         };
+    }).sort((a, b) => {
+        const dateDiff = new Date(a['날짜']) - new Date(b['날짜']);
+        if (dateDiff !== 0) return dateDiff;
+        return a['시작'].localeCompare(b['시작']);
     });
 
     // 8. 학생만남일지 (Student Meeting Logs)
-    const schoolLogRows = (schoolLogs || []).map(log => {
-        const timeInfo = parseTimeRange(log.time_range);
-        const facilitatorNames = log.facilitator_ids?.map(fid => users.find(u => u.id === fid)?.name).filter(Boolean).join(', ') || '';
-        const participantNames = log.participant_ids?.map(pid => users.find(u => u.id === pid)?.name).filter(Boolean).join(', ') || '';
+    const schoolLogRows = (schoolLogs || [])
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .map(log => {
+            const timeInfo = parseTimeRange(log.time_range);
+            const facilitatorNames = log.facilitator_ids?.map(fid => users.find(u => u.id === fid)?.name).filter(Boolean).join(', ') || '';
+            const participantNames = log.participant_ids?.map(pid => users.find(u => u.id === pid)?.name).filter(Boolean).join(', ') || '';
 
-        return {
-            'ID': log.id,
-            '주차': getWeekIdentifier(log.date),
-            '날짜': log.date,
-            '시간': log.time_range,
-            '장소': log.location || '-',
-            '학교': log.schools?.name || log.users?.school || '-',
-            '참여자': participantNames,
-            '참여인원': log.participant_ids?.length || 0,
-            '담당자': facilitatorNames,
-            '내용': log.content || ''
-        };
-    });
+            return {
+                'ID': log.id,
+                '주차': getWeekIdentifier(log.date),
+                '날짜': log.date,
+                '시간': log.time_range,
+                '장소': log.location || '-',
+                '학교': log.schools?.name || log.users?.school || '-',
+                '참여자': participantNames,
+                '참여인원': log.participant_ids?.length || 0,
+                '담당자': facilitatorNames,
+                '내용': log.content || ''
+            };
+        });
 
     // 9. 리뷰분석 (Feedback Logs)
     const calculateAge = (birth) => {
@@ -298,7 +310,10 @@ export const performFullSyncToGoogleSheets = async ({
         return new Date().getFullYear() - fullYear + 1;
     };
 
-    const feedbackRows = (feedbacks || []).filter(fb => !adminIds.has(fb.user_id)).map((fb, idx) => {
+    const feedbackRows = (feedbacks || [])
+        .filter(fb => !adminIds.has(fb.user_id))
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        .map((fb, idx) => {
         return {
             '번호': idx + 1,
             '날짜': format(new Date(fb.created_at), 'yyyy-MM-dd'),

@@ -1,123 +1,138 @@
 import React from 'react';
-import { Share2, Database, FileText, ShieldAlert } from 'lucide-react';
+import { Share2, Database, ShieldAlert } from 'lucide-react';
 
 const IntegrationConfig = ({
     gsWebhookUrl,
     setGsWebhookUrl,
-    notionApiKey,
-    setNotionApiKey,
-    notionDbId,
-    setNotionDbId,
+    lineChannelAccessToken,
+    setLineChannelAccessToken,
+    lineGroupId,
+    setLineGroupId,
+    discordWebhookUrl,
+    setDiscordWebhookUrl,
     kioskMasterPin,
     setKioskMasterPin,
     isBackingUp,
-    isUploadingNotion,
     syncProgress,
     handleSaveIntegrations,
-    handleGoogleSheetsBackup,
-    handleNotionUpload
+    handleGoogleSheetsBackup
 }) => {
     return (
-        <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-6">
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight"><Share2 size={20} className="text-[#3182f6]" /> 외부 서비스 연동</h3>
-                <button onClick={handleSaveIntegrations} className="px-4 py-2 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-xs transition-colors shadow-sm">설정 저장</button>
+        <div className="space-y-6">
+            {/* Header with Save Button */}
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <Share2 size={22} className="text-[#3182f6]" />
+                    <div>
+                        <h3 className="text-lg font-bold text-[#191f28] tracking-tight">외부 서비스 연동</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">외부 API 및 보안 마스터 핀을 연동하고 설정합니다.</p>
+                    </div>
+                </div>
+                <button onClick={handleSaveIntegrations} className="px-6 py-2.5 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-sm transition shadow-sm active:scale-95">설정 저장</button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Google Sheets */}
-                <div className="space-y-4 p-4 bg-[#f8f9fa] rounded-2xl border border-[#f2f4f6]">
-                    <div className="flex items-center gap-2 text-green-600 font-bold mb-2">
-                        <Database size={18} />
-                        <span>Google Sheets 백업</span>
-                    </div>
+            {/* Google Sheets */}
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-green-600 font-bold">
+                    <Database size={20} />
+                    <span className="text-base">Google Sheets 백업</span>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed -mt-2">구글 앱스 스크립트 웹앱과 통신하여 공간 로그 및 설문 내역을 시트에 동기화합니다.</p>
+                
+                <div className="space-y-4 pt-2">
                     <div>
-                        <label className="block text-[10px] font-bold text-gray-500 mb-1 ml-1">Apps Script Webhook URL</label>
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">Apps Script Webhook URL</label>
                         <input
                             type="text"
                             value={gsWebhookUrl}
                             onChange={e => setGsWebhookUrl(e.target.value)}
                             placeholder="https://script.google.com/macros/s/.../exec"
-                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
+                            className="w-full px-4 py-3 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
+                        />
+                    </div>
+                    <div className="flex flex-col md:flex-row items-center gap-4">
+                        <button
+                            onClick={handleGoogleSheetsBackup}
+                            disabled={isBackingUp}
+                            className="w-full md:w-auto px-6 py-3.5 bg-[#2b8a3e] hover:bg-[#216a2f] text-white rounded-xl font-bold transition shadow-sm disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm whitespace-nowrap active:scale-95"
+                        >
+                            {isBackingUp ? '동기화 중...' : <><Database size={16} /> 모든 데이터 시트 동기화</>}
+                        </button>
+                        {syncProgress && (
+                            <p className="text-xs text-blue-600 font-bold animate-pulse text-center md:text-left">{syncProgress}</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Messenger Notifications */}
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-[#3182f6] font-bold">
+                    <Share2 size={20} />
+                    <span className="text-base">실시간 메신저 입실 알림</span>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed -mt-2">학생 입퇴실 기록을 디스코드 또는 라인(LINE) 챗봇을 통해 관리자 및 선생님 단체방에 전달합니다.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">LINE 채널 액세스 토큰 (Channel Access Token)</label>
+                        <input
+                            type="password"
+                            value={lineChannelAccessToken}
+                            onChange={e => setLineChannelAccessToken(e.target.value)}
+                            placeholder="LINE 채널 액세스 토큰을 입력하세요"
+                            className="w-full px-4 py-3 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">LINE 대상 그룹 ID (Group ID)</label>
+                        <input
+                            type="text"
+                            value={lineGroupId}
+                            onChange={e => setLineGroupId(e.target.value)}
+                            placeholder="Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                            className="w-full px-4 py-3 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">Discord 웹훅 URL (선택사항)</label>
+                        <input
+                            type="text"
+                            value={discordWebhookUrl}
+                            onChange={e => setDiscordWebhookUrl(e.target.value)}
+                            placeholder="https://discord.com/api/webhooks/..."
+                            className="w-full px-4 py-3 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Kiosk Master Pin */}
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-red-500 font-bold">
+                    <ShieldAlert size={20} />
+                    <span className="text-base">키오스크 보안 설정</span>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed -mt-2">키오스크 프로그램 설정 진입 및 관리자 잠금 해제에 사용되는 고유 보안 마스터 PIN을 지정합니다.</p>
+
+                <div className="flex flex-col md:flex-row items-end gap-4 pt-2">
+                    <div className="flex-1 w-full">
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">키오스크 마스터 핀 (4자리 숫자)</label>
+                        <input
+                            type="password"
+                            maxLength="4"
+                            value={kioskMasterPin}
+                            onChange={e => setKioskMasterPin(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="1801"
+                            className="w-full px-4 py-3 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm font-mono tracking-widest"
                         />
                     </div>
                     <button
-                        onClick={handleGoogleSheetsBackup}
-                        disabled={isBackingUp}
-                        className="w-full py-3 bg-[#2b8a3e] hover:bg-[#216a2f] text-white rounded-xl font-bold transition shadow-sm disabled:bg-gray-300 flex items-center justify-center gap-2 text-xs"
+                        onClick={handleSaveIntegrations}
+                        className="w-full md:w-auto px-6 py-3.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-sm text-sm active:scale-95 whitespace-nowrap"
                     >
-                        {isBackingUp ? '동기화 중...' : <><Database size={16} /> 모든 데이터 시트 동기화</>}
+                        마스터 핀 저장
                     </button>
-                    {syncProgress && (
-                        <p className="text-xs text-blue-600 font-bold animate-pulse text-center">{syncProgress}</p>
-                    )}
-                    <p className="text-[10px] text-gray-400 leading-relaxed">* 구글 앱스 스크립트를 통해 시트에 로그를 전송합니다.</p>
-                </div>
-
-                {/* Notion */}
-                <div className="space-y-4 p-4 bg-[#f8f9fa] rounded-2xl border border-[#f2f4f6]">
-                    <div className="flex items-center gap-2 text-black font-bold mb-2">
-                        <FileText size={18} />
-                        <span>Notion 요약 업로드</span>
-                    </div>
-                    <div className="space-y-3">
-                        <div>
-                            <label className="block text-[10px] font-bold text-gray-500 mb-1 ml-1">Notion API Key</label>
-                            <input
-                                type="password"
-                                value={notionApiKey}
-                                onChange={e => setNotionApiKey(e.target.value)}
-                                placeholder="secret_..."
-                                className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-gray-800 transition text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-gray-500 mb-1 ml-1">Database ID</label>
-                            <input
-                                type="text"
-                                value={notionDbId}
-                                onChange={e => setNotionDbId(e.target.value)}
-                                placeholder="32자리 ID"
-                                className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-gray-800 transition text-sm"
-                            />
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleNotionUpload}
-                        disabled={isUploadingNotion}
-                        className="w-full py-3 bg-gray-800 text-white rounded-xl font-bold hover:bg-black transition shadow-sm disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm"
-                    >
-                        {isUploadingNotion ? '업로드 중...' : <><FileText size={16} /> 지금 노션으로 업로드</>}
-                    </button>
-                    <p className="text-[10px] text-gray-400 leading-relaxed">* 오늘 하루의 통계(방문자 등)를 노션 데이터베이스에 추가합니다.</p>
-                </div>
-
-                {/* Kiosk Master Pin */}
-                <div className="space-y-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100 md:col-span-2">
-                    <div className="flex items-center gap-2 text-blue-600 font-bold mb-2">
-                        <ShieldAlert size={18} />
-                        <span>키오스크 보안 설정</span>
-                    </div>
-                    <div className="flex flex-col md:flex-row items-end gap-4">
-                        <div className="flex-1 w-full">
-                            <label className="block text-[10px] font-bold text-gray-500 mb-1 ml-1">키오스크 마스터 핀 (4자리 숫자)</label>
-                            <input
-                                type="password"
-                                maxLength="4"
-                                value={kioskMasterPin}
-                                onChange={e => setKioskMasterPin(e.target.value.replace(/[^0-9]/g, ''))}
-                                placeholder="1801"
-                                className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm font-mono tracking-widest"
-                            />
-                        </div>
-                        <button
-                            onClick={handleSaveIntegrations}
-                            className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-sm text-sm"
-                        >
-                            마스터 핀 저장
-                        </button>
-                    </div>
-                    <p className="text-[10px] text-gray-400 leading-relaxed">* 키오스크 진입 및 설정 변경 시 필요한 비밀번호입니다. 유출되지 않도록 주의하세요.</p>
                 </div>
             </div>
         </div>

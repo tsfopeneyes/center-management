@@ -16,6 +16,50 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var data = JSON.parse(e.postData.contents);
     
+    // LINE Messaging API 실시간 전달 처리 (기존 Notify 대체)
+    if (data.action === 'LINE_NOTIFY') {
+      var token = data.token;
+      var to = data.to;
+      var message = data.message;
+      if (token && to && message) {
+        var options = {
+          "method": "post",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          "payload": JSON.stringify({
+            "to": to,
+            "messages": [
+              {
+                "type": "text",
+                "text": message
+              }
+            ]
+          })
+        };
+        UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push", options);
+        return ContentService.createTextOutput("LINE Sent").setMimeType(ContentService.MimeType.TEXT);
+      }
+    }
+    
+    // LINE Official Account Webhook 로깅 (그룹 ID 확인용)
+    if (data.events && data.events.length > 0) {
+      var sheet = ss.getSheetByName("LINE_LOGS");
+      if (!sheet) {
+        sheet = ss.insertSheet("LINE_LOGS");
+        sheet.appendRow(["Time", "Event Type", "Group ID", "User ID", "Full JSON"]);
+      }
+      
+      data.events.forEach(function(ev) {
+        var group_id = ev.source ? (ev.source.groupId || ev.source.roomId || "") : "";
+        var user_id = ev.source ? (ev.source.userId || "") : "";
+        sheet.appendRow([new Date(), ev.type, group_id, user_id, JSON.stringify(ev)]);
+      });
+      
+      return ContentService.createTextOutput("OK").setMimeType(ContentService.MimeType.TEXT);
+    }
+    
     // 벌크 데이터인 경우 처리 (여러 탭 동시 업데이트)
     var payloads = data.isBulk ? data.payloads : [data];
     

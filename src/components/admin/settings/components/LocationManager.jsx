@@ -39,20 +39,20 @@ const LocationManager = ({
             <h3 className="text-lg font-bold text-[#191f28] flex items-center gap-2 tracking-tight"><Settings size={20} className="text-[#3182f6]" /> 공간(Zone) 관리</h3>
 
             {/* Group Add */}
-            <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <h4 className="text-xs font-bold text-[#8b95a1] uppercase tracking-wider">공간 그룹 (지역) 추가</h4>
+            <div className="space-y-3 p-5 bg-gray-50/50 rounded-2xl border border-gray-100">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">공간 그룹 (지역) 추가</h4>
                 <div className="flex items-center gap-2">
-                    <input type="text" value={tempGroupName} onChange={e => setTempGroupName(e.target.value)} placeholder="새 그룹 이름 (예: 하이픈)" className="flex-1 w-full min-w-0 px-4 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm h-[40px]" />
-                    <button onClick={handleAddGroup} className="bg-[#3182f6] hover:bg-[#1b64da] text-white px-4 rounded-xl font-bold transition-all shadow-sm text-sm whitespace-nowrap h-[40px] flex items-center justify-center">그룹 추가</button>
+                    <input type="text" value={tempGroupName} onChange={e => setTempGroupName(e.target.value)} placeholder="새 그룹 이름 (예: 하이픈)" className="flex-1 w-full min-w-0 px-4 py-2.5 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm h-[44px]" />
+                    <button onClick={handleAddGroup} className="bg-[#3182f6] hover:bg-[#1b64da] text-white px-5 rounded-xl font-bold transition-all shadow-sm text-sm whitespace-nowrap h-[44px] flex items-center justify-center">그룹 추가</button>
                 </div>
             </div>
 
             {/* Location Add */}
-            <div className="space-y-3 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                <h4 className="text-xs font-bold text-[#3182f6] uppercase tracking-wider">상세 공간 추가</h4>
+            <div className="space-y-3 p-5 bg-blue-50/30 rounded-2xl border border-blue-100/50">
+                <h4 className="text-xs font-bold text-blue-500 uppercase tracking-wider ml-1">상세 공간 추가</h4>
                 <div className="flex flex-col gap-2">
                     <select
-                        className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm h-[40px] font-bold text-gray-700"
+                        className="w-full px-4 bg-white border border-gray-200 rounded-xl outline-none focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all text-sm h-[44px] font-bold text-gray-700"
                         value={selectedGroupIdForLocation}
                         onChange={(e) => setSelectedGroupIdForLocation(e.target.value)}
                     >
@@ -62,8 +62,8 @@ const LocationManager = ({
                         ))}
                     </select>
                     <div className="flex items-center gap-2">
-                        <input type="text" value={tempLocationName} onChange={e => setTempLocationName(e.target.value)} placeholder="새 상세 공간 이름 (예: 2F 라운지)" className="flex-1 min-w-0 p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition text-sm h-[40px]" />
-                        <button onClick={handleAddLocation} className="bg-blue-600 text-white px-4 rounded-xl font-bold hover:bg-blue-700 shadow-sm text-sm whitespace-nowrap h-[40px] flex items-center justify-center transition-all">공간 추가</button>
+                        <input type="text" value={tempLocationName} onChange={e => setTempLocationName(e.target.value)} placeholder="새 상세 공간 이름 (예: 2F 라운지)" className="flex-1 min-w-0 px-4 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm h-[44px]" />
+                        <button onClick={handleAddLocation} className="bg-blue-600 text-white px-5 rounded-xl font-bold hover:bg-blue-700 shadow-sm text-sm whitespace-nowrap h-[44px] flex items-center justify-center transition-all">공간 추가</button>
                     </div>
                 </div>
             </div>

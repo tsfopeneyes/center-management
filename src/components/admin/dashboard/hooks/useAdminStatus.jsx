@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { isAdminOrStaff } from '../../../../utils/userUtils';
 
-export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStats, currentLocations, dailyVisitStats }) => {
+export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStats, currentLocations, dailyVisitStats, allLogs = [] }) => {
     const [locationTab, setLocationTab] = useState('ALL');
     const [zoneDetailModal, setZoneDetailModal] = useState({ isOpen: false, locationId: null, locationName: '', activeUsers: [] });
 
@@ -69,16 +69,56 @@ export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStat
     })).sort((a, b) => new Date(b.checkInTime) - new Date(a.checkInTime));
 
     const handleZoneClick = (location) => {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const todayLocationLogs = allLogs.filter(log => {
+            const isToday = new Date(log.created_at) >= todayStart;
+            const isTargetLocation = log.location_id === location.id;
+            const isNotAdmin = !adminIdsSet.has(log.user_id);
+            return isToday && isTargetLocation && isNotAdmin;
+        });
+
+        const visitedUserIds = Array.from(new Set(
+            todayLocationLogs
+                .filter(log => log.type === 'CHECKIN' || log.type === 'MOVE')
+                .map(log => log.user_id)
+        ));
+
         const activeUserIds = Object.keys(currentLocations).filter(uid =>
             currentLocations[uid]?.locId === location.id && !adminIdsSet.has(uid)
         );
-        const activeUsers = users.filter(u => activeUserIds.includes(u.id));
+
+        const combinedUserIds = Array.from(new Set([...activeUserIds, ...visitedUserIds]));
+
+        const mappedUsers = combinedUserIds.map(uid => {
+            const user = users.find(u => u.id === uid);
+            if (!user) return null;
+
+            const isActive = currentLocations[uid]?.locId === location.id;
+            const firstLogAtLoc = todayLocationLogs
+                .filter(log => log.user_id === uid && (log.type === 'CHECKIN' || log.type === 'MOVE'))
+                .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0];
+
+            const checkInTime = firstLogAtLoc ? firstLogAtLoc.created_at : (currentLocations[uid]?.checkInTime || null);
+
+            return {
+                ...user,
+                isActive,
+                checkInTime
+            };
+        }).filter(Boolean)
+        .sort((a, b) => {
+            if (a.isActive && !b.isActive) return -1;
+            if (!a.isActive && b.isActive) return 1;
+            return new Date(b.checkInTime) - new Date(a.checkInTime);
+        });
 
         setZoneDetailModal({
             isOpen: true,
             locationId: location.id,
             locationName: location.name,
-            activeUsers: activeUsers
+            activeUsers: mappedUsers
         });
     };
 

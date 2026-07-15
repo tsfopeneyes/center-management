@@ -203,7 +203,7 @@ const AdminDashboard = () => {
                 if (log.location_id && vStats[log.location_id] !== undefined) {
                     if (log.type === 'GUEST_ENTRY') {
                         vStats[log.location_id]++;
-                    } else if (log.type === 'CHECKIN' || log.type === 'MOVE') {
+                    } else if ((log.type === 'CHECKIN' || log.type === 'MOVE') && !adminIdsSet.has(log.user_id)) {
                         locVisitors[log.location_id].add(log.user_id);
                     }
                 }

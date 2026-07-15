@@ -1,5 +1,5 @@
-import React from 'react';
-import { Settings, X, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, X, Check, ClipboardList, LayoutTemplate, Share2 } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 
 // Custom Hooks
@@ -32,11 +32,12 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
         handleAdminProfileImageSelect, handleSaveCroppedImage, handleSaveAdminProfile,
 
         gsWebhookUrl, setGsWebhookUrl,
-        notionApiKey, setNotionApiKey,
-        notionDbId, setNotionDbId,
+        lineChannelAccessToken, setLineChannelAccessToken,
+        lineGroupId, setLineGroupId,
+        discordWebhookUrl, setDiscordWebhookUrl,
         kioskMasterPin, setKioskMasterPin,
-        isBackingUp, isUploadingNotion, syncProgress,
-        handleSaveIntegrations, handleGoogleSheetsBackup, handleNotionUpload,
+        isBackingUp, syncProgress,
+        handleSaveIntegrations, handleGoogleSheetsBackup,
 
         tempGroupName, setTempGroupName,
         editGroupId, setEditGroupId,
@@ -60,113 +61,183 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
     } = useAdminSettings({
         currentAdmin, locations, locationGroups, fetchData, users, allLogs, responses, schoolLogs, notices
     });
+    const [activeTab, setActiveTab] = useState('basic');
 
     return (
-        <div className="space-y-4 md:space-y-6 animate-fade-in-up">
+        <div className="w-full space-y-6 animate-fade-in-up pb-12">
             <AdminPageHeader
                 title="시스템 설정"
                 subtitle="센터 기본 정보 및 보안, 연동 설정 관리"
                 icon={<Settings />}
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-                <ProfileSettings
-                    currentAdmin={currentAdmin}
-                    profilePreview={profilePreview}
-                    newAdminPassword={newAdminPassword}
-                    setNewAdminPassword={setNewAdminPassword}
-                    confirmAdminPassword={confirmAdminPassword}
-                    setConfirmAdminPassword={setConfirmAdminPassword}
-                    profileLoading={profileLoading}
-                    handleAdminProfileImageSelect={handleAdminProfileImageSelect}
-                    handleSaveAdminProfile={handleSaveAdminProfile}
-                />
-
-                <LocationManager
-                    isMaster={isMaster}
-                    locations={locations}
-                    locationGroups={locationGroups}
-                    tempGroupName={tempGroupName}
-                    setTempGroupName={setTempGroupName}
-                    handleAddGroup={handleAddGroup}
-                    editGroupId={editGroupId}
-                    setEditGroupId={setEditGroupId}
-                    handleUpdateGroup={handleUpdateGroup}
-                    handleDeleteGroup={handleDeleteGroup}
-                    handleToggleGroupStatus={handleToggleGroupStatus}
-                    selectedGroupIdForLocation={selectedGroupIdForLocation}
-                    setSelectedGroupIdForLocation={setSelectedGroupIdForLocation}
-                    tempLocationName={tempLocationName}
-                    setTempLocationName={setTempLocationName}
-                    handleAddLocation={handleAddLocation}
-                    editLocationId={editLocationId}
-                    setEditLocationId={setEditLocationId}
-                    handleUpdateLocation={handleUpdateLocation}
-                    handleDeleteLocation={handleDeleteLocation}
-                    handleToggleLocationStatus={handleToggleLocationStatus}
-                />
-
+            {/* Tab Navigation */}
+            <div className="flex gap-2 border-b border-gray-100 pb-px overflow-x-auto scrollbar-none">
+                <button
+                    onClick={() => setActiveTab('basic')}
+                    className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-all border-b-2 -mb-px flex items-center gap-2 ${
+                        activeTab === 'basic'
+                            ? 'border-[#3182f6] text-[#3182f6]'
+                            : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                >
+                    <Settings size={16} />
+                    <span>기본/공간 설정</span>
+                </button>
                 {isMaster && (
                     <>
-                        <OperatingHoursSettings
-                        operatingHours={operatingHours}
-                        handleUpdateOperatingHours={handleUpdateOperatingHours}
-                        handleSaveOperatingHours={handleSaveOperatingHours}
-                        hoursLoading={hoursLoading}
-                        />
-                        <StaffPresenceSettings
-                        users={users}
-                        selectedStaffConfig={selectedStaffConfig}
-                        onSave={handleSaveStaffPresenceConfig}
-                        isSaving={staffSaving}
-                        />
-                        <CheckinSurveySettings
-                        checkinSurveyConfig={checkinSurveyConfig}
-                        onSave={handleSaveCheckinSurveyConfig}
-                        isSaving={surveySaving}
-                        />
-                        <DutyChecklistSettings isMaster={isMaster} />
-                        <IntegrationConfig
-                        gsWebhookUrl={gsWebhookUrl}
-                        setGsWebhookUrl={setGsWebhookUrl}
-                        notionApiKey={notionApiKey}
-                        setNotionApiKey={setNotionApiKey}
-                        notionDbId={notionDbId}
-                        setNotionDbId={setNotionDbId}
-                        kioskMasterPin={kioskMasterPin}
-                        setKioskMasterPin={setKioskMasterPin}
-                        isBadgeSystemEnabled={isBadgeSystemEnabled}
-                        setIsBadgeSystemEnabled={setIsBadgeSystemEnabled}
-                        isBackingUp={isBackingUp}
-                        isUploadingNotion={isUploadingNotion}
-                        syncProgress={syncProgress}
-                        handleSaveIntegrations={handleSaveIntegrations}
-                        handleGoogleSheetsBackup={handleGoogleSheetsBackup}
-                        handleNotionUpload={handleNotionUpload}
-                        />
+                        <button
+                            onClick={() => setActiveTab('operations')}
+                            className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-all border-b-2 -mb-px flex items-center gap-2 ${
+                                activeTab === 'operations'
+                                    ? 'border-[#3182f6] text-[#3182f6]'
+                                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                            }`}
+                        >
+                            <ClipboardList size={16} />
+                            <span>운영/설문 설정</span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('integration')}
+                            className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-all border-b-2 -mb-px flex items-center gap-2 ${
+                                activeTab === 'integration'
+                                    ? 'border-[#3182f6] text-[#3182f6]'
+                                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                            }`}
+                        >
+                            <Share2 size={16} />
+                            <span>외부 연동 설정</span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('layout')}
+                            className={`px-5 py-3 font-bold text-sm whitespace-nowrap transition-all border-b-2 -mb-px flex items-center gap-2 ${
+                                activeTab === 'layout'
+                                    ? 'border-[#3182f6] text-[#3182f6]'
+                                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                            }`}
+                        >
+                            <LayoutTemplate size={16} />
+                            <span>화면 디자인 설정</span>
+                        </button>
                     </>
                 )}
             </div>
 
-            {isMaster && (
-                <LayoutDesigner
-                    dashboardConfig={dashboardConfig}
-                    sidebarConfig={sidebarConfig}
-                    tabConfig={tabConfig}
-                    configLoading={configLoading}
-                    sidebarConfigLoading={sidebarConfigLoading}
-                    tabConfigLoading={tabConfigLoading}
-                    handleMoveConfig={handleMoveConfig}
-                    handleUpdateConfig={handleUpdateConfig}
-                    handleSaveDashboardConfig={handleSaveDashboardConfig}
-                    handleMoveSidebarConfig={handleMoveSidebarConfig}
-                    handleUpdateSidebarConfig={handleUpdateSidebarConfig}
-                    handleSaveSidebarConfig={handleSaveSidebarConfig}
-                    handleMoveTabConfig={handleMoveTabConfig}
-                    handleUpdateTabConfig={handleUpdateTabConfig}
-                    handleSaveTabConfig={handleSaveTabConfig}
-                />
-            )}
+            {/* Tab Contents */}
+            <div className="space-y-6">
+                {activeTab === 'basic' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                        <ProfileSettings
+                            currentAdmin={currentAdmin}
+                            profilePreview={profilePreview}
+                            newAdminPassword={newAdminPassword}
+                            setNewAdminPassword={setNewAdminPassword}
+                            confirmAdminPassword={confirmAdminPassword}
+                            setConfirmAdminPassword={setConfirmAdminPassword}
+                            profileLoading={profileLoading}
+                            handleAdminProfileImageSelect={handleAdminProfileImageSelect}
+                            handleSaveAdminProfile={handleSaveAdminProfile}
+                        />
+
+                        <LocationManager
+                            isMaster={isMaster}
+                            locations={locations}
+                            locationGroups={locationGroups}
+                            tempGroupName={tempGroupName}
+                            setTempGroupName={setTempGroupName}
+                            handleAddGroup={handleAddGroup}
+                            editGroupId={editGroupId}
+                            setEditGroupId={setEditGroupId}
+                            handleUpdateGroup={handleUpdateGroup}
+                            handleDeleteGroup={handleDeleteGroup}
+                            handleToggleGroupStatus={handleToggleGroupStatus}
+                            selectedGroupIdForLocation={selectedGroupIdForLocation}
+                            setSelectedGroupIdForLocation={setSelectedGroupIdForLocation}
+                            tempLocationName={tempLocationName}
+                            setTempLocationName={setTempLocationName}
+                            handleAddLocation={handleAddLocation}
+                            editLocationId={editLocationId}
+                            setEditLocationId={setEditLocationId}
+                            handleUpdateLocation={handleUpdateLocation}
+                            handleDeleteLocation={handleDeleteLocation}
+                            handleToggleLocationStatus={handleToggleLocationStatus}
+                        />
+
+                        {isMaster && (
+                            <div className="md:col-span-2">
+                                <OperatingHoursSettings
+                                    operatingHours={operatingHours}
+                                    handleUpdateOperatingHours={handleUpdateOperatingHours}
+                                    handleSaveOperatingHours={handleSaveOperatingHours}
+                                    hoursLoading={hoursLoading}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'operations' && isMaster && (
+                    <div className="space-y-6">
+                        <StaffPresenceSettings
+                            users={users}
+                            selectedStaffConfig={selectedStaffConfig}
+                            onSave={handleSaveStaffPresenceConfig}
+                            isSaving={staffSaving}
+                        />
+                        <CheckinSurveySettings
+                            checkinSurveyConfig={checkinSurveyConfig}
+                            onSave={handleSaveCheckinSurveyConfig}
+                            isSaving={surveySaving}
+                        />
+                        <DutyChecklistSettings isMaster={isMaster} />
+                    </div>
+                )}
+
+                {activeTab === 'integration' && isMaster && (
+                    <div className="w-full">
+                        <IntegrationConfig
+                            gsWebhookUrl={gsWebhookUrl}
+                            setGsWebhookUrl={setGsWebhookUrl}
+                            lineChannelAccessToken={lineChannelAccessToken}
+                            setLineChannelAccessToken={setLineChannelAccessToken}
+                            lineGroupId={lineGroupId}
+                            setLineGroupId={setLineGroupId}
+                            discordWebhookUrl={discordWebhookUrl}
+                            setDiscordWebhookUrl={setDiscordWebhookUrl}
+                            kioskMasterPin={kioskMasterPin}
+                            setKioskMasterPin={setKioskMasterPin}
+                            isBadgeSystemEnabled={isBadgeSystemEnabled}
+                            setIsBadgeSystemEnabled={setIsBadgeSystemEnabled}
+                            isBackingUp={isBackingUp}
+                            syncProgress={syncProgress}
+                            handleSaveIntegrations={handleSaveIntegrations}
+                            handleGoogleSheetsBackup={handleGoogleSheetsBackup}
+                        />
+                    </div>
+                )}
+
+                {activeTab === 'layout' && isMaster && (
+                    <div className="w-full">
+                        <LayoutDesigner
+                            dashboardConfig={dashboardConfig}
+                            sidebarConfig={sidebarConfig}
+                            tabConfig={tabConfig}
+                            configLoading={configLoading}
+                            sidebarConfigLoading={sidebarConfigLoading}
+                            tabConfigLoading={tabConfigLoading}
+                            handleMoveConfig={handleMoveConfig}
+                            handleUpdateConfig={handleUpdateConfig}
+                            handleSaveDashboardConfig={handleSaveDashboardConfig}
+                            handleMoveSidebarConfig={handleMoveSidebarConfig}
+                            handleUpdateSidebarConfig={handleUpdateSidebarConfig}
+                            handleSaveSidebarConfig={handleSaveSidebarConfig}
+                            handleMoveTabConfig={handleMoveTabConfig}
+                            handleUpdateTabConfig={handleUpdateTabConfig}
+                            handleSaveTabConfig={handleSaveTabConfig}
+                        />
+                    </div>
+                )}
+            </div>
 
             {/* Cropper Modal */}
             {showEditor && (
