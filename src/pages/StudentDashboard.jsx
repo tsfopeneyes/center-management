@@ -32,6 +32,9 @@ import QRModal from '../components/student/modals/QRModal';
 import VerificationWriteModal from '../components/student/modals/VerificationWriteModal';
 import { useFCM } from '../hooks/useFCM';
 import ParticipantModal from '../components/admin/board/components/modals/ParticipantModal';
+import CoffeeChatModal from '../components/student/modals/CoffeeChatModal';
+import { useCoffeeChatRealtime } from '../hooks/useCoffeeChatRealtime';
+import { supabase } from '../supabaseClient';
 
 const StudentDashboard = () => {
     const hookData = useStudentDashboard();
@@ -67,8 +70,266 @@ const StudentDashboard = () => {
     const [showMenuDrawer, setShowMenuDrawer] = useState(false);
     const [hideMainHeader, setHideMainHeader] = useState(false);
     const [activeParticipantNotice, setActiveParticipantNotice] = useState(null);
+    const [selectedStaffForChat, setSelectedStaffForChat] = useState(null);
 
     const navigate = useNavigate();
+
+    const [incomingRequest, setIncomingRequest] = useState(null);
+    const [rejectionPromptOpen, setRejectionPromptOpen] = useState(false);
+    const [rejectionReason, setRejectionReason] = useState('');
+    const [statusAlert, setStatusAlert] = useState(null);
+    const [pendingCount, setPendingCount] = useState(0);
+    const [studentChatStatus, setStudentChatStatus] = useState(null);
+    const [activeChat, setActiveChat] = useState(null);
+    const [dismissedRejectedChatId, setDismissedRejectedChatId] = useState(() => {
+        return localStorage.getItem('dismissed_rejected_chat_id') || '';
+    });
+
+    const handleDismissRejection = (chatId) => {
+        localStorage.setItem('dismissed_rejected_chat_id', chatId);
+        setDismissedRejectedChatId(chatId);
+    };
+
+    const fetchCoffeeChatStats = async () => {
+        if (!user?.id) return;
+        const isStaff = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'staff' || user?.user_group?.toLowerCase() === 'staff' || user?.user_group === '관리자';
+        try {
+            if (isStaff) {
+                // Pending Count
+                const { count } = await supabase
+                    .from('coffee_chats')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('staff_id', user.id)
+                    .eq('status', 'PENDING');
+                setPendingCount(count || 0);
+
+                // Active Chat within 30 minutes
+                const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+                const { data: activeChats } = await supabase
+                    .from('coffee_chats')
+                    .select('*')
+                    .eq('staff_id', user.id)
+                    .eq('status', 'ACCEPTED')
+                    .gt('accepted_at', thirtyMinutesAgo)
+                    .order('accepted_at', { ascending: false })
+                    .limit(1);
+                if (activeChats && activeChats.length > 0) {
+                    const chat = activeChats[0];
+                    const { data: studentUser } = await supabase
+                        .from('users')
+                        .select('name, user_group')
+                        .eq('id', chat.student_id)
+                        .single();
+                    setActiveChat({
+                        ...chat,
+                        users: { 
+                            name: studentUser?.name || '학생',
+                            user_group: studentUser?.user_group 
+                        }
+                    });
+                } else {
+                    setActiveChat(null);
+                }
+            }
+            const { data, error } = await supabase
+                .from('coffee_chats')
+                .select('*')
+                .eq('student_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(1);
+            if (!error && data && data.length > 0) {
+                const chat = data[0];
+                const { data: staffUser } = await supabase
+                    .from('users')
+                    .select('name, user_group')
+                    .eq('id', chat.staff_id)
+                    .single();
+                setStudentChatStatus({
+                    ...chat,
+                    users: { 
+                        name: staffUser?.name || '선생님',
+                        user_group: staffUser?.user_group
+                    }
+                });
+            } else {
+                setStudentChatStatus(null);
+            }
+        } catch (e) {
+            console.error('Failed to fetch coffee chat stats:', e);
+        }
+    };
+
+    const handleEndChatEarly = async (chatId) => {
+        try {
+            const clearTime = new Date(Date.now() - 30 * 60 * 1000 - 1000).toISOString();
+            const { error } = await supabase
+                .from('coffee_chats')
+                .update({ accepted_at: clearTime })
+                .eq('id', chatId);
+            if (error) throw error;
+            alert('커피챗이 종료되었습니다. 이제 대화 가능 상태로 복귀합니다! ☕');
+            fetchCoffeeChatStats();
+        } catch (e) {
+            alert('종료 처리 실패: ' + e.message);
+        }
+    };
+
+    const handleExtendChat = async (chatId) => {
+        try {
+            const extendTime = new Date().toISOString();
+            const { error } = await supabase
+                .from('coffee_chats')
+                .update({ accepted_at: extendTime })
+                .eq('id', chatId);
+            if (error) throw error;
+            alert('커피챗 시간이 지금부터 30분 연장되었습니다! ⏰');
+            fetchCoffeeChatStats();
+        } catch (e) {
+            alert('연장 처리 실패: ' + e.message);
+        }
+    };
+
+    const handleIncomingRequest = async (chat) => {
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('name')
+                .eq('id', chat.student_id)
+                .single();
+            if (!error && data) {
+                setIncomingRequest({ ...chat, student_name: data.name });
+            } else {
+                setIncomingRequest({ ...chat, student_name: '학생' });
+            }
+        } catch (e) {
+            setIncomingRequest({ ...chat, student_name: '학생' });
+        }
+        fetchCoffeeChatStats();
+    };
+
+    const handleStatusChanged = async (chat) => {
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('name')
+                .eq('id', chat.staff_id)
+                .single();
+            if (!error && data) {
+                setStatusAlert({ ...chat, staff_name: data.name });
+            } else {
+                setStatusAlert({ ...chat, staff_name: '선생님' });
+            }
+        } catch (e) {
+            setStatusAlert({ ...chat, staff_name: '선생님' });
+        }
+        fetchCoffeeChatStats();
+    };
+
+    const handleAcceptRequest = async (chatId) => {
+        try {
+            const { error } = await supabase
+                .from('coffee_chats')
+                .update({ 
+                    status: 'ACCEPTED',
+                    accepted_at: new Date().toISOString()
+                })
+                .eq('id', chatId);
+            if (error) throw error;
+            alert('커피챗 신청을 수락했습니다! 30분간 대화 상태로 잠금 처리됩니다. ☕');
+            setIncomingRequest(null);
+            fetchCoffeeChatStats();
+        } catch (e) {
+            alert('수락 처리 실패: ' + e.message);
+        }
+    };
+
+    const handleRejectRequestSubmit = async () => {
+        if (!rejectionReason.trim()) {
+            alert('거절 사유를 입력해주세요.');
+            return;
+        }
+        try {
+            const { error } = await supabase
+                .from('coffee_chats')
+                .update({ 
+                    status: 'REJECTED',
+                    rejection_reason: rejectionReason.trim()
+                })
+                .eq('id', incomingRequest.id);
+            if (error) throw error;
+            alert('커피챗 신청을 거절했습니다.');
+            setIncomingRequest(null);
+            setRejectionPromptOpen(false);
+            setRejectionReason('');
+            fetchCoffeeChatStats();
+        } catch (e) {
+            alert('거절 처리 실패: ' + e.message);
+        }
+    };
+
+    const triggerPendingModal = async () => {
+        if (!user?.id) return;
+        try {
+            const { data, error } = await supabase
+                .from('coffee_chats')
+                .select('*')
+                .eq('staff_id', user.id)
+                .eq('status', 'PENDING')
+                .order('created_at', { ascending: false })
+                .limit(1);
+            if (!error && data && data.length > 0) {
+                handleIncomingRequest(data[0]);
+            } else {
+                alert('대기 중인 커피챗 신청이 없습니다.');
+            }
+        } catch (e) {
+            console.error('Failed to trigger pending modal:', e);
+        }
+    };
+
+    useCoffeeChatRealtime(user, handleIncomingRequest, handleStatusChanged);
+
+    useEffect(() => {
+        if (!user?.id) return;
+        
+        fetchCoffeeChatStats();
+
+        const isStaff = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'staff' || user?.user_group?.toLowerCase() === 'staff' || user?.user_group === '관리자';
+        if (isStaff) {
+            const fetchPendingRequestsOnLoad = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('coffee_chats')
+                        .select('*')
+                        .eq('staff_id', user.id)
+                        .eq('status', 'PENDING')
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                    if (!error && data && data.length > 0) {
+                        handleIncomingRequest(data[0]);
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch pending requests on load:', e);
+                }
+            };
+            fetchPendingRequestsOnLoad();
+        }
+    }, [user]);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                if (incomingRequest) {
+                    setIncomingRequest(null);
+                }
+                if (statusAlert) {
+                    setStatusAlert(null);
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [incomingRequest, statusAlert]);
 
     // B안: 뒤로가기 시 이전 탭으로 화면 전환을 위해 History API 연동 (학생용)
     useEffect(() => {
@@ -413,6 +674,150 @@ const StudentDashboard = () => {
                     />
                 )}
 
+                {selectedStaffForChat && (
+                    <CoffeeChatModal
+                        staff={selectedStaffForChat.id === user.id ? { ...selectedStaffForChat, ...user } : selectedStaffForChat}
+                        student={user}
+                        onClose={() => setSelectedStaffForChat(null)}
+                        onSuccess={() => setSelectedStaffForChat(null)}
+                    />
+                )}
+
+                {incomingRequest && (
+                    <div 
+                        className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
+                        onClick={() => setIncomingRequest(null)}
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-5 text-center relative border border-tossGrey100"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Close Button Float */}
+                            <button
+                                onClick={() => setIncomingRequest(null)}
+                                className="absolute top-4 right-4 p-1.5 bg-tossGrey100 hover:bg-tossGrey200 rounded-full text-tossGrey500 transition-colors z-20"
+                            >
+                                <X size={14} className="stroke-[3]" />
+                            </button>
+
+                            <div className="mx-auto w-12 h-12 bg-tossBlue/10 text-tossBlue rounded-full flex items-center justify-center text-xl font-bold">
+                                ☕
+                            </div>
+                            <div className="space-y-1.5">
+                                <h4 className="text-lg font-bold text-tossGrey900">새 커피챗 신청이 왔어요!</h4>
+                                <p className="text-sm font-semibold text-tossGrey500">
+                                    <strong className="text-tossGrey900 font-extrabold">{incomingRequest.student_name}</strong> 학생이 커피챗을 신청했습니다.
+                                </p>
+                            </div>
+                            
+                            <div className="bg-tossGrey50 rounded-2xl p-4 text-left text-xs font-semibold text-tossGrey600 space-y-2">
+                                <div>
+                                    <span className="text-tossGrey400 font-bold block mb-0.5">대화 주제</span>
+                                    <span className="text-tossGrey800 font-extrabold text-[13px]">{incomingRequest.topics?.join(', ')}</span>
+                                </div>
+                                {incomingRequest.message && (
+                                    <div className="border-t border-tossGrey200/60 pt-2">
+                                        <span className="text-tossGrey400 font-bold block mb-0.5">하고 싶은 말</span>
+                                        <span className="text-tossGrey800 font-bold">"{incomingRequest.message}"</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {!rejectionPromptOpen ? (
+                                <div className="flex gap-2.5">
+                                    <button
+                                        onClick={() => setRejectionPromptOpen(true)}
+                                        className="flex-1 py-3 bg-tossGrey100 hover:bg-tossGrey200 text-tossGrey600 rounded-xl font-bold text-sm transition-all"
+                                    >
+                                        거절하기
+                                    </button>
+                                    <button
+                                        onClick={() => handleAcceptRequest(incomingRequest.id)}
+                                        className="flex-1 py-3 bg-tossBlue text-white rounded-xl font-bold text-sm transition-all hover:bg-tossBlue/90 shadow-sm"
+                                    >
+                                        수락하기
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-3 pt-1 text-left">
+                                    <label className="text-xs font-bold text-tossGrey500 ml-1">거절 사유 입력</label>
+                                    <input
+                                        type="text"
+                                        placeholder="사유를 입력해 주세요 (예: 지금 상담 중이야)"
+                                        value={rejectionReason}
+                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                        className="w-full p-3 bg-tossGrey50 border border-tossGrey200 rounded-xl outline-none focus:border-tossBlue text-sm font-semibold text-tossGrey900"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setRejectionPromptOpen(false);
+                                                setRejectionReason('');
+                                            }}
+                                            className="flex-1 py-3 bg-tossGrey100 text-tossGrey500 rounded-xl font-bold text-xs"
+                                        >
+                                            취소
+                                        </button>
+                                        <button
+                                            onClick={handleRejectRequestSubmit}
+                                            className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-xs hover:bg-red-600"
+                                        >
+                                            거절 전송
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </motion.div>
+                    </div>
+                )}
+
+                {statusAlert && (
+                    <div 
+                        className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
+                        onClick={() => setStatusAlert(null)}
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center space-y-4 border border-tossGrey100"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="mx-auto w-12 h-12 rounded-full flex items-center justify-center text-2xl">
+                                {statusAlert.status === 'ACCEPTED' ? '🎉' : '✉️'}
+                            </div>
+                            <div className="space-y-1.5">
+                                <h4 className="text-lg font-bold text-tossGrey900">
+                                    {statusAlert.status === 'ACCEPTED' ? '커피챗 신청이 수락되었어요!' : '커피챗 신청 결과 안내'}
+                                </h4>
+                                <p className="text-sm font-semibold text-tossGrey600 leading-relaxed">
+                                    {statusAlert.status === 'ACCEPTED' ? (
+                                        <>
+                                            <strong className="text-tossGrey900 font-extrabold">{statusAlert.staff_name} 쌤</strong>이 대화를 수락하셨습니다.<br />지금 쌤이 계신 곳으로 가보세요!
+                                        </>
+                                    ) : (
+                                        <>
+                                            아쉽게도 <strong className="text-tossGrey900 font-extrabold">{statusAlert.staff_name} 쌤</strong>이 지금은 대화가 어렵다고 하십니다.<br />
+                                            {statusAlert.rejection_reason && (
+                                                <span className="block mt-2.5 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold text-left border border-red-100">
+                                                    💬 거절 사유: "{statusAlert.rejection_reason}"
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setStatusAlert(null)}
+                                className="w-full py-3 bg-tossBlue text-white rounded-xl font-bold text-sm transition-all"
+                            >
+                                확인
+                            </button>
+                        </motion.div>
+                    </div>
+                )}
+
                 {showMenuDrawer && (
                     <>
                         {/* Backdrop */}
@@ -580,6 +985,15 @@ const StudentDashboard = () => {
                     studentRegion={effectiveRegion}
                     selectedRegion={hookData.selectedRegion}
                     setSelectedRegion={hookData.setSelectedRegion}
+                    onStaffClick={(staff) => setSelectedStaffForChat(staff)}
+                    onCheckPendingRequest={triggerPendingModal}
+                    pendingCount={pendingCount}
+                    studentChatStatus={studentChatStatus}
+                    activeChat={activeChat}
+                    onEndChat={handleEndChatEarly}
+                    onExtendChat={handleExtendChat}
+                    dismissedRejectedChatId={dismissedRejectedChatId}
+                    onDismissRejection={handleDismissRejection}
                 />
             )}
 

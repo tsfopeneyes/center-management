@@ -1,7 +1,7 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Share2, Bell, ShieldCheck, Settings, LogOut, AlertCircle, ChevronRight, User, Image as ImageIcon, Pin, QrCode, Home, Trophy, Calendar as LucideCalendar, Users, Sparkles } from 'lucide-react';
+import { Share2, Bell, ShieldCheck, Settings, LogOut, AlertCircle, ChevronRight, User, Image as ImageIcon, Pin, QrCode, Home, Trophy, Calendar as LucideCalendar, Users, Sparkles, Coffee, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import UserAvatar from '../common/UserAvatar';
 import ProgramCard from './ProgramCard';
@@ -10,6 +10,8 @@ import { TAB_NAMES, CATEGORIES } from '../../constants/appConstants';
 import { stripHtml } from '../../utils/textUtils';
 import TodayOperatingWidget from './components/TodayOperatingWidget';
 import WeeklyOperatingWidget from './components/WeeklyOperatingWidget';
+import CoffeeChatModal from './modals/CoffeeChatModal';
+import { supabase } from '../../supabaseClient';
 
 const StudentHomeTab = ({
     user,
@@ -38,10 +40,23 @@ const StudentHomeTab = ({
     specialStats,
     studentRegion,
     selectedRegion,
-    setSelectedRegion
+    setSelectedRegion,
+    onStaffClick,
+    onCheckPendingRequest,
+    pendingCount,
+    studentChatStatus,
+    activeChat,
+    onEndChat,
+    onExtendChat,
+    dismissedRejectedChatId,
+    onDismissRejection
 }) => {
     // 뱃지 관련 로직 제거됨
     const today = startOfDay(new Date());
+    const matchesSelectedRegion = (cardRegion) => {
+        if (!selectedRegion || selectedRegion === 'ALL') return true;
+        return (cardRegion || '').toUpperCase() === selectedRegion.toUpperCase();
+    };
     const todayClosure = adminSchedules.find(sch => {
         const cat = calendarCategories.find(c => c.id === sch.category_id);
         if (cat?.name !== '휴관') return false;
@@ -211,12 +226,122 @@ const StudentHomeTab = ({
                     </motion.div>
                 )}
 
+                {/* Coffee Chat Status Bar Widget */}
+                {pendingCount > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-5 rounded-toss-xl bg-white border border-tossGrey100 shadow-toss-standard flex items-center justify-between"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-tossBlue/10 text-tossBlue flex items-center justify-center shrink-0">
+                                <Coffee size={20} />
+                            </div>
+                            <div className="text-left">
+                                <h5 className="text-[14px] font-black text-tossGrey900 leading-tight">대기 중인 커피챗 신청</h5>
+                                <p className="text-[11px] font-bold text-tossGrey500 mt-1">대기 상태의 대화 신청이 {pendingCount}건 있습니다.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={onCheckPendingRequest}
+                            className="bg-tossBlue text-white text-xs font-black px-3.5 py-2.5 rounded-xl active:scale-95 transition-transform shrink-0"
+                        >
+                            신청 확인
+                        </button>
+                    </motion.div>
+                )}
+
+                {studentChatStatus && (() => {
+                    const isPending = studentChatStatus.status === 'PENDING';
+                    const isAccepted = studentChatStatus.status === 'ACCEPTED' && new Date(studentChatStatus.accepted_at) > new Date(Date.now() - 30 * 60 * 1000);
+                    const isRejected = studentChatStatus.status === 'REJECTED' && 
+                                       studentChatStatus.id !== dismissedRejectedChatId &&
+                                       new Date(studentChatStatus.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000);
+                    
+                    if (!isPending && !isAccepted && !isRejected) return null;
+
+                    const staffName = studentChatStatus.users?.name || '선생님';
+
+                    return (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="p-5 rounded-toss-xl bg-white border border-tossGrey100 shadow-toss-standard flex items-center gap-3"
+                        >
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                                isPending ? 'bg-tossGrey100 text-tossGrey500' :
+                                isAccepted ? 'bg-green-50 text-green-500' :
+                                'bg-red-50 text-red-500'
+                            }`}>
+                                <Coffee size={20} />
+                            </div>
+                            <div className="text-left flex-1 min-w-0">
+                                <h5 className="text-[14px] font-black text-tossGrey900 leading-tight">
+                                    {isPending ? '커피챗 신청 대기 중' : isAccepted ? '커피챗 신청 수락됨!' : '커피챗 신청 거절 안내'}
+                                </h5>
+                                <p className="text-[11px] font-semibold text-tossGrey500 mt-1 truncate">
+                                    {isPending ? (
+                                        `${staffName} 쌤의 대화 수락을 기다리고 있어요.`
+                                    ) : isAccepted ? (
+                                        `${staffName} 쌤이 수락하셨습니다. 지금 대화하러 가보세요!`
+                                    ) : (
+                                        `${staffName} 쌤: "${studentChatStatus.rejection_reason || '지금은 바빠서 다음에 나눠요'}"`
+                                    )}
+                                </p>
+                            </div>
+                            {isRejected && (
+                                <button
+                                    onClick={() => onDismissRejection(studentChatStatus.id)}
+                                    className="p-1 hover:bg-tossGrey100 rounded-full text-tossGrey400 hover:text-tossGrey600 transition-colors shrink-0 self-start"
+                                >
+                                    <X size={16} className="stroke-[2.5]" />
+                                </button>
+                            )}
+                        </motion.div>
+                    );
+                })()}
+
+                {activeChat && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-5 rounded-toss-xl bg-white border border-tossGrey100 shadow-toss-standard flex flex-col gap-4"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center shrink-0 animate-pulse">
+                                <Coffee size={20} />
+                            </div>
+                            <div className="text-left flex-1 min-w-0">
+                                <h5 className="text-[14px] font-black text-tossGrey900 leading-tight">진행 중인 커피챗</h5>
+                                <p className="text-[11px] font-bold text-tossGrey500 mt-1.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                                    <strong className="text-tossGrey900 font-extrabold">{activeChat.users?.name || '학생'}</strong> 학생과 커피챗 진행 중입니다.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => onEndChat(activeChat.id)}
+                                className="flex-1 bg-tossGrey100 hover:bg-tossGrey200 text-tossGrey600 text-xs font-black py-2.5 rounded-xl transition-colors active:scale-98"
+                            >
+                                대화 종료
+                            </button>
+                            <button
+                                onClick={() => onExtendChat(activeChat.id)}
+                                className="flex-1 bg-tossBlue text-white text-xs font-black py-2.5 rounded-xl hover:bg-tossBlue/90 transition-colors active:scale-98"
+                            >
+                                30분 연장
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+
                 {/* 1. Today Operating Widget */}
                 {!isTodayClosed && (
                     <TodayOperatingWidget 
                         studentRegion={studentRegion} 
                         adminSchedules={adminSchedules} 
                         calendarCategories={calendarCategories} 
+                        onStaffClick={onStaffClick}
                     />
                 )}
 

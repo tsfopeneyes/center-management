@@ -18,6 +18,8 @@ const ProfileSettingsModal = ({
     const [school, setSchool] = useState(user?.school || '');
     const [church, setChurch] = useState(user?.church || '');
     const [isSchoolChurch, setIsSchoolChurch] = useState(user?.preferences?.is_school_church ?? false);
+    const [bio, setBio] = useState(user?.bio || '');
+    const isStaff = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'staff' || user?.user_group?.toLowerCase() === 'staff' || user?.user_group === '관리자';
 
     const [showCropModal, setShowCropModal] = useState(false);
     const [photoURL, setPhotoURL] = useState(null);
@@ -74,6 +76,7 @@ const ProfileSettingsModal = ({
         if (isSchoolChurch !== (user?.preferences?.is_school_church ?? false)) {
             updates.preferences = { ...(user?.preferences || {}), is_school_church: isSchoolChurch };
         }
+        if (bio !== user?.bio) updates.bio = bio;
 
         const result = await updateProfile(updates, profileImage);
 
@@ -90,7 +93,7 @@ const ProfileSettingsModal = ({
             <motion.div
                 key="profile-settings"
                 initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="fixed inset-0 z-[110] bg-white flex flex-col sm:rounded-t-3xl sm:top-10 shadow-2xl pb-20"
+                className="fixed inset-0 z-[110] bg-white flex flex-col sm:rounded-t-3xl sm:top-10 shadow-2xl pb-20 w-full max-w-md mx-auto left-0 right-0"
             >
                 <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-20">
                     <button onClick={() => setShowProfileSettings(false)} className="p-2 hover:bg-gray-100 rounded-full">
@@ -147,6 +150,21 @@ const ProfileSettingsModal = ({
                             </div>
                         </div>
                     </div>
+
+                    {isStaff && (
+                        <div className="space-y-4">
+                            <h4 className="font-bold text-gray-800 border-b pb-2">스탭 소개글 💬</h4>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">커피챗 한 줄 소개</label>
+                                <textarea
+                                    value={bio}
+                                    onChange={(e) => setBio(e.target.value)}
+                                    placeholder="커피챗 신청 시 학생들에게 노출될 나만의 소개글을 적어주세요."
+                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold h-24 resize-none"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     <div className="space-y-4 pb-6">
                         <h4 className="font-bold text-gray-800 border-b pb-2">비밀번호 변경</h4>

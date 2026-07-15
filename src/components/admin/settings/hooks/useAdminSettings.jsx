@@ -416,6 +416,23 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         localStorage.setItem('kiosk_master_pin', kioskMasterPin);
         
         try {
+            const settingsToSave = [
+                { key: 'gs_webhook_url', value: gsWebhookUrl },
+                { key: 'line_channel_access_token', value: lineChannelAccessToken },
+                { key: 'line_group_id', value: lineGroupId },
+                { key: 'discord_webhook_url', value: discordWebhookUrl },
+                { key: 'kiosk_master_pin', value: kioskMasterPin }
+            ];
+            for (const setting of settingsToSave) {
+                await supabase
+                    .from('global_settings')
+                    .upsert(setting, { onConflict: 'key' });
+            }
+        } catch (e) {
+            console.error("Failed to save settings to global_settings table:", e);
+        }
+        
+        try {
             const { data: existing } = await supabase
                 .from('notices')
                 .select('id')

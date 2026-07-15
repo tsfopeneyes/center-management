@@ -8,12 +8,31 @@ import StudentDashboard from './pages/StudentDashboard'
 import Kiosk from './pages/Kiosk'
 import SplashScreen from './components/common/SplashScreen'
 import PublicProgramDetail from './pages/PublicProgramDetail'
+import { supabase } from './supabaseClient'
 
 function App() {
     const [isLoading, setIsLoading] = useState(() => {
         // Only show splash screen if it hasn't been shown in this session
         return !sessionStorage.getItem('splash_shown');
     });
+
+    useEffect(() => {
+        const loadGlobalSettings = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('global_settings')
+                    .select('*');
+                if (!error && data) {
+                    data.forEach(item => {
+                        localStorage.setItem(item.key, item.value);
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load global settings:', e);
+            }
+        };
+        loadGlobalSettings();
+    }, []);
 
     const handleFinishLoading = () => {
         sessionStorage.setItem('splash_shown', 'true');

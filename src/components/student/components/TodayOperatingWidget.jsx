@@ -4,7 +4,7 @@ import { supabase } from '../../../supabaseClient';
 import UserAvatar from '../../common/UserAvatar';
 import { startOfDay } from 'date-fns';
 
-const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCategories = [] }) => {
+const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCategories = [], onStaffClick }) => {
     const [operatingHours, setOperatingHours] = useState(null);
     const [staffConfig, setStaffConfig] = useState({ "하이픈": [], "이높플레이스": [] });
     const [presenceStatus, setPresenceStatus] = useState({});
@@ -184,12 +184,36 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
             if (fetchIds.length > 0) {
                 const { data: userData, error: userError } = await supabase
                     .from('users')
-                    .select('id, name, profile_image_url, role, user_group')
+                    .select('id, name, profile_image_url, role, user_group, bio')
                     .in('id', fetchIds);
+                
+                let busyStaffIds = new Set();
+                try {
+                    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+                    const { data: activeChats } = await supabase
+                        .from('coffee_chats')
+                        .select('staff_id')
+                        .eq('status', 'ACCEPTED')
+                        .gt('accepted_at', thirtyMinutesAgo);
+                    if (activeChats) {
+                        busyStaffIds = new Set(activeChats.map(c => c.staff_id));
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch active coffee chats status:', e);
+                }
                 
                 if (!userError && userData) {
                     const orderedStaff = fetchIds
-                        .map(id => userData.find(u => u.id === id))
+                        .map(id => {
+                            const u = userData.find(u => u.id === id);
+                            if (u) {
+                                return {
+                                    ...u,
+                                    isBusy: busyStaffIds.has(u.id)
+                                };
+                            }
+                            return null;
+                        })
                         .filter(Boolean);
                     setStaffList(orderedStaff);
                 } else {
@@ -201,6 +225,21 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
         };
 
         fetchStaffDetails();
+
+        const channel = supabase
+            .channel('today_operating_widget_coffee_chats_sync')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'coffee_chats' },
+                () => {
+                    fetchStaffDetails();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [staffConfig, studentRegion, dutyStaff]);
 
     if (loading) return null;
@@ -307,7 +346,7 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isOpen ? 'bg-tossBlue text-white' : 'bg-tossGrey400 text-white'}`}>
-                        {isOpen ? <DoorOpen size={18} /> : <DoorClosed size={18} />}
+                        {isOpen ? <Clock size={18} /> : <DoorClosed size={18} />}
                     </div>
                     <div className="flex flex-col">
                         <span className={`font-bold text-[14px] ${isOpen ? 'text-tossBlue' : 'text-tossGrey500'} tracking-tight`}>
@@ -341,16 +380,36 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
             {/* Present/Duty Staff Section */}
             {hasAnyone && (
                 <div className="w-full flex flex-col gap-3 mt-6 pt-5 border-t border-tossGrey100 animate-fade-in">
-                    <span className="text-[10px] font-bold text-tossGrey500 tracking-wider uppercase">지금 센터에서 만나요!</span>
+                    <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[11px] font-bold text-tossGrey500 tracking-tight">지금 센터에서 만나요!</span>
+                        <span className="text-[11px] font-bold text-tossBlue tracking-tight shrink-0">(스처쌤을 클릭하면 커피챗을 신청할 수 있어요)</span>
+                    </div>
                     <div className={`flex items-center ${containerGap} pl-0.5`}>
                         {/* Duty Staff — always first */}
                         {hasDuty && (
                             <div className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[40px] animate-scale-in">
-                                <div className="relative shrink-0 shadow-toss-subtle rounded-full ring-2 ring-tossBlue/30">
+                                <div 
+                                    onClick={() => {
+                                        if (dutyMember.isBusy) {
+                                            alert('현재 대화가 진행 중입니다. 30분 뒤에 다시 신청해 주세요! ☕');
+                                            return;
+                                        }
+                                        onStaffClick && onStaffClick(dutyMember);
+                                    }}
+                                    className={`relative shrink-0 shadow-toss-subtle rounded-full ring-2 ring-tossBlue/30 transition-transform ${
+                                        dutyMember.isBusy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-105'
+                                    }`}
+                                >
                                     <UserAvatar user={dutyMember} size={dutySize} textSize={dutyTextSize} />
-                                    <span className="absolute -top-1 -right-1 bg-tossBlue text-[8px] text-white px-1 py-0.5 rounded-full font-bold leading-none scale-90 border border-white whitespace-nowrap select-none">
-                                        당직
-                                     </span>
+                                    {dutyMember.isBusy ? (
+                                        <span className="absolute -top-1 -right-1 bg-amber-500 text-[8px] text-white px-1 py-0.5 rounded-full font-bold leading-none scale-90 border border-white whitespace-nowrap select-none animate-pulse">
+                                            대화 중
+                                         </span>
+                                    ) : (
+                                        <span className="absolute -top-1 -right-1 bg-tossBlue text-[8px] text-white px-1 py-0.5 rounded-full font-bold leading-none scale-90 border border-white whitespace-nowrap select-none">
+                                            당직
+                                         </span>
+                                    )}
                                 </div>
                                 <span className={`font-bold leading-tight text-tossBlue`} style={{ fontSize: dutyLabelSize.replace('text-[', '').replace(']', '') }}>
                                     {dutyMember.name}
@@ -368,8 +427,24 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
                             <div className={`flex flex-wrap ${containerGap} items-center`}>
                                 {presentStaff.map(member => (
                                     <div key={member.id} className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[40px] animate-scale-in">
-                                        <div className="relative shrink-0 shadow-toss-subtle rounded-full ring-1 ring-tossGrey200/50">
+                                        <div 
+                                            onClick={() => {
+                                                if (member.isBusy) {
+                                                    alert('현재 대화가 진행 중입니다. 30분 뒤에 다시 신청해 주세요! ☕');
+                                                    return;
+                                                }
+                                                onStaffClick && onStaffClick(member);
+                                            }}
+                                            className={`relative shrink-0 shadow-toss-subtle rounded-full ring-1 ring-tossGrey200/50 transition-transform ${
+                                                member.isBusy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-105'
+                                            }`}
+                                        >
                                             <UserAvatar user={member} size={presentSize} textSize={presentTextSize} />
+                                            {member.isBusy && (
+                                                <span className="absolute -top-1 -right-1 bg-amber-500 text-[8px] text-white px-1 py-0.5 rounded-full font-bold leading-none scale-90 border border-white whitespace-nowrap select-none animate-pulse">
+                                                    대화 중
+                                                </span>
+                                            )}
                                         </div>
                                         <span className={`font-bold leading-tight text-tossGrey600`} style={{ fontSize: presentLabelSize.replace('text-[', '').replace(']', '') }}>
                                             {member.name}
