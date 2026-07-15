@@ -46,7 +46,7 @@ const KioskFeedbackOverlay = ({ result }) => {
                                     <span className="text-blue-600 font-black text-sm">+{result.todayEarned}H</span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-slate-400 font-bold">누적 잔액</span>
+                                    <span className="text-slate-400 font-bold">누적 하이픈</span>
                                     <span className="text-slate-800 font-black text-sm">{result.balance}H</span>
                                 </div>
                                 
