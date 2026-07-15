@@ -271,6 +271,37 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
     const hasPresent = presentStaff.length > 0;
     const hasAnyone = hasDuty || hasPresent;
 
+    const totalStaffCount = (hasDuty ? 1 : 0) + presentStaff.length;
+
+    // Dynamic sizes based on total count (refined for visual balance)
+    let dutySize = 'w-9 h-9';
+    let dutyTextSize = 'text-xs';
+    let dutyLabelSize = 'text-[10.5px]';
+    let presentSize = 'w-8 h-8';
+    let presentTextSize = 'text-xs';
+    let presentLabelSize = 'text-[10.5px]';
+    let containerGap = 'gap-3';
+    let dividerHeight = 'h-10';
+
+    if (totalStaffCount === 1) {
+        dutySize = 'w-12 h-12';
+        dutyTextSize = 'text-base';
+        dutyLabelSize = 'text-[12px]';
+        presentSize = 'w-11 h-11';
+        presentTextSize = 'text-sm';
+        presentLabelSize = 'text-[12px]';
+        containerGap = 'gap-4';
+    } else if (totalStaffCount >= 2 && totalStaffCount <= 3) {
+        dutySize = 'w-11 h-11';
+        dutyTextSize = 'text-sm';
+        dutyLabelSize = 'text-[11px]';
+        presentSize = 'w-10 h-10';
+        presentTextSize = 'text-xs';
+        presentLabelSize = 'text-[11px]';
+        containerGap = 'gap-3.5';
+        dividerHeight = 'h-11';
+    }
+
     return (
         <div className="bg-white p-5 rounded-toss-xl shadow-toss-standard flex flex-col transition-all duration-300">
             <div className="flex items-center justify-between w-full">
@@ -311,17 +342,17 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
             {hasAnyone && (
                 <div className="w-full flex flex-col gap-3 mt-6 pt-5 border-t border-tossGrey100 animate-fade-in">
                     <span className="text-[10px] font-bold text-tossGrey500 tracking-wider uppercase">지금 센터에서 만나요!</span>
-                    <div className="flex items-center gap-3 pl-0.5">
+                    <div className={`flex items-center ${containerGap} pl-0.5`}>
                         {/* Duty Staff — always first */}
                         {hasDuty && (
                             <div className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[40px] animate-scale-in">
                                 <div className="relative shrink-0 shadow-toss-subtle rounded-full ring-2 ring-tossBlue/30">
-                                    <UserAvatar user={dutyMember} size="w-9 h-9" />
+                                    <UserAvatar user={dutyMember} size={dutySize} textSize={dutyTextSize} />
                                     <span className="absolute -top-1 -right-1 bg-tossBlue text-[8px] text-white px-1 py-0.5 rounded-full font-bold leading-none scale-90 border border-white whitespace-nowrap select-none">
                                         당직
                                      </span>
                                 </div>
-                                <span className="text-[10.5px] font-bold leading-tight text-tossBlue">
+                                <span className={`font-bold leading-tight text-tossBlue`} style={{ fontSize: dutyLabelSize.replace('text-[', '').replace(']', '') }}>
                                     {dutyMember.name}
                                 </span>
                             </div>
@@ -329,18 +360,18 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
 
                         {/* Vertical Gray Divider */}
                         {hasDuty && hasPresent && (
-                            <div className="w-px h-10 bg-tossGrey200 shrink-0" />
+                            <div className={`w-px ${dividerHeight} bg-tossGrey200 shrink-0`} />
                         )}
 
                         {/* Present Staff */}
                         {hasPresent && (
-                            <div className="flex flex-wrap gap-2 items-center">
+                            <div className={`flex flex-wrap ${containerGap} items-center`}>
                                 {presentStaff.map(member => (
                                     <div key={member.id} className="flex flex-col items-center justify-center text-center gap-1.5 min-w-[40px] animate-scale-in">
                                         <div className="relative shrink-0 shadow-toss-subtle rounded-full ring-1 ring-tossGrey200/50">
-                                            <UserAvatar user={member} size="w-8 h-8" />
+                                            <UserAvatar user={member} size={presentSize} textSize={presentTextSize} />
                                         </div>
-                                        <span className="text-[10.5px] font-bold leading-tight text-tossGrey600">
+                                        <span className={`font-bold leading-tight text-tossGrey600`} style={{ fontSize: presentLabelSize.replace('text-[', '').replace(']', '') }}>
                                             {member.name}
                                         </span>
                                     </div>
