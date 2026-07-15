@@ -46,16 +46,51 @@ const ZoneDetailModal = ({
                         <div className="text-center py-10 text-gray-400 text-sm">오늘 이용한 사람이 없습니다.</div>
                     ) : (
                         zoneDetailModal.activeUsers.map(u => (
-                            <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border ${u.isActive ? 'bg-blue-50/35 border-blue-100/50' : 'bg-gray-50/50 border-gray-100'}`}>
-                                <div className="flex items-center gap-2">
-                                    <div>
-                                        <div className="flex items-center gap-1">
-                                            <span className="font-bold text-gray-700 flex items-center gap-1">
+                            <div key={u.id} className={`flex justify-between items-center p-3.5 rounded-xl border transition-all ${u.isActive ? 'bg-blue-50/20 border-blue-100' : 'bg-gray-50/50 border-gray-100'}`}>
+                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                    {/* A small premium letter avatar for the user */}
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${u.isActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500'}`}>
+                                        {u.name?.[0] || ''}
+                                    </div>
+                                    
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-bold text-gray-800 text-[13px] flex items-center gap-0.5">
                                                 {u.name}
-                                                {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                                {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                             </span>
-                                            <span className="text-[10px] text-gray-400">({u.school || '-'})</span>
+                                            {u.school && (
+                                                <span className="text-[10px] text-gray-400 truncate max-w-[120px]">
+                                                    ({u.school})
+                                                </span>
+                                            )}
                                         </div>
+                                        
+                                        {/* Badges: User Group & Status */}
+                                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                                            <span className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold tracking-tight ${
+                                                u.user_group === '졸업생' ? 'bg-gray-100 text-gray-600' :
+                                                u.user_group === '일반인' ? 'bg-orange-50 text-orange-600' :
+                                                'bg-blue-50 text-blue-600'
+                                            }`}>
+                                                {u.user_group || '재학생'}
+                                            </span>
+                                            
+                                            <span className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold tracking-tight ${
+                                                u.isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'
+                                            }`}>
+                                                {u.isActive ? '이용 중' : '퇴실'}
+                                            </span>
+                                            
+                                            {/* Checkin Time if checked out */}
+                                            {!u.isActive && u.checkInTime && (
+                                                <span className="text-[9.5px] text-gray-400 ml-1">
+                                                    {new Date(u.checkInTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} 입실
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Survey Selections (if any) */}
                                         {(() => {
                                             const userSurvey = checkinSurveys
                                                 ?.filter(s => s.user_id === u.id)
@@ -66,40 +101,35 @@ const ZoneDetailModal = ({
                                             }) || [];
                                             
                                             return selectionsList.length > 0 ? (
-                                                <div className="flex flex-col gap-1 mt-1">
+                                                <div className="flex flex-wrap gap-1 mt-1.5">
                                                     {selectionsList.map((sel, idx) => (
-                                                        <div key={idx} className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md w-fit">
+                                                        <span key={idx} className="text-[9px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
                                                             {sel}
-                                                        </div>
+                                                        </span>
                                                     ))}
                                                 </div>
                                             ) : null;
                                         })()}
                                     </div>
-                                    <div className="flex flex-col gap-1">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 text-center ${u.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' :
-                                            u.user_group === '일반인' ? 'bg-orange-100 text-orange-600' :
-                                                'bg-white border border-gray-100 text-blue-500'
-                                            }`}>
-                                            {u.user_group || '재학생'}
-                                        </span>
-                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black shrink-0 text-center uppercase tracking-wider ${u.isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
-                                            {u.isActive ? '이용 중' : '퇴실 완료'}
-                                        </span>
-                                    </div>
                                 </div>
-                                {u.isActive ? (
-                                    <button
-                                        onClick={() => handleForceCheckout(u.id)}
-                                        className="text-[10px] bg-white text-red-500 border border-red-100 px-2 py-1.5 rounded-lg hover:bg-red-500 hover:text-white transition whitespace-nowrap font-bold shrink-0"
-                                    >
-                                        퇴실
-                                    </button>
-                                ) : (
-                                    <span className="text-[10px] font-semibold text-gray-400 select-none px-2 py-1.5">
-                                        {u.checkInTime ? new Date(u.checkInTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' 입실' : ''}
-                                    </span>
-                                )}
+
+                                {/* Action area */}
+                                <div className="shrink-0 ml-3">
+                                    {u.isActive ? (
+                                        <button
+                                            onClick={() => handleForceCheckout(u.id)}
+                                            className="text-[11px] bg-white text-red-500 hover:bg-red-500 hover:text-white px-2.5 py-1.5 rounded-lg font-bold transition duration-200 border border-red-100 hover:border-red-500 shrink-0"
+                                        >
+                                            퇴실
+                                        </button>
+                                    ) : (
+                                        u.checkOutTime && (
+                                            <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                                                {new Date(u.checkOutTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} 퇴실
+                                            </span>
+                                        )
+                                    )}
+                                </div>
                             </div>
                         ))
                     )}
