@@ -765,22 +765,15 @@ export const useKioskManager = (navigate) => {
                 }
             }
 
-            let openDaysText = '';
-            if (openDays.length > 0) {
-                const lastDay = openDays.pop();
-                openDaysText = openDays.length > 0 
-                    ? `${openDays.join(', ')}, ${lastDay}요일`
-                    : `${lastDay}요일`;
-            }
-
-            const scheduleMsg = openDaysText 
-                ? `${branchKorean}은 이번 주 ${openDaysText}에 열려 있어요`
-                : `${branchKorean}은 이번 주 운영 일정이 없습니다.`;
+            const openDaysListText = openDays.length > 0 ? openDays.join(', ') : '';
 
             setResult({
                 type: 'SUCCESS',
                 message: `${pendingCheckoutUser.name}님 다음에 또 만나요!`,
-                subMessage: `오늘의 하이픈: ${todayEarned}H / 누적 하이픈: ${balance}H\n${scheduleMsg}`,
+                todayEarned: todayEarned,
+                balance: balance,
+                openDaysText: openDaysListText || '없음',
+                footerMsg: `${branchKorean}에서 함께하는 기쁨을 나눠요💙`,
                 color: 'bg-indigo-600'
             });
 
