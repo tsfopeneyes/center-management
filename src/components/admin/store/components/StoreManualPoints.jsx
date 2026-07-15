@@ -58,7 +58,7 @@ const StoreManualPoints = ({ users: propUsers }) => {
 
             // Fetch recent transactions (manual & automatic)
             const { data: historyData } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .select('*, users(name, school)')
                 .order('created_at', { ascending: false })
                 .limit(50);
@@ -84,7 +84,7 @@ const StoreManualPoints = ({ users: propUsers }) => {
             const fetchHistoryOnly = async () => {
                 try {
                     const { data: historyData } = await supabase
-                        .from('hyphen_transactions')
+                        .from('haifn_transactions')
                         .select('*, users(name, school)')
                         .order('created_at', { ascending: false })
                         .limit(50);
@@ -106,7 +106,7 @@ const StoreManualPoints = ({ users: propUsers }) => {
 
         try {
             const { error } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .delete()
                 .eq('id', id);
 
@@ -117,7 +117,7 @@ const StoreManualPoints = ({ users: propUsers }) => {
             // Refresh history/users
             if (propUsers && propUsers.length > 0) {
                 const { data: historyData } = await supabase
-                    .from('hyphen_transactions')
+                    .from('haifn_transactions')
                     .select('*, users(name, school)')
                     .order('created_at', { ascending: false })
                     .limit(50);
@@ -212,7 +212,7 @@ const StoreManualPoints = ({ users: propUsers }) => {
             // Insert transactions for all selected users
             const insertPromises = selectedUsers.map(user => {
                 return supabase
-                    .from('hyphen_transactions')
+                    .from('haifn_transactions')
                     .insert([{
                         user_id: user.id,
                         amount: amount,

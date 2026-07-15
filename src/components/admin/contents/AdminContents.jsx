@@ -9,7 +9,7 @@ const AdminContents = () => {
     const [selectedSchool, setSelectedSchool] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL', 'HYPHEN', 'ENOF'
+    const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL', 'HAIFN', 'ENOUGH_PLACE'
 
     // Form states
     const [name, setName] = useState('');
@@ -212,10 +212,10 @@ const AdminContents = () => {
     // Filter contents based on the selected menu/tabs
     const filteredContents = contents.filter(item => {
         const region = item.schools?.region || '';
-        if (activeFilter === 'HYPHEN') {
+        if (activeFilter === 'HAIFN') {
             return region === '강동';
         }
-        if (activeFilter === 'ENOF') {
+        if (activeFilter === 'ENOUGH_PLACE') {
             return region === '강서';
         }
         return true;
@@ -371,9 +371,9 @@ const AdminContents = () => {
                                 전체
                             </button>
                             <button
-                                onClick={() => setActiveFilter('HYPHEN')}
+                                onClick={() => setActiveFilter('HAIFN')}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                    activeFilter === 'HYPHEN'
+                                    activeFilter === 'HAIFN'
                                         ? 'bg-white text-blue-600 shadow-sm'
                                         : 'text-gray-500 hover:text-gray-800'
                                 }`}
@@ -381,9 +381,9 @@ const AdminContents = () => {
                                 하이픈
                             </button>
                             <button
-                                onClick={() => setActiveFilter('ENOF')}
+                                onClick={() => setActiveFilter('ENOUGH_PLACE')}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                    activeFilter === 'ENOF'
+                                    activeFilter === 'ENOUGH_PLACE'
                                         ? 'bg-white text-blue-600 shadow-sm'
                                         : 'text-gray-500 hover:text-gray-800'
                                 }`}
@@ -400,7 +400,7 @@ const AdminContents = () => {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {filteredContents.map((item) => {
-                                const isHyphen = item.schools?.region === '강동';
+                                const isHaifn = item.schools?.region === '강동';
                                 let loc = '';
                                 let d = '';
                                 try {
@@ -424,9 +424,9 @@ const AdminContents = () => {
                                         <div className="min-w-0 pr-4 space-y-1">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className={`text-[9px] font-black px-1.5 py-0.5 rounded text-white ${
-                                                    isHyphen ? 'bg-indigo-600' : 'bg-rose-500'
+                                                    isHaifn ? 'bg-indigo-600' : 'bg-rose-500'
                                                 }`}>
-                                                    {isHyphen ? '하이픈' : '이높'}
+                                                    {isHaifn ? '하이픈' : '이높'}
                                                 </span>
                                                 <span className="text-[9px] font-bold px-1.5 py-0.5 bg-gray-800 text-white rounded">
                                                     {item.category}

@@ -283,15 +283,15 @@ const StaffPresenceToggleCard = ({ users }) => {
         .map(id => users.find(u => u.id === id))
         .filter(Boolean);
 
-    const hyphenStaff = staffMembers.filter(member => staffConfig["하이픈"]?.includes(member.id));
-    const inopeStaff = staffMembers.filter(member => staffConfig["이높플레이스"]?.includes(member.id));
+    const haifnStaff = staffMembers.filter(member => staffConfig["하이픈"]?.includes(member.id));
+    const enough_placeStaff = staffMembers.filter(member => staffConfig["이높플레이스"]?.includes(member.id));
 
     // Duty candidates: only admin users, excluding those configured as staff in the other space
-    const hyphenDutyCandidates = users
+    const haifnDutyCandidates = users
         .filter(u => u.role === 'admin' && !staffConfig["이높플레이스"]?.includes(u.id))
         .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
-    const inopeDutyCandidates = users
+    const enough_placeDutyCandidates = users
         .filter(u => u.role === 'admin' && !staffConfig["하이픈"]?.includes(u.id))
         .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
@@ -370,13 +370,13 @@ const StaffPresenceToggleCard = ({ users }) => {
 
             <div className="p-6 md:p-8 bg-white rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-8">
                 <div className="space-y-8">
-                    {/* Hyphen space staff */}
-                    {hyphenStaff.length > 0 && (
+                    {/* Haifn space staff */}
+                    {haifnStaff.length > 0 && (
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
                                 <h4 className="text-base md:text-lg font-black text-blue-600 flex items-center gap-1.5">
                                     <span className="w-1.5 h-3.5 bg-blue-500 rounded-full"></span>
-                                    하이픈 공간 스탭 ({hyphenStaff.length}명)
+                                    하이픈 공간 스탭 ({haifnStaff.length}명)
                                 </h4>
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs font-bold text-slate-500">오늘의 당직:</span>
@@ -386,25 +386,25 @@ const StaffPresenceToggleCard = ({ users }) => {
                                         className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-blue-500 transition-colors"
                                     >
                                         <option value="">선택 없음</option>
-                                        {hyphenDutyCandidates.map(member => (
+                                        {haifnDutyCandidates.map(member => (
                                             <option key={member.id} value={member.id}>{member.name}</option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {hyphenStaff.map(member => renderStaffCard(member))}
+                                {haifnStaff.map(member => renderStaffCard(member))}
                             </div>
                         </div>
                     )}
 
                     {/* Inope space staff */}
-                    {inopeStaff.length > 0 && (
+                    {enough_placeStaff.length > 0 && (
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
                                 <h4 className="text-base md:text-lg font-black text-purple-600 flex items-center gap-1.5">
                                     <span className="w-1.5 h-3.5 bg-purple-500 rounded-full"></span>
-                                    이높플레이스 공간 스탭 ({inopeStaff.length}명)
+                                    이높플레이스 공간 스탭 ({enough_placeStaff.length}명)
                                 </h4>
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs font-bold text-slate-500">오늘의 당직:</span>
@@ -414,14 +414,14 @@ const StaffPresenceToggleCard = ({ users }) => {
                                         className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-500 transition-colors"
                                     >
                                         <option value="">선택 없음</option>
-                                        {inopeDutyCandidates.map(member => (
+                                        {enough_placeDutyCandidates.map(member => (
                                             <option key={member.id} value={member.id}>{member.name}</option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {inopeStaff.map(member => renderStaffCard(member))}
+                                {enough_placeStaff.map(member => renderStaffCard(member))}
                             </div>
                         </div>
                     )}

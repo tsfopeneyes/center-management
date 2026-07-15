@@ -65,7 +65,7 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         { id: 'programs', label: '센터', isVisible: true },
         { id: 'calendar', label: '캘린더', isVisible: true },
         { id: 'azit', label: '커뮤니티', isVisible: true },
-        { id: 'hyphen', label: '하이픈', isVisible: true }
+        { id: 'haifn', label: '하이픈', isVisible: true }
     ]);
     const [configLoading, setConfigLoading] = useState(false);
     const [sidebarConfigLoading, setSidebarConfigLoading] = useState(false);
@@ -167,7 +167,7 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                             { id: 'programs', label: '센터', isVisible: true },
                             { id: 'calendar', label: '캘린더', isVisible: true },
                             { id: 'azit', label: '커뮤니티', isVisible: true },
-                            { id: 'hyphen', label: '하이픈', isVisible: true }
+                            { id: 'haifn', label: '하이픈', isVisible: true }
                         ];
                         const merged = defaultTabs.map(def => {
                             const found = parsed.find(p => p.id === def.id);

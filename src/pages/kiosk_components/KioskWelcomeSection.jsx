@@ -19,10 +19,10 @@ const KioskWelcomeSection = ({ setShowSignupForm, setShowGuestForm, selectedLoca
                         .maybeSingle();
                     if (grp?.name) {
                         const name = grp.name;
-                        if (name.includes('하이픈') || name.includes('HYPHEN') || name.includes('강동')) {
+                        if (name.includes('하이픈') || name.includes('HAIFN') || name.includes('강동')) {
                             setBranchName('하이픈');
                             setEngName('HAIFN');
-                        } else if (name.includes('이높플레이스') || name.includes('ENOF') || name.includes('이높') || name.includes('강서')) {
+                        } else if (name.includes('이높플레이스') || name.includes('ENOUGH_PLACE') || name.includes('이높') || name.includes('강서')) {
                             setBranchName('이높플레이스');
                             setEngName('ENOUGH PLACE');
                         } else {

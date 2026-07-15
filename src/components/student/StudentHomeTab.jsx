@@ -62,22 +62,22 @@ const StudentHomeTab = ({
             }
         } catch (e) { }
 
-        const isHyphenClosed = closedSpaces.includes('HYPHEN') || closedSpaces.length === 0;
-        const isEnofClosed = closedSpaces.includes('ENOF') || closedSpaces.includes('INOP') || closedSpaces.length === 0;
+        const isHaifnClosed = closedSpaces.includes('HAIFN') || closedSpaces.length === 0;
+        const isEnoughPlaceClosed = closedSpaces.includes('ENOUGH_PLACE') || closedSpaces.length === 0;
 
         if (studentRegion === '강동') {
-            isTodayClosed = isHyphenClosed;
+            isTodayClosed = isHaifnClosed;
         } else if (studentRegion === '강서') {
-            isTodayClosed = isEnofClosed;
+            isTodayClosed = isEnoughPlaceClosed;
         } else {
-            isTodayClosed = isHyphenClosed || isEnofClosed;
+            isTodayClosed = isHaifnClosed || isEnoughPlaceClosed;
         }
 
-        if (isHyphenClosed && isEnofClosed) {
+        if (isHaifnClosed && isEnoughPlaceClosed) {
             closureMessage = "오늘은 센터가 쉬는 날이에요!";
-        } else if (isHyphenClosed) {
+        } else if (isHaifnClosed) {
             closureMessage = "오늘은 하이픈이 쉬는 날이에요!";
-        } else if (isEnofClosed) {
+        } else if (isEnoughPlaceClosed) {
             closureMessage = "오늘은 이높플레이스가 쉬는 날이에요!";
         }
     }
@@ -123,11 +123,11 @@ const StudentHomeTab = ({
                                     </button>
                                 ) : (
                                     <button 
-                                        onClick={() => handleTabChange(TAB_NAMES.HYPHEN)}
+                                        onClick={() => handleTabChange(TAB_NAMES.HAIFN)}
                                         className="flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors px-2.5 py-1 rounded-full border border-white/25 shadow-sm"
                                     >
                                         <div className="w-4 h-4 rounded-full bg-tossCaution text-tossGrey800 flex items-center justify-center text-[9px] font-bold shadow-sm leading-none shrink-0 border border-tossCaution/50">H</div>
-                                        <span className="font-bold text-[13px] sm:text-[14px] text-white tracking-tight">{user?.current_hyphen || 0}</span>
+                                        <span className="font-bold text-[13px] sm:text-[14px] text-white tracking-tight">{user?.current_haifn || 0}</span>
                                     </button>
                                 )}
                                 

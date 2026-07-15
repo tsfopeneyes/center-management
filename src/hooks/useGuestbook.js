@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { guestbookApi } from '../api/guestbookApi';
-import { hyphenApi } from '../api/hyphenApi';
+import { haifnApi } from '../api/haifnApi';
 import { compressImage } from '../utils/imageUtils';
 
 export const useGuestbook = (userId, defaultCategory = null) => {
@@ -49,8 +49,8 @@ export const useGuestbook = (userId, defaultCategory = null) => {
             const mainImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
             const newPost = await guestbookApi.createPost(userId, content, mainImageUrl, imageUrls, category, metadata);
             
-            // Trigger hyphen reward for content verification
-            const rewardResult = await hyphenApi.grantContentVerificationReward(userId, category, newPost.id);
+            // Trigger haifn reward for content verification
+            const rewardResult = await haifnApi.grantContentVerificationReward(userId, category, newPost.id);
             if (rewardResult?.granted === false && rewardResult?.reason === 'DAILY_LIMIT_REACHED') {
                 // Ignore silent notification or handle it
             }
@@ -126,8 +126,8 @@ export const useGuestbook = (userId, defaultCategory = null) => {
     const handleDeletePost = async (postId) => {
         try {
             await guestbookApi.deletePost(postId);
-            // Delete associated hyphen record if possible
-            await hyphenApi.revokeContentVerificationReward(userId, postId);
+            // Delete associated haifn record if possible
+            await haifnApi.revokeContentVerificationReward(userId, postId);
 
             fetchGuestPosts();
             return true;

@@ -4,7 +4,7 @@ import { X, RefreshCw, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import PurchaseReceiptModal from './PurchaseReceiptModal';
 
-const HyphenHistoryModal = ({ user, onClose, storeItems = [] }) => {
+const HaifnHistoryModal = ({ user, onClose, storeItems = [] }) => {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [receiptData, setReceiptData] = useState(null);
@@ -13,7 +13,7 @@ const HyphenHistoryModal = ({ user, onClose, storeItems = [] }) => {
         setLoading(true);
         try {
             const { data, error } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .select('*')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
@@ -21,7 +21,7 @@ const HyphenHistoryModal = ({ user, onClose, storeItems = [] }) => {
             if (error) throw error;
             setHistory(data || []);
         } catch (err) {
-            console.error('Failed to fetch hyphen history:', err);
+            console.error('Failed to fetch haifn history:', err);
         } finally {
             setLoading(false);
         }
@@ -109,4 +109,4 @@ const HyphenHistoryModal = ({ user, onClose, storeItems = [] }) => {
     );
 };
 
-export default HyphenHistoryModal;
+export default HaifnHistoryModal;

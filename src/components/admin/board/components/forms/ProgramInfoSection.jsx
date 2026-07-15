@@ -6,7 +6,7 @@ import { PROGRAM_TYPES } from '../../utils/constants';
 import { Calendar, Clock, MapPin, Gift, CheckSquare, Users, ChevronUp, ChevronDown } from 'lucide-react';
 import { supabase } from '../../../../../supabaseClient';
 
-const HYPHEN_DETAILS = [
+const HAIFN_DETAILS = [
     'B1F STAGE',
     '2F SQUARE',
     '3F ROUND',
@@ -43,7 +43,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
         if (locationStr === '이높플레이스') return '이높플레이스';
         if (locationStr.startsWith('하이픈 ')) {
             const detail = locationStr.substring(4);
-            if (HYPHEN_DETAILS.includes(detail)) return '하이픈';
+            if (HAIFN_DETAILS.includes(detail)) return '하이픈';
         }
         if (locationStr) return '기타';
         return '';
@@ -53,7 +53,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
         const locationStr = formData.program_location || '';
         if (locationStr.startsWith('하이픈 ')) {
             const detail = locationStr.substring(4);
-            if (HYPHEN_DETAILS.includes(detail)) return detail;
+            if (HAIFN_DETAILS.includes(detail)) return detail;
         }
         return '';
     });
@@ -85,7 +85,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
             } else if (parentLocation.startsWith('하이픈 ')) {
                 setLocalMain('하이픈');
                 const detail = parentLocation.substring(4);
-                if (HYPHEN_DETAILS.includes(detail)) {
+                if (HAIFN_DETAILS.includes(detail)) {
                     setSelectedDetail(detail);
                 } else {
                     setLocalMain('기타');
@@ -559,7 +559,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                     required
                                 >
                                     <option value="">세부 공간 선택</option>
-                                    {HYPHEN_DETAILS.map(opt => (
+                                    {HAIFN_DETAILS.map(opt => (
                                         <option key={opt} value={opt}>{opt}</option>
                                     ))}
                                 </select>
@@ -584,7 +584,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                         </p>
                     </div>
 
-                    {/* Row 4: Hyphen Points */}
+                    {/* Row 4: Haifn Points */}
                     <div className="p-4 space-y-2">
                         <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
                             <Gift size={15} className="text-slate-400" />
@@ -597,8 +597,8 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                     type="number"
                                     placeholder="단위: 하이픈 (지급 포인트)"
                                     min="0"
-                                    value={formData.hyphen_reward || ''}
-                                    onChange={e => updateField('hyphen_reward', e.target.value)}
+                                    value={formData.haifn_reward || ''}
+                                    onChange={e => updateField('haifn_reward', e.target.value)}
                                     className="w-full pl-10 pr-3 py-3 bg-transparent outline-none font-semibold text-slate-700 text-sm"
                                 />
                             </div>
@@ -712,8 +712,8 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                                 >
                                                                     <option value="">호스트 선택</option>
                                                                     {admins.map(admin => {
-                                                                        const hasNoSchoolOrHyphen = !admin.school || admin.school === '더작은재단';
-                                                                        const optionText = hasNoSchoolOrHyphen ? admin.name : `${admin.name} (${admin.school})`;
+                                                                        const hasNoSchoolOrHaifn = !admin.school || admin.school === '더작은재단';
+                                                                        const optionText = hasNoSchoolOrHaifn ? admin.name : `${admin.name} (${admin.school})`;
                                                                         return (
                                                                             <option key={admin.id} value={admin.id}>
                                                                                 {optionText}

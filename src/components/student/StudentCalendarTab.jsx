@@ -85,7 +85,7 @@ const StudentCalendarTab = ({
                                         } else if (studentRegion === '강서') {
                                             baseTitle = '이높플레이스 휴무';
                                         } else {
-                                            const spaces = parsed.closed_spaces.map(s => s === 'HYPHEN' ? '하이픈' : '이높플레이스').join(', ');
+                                            const spaces = parsed.closed_spaces.map(s => s === 'HAIFN' ? '하이픈' : '이높플레이스').join(', ');
                                             baseTitle = spaces ? `${spaces} 휴무` : '센터 휴무';
                                         }
                                     }
@@ -134,9 +134,9 @@ const StudentCalendarTab = ({
                                     if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
                                         const closedSpaces = parsed.closed_spaces;
                                         if (studentRegion === '강동') {
-                                            return closedSpaces.includes('HYPHEN');
+                                            return closedSpaces.includes('HAIFN');
                                         } else if (studentRegion === '강서') {
-                                            return closedSpaces.includes('INOP') || closedSpaces.includes('ENOF');
+                                            return closedSpaces.includes('ENOUGH_PLACE') || closedSpaces.includes('ENOUGH_PLACE');
                                         }
                                     }
                                 } catch (err) { }

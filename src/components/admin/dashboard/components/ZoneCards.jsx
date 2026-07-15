@@ -15,7 +15,7 @@ const ZoneCards = ({
         <section>
             <div className="flex justify-between items-center mb-6 overflow-x-auto no-scrollbar py-1">
                 <div className="flex gap-2 mr-4">
-                    {['ALL:전체 보기', 'HYPHEN:하이픈', 'ENOF:이높플레이스'].map(tab => {
+                    {['ALL:전체 보기', 'HAIFN:하이픈', 'ENOUGH_PLACE:이높플레이스'].map(tab => {
                         const [id, label] = tab.split(':');
                         return (
                             <button

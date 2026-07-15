@@ -50,7 +50,7 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
         program_location: '',
         max_capacity: 0,
         program_type: 'CENTER',
-        closed_spaces: [], // ['HYPHEN', 'ENOF']
+        closed_spaces: [], // ['HAIFN', 'ENOUGH_PLACE']
         isRecurring: false,
         recurringDays: [], // [0, 1, 2, 3, 4, 5, 6] (Sun-Sat)
         recurringEndDate: format(addMonths(new Date(), 1), 'yyyy-MM-dd')

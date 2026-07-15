@@ -27,12 +27,12 @@ export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStat
     const getFilteredLocations = () => {
         if (locationTab === 'ALL') return activeLocations;
 
-        const hyphenGroup = locationGroups.find(g => g && g.name && (g.name.includes('하이픈') || g.name.includes('HYPHEN')));
-        const enofGroup = locationGroups.find(g => g && g.name && (g.name.includes('이높플레이스') || g.name.includes('ENOF') || g.name.includes('이높')));
+        const haifnGroup = locationGroups.find(g => g && g.name && (g.name.includes('하이픈') || g.name.includes('HAIFN')));
+        const enoughPlaceGroup = locationGroups.find(g => g && g.name && (g.name.includes('이높플레이스') || g.name.includes('ENOUGH_PLACE') || g.name.includes('이높')));
 
-        if (locationTab === 'HYPHEN') {
+        if (locationTab === 'HAIFN') {
             return activeLocations.filter(loc => {
-                const matchesGroup = hyphenGroup && loc.group_id === hyphenGroup.id;
+                const matchesGroup = haifnGroup && loc.group_id === haifnGroup.id;
                 const matchesFallbackName = 
                     loc.name.includes('라운지') ||
                     loc.name.includes('워크숍') ||
@@ -44,9 +44,9 @@ export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStat
                 return matchesGroup || matchesFallbackName;
             });
         }
-        if (locationTab === 'ENOF') {
+        if (locationTab === 'ENOUGH_PLACE') {
             return activeLocations.filter(loc => {
-                const matchesGroup = enofGroup && loc.group_id === enofGroup.id;
+                const matchesGroup = enoughPlaceGroup && loc.group_id === enoughPlaceGroup.id;
                 const matchesFallbackName = loc.name.includes('이높');
                 return matchesGroup || matchesFallbackName;
             });

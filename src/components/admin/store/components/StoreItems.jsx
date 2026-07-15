@@ -32,7 +32,7 @@ const StoreItems = () => {
         setLoading(true);
         try {
             const { data, error } = await supabase
-                .from('hyphen_items')
+                .from('haifn_items')
                 .select('*')
                 .order('item_type', { ascending: false })
                 .order('amount', { ascending: true });
@@ -116,10 +116,10 @@ const StoreItems = () => {
             };
 
             if (editingItem === 'NEW') {
-                const { error } = await supabase.from('hyphen_items').insert([payload]);
+                const { error } = await supabase.from('haifn_items').insert([payload]);
                 if (error) throw error;
             } else {
-                const { error } = await supabase.from('hyphen_items').update(payload).eq('id', editingItem.id);
+                const { error } = await supabase.from('haifn_items').update(payload).eq('id', editingItem.id);
                 if (error) throw error;
             }
 
@@ -136,7 +136,7 @@ const StoreItems = () => {
     const handleDelete = async (id, name) => {
         if (!window.confirm(`'${name}' 항목을 완전히 삭제하시겠습니까? (삭제 시 복구 불가)`)) return;
         try {
-            const { error } = await supabase.from('hyphen_items').delete().eq('id', id);
+            const { error } = await supabase.from('haifn_items').delete().eq('id', id);
             if (error) throw error;
             fetchItems();
         } catch (err) {

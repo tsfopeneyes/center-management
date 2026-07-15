@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Star, Send } from 'lucide-react';
 import { feedbackApi } from '../../../api/feedbackApi';
-import { hyphenApi } from '../../../api/hyphenApi';
+import { haifnApi } from '../../../api/haifnApi';
 
 const ProgramFeedbackModal = ({ program, existingFeedback, onClose, onSuccess }) => {
     const [submitting, setSubmitting] = useState(false);
@@ -65,17 +65,17 @@ const ProgramFeedbackModal = ({ program, existingFeedback, onClose, onSuccess })
 
             const data = await feedbackApi.upsertFeedback(payload);
 
-            // Hyphen Reward Logic (Only on first creation OR if not rewarded yet, but simply checking !existingFeedback is safe)
-            if (!existingFeedback && program.is_review_required && program.hyphen_reward > 0) {
+            // Haifn Reward Logic (Only on first creation OR if not rewarded yet, but simply checking !existingFeedback is safe)
+            if (!existingFeedback && program.is_review_required && program.haifn_reward > 0) {
                 try {
-                    await hyphenApi.grantProgramReward(
+                    await haifnApi.grantProgramReward(
                         user.id, 
                         program.id, 
-                        program.hyphen_reward, 
+                        program.haifn_reward, 
                         'System', // Granted by system automatically
                         program.title + ' (리뷰 작성 완료)'
                     );
-                    alert(`리뷰 작성 완료! ${program.hyphen_reward}H 획득을 축하합니다 🎉`);
+                    alert(`리뷰 작성 완료! ${program.haifn_reward}H 획득을 축하합니다 🎉`);
                 } catch (rErr) {
                     console.error('Reward error:', rErr);
                     alert('리뷰는 저장되었으나 포인트 지급 중 일부 오류가 발생했습니다.');

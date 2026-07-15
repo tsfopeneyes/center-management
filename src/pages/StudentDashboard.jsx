@@ -14,7 +14,7 @@ import StudentGuestbookTab from '../components/student/StudentGuestbookTab';
 import StudentCalendarTab from '../components/student/StudentCalendarTab';
 import CommunityTab from '../components/community/CommunityTab';
 import StudentChat from '../components/student/StudentChat';
-import StudentHyphenTab from '../components/student/StudentHyphenTab';
+import StudentHaifnTab from '../components/student/StudentHaifnTab';
 import StudentAzitTab from '../components/student/StudentAzitTab';
 import { userApi } from '../api/userApi';
 import { noticesApi } from '../api/noticesApi';
@@ -106,7 +106,7 @@ const StudentDashboard = () => {
     const activeVisibleTabs = (tabConfig || []).filter(t => t.isVisible);
     const TAB_SEQUENCE = activeVisibleTabs.length > 0 
         ? activeVisibleTabs.map(t => t.id)
-        : [TAB_NAMES.HOME, TAB_NAMES.BADGES, TAB_NAMES.PROGRAMS, TAB_NAMES.CALENDAR, TAB_NAMES.AZIT, TAB_NAMES.HYPHEN];
+        : [TAB_NAMES.HOME, TAB_NAMES.BADGES, TAB_NAMES.PROGRAMS, TAB_NAMES.CALENDAR, TAB_NAMES.AZIT, TAB_NAMES.HAIFN];
 
     const tabIconMap = {
         [TAB_NAMES.HOME]: { icon: Home, defaultLabel: '홈' },
@@ -114,7 +114,7 @@ const StudentDashboard = () => {
         [TAB_NAMES.PROGRAMS]: { icon: BookOpen, defaultLabel: '센터', activeColor: 'text-blue-600' },
         [TAB_NAMES.CALENDAR]: { icon: Calendar, defaultLabel: '캘린더' },
         [TAB_NAMES.AZIT]: { icon: MessageSquareHeart, defaultLabel: '커뮤니티' },
-        [TAB_NAMES.HYPHEN]: { icon: Store, defaultLabel: '하이픈' }
+        [TAB_NAMES.HAIFN]: { icon: Store, defaultLabel: '하이픈' }
     };
     const visibleTabs = (tabConfig || [])
         .filter(t => t.isVisible)
@@ -136,7 +136,7 @@ const StudentDashboard = () => {
         { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '센터', activeColor: 'text-blue-600' },
         { id: TAB_NAMES.CALENDAR, icon: Calendar, label: '캘린더' },
         { id: TAB_NAMES.AZIT, icon: MessageSquareHeart, label: '커뮤니티' },
-        { id: TAB_NAMES.HYPHEN, icon: Store, label: '하이픈' }
+        { id: TAB_NAMES.HAIFN, icon: Store, label: '하이픈' }
     ];
 
     const navigationTabs = visibleTabs.length > 0 ? visibleTabs : defaultTabsList;
@@ -646,8 +646,8 @@ const StudentDashboard = () => {
                 <StudentAzitTab user={user} />
             )}
 
-            {activeTab === TAB_NAMES.HYPHEN && (
-                <StudentHyphenTab 
+            {activeTab === TAB_NAMES.HAIFN && (
+                <StudentHaifnTab 
                     user={user} 
                     notifyParentRefresh={() => {
                         userApi.fetchUser(user.id).then(u => {

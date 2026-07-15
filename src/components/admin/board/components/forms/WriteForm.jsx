@@ -197,7 +197,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
 
                 noticeData.max_capacity = formData.max_capacity ? parseInt(formData.max_capacity) : null;
                 noticeData.is_leader_only = formData.is_leader_only;
-                noticeData.hyphen_reward = formData.hyphen_reward ? parseInt(formData.hyphen_reward, 10) : 0;
+                noticeData.haifn_reward = formData.haifn_reward ? parseInt(formData.haifn_reward, 10) : 0;
                 noticeData.is_review_required = formData.is_review_required || false;
                 const startDate = formData.program_start_date || formData.program_date;
                 const endDate = formData.program_end_date;

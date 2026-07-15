@@ -3,7 +3,7 @@ import { X, Calendar as CalendarIcon, Clock, MapPin, Users, Trash2, Tag, Info } 
 import { motion, AnimatePresence } from 'framer-motion';
 import ModernEditor from '../../../common/ModernEditor';
 
-const HYPHEN_DETAILS = [
+const HAIFN_DETAILS = [
     'B1F STAGE',
     '2F SQUARE',
     '3F ROUND',
@@ -52,7 +52,7 @@ const EventEditModal = ({
         } else if (initialLocation.startsWith('하이픈 ')) {
             setLocalMain('하이픈');
             const detail = initialLocation.substring(4);
-            setSelectedDetail(HYPHEN_DETAILS.includes(detail) ? detail : '');
+            setSelectedDetail(HAIFN_DETAILS.includes(detail) ? detail : '');
             setCustomVal('');
         } else if (initialLocation) {
             setLocalMain('기타');
@@ -491,8 +491,8 @@ const EventEditModal = ({
                                             </div>
                                             <div className="flex gap-3">
                                                 {[
-                                                    { id: 'HYPHEN', label: '하이픈' },
-                                                    { id: 'ENOF', label: '이높플레이스' }
+                                                    { id: 'HAIFN', label: '하이픈' },
+                                                    { id: 'ENOUGH_PLACE', label: '이높플레이스' }
                                                 ].map(space => (
                                                     <button
                                                         key={space.id}
@@ -534,7 +534,7 @@ const EventEditModal = ({
                                                             setSelectedDetail('');
                                                             setCustomVal('');
                                                         } else if (val === '하이픈') {
-                                                            setSelectedDetail(HYPHEN_DETAILS[0]);
+                                                            setSelectedDetail(HAIFN_DETAILS[0]);
                                                             setCustomVal('');
                                                         } else {
                                                             setSelectedDetail('');
@@ -570,7 +570,7 @@ const EventEditModal = ({
                                                     onChange={e => setSelectedDetail(e.target.value)}
                                                     className="w-full p-2 bg-white border border-pink-100 rounded-lg outline-none text-xs font-bold"
                                                 >
-                                                    {HYPHEN_DETAILS.map(detail => (
+                                                    {HAIFN_DETAILS.map(detail => (
                                                         <option key={detail} value={detail}>{detail}</option>
                                                     ))}
                                                 </select>

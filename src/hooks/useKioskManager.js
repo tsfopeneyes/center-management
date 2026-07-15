@@ -10,8 +10,8 @@ const sendRealtimeNotification = async (user, type, location, metadata = {}) => 
     const gsWebhookUrl = localStorage.getItem('gs_webhook_url');
     const discordWebhookUrl = localStorage.getItem('discord_webhook_url');
 
-    // 0. Check if it is Hyphen branch to prevent LINE usage on ENOF
-    let isHyphenBranch = false;
+    // 0. Check if it is Haifn branch to prevent LINE usage on ENOUGH_PLACE
+    let isHaifnBranch = false;
     try {
         if (location?.group_id) {
             const { data: grp } = await supabase
@@ -19,8 +19,8 @@ const sendRealtimeNotification = async (user, type, location, metadata = {}) => 
                 .select('name')
                 .eq('id', location.group_id)
                 .maybeSingle();
-            if (grp && (grp.name.includes('하이픈') || grp.name.includes('HYPHEN') || grp.name.includes('강동'))) {
-                isHyphenBranch = true;
+            if (grp && (grp.name.includes('하이픈') || grp.name.includes('HAIFN') || grp.name.includes('강동'))) {
+                isHaifnBranch = true;
             }
         }
     } catch (err) {
@@ -50,7 +50,7 @@ const sendRealtimeNotification = async (user, type, location, metadata = {}) => 
         hasLineGroupId: !!lineGroupId,
         hasGsWebhookUrl: !!gsWebhookUrl,
         discordWebhookUrl: !!discordWebhookUrl,
-        isHyphenBranch,
+        isHaifnBranch,
         message
     });
 
@@ -67,8 +67,8 @@ const sendRealtimeNotification = async (user, type, location, metadata = {}) => 
         }
     }
 
-    // 2. Send LINE Message via Google Apps Script Webhook (Only for Hyphen branch!)
-    if (lineToken && lineGroupId && gsWebhookUrl && isHyphenBranch) {
+    // 2. Send LINE Message via Google Apps Script Webhook (Only for Haifn branch!)
+    if (lineToken && lineGroupId && gsWebhookUrl && isHaifnBranch) {
         try {
             await fetch(gsWebhookUrl, {
                 method: 'POST',
@@ -108,7 +108,7 @@ export const useKioskManager = (navigate) => {
     const [pendingKioskUser, setPendingKioskUser] = useState(null);
     const [pendingCheckoutUser, setPendingCheckoutUser] = useState(null);
     const [checkoutVisitDate, setCheckoutVisitDate] = useState('');
-    const [checkoutHyphenMsg, setCheckoutHyphenMsg] = useState('');
+    const [checkoutHaifnMsg, setCheckoutHaifnMsg] = useState('');
     const [checkoutDuration, setCheckoutDuration] = useState('');
 
     // Checkin Survey States
@@ -375,16 +375,16 @@ export const useKioskManager = (navigate) => {
                 }
             }
 
-            // Check if it is Hyphen branch early
-            let isHyphenBranch = false;
+            // Check if it is Haifn branch early
+            let isHaifnBranch = false;
             if (selectedLocation?.group_id) {
                 const { data: grp } = await supabase
                     .from('location_groups')
                     .select('name')
                     .eq('id', selectedLocation.group_id)
                     .maybeSingle();
-                if (grp && (grp.name.includes('하이픈') || grp.name.includes('HYPHEN') || grp.name.includes('강동'))) {
-                    isHyphenBranch = true;
+                if (grp && (grp.name.includes('하이픈') || grp.name.includes('HAIFN') || grp.name.includes('강동'))) {
+                    isHaifnBranch = true;
                 }
             }
 
@@ -398,7 +398,7 @@ export const useKioskManager = (navigate) => {
             if (insertError) throw insertError;
 
             // Send real-time notification (Delay for checkin-survey or checkout-purpose)
-            const shouldDelayNotification = nextType === 'CHECKOUT' || (nextType === 'CHECKIN' && isHyphenBranch);
+            const shouldDelayNotification = nextType === 'CHECKOUT' || (nextType === 'CHECKIN' && isHaifnBranch);
             if (!shouldDelayNotification) {
                 sendRealtimeNotification(user, nextType, selectedLocation);
             }
@@ -412,12 +412,12 @@ export const useKioskManager = (navigate) => {
                 }]);
             }
 
-            // E. Hyphen Point Logic (1 per day for CHECKIN)
+            // E. Haifn Point Logic (1 per day for CHECKIN)
             let earnedCheckinMsg = '';
             if (nextType === 'CHECKIN') {
                 try {
                     const { data: existingPoints } = await supabase
-                        .from('hyphen_transactions')
+                        .from('haifn_transactions')
                         .select('id')
                         .eq('user_id', user.id)
                         .eq('source_description', '공간 방문 (1일 1회)')
@@ -426,7 +426,7 @@ export const useKioskManager = (navigate) => {
                         .limit(1);
 
                     if (!existingPoints || existingPoints.length === 0) {
-                        await supabase.from('hyphen_transactions').insert([{
+                        await supabase.from('haifn_transactions').insert([{
                             user_id: user.id,
                             amount: 1,
                             transaction_type: 'EARN',
@@ -435,7 +435,7 @@ export const useKioskManager = (navigate) => {
                         earnedCheckinMsg = ' (+1 하이픈)';
                     }
                 } catch (err) {
-                    console.error('Failed to grant checkin hyphen', err);
+                    console.error('Failed to grant checkin haifn', err);
                 }
             }
 
@@ -477,7 +477,7 @@ export const useKioskManager = (navigate) => {
 
                         if (durationHours >= 1) {
                             const { data: existingPoints } = await supabase
-                                .from('hyphen_transactions')
+                                .from('haifn_transactions')
                                 .select('id')
                                 .eq('user_id', user.id)
                                 .eq('source_description', '공간 체류 (1시간 이상)')
@@ -486,7 +486,7 @@ export const useKioskManager = (navigate) => {
                                 .limit(1);
 
                             if (!existingPoints || existingPoints.length === 0) {
-                                await supabase.from('hyphen_transactions').insert([{
+                                await supabase.from('haifn_transactions').insert([{
                                     user_id: user.id,
                                     amount: 1,
                                     transaction_type: 'EARN',
@@ -497,13 +497,13 @@ export const useKioskManager = (navigate) => {
                         }
                     }
                 } catch (err) {
-                    console.error('Failed to grant checkout hyphen', err);
+                    console.error('Failed to grant checkout haifn', err);
                 }
 
                 // Intercept Checkout to ask for purpose
                 setPendingCheckoutUser(user);
                 setCheckoutVisitDate(getKSTDateString(new Date()));
-                setCheckoutHyphenMsg(earnedMsg);
+                setCheckoutHaifnMsg(earnedMsg);
                 setStatus('REQUIRE_PURPOSE');
                 setPincode('');
                 setMatchingUsers([]);
@@ -536,7 +536,7 @@ export const useKioskManager = (navigate) => {
                     sub += earnedCheckinMsg;
                 }
 
-                if (isHyphenBranch) {
+                if (isHaifnBranch) {
                     // Intercept CHECKIN to ask survey
                     setPendingKioskUser(user);
                     setPendingCheckinFeedback({
@@ -658,9 +658,9 @@ export const useKioskManager = (navigate) => {
                     .eq('id', selectedLocation.group_id)
                     .maybeSingle();
                 if (grp?.name) {
-                    if (grp.name.includes('하이픈') || grp.name.includes('HYPHEN') || grp.name.includes('강동')) {
+                    if (grp.name.includes('하이픈') || grp.name.includes('HAIFN') || grp.name.includes('강동')) {
                         branchKorean = '하이픈';
-                    } else if (grp.name.includes('이높플레이스') || grp.name.includes('ENOF') || grp.name.includes('이높') || grp.name.includes('강서')) {
+                    } else if (grp.name.includes('이높플레이스') || grp.name.includes('ENOUGH_PLACE') || grp.name.includes('이높') || grp.name.includes('강서')) {
                         branchKorean = '이높플레이스';
                     } else {
                         branchKorean = grp.name;
@@ -676,7 +676,7 @@ export const useKioskManager = (navigate) => {
             const kstEndISO = new Date(kstTodayStart.getTime() + (24 * 60 * 60 * 1000) - 1 - kstOffset).toISOString();
 
             const { data: todayTxs } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .select('amount')
                 .eq('user_id', pendingCheckoutUser.id)
                 .eq('transaction_type', 'EARN')
@@ -686,7 +686,7 @@ export const useKioskManager = (navigate) => {
 
             // 3. Fetch cumulative points balance
             const { data: allTxs } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .select('amount')
                 .eq('user_id', pendingCheckoutUser.id);
             const balance = allTxs ? allTxs.reduce((sum, tx) => sum + tx.amount, 0) : 0;
@@ -747,9 +747,9 @@ export const useKioskManager = (navigate) => {
                         } catch (e) {}
 
                         if (branchKorean === '하이픈') {
-                            return closedSpaces.includes('HYPHEN');
+                            return closedSpaces.includes('HAIFN');
                         } else if (branchKorean === '이높플레이스') {
-                            return closedSpaces.includes('INOP') || closedSpaces.includes('ENOF');
+                            return closedSpaces.includes('ENOUGH_PLACE') || closedSpaces.includes('ENOUGH_PLACE');
                         }
                         return true;
                     }
@@ -787,7 +787,7 @@ export const useKioskManager = (navigate) => {
             // Reset all kiosk states
             setPendingCheckoutUser(null);
             setCheckoutVisitDate('');
-            setCheckoutHyphenMsg('');
+            setCheckoutHaifnMsg('');
             setStatus('IDLE');
             setPincode('');
             setMatchingUsers([]);
@@ -1011,7 +1011,7 @@ export const useKioskManager = (navigate) => {
         setCheckoutDuration('');
         setPendingCheckoutUser(null);
         setCheckoutVisitDate('');
-        setCheckoutHyphenMsg('');
+        setCheckoutHaifnMsg('');
         setPendingKioskUser(null);
     };
 

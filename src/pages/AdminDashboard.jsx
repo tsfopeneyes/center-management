@@ -306,7 +306,7 @@ const AdminDashboard = () => {
                 if (!isWorking) return; // Skip alerts if not working
 
                 // 3. Determine admin's assigned branches
-                const isAdminAtHyphen = (staffConfig["하이픈"] || []).includes(adminId);
+                const isAdminAtHaifn = (staffConfig["하이픈"] || []).includes(adminId);
                 const isAdminAtInop = (staffConfig["이높플레이스"] || []).includes(adminId);
 
                 // 4. Fetch new check-in logs
@@ -325,20 +325,20 @@ const AdminDashboard = () => {
                         const loc = locationsRef.current.find(l => l.id === log.location_id);
                         if (!loc) return;
 
-                        const isLocHyphen = loc.name?.includes('하이픈');
+                        const isLocHaifn = loc.name?.includes('하이픈');
                         const isLocInop = loc.name?.includes('이높플레이스');
 
                         // Filter by branch match
                         let shouldAlert = false;
-                        if (isLocHyphen && isAdminAtHyphen) shouldAlert = true;
+                        if (isLocHaifn && isAdminAtHaifn) shouldAlert = true;
                         else if (isLocInop && isAdminAtInop) shouldAlert = true;
-                        else if (!isLocHyphen && !isLocInop) shouldAlert = true; // Alert all if location doesn't match standard branches
+                        else if (!isLocHaifn && !isLocInop) shouldAlert = true; // Alert all if location doesn't match standard branches
                         
                         if (!shouldAlert) return; // Skip alert for this logged-in admin
 
                         const u = usersRef.current.find(user => user.id === log.user_id);
                         if (u) {
-                            const branchName = isLocHyphen ? '하이픈' : (isLocInop ? '이높플레이스' : '센터');
+                            const branchName = isLocHaifn ? '하이픈' : (isLocInop ? '이높플레이스' : '센터');
                             const message = `${u.name} 학생이 ${branchName}에 체크인했어요!`;
                             playChime();
                             

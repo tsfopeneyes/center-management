@@ -106,7 +106,7 @@ export const prepareNoticeForEdit = (notice) => {
         allow_multiple_votes: notice.allow_multiple_votes || false,
         poll_deadline: notice.poll_deadline ? formatToLocalISO(notice.poll_deadline) : '',
         poll_options: notice.poll_options || [],
-        hyphen_reward: notice.hyphen_reward || 0,
+        haifn_reward: notice.haifn_reward || 0,
         is_review_required: notice.is_review_required || false,
         program_start_date: notice.program_start_date ? formatToLocalISO(notice.program_start_date).split('T')[0] : '',
         program_end_date: notice.program_end_date ? formatToLocalISO(notice.program_end_date).split('T')[0] : '',

@@ -72,7 +72,7 @@ const UserTable = ({
                                         <div className="text-xs text-gray-400 mt-0.5 truncate" title={user.church}>{user.church || '-'}</div>
                                     </td>
                                     <td className="p-4 font-mono text-gray-500 text-xs md:text-sm align-middle whitespace-nowrap">{user.phone}</td>
-                                    <td className="p-4 text-center font-bold text-blue-600 align-middle whitespace-nowrap pr-6">{user.current_hyphen || 0} H</td>
+                                    <td className="p-4 text-center font-bold text-blue-600 align-middle whitespace-nowrap pr-6">{user.current_haifn || 0} H</td>
                                 </tr>
                             ))
                         }
@@ -117,7 +117,7 @@ const UserTable = ({
                                     <span className="truncate max-w-[100px]">{user.school}</span>
                                     {user.church && <span className="truncate max-w-[80px] text-gray-300">({user.church})</span>}
                                     <span className="font-mono">{user.phone}</span>
-                                    <span className="ml-auto font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md">H {user.current_hyphen || 0}</span>
+                                    <span className="ml-auto font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md">H {user.current_haifn || 0}</span>
                                 </div>
                             </div>
                         </div>

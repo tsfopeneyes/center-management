@@ -205,7 +205,7 @@ const StudentCenterTab = ({
                             const snacks = contents.filter(c => c.category === '간식');
                             const boardGames = contents.filter(c => c.category === '보드게임');
 
-                            const isEnoff = selectedRegion === 'GANGSEO' || (selectedRegion !== 'GANGDONG' && centerName === '이높플레이스');
+                            const isEnoughPlace = selectedRegion === 'GANGSEO' || (selectedRegion !== 'GANGDONG' && centerName === '이높플레이스');
 
                             const renderList = (items, categoryLabel, CategoryIcon, locationLabel) => {
                                 if (items.length === 0) return null;
@@ -215,7 +215,7 @@ const StudentCenterTab = ({
                                             <CategoryIcon size={13} className="text-tossGrey500" strokeWidth={2.5} />
                                             <span className="text-[13px] font-bold text-tossGrey800">{categoryLabel}</span>
                                             <span className="text-[10px] font-bold text-tossGrey400 bg-tossGrey100 px-1.5 py-0.5 rounded-full ml-0.5">{items.length}</span>
-                                            {!isEnoff && locationLabel && (
+                                            {!isEnoughPlace && locationLabel && (
                                                 <span className={`text-[9px] font-black px-2 py-0.5 rounded ml-auto tracking-wider ${
                                                     locationLabel === '2F SQUARE' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                                                     locationLabel === '3F ROUND' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :

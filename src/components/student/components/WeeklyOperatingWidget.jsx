@@ -60,9 +60,9 @@ const WeeklyOperatingWidget = ({ studentRegion, adminSchedules, calendarCategori
                 } catch (e) { }
 
                 if (studentRegion === '강동') {
-                    return closedSpaces.includes('HYPHEN');
+                    return closedSpaces.includes('HAIFN');
                 } else if (studentRegion === '강서') {
-                    return closedSpaces.includes('INOP') || closedSpaces.includes('ENOF');
+                    return closedSpaces.includes('ENOUGH_PLACE') || closedSpaces.includes('ENOUGH_PLACE');
                 }
                 return true;
             }

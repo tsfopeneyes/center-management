@@ -209,10 +209,10 @@ export const noticesApi = {
         // 1. Get all JOIN responses or open program participants
         let responses = [];
         if (noticeData.is_recruiting === false) {
-            // Open program: Get participants from hyphen_transactions
+            // Open program: Get participants from haifn_transactions
             const descPattern = `[오픈 프로그램 참여] ${noticeData.title}%`;
             const { data: txData, error: txError } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .select('user_id, source_description')
                 .eq('transaction_type', 'EARN')
                 .like('source_description', descPattern);
@@ -288,7 +288,7 @@ export const noticesApi = {
                 admin_id: adminId
             }));
 
-            const { error: txError } = await supabase.from('hyphen_transactions').insert(transactionsToInsert);
+            const { error: txError } = await supabase.from('haifn_transactions').insert(transactionsToInsert);
             if (txError) {
                 console.error("Failed to insert staff reward transactions:", txError);
             }
@@ -304,7 +304,7 @@ export const noticesApi = {
         if (noticeTitle) {
             const rewardDesc = `[역할] 프로그램 스탭 참여: ${noticeTitle}`;
             await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .delete()
                 .eq('source_description', rewardDesc);
         }

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import { noticesApi } from '../../../../api/noticesApi';
-import { hyphenApi } from '../../../../api/hyphenApi';
+import { haifnApi } from '../../../../api/haifnApi';
 import { startOfDay } from 'date-fns';
 
 const useParticipantManagement = (selectedNotice, onRefreshData) => {
@@ -23,7 +23,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         try {
             const descPattern = `[오픈 프로그램 참여] ${notice.title}%`;
             const { data, error } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .select('source_description')
                 .eq('transaction_type', 'EARN')
                 .like('source_description', descPattern);
@@ -95,7 +95,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const descMatch = `[오픈 프로그램 참여] ${notice.title} (${dateStr})`;
                 
                 const { data, error } = await supabase
-                    .from('hyphen_transactions')
+                    .from('haifn_transactions')
                     .select('user_id, users(id, name, school, phone_back4, is_leader)')
                     .eq('source_description', descMatch)
                     .eq('transaction_type', 'EARN');
@@ -169,26 +169,26 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             if (selectedNotice.is_recruiting === false) {
                 const dateStr = selectedDate;
                 if (currentAttended) {
-                    await hyphenApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
+                    await haifnApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
                 } else {
                     const admin = JSON.parse(localStorage.getItem('admin_user'));
                     const adminId = admin?.id || null;
-                    await hyphenApi.grantOpenProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
+                    await haifnApi.grantOpenProgramReward(userId, selectedNotice.id, selectedNotice.haifn_reward || 30, adminId, selectedNotice.title, dateStr);
                 }
                 await fetchParticipants(selectedNotice);
             } else {
                 await noticesApi.updateAttendance(selectedNotice.id, userId, !currentAttended);
                 
-                // Hyphen Reward Logic
-                if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0) {
+                // Haifn Reward Logic
+                if (selectedNotice.haifn_reward && selectedNotice.haifn_reward > 0) {
                     const admin = JSON.parse(localStorage.getItem('admin_user'));
                     const adminId = admin?.id || null;
                     if (!currentAttended) {
                         if (!selectedNotice.is_review_required) {
-                            await hyphenApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                            await haifnApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.haifn_reward, adminId, selectedNotice.title);
                         }
                     } else {
-                        await hyphenApi.revokeProgramReward(userId, selectedNotice.title);
+                        await haifnApi.revokeProgramReward(userId, selectedNotice.title);
                     }
                 }
 
@@ -225,7 +225,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         try {
             if (selectedNotice.is_recruiting === false) {
                 const dateStr = selectedDate;
-                await hyphenApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
+                await haifnApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
                 await fetchParticipants(selectedNotice);
             } else {
                 await noticesApi.deleteResponse(selectedNotice.id, userId);
@@ -249,8 +249,8 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         try {
             await noticesApi.markAllAttended(selectedNotice.id);
 
-            // Hyphen Reward Logic (Bulk)
-            if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
+            // Haifn Reward Logic (Bulk)
+            if (selectedNotice.haifn_reward && selectedNotice.haifn_reward > 0 && !selectedNotice.is_review_required) {
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
                 const adminId = admin?.id || null;
                 const newlyAttendedUsers = participantList.JOIN.filter(u => !u.is_attended);
@@ -258,7 +258,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 // Process sequentially to avoid slamming the DB
                 for (const u of newlyAttendedUsers) {
                     try {
-                        await hyphenApi.grantProgramReward(u.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                        await haifnApi.grantProgramReward(u.id, selectedNotice.id, selectedNotice.haifn_reward, adminId, selectedNotice.title);
                     } catch (e) {
                         console.error('Bulk reward error for user', u.id, e);
                     }
@@ -304,7 +304,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const dateStr = selectedDate;
                 const admin = JSON.parse(localStorage.getItem('admin_user'));
                 const adminId = admin?.id || null;
-                await hyphenApi.grantOpenProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
+                await haifnApi.grantOpenProgramReward(user.id, selectedNotice.id, selectedNotice.haifn_reward || 30, adminId, selectedNotice.title, dateStr);
                 
                 // Optimistic Update & Immediate Feedback
                 const newUser = { ...user, is_attended: true, is_staff: false };
@@ -315,11 +315,11 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
                 await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
 
-                // Hyphen Reward Logic (Walk-in)
-                if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
+                // Haifn Reward Logic (Walk-in)
+                if (selectedNotice.haifn_reward && selectedNotice.haifn_reward > 0 && !selectedNotice.is_review_required) {
                     const admin = JSON.parse(localStorage.getItem('admin_user'));
                     const adminId = admin?.id || null;
-                    await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                    await haifnApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.haifn_reward, adminId, selectedNotice.title);
                 }
 
                 // Optimistic Update & Immediate Feedback
@@ -352,7 +352,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const adminId = admin?.id || null;
                 for (const user of users) {
                     try {
-                        await hyphenApi.grantOpenProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward || 30, adminId, selectedNotice.title, dateStr);
+                        await haifnApi.grantOpenProgramReward(user.id, selectedNotice.id, selectedNotice.haifn_reward || 30, adminId, selectedNotice.title, dateStr);
                     } catch (e) {
                          console.error('Walk-in reward error for user', user.id, e);
                     }
@@ -374,11 +374,11 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
                     await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
                     
-                    if (selectedNotice.hyphen_reward && selectedNotice.hyphen_reward > 0 && !selectedNotice.is_review_required) {
+                    if (selectedNotice.haifn_reward && selectedNotice.haifn_reward > 0 && !selectedNotice.is_review_required) {
                         const admin = JSON.parse(localStorage.getItem('admin_user'));
                         const adminId = admin?.id || null;
                         try {
-                            await hyphenApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.hyphen_reward, adminId, selectedNotice.title);
+                            await haifnApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.haifn_reward, adminId, selectedNotice.title);
                         } catch (e) {
                              console.error('Walk-in reward error for user', user.id, e);
                         }

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../supabaseClient';
-import { hyphenApi } from '../../../../api/hyphenApi';
+import { haifnApi } from '../../../../api/haifnApi';
 import { Plus, Minus, Send } from 'lucide-react';
 
-const UserHyphenTab = ({ user, adminId, fetchData }) => {
+const UserHaifnTab = ({ user, adminId, fetchData }) => {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [manualAmount, setManualAmount] = useState('');
@@ -21,7 +21,7 @@ const UserHyphenTab = ({ user, adminId, fetchData }) => {
         setLoading(true);
         try {
             const { data, error } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .select('*')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
@@ -29,7 +29,7 @@ const UserHyphenTab = ({ user, adminId, fetchData }) => {
             if (error) throw error;
             setHistory(data || []);
         } catch (err) {
-            console.error('Failed to fetch hyphen history:', err);
+            console.error('Failed to fetch haifn history:', err);
         } finally {
             setLoading(false);
         }
@@ -51,11 +51,11 @@ const UserHyphenTab = ({ user, adminId, fetchData }) => {
 
         setIsSubmitting(true);
         try {
-            await hyphenApi.manualAdjustment(user.id, finalAmount, manualReason, adminId);
+            await haifnApi.manualAdjustment(user.id, finalAmount, manualReason, adminId);
             setManualAmount('');
             setManualReason('');
             await fetchHistory();
-            if (fetchData) fetchData(); // Refresh AdminUsers to update current_hyphen
+            if (fetchData) fetchData(); // Refresh AdminUsers to update current_haifn
             alert('조정되었습니다.');
         } catch (err) {
             console.error(err);
@@ -73,7 +73,7 @@ const UserHyphenTab = ({ user, adminId, fetchData }) => {
                     <p className="text-[10px] text-blue-500 font-medium">자동으로 계산된 포인트 잔액입니다.</p>
                 </div>
                 <div className="text-3xl font-black text-blue-600">
-                    {user.current_hyphen || 0} <span className="text-lg">H</span>
+                    {user.current_haifn || 0} <span className="text-lg">H</span>
                 </div>
             </div>
 
@@ -145,4 +145,4 @@ const UserHyphenTab = ({ user, adminId, fetchData }) => {
     );
 };
 
-export default UserHyphenTab;
+export default UserHaifnTab;

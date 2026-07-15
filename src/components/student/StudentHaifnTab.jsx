@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
-import { hyphenApi } from '../../api/hyphenApi';
+import { haifnApi } from '../../api/haifnApi';
 import { Wallet, Store, ShieldAlert, History, ChevronRight, CheckCircle2, FileSpreadsheet, Search } from 'lucide-react';
-import HyphenHistoryModal from './modals/HyphenHistoryModal';
+import HaifnHistoryModal from './modals/HaifnHistoryModal';
 import PurchaseReceiptModal from './modals/PurchaseReceiptModal';
 
-const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
+const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
     const [showHistory, setShowHistory] = useState(false);
     const [receiptData, setReceiptData] = useState(null);
     const [storeItems, setStoreItems] = useState([]);
@@ -19,7 +19,7 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
         setLoading(true);
         try {
             const { data: itemsRes, error: itemsErr } = await supabase
-                .from('hyphen_items')
+                .from('haifn_items')
                 .select('*')
                 .eq('is_active', true)
                 .order('item_type', { ascending: false })
@@ -40,8 +40,8 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
     }, [user.id, refreshTrigger]);
 
     const handlePurchase = async (item) => {
-        if (user.current_hyphen < item.amount) {
-            alert(`하이픈이 부족합니다. (필요: ${item.amount}H, 현재: ${user.current_hyphen || 0}H)`);
+        if (user.current_haifn < item.amount) {
+            alert(`하이픈이 부족합니다. (필요: ${item.amount}H, 현재: ${user.current_haifn || 0}H)`);
             return;
         }
 
@@ -53,8 +53,8 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
 
         setIsProcessing(true);
         try {
-            await hyphenApi.createOrder(user.id, item.id, item.amount, item.requires_approval, item.name);
-            if (notifyParentRefresh) notifyParentRefresh(); // Refresh user data to update current_hyphen
+            await haifnApi.createOrder(user.id, item.id, item.amount, item.requires_approval, item.name);
+            if (notifyParentRefresh) notifyParentRefresh(); // Refresh user data to update current_haifn
             pullData(); // Refresh history and items
             
             if (!item.requires_approval) {
@@ -103,7 +103,7 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
                             <span className="font-bold text-white text-[11px] italic pr-[1.5px]">H</span>
                         </div>
                         <span className="text-[13px] font-medium text-tossGrey600 tracking-tight ml-0.5">포인트</span>
-                        <span className="text-lg font-bold text-tossBlue ml-1">{user.current_hyphen || 0}</span>
+                        <span className="text-lg font-bold text-tossBlue ml-1">{user.current_haifn || 0}</span>
                         <span className="text-[13px] font-medium text-tossGrey600">개</span>
                     </div>
                 </div>
@@ -158,7 +158,7 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
                     {spendItems.length > 0 && (
                         <div className="flex flex-col gap-2.5">
                             {spendItems.map(item => {
-                                const canAfford = user.current_hyphen >= item.amount;
+                                const canAfford = user.current_haifn >= item.amount;
                                 return (
                                     <div 
                                         key={item.id} 
@@ -209,7 +209,7 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
             )}
 
             {showHistory && (
-                <HyphenHistoryModal 
+                <HaifnHistoryModal 
                     user={user} 
                     onClose={() => setShowHistory(false)} 
                     storeItems={storeItems}
@@ -219,4 +219,4 @@ const StudentHyphenTab = ({ user, notifyParentRefresh, refreshTrigger }) => {
     );
 };
 
-export default StudentHyphenTab;
+export default StudentHaifnTab;

@@ -29,16 +29,16 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
     );
 
     // Filter candidates for each space (Mutual exclusion)
-    const hyphenCandidates = filteredCandidates.filter(u => 
+    const haifnCandidates = filteredCandidates.filter(u => 
         !(localConfig["이높플레이스"]?.includes(u.id))
     );
 
-    const inopeCandidates = filteredCandidates.filter(u => 
+    const enough_placeCandidates = filteredCandidates.filter(u => 
         !(localConfig["하이픈"]?.includes(u.id))
     );
 
     // Get selected staff details for top list
-    const selectedHyphenStaff = (localConfig["하이픈"] || [])
+    const selectedHaifnStaff = (localConfig["하이픈"] || [])
         .map(id => users.find(u => u.id === id))
         .filter(Boolean);
 
@@ -99,7 +99,7 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
 
             {/* Categorized Spaces Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Hyphen Space */}
+                {/* Haifn Space */}
                 <div className="flex flex-col gap-3">
                     <h4 className="text-sm font-black text-blue-600 flex items-center gap-1.5 px-1 pb-1 border-b border-blue-50">
                         <span className="w-1.5 h-3.5 bg-blue-500 rounded-full"></span>
@@ -108,10 +108,10 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
                     
                     {/* Selected Staff tags */}
                     <div className="flex flex-wrap gap-1.5 min-h-[38px] items-center p-2 bg-slate-50/50 rounded-xl border border-slate-100/80">
-                        {selectedHyphenStaff.length > 0 ? (
-                            selectedHyphenStaff.map(u => (
+                        {selectedHaifnStaff.length > 0 ? (
+                            selectedHaifnStaff.map(u => (
                                 <span
-                                    key={`tag-hyphen-${u.id}`}
+                                    key={`tag-haifn-${u.id}`}
                                     onClick={() => handleToggleSelect(u.id, "하이픈")}
                                     className="inline-flex items-center gap-1.5 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 cursor-pointer px-2 py-0.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 transition-all shadow-sm"
                                 >
@@ -126,13 +126,13 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
                     </div>
 
                     <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                        {hyphenCandidates.length > 0 ? (
-                            hyphenCandidates.map(u => {
+                        {haifnCandidates.length > 0 ? (
+                            haifnCandidates.map(u => {
                                 const isSelected = localConfig["하이픈"]?.includes(u.id) || false;
                                 return (
                                     <button
                                         type="button"
-                                        key={`hyphen-${u.id}`}
+                                        key={`haifn-${u.id}`}
                                         onClick={() => handleToggleSelect(u.id, "하이픈")}
                                         className={`w-full p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2.5 text-left ${
                                             isSelected
@@ -181,7 +181,7 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
                         {selectedInopeStaff.length > 0 ? (
                             selectedInopeStaff.map(u => (
                                 <span
-                                    key={`tag-inope-${u.id}`}
+                                    key={`tag-enough_place-${u.id}`}
                                     onClick={() => handleToggleSelect(u.id, "이높플레이스")}
                                     className="inline-flex items-center gap-1.5 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 cursor-pointer px-2 py-0.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 transition-all shadow-sm"
                                 >
@@ -196,13 +196,13 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
                     </div>
 
                     <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                        {inopeCandidates.length > 0 ? (
-                            inopeCandidates.map(u => {
+                        {enough_placeCandidates.length > 0 ? (
+                            enough_placeCandidates.map(u => {
                                 const isSelected = localConfig["이높플레이스"]?.includes(u.id) || false;
                                 return (
                                     <button
                                         type="button"
-                                        key={`inope-${u.id}`}
+                                        key={`enough_place-${u.id}`}
                                         onClick={() => handleToggleSelect(u.id, "이높플레이스")}
                                         className={`w-full p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2.5 text-left ${
                                             isSelected

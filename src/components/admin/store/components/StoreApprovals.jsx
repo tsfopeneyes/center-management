@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../supabaseClient';
-import { hyphenApi } from '../../../../api/hyphenApi';
+import { haifnApi } from '../../../../api/haifnApi';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 import UserAvatar from '../../../common/UserAvatar';
 
@@ -11,7 +11,7 @@ const StoreApprovals = () => {
     const fetchOrders = async () => {
         setLoading(true);
         try {
-            const data = await hyphenApi.getPendingOrders();
+            const data = await haifnApi.getPendingOrders();
             setOrders(data || []);
         } catch (err) {
             console.error('Failed to fetch pending orders:', err);
@@ -26,19 +26,19 @@ const StoreApprovals = () => {
 
     const handleProcess = async (order, isApproved) => {
         const action = isApproved ? '승인' : '반려';
-        if (!window.confirm(`${order.users?.name} 학생의 [${order.hyphen_items?.name}] 신청을 ${action}하시겠습니까?`)) return;
+        if (!window.confirm(`${order.users?.name} 학생의 [${order.haifn_items?.name}] 신청을 ${action}하시겠습니까?`)) return;
 
         try {
             const admin = JSON.parse(localStorage.getItem('admin_user'));
             const adminId = admin?.id || 'admin';
             
-            await hyphenApi.processOrder(order.id, order.user_id, order.amount, isApproved, adminId, order.hyphen_items?.name);
+            await haifnApi.processOrder(order.id, order.user_id, order.amount, isApproved, adminId, order.haifn_items?.name);
             
             // Optionally send notification to user
             try {
                 const message = isApproved 
-                    ? `🎉 [스토어] 신청하신 '${order.hyphen_items?.name}'이(가) 승인되었습니다! (-${order.amount}H)` 
-                    : `😢 [스토어] 신청하신 '${order.hyphen_items?.name}'이(가) 관리자에 의해 반려되었습니다. 포인트가 차감되지 않습니다.`;
+                    ? `🎉 [스토어] 신청하신 '${order.haifn_items?.name}'이(가) 승인되었습니다! (-${order.amount}H)` 
+                    : `😢 [스토어] 신청하신 '${order.haifn_items?.name}'이(가) 관리자에 의해 반려되었습니다. 포인트가 차감되지 않습니다.`;
 
                 await supabase.from('messages').insert([{
                     sender_id: adminId,
@@ -99,7 +99,7 @@ const StoreApprovals = () => {
                         <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 mb-4">
                             <p className="text-xs font-bold text-gray-500 mb-1">신청 항목</p>
                             <div className="flex justify-between items-end">
-                                <p className="font-black text-gray-800">{order.hyphen_items?.name}</p>
+                                <p className="font-black text-gray-800">{order.haifn_items?.name}</p>
                                 <p className="text-sm font-black text-blue-600">{order.amount} H</p>
                             </div>
                         </div>

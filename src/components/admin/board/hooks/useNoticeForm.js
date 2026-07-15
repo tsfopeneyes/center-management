@@ -22,7 +22,7 @@ const INITIAL_NOTICE_STATE = {
     allow_multiple_votes: false,
     poll_deadline: '',
     poll_options: [],
-    hyphen_reward: 5,
+    haifn_reward: 5,
     program_start_date: '',
     program_end_date: '',
     program_days: [],
@@ -38,7 +38,7 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
         category: mode,
         is_recruiting: mode === CATEGORIES.PROGRAM,
         max_capacity: mode === CATEGORIES.PROGRAM ? 0 : '',
-        hyphen_reward: mode === CATEGORIES.PROGRAM ? 30 : 5 // Default to 30 for challenges / program rewards
+        haifn_reward: mode === CATEGORIES.PROGRAM ? 30 : 5 // Default to 30 for challenges / program rewards
     });
 
     const updateField = useCallback((field, value) => {
@@ -51,7 +51,7 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
             category: targetMode,
             is_recruiting: targetMode === CATEGORIES.PROGRAM,
             max_capacity: targetMode === CATEGORIES.PROGRAM ? 0 : '',
-            hyphen_reward: targetMode === CATEGORIES.PROGRAM ? 30 : 5
+            haifn_reward: targetMode === CATEGORIES.PROGRAM ? 30 : 5
         });
     }, []);
 

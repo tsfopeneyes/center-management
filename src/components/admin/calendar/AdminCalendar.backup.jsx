@@ -59,7 +59,7 @@ const AdminCalendar = ({ notices, fetchData }) => {
         program_location: '',
         max_capacity: 0,
         program_type: 'CENTER',
-        closed_spaces: [], // ['HYPHEN', 'ENOF']
+        closed_spaces: [], // ['HAIFN', 'ENOUGH_PLACE']
         isRecurring: false,
         recurringDays: [], // [0, 1, 2, 3, 4, 5, 6] (Sun-Sat)
         recurringEndDate: format(addMonths(new Date(), 1), 'yyyy-MM-dd')
@@ -865,8 +865,8 @@ const AdminCalendar = ({ notices, fetchData }) => {
                                                     </div>
                                                     <div className="flex gap-3">
                                                         {[
-                                                            { id: 'HYPHEN', label: '하이픈' },
-                                                            { id: 'ENOF', label: '이높플레이스' }
+                                                            { id: 'HAIFN', label: '하이픈' },
+                                                            { id: 'ENOUGH_PLACE', label: '이높플레이스' }
                                                         ].map(space => (
                                                             <button
                                                                 key={space.id}

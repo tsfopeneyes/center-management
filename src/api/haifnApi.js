@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient';
 
-export const hyphenApi = {
+export const haifnApi = {
     // ---- Earning & Deducting ----
     async grantProgramReward(userId, noticeId, rewardAmount, adminId, noticeTitle) {
         if (!rewardAmount || rewardAmount <= 0) return;
@@ -10,7 +10,7 @@ export const hyphenApi = {
         const descMatch = `[프로그램 참여] ${noticeTitle}`;
 
         const { data: existing, error: checkErr } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .select('id')
             .eq('user_id', userId)
             .eq('source_description', descMatch)
@@ -23,7 +23,7 @@ export const hyphenApi = {
 
         // 2. Insert transaction
         const { error: insertErr } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .insert([{
                 user_id: userId,
                 amount: rewardAmount,
@@ -40,7 +40,7 @@ export const hyphenApi = {
         
         // Find existing EARN transaction for this program and delete it to revoke
         const { error } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .delete()
             .eq('user_id', userId)
             .eq('source_description', descMatch)
@@ -54,7 +54,7 @@ export const hyphenApi = {
         const descMatch = `[오픈 프로그램 참여] ${noticeTitle} (${dateStr})`;
 
         const { data: existing, error: checkErr } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .select('id')
             .eq('user_id', userId)
             .eq('source_description', descMatch)
@@ -64,7 +64,7 @@ export const hyphenApi = {
         if (existing) return;
 
         const { error: insertErr } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .insert([{
                 user_id: userId,
                 amount: rewardAmount,
@@ -80,7 +80,7 @@ export const hyphenApi = {
         const descMatch = `[오픈 프로그램 참여] ${noticeTitle} (${dateStr})`;
         
         const { error } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .delete()
             .eq('user_id', userId)
             .eq('source_description', descMatch)
@@ -95,7 +95,7 @@ export const hyphenApi = {
         const type = amount > 0 ? 'EARN' : 'SPEND'; // SPEND or MANUAL? MANUAL matches 'EARN' logic but we can just use 'MANUAL' or 'EARN'
         
         const { error } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .insert([{
                 user_id: userId,
                 amount: amount,
@@ -122,7 +122,7 @@ export const hyphenApi = {
         }
         
         const { data: countData, error: countErr } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .select('id')
             .eq('user_id', userId)
             .eq('transaction_type', 'EARN')
@@ -134,7 +134,7 @@ export const hyphenApi = {
         }
         
         const { error } = await supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .insert([{
                 user_id: userId,
                 amount: 1,
@@ -149,7 +149,7 @@ export const hyphenApi = {
 
     async revokeContentVerificationReward(userId, sourceId, category = null) {
         let query = supabase
-            .from('hyphen_transactions')
+            .from('haifn_transactions')
             .delete()
             .eq('user_id', userId)
             .eq('transaction_type', 'EARN');
@@ -185,7 +185,7 @@ export const hyphenApi = {
         if (!requiresApproval) {
             const isEarn = itemType === 'EARN';
             const { error: txError } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .insert([{
                     user_id: userId,
                     amount: isEarn ? Math.abs(amount) : -Math.abs(amount),
@@ -203,7 +203,7 @@ export const hyphenApi = {
             .select(`
                 *,
                 users (name, school),
-                hyphen_items (name, requires_approval)
+                haifn_items (name, requires_approval)
             `)
             .eq('status', 'PENDING')
             .order('created_at', { ascending: true });
@@ -227,7 +227,7 @@ export const hyphenApi = {
         if (isApproved) {
             const isEarn = itemType === 'EARN';
             const { error: txErr } = await supabase
-                .from('hyphen_transactions')
+                .from('haifn_transactions')
                 .insert([{
                     user_id: userId,
                     amount: isEarn ? Math.abs(amount) : -Math.abs(amount),
@@ -243,7 +243,7 @@ export const hyphenApi = {
     // ---- Store Items ----
     async getStoreItems() {
         const { data, error } = await supabase
-            .from('hyphen_items')
+            .from('haifn_items')
             .select('*')
             .order('amount', { ascending: true });
         
