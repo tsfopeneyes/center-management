@@ -123,6 +123,7 @@ export const prepareNoticeForEdit = (notice) => {
         host_ids: notice.host_ids || (notice.host_id ? [notice.host_id] : []),
         hosts: notice.hosts || (notice.host_id ? [{ host_id: notice.host_id, one_liner: notice.host_one_liner }] : []),
         host_one_liner: notice.host_one_liner || '',
+        is_private: notice.is_private || false,
         is_challenge: notice.is_challenge || false,
         challenge_missions: notice.challenge_missions || [],
         challenge_success_message: notice.challenge_success_message || '',
