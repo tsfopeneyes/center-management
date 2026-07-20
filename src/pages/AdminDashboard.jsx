@@ -140,13 +140,13 @@ const AdminDashboard = () => {
             const { data: vNotesData } = await supabase.from('visit_notes').select('*');
             setVisitNotes(vNotesData || []);
 
-            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            const localStartOfToday = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
             let surveyDataList = [];
             try {
                 const { data: sData } = await supabase
                     .from('checkin_surveys')
                     .select('*')
-                    .gte('created_at', todayStr + 'T00:00:00Z');
+                    .gte('created_at', localStartOfToday);
                 surveyDataList = sData || [];
             } catch (e) {
                 console.error("Failed to fetch today checkin surveys:", e);

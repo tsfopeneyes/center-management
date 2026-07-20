@@ -48,9 +48,11 @@ const StudentHomeTab = ({
     onEndChat,
     onExtendChat,
     dismissedRejectedChatId,
-    onDismissRejection
+    onDismissRejection,
+    onRegisterRegularUser
 }) => {
     // 뱃지 관련 로직 제거됨
+    const isGuest = user?.user_group === '게스트';
     const today = startOfDay(new Date());
     const matchesSelectedRegion = (cardRegion) => {
         if (!selectedRegion || selectedRegion === 'ALL') return true;
@@ -119,7 +121,7 @@ const StudentHomeTab = ({
                                 <div className="flex flex-col min-w-0 justify-center">
                                     <p className="text-white/80 text-[10px] sm:text-[11px] font-bold tracking-wider uppercase mb-0.5 select-none leading-none">{user?.school || '더작은재단'}</p>
                                     <h1 className="text-[17px] sm:text-[20px] font-bold tracking-tight leading-tight text-white whitespace-nowrap flex items-center gap-1">
-                                        {user?.name} 님
+                                        {user?.name?.replace('(guest)', '')} 님
                                         {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                     </h1>
                                 </div>
@@ -135,13 +137,23 @@ const StudentHomeTab = ({
                                         <ShieldCheck size={14} className="text-white shrink-0 group-hover:scale-110 transition-transform" />
                                         <span>관리자 모드</span>
                                     </button>
-                                ) : (
+                                ) : !isGuest ? (
                                     <button 
                                         onClick={() => handleTabChange(TAB_NAMES.HAIFN)}
                                         className="flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors px-2.5 py-1 rounded-full border border-white/25 shadow-sm"
                                     >
                                         <div className="w-4 h-4 rounded-full bg-tossCaution text-tossGrey800 flex items-center justify-center text-[9px] font-bold shadow-sm leading-none shrink-0 border border-tossCaution/50">H</div>
                                         <span className="font-bold text-[13px] sm:text-[14px] text-white tracking-tight">{user?.current_haifn || 0}</span>
+                                    </button>
+                                ) : null}
+
+                                {isGuest && (
+                                    <button 
+                                        onClick={() => onRegisterRegularUser && onRegisterRegularUser()}
+                                        className="gradient-border-button hover:bg-slate-50 text-slate-900 px-3.5 py-1.5 shadow-sm text-xs font-black transition-all active:scale-95 shrink-0"
+                                    >
+                                        <Sparkles size={11} className="text-indigo-500 shrink-0 mr-1.5" />
+                                        <span>하이픈 등록</span>
                                     </button>
                                 )}
                                 
@@ -166,7 +178,13 @@ const StudentHomeTab = ({
                         {/* Bottom Section: Text Summary (Compact) */}
                         <div className="flex flex-col items-center justify-center text-center -mt-2 mb-1.5 gap-2.5">
                             <span className="text-white/90 text-[13.5px] sm:text-[14.5px] font-bold tracking-tight">
-                                그동안 센터에서 <span className="text-tossCaution font-bold">{visitCount}번</span> 만났고, <span className="text-emerald-300 font-bold">{programCount}개</span>의 활동을 함께했어요!
+                                {isGuest ? (
+                                    "오늘은 잠깐 들렀지만, 하이픈에서 계속 만나요!"
+                                ) : (
+                                    <>
+                                        그동안 센터에서 <span className="text-tossCaution font-bold">{visitCount}번</span> 만났고, <span className="text-emerald-300 font-bold">{programCount}개</span>의 활동을 함께했어요!
+                                    </>
+                                )}
                             </span>
 
                             {/* Admin Testing Region Filter Tabs */}
@@ -335,15 +353,17 @@ const StudentHomeTab = ({
                 )}
 
                 {/* 1. Today Operating Widget (includes weekly calendar and staff) */}
-                <TodayOperatingWidget 
-                    studentRegion={studentRegion} 
-                    adminSchedules={adminSchedules} 
-                    calendarCategories={calendarCategories} 
-                    onStaffClick={onStaffClick}
-                />
+                {!isGuest && (
+                    <TodayOperatingWidget 
+                        studentRegion={studentRegion} 
+                        adminSchedules={adminSchedules} 
+                        calendarCategories={calendarCategories} 
+                        onStaffClick={onStaffClick}
+                    />
+                )}
 
                 {/* 2. Notices (공지사항) */}
-                {(() => {
+                {!isGuest && (() => {
                     const config = dashboardConfig.find(c => c.id === 'notices');
                     if (!config || !config.isVisible) return null;
                     return (
@@ -420,20 +440,22 @@ const StudentHomeTab = ({
                             </div>
                             <div className="space-y-5">
                                 {(() => {
-                                    const openPrograms = homePrograms.filter(p => !p.is_recruiting);
-                                    if (openPrograms.length === 0) return null;
+                                    const myJoinedPrograms = homePrograms.filter(p => responses[p.id] === 'JOIN');
+                                    if (myJoinedPrograms.length === 0) return null;
                                     return (
-                                        <div>
+                                        <div className="mb-4">
                                             <div className="mb-3 flex flex-col gap-1">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="w-1 h-3 rounded-full bg-tossBlue shrink-0"></span>
-                                                    <h4 className="font-extrabold text-tossGrey800 text-[13.5px] sm:text-[14.5px] leading-none">오픈 프로그램</h4>
+                                                    <h4 className="font-extrabold text-tossGrey900 text-[13.5px] sm:text-[14.5px] leading-none">내가 신청한 프로그램</h4>
                                                 </div>
-                                                <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">누구나 신청 없이 함께할 수 있어요</p>
+                                                <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">
+                                                    현재 {user?.name?.replace('(guest)', '') || '학생'}님이 참여 신청했어요
+                                                </p>
                                             </div>
                                             <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x no-swipe" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                                {openPrograms.slice(0, config.count || 10).map(p => (
-                                                    <div key={p.id} className="min-w-[160px] w-[160px] snap-start">
+                                                {myJoinedPrograms.map(p => (
+                                                    <div key={p.id} className={myJoinedPrograms.length === 1 ? "w-full snap-start" : "min-w-[160px] w-[160px] snap-start"}>
                                                         <ProgramCard
                                                             program={{ ...p, responseStatus: responses[p.id] }}
                                                             onClick={openNoticeDetail}
@@ -447,8 +469,35 @@ const StudentHomeTab = ({
                                 })()}
 
                                 {(() => {
-                                    const openPrograms = homePrograms.filter(p => !p.is_recruiting);
-                                    const applyPrograms = homePrograms.filter(p => p.is_recruiting);
+                                    const openPrograms = homePrograms.filter(p => !p.is_recruiting && responses[p.id] !== 'JOIN');
+                                    if (openPrograms.length === 0) return null;
+                                    return (
+                                        <div>
+                                            <div className="mb-3 flex flex-col gap-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="w-1 h-3 rounded-full bg-tossBlue shrink-0"></span>
+                                                    <h4 className="font-extrabold text-tossGrey800 text-[13.5px] sm:text-[14.5px] leading-none">오픈 프로그램</h4>
+                                                </div>
+                                                <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">누구나 신청 없이 함께할 수 있어요</p>
+                                            </div>
+                                            <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x no-swipe" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                                {openPrograms.slice(0, config.count || 10).map(p => (
+                                                    <div key={p.id} className={openPrograms.length === 1 ? "w-full snap-start" : "min-w-[160px] w-[160px] snap-start"}>
+                                                        <ProgramCard
+                                                            program={{ ...p, responseStatus: responses[p.id] }}
+                                                            onClick={openNoticeDetail}
+                                                            compact={true}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {(() => {
+                                    const openPrograms = homePrograms.filter(p => !p.is_recruiting && responses[p.id] !== 'JOIN');
+                                    const applyPrograms = homePrograms.filter(p => p.is_recruiting && responses[p.id] !== 'JOIN');
                                     if (applyPrograms.length === 0) return null;
                                     return (
                                         <div className={openPrograms.length > 0 ? "pt-4 border-t border-tossGrey100" : ""}>
@@ -461,7 +510,7 @@ const StudentHomeTab = ({
                                             </div>
                                             <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x no-swipe" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                                                 {applyPrograms.slice(0, config.count || 10).map(p => (
-                                                    <div key={p.id} className="min-w-[160px] w-[160px] snap-start">
+                                                    <div key={p.id} className={applyPrograms.length === 1 ? "w-full snap-start" : "min-w-[160px] w-[160px] snap-start"}>
                                                         <ProgramCard
                                                             program={{ ...p, responseStatus: responses[p.id] }}
                                                             onClick={openNoticeDetail}

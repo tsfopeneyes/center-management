@@ -24,11 +24,19 @@ export const generateProgramInfoHtml = ({
     is_recruiting,
     program_start_date,
     program_end_date,
-    program_days
+    program_days,
+    is_challenge,
+    challenge_missions
 }) => {
     const leaderWarning = is_leader_only 
         ? '<p style="margin: 0; color: #f59e0b;"><strong>⚠️ 대상:</strong> 학생 리더 전용 프로그램</p>' 
         : '';
+
+    if (is_challenge) {
+        return leaderWarning 
+            ? `<div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 16px; margin-bottom: 20px;">${leaderWarning}</div>`
+            : '';
+    }
 
     if (!is_recruiting) {
         // 오픈 프로그램 (기간 반복 진행형)
@@ -115,6 +123,8 @@ export const prepareNoticeForEdit = (notice) => {
         host_ids: notice.host_ids || (notice.host_id ? [notice.host_id] : []),
         hosts: notice.hosts || (notice.host_id ? [{ host_id: notice.host_id, one_liner: notice.host_one_liner }] : []),
         host_one_liner: notice.host_one_liner || '',
-        is_private: notice.is_private || false
+        is_challenge: notice.is_challenge || false,
+        challenge_missions: notice.challenge_missions || [],
+        challenge_success_message: notice.challenge_success_message || ''
     };
 };

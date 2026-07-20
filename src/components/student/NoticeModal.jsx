@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users } from 'lucide-react';
+import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../supabaseClient';
 import ModernEditor from '../common/ModernEditor';
@@ -8,13 +8,15 @@ import LinkPreview from '../common/LinkPreview';
 import { formatToLocalISO, formatProgramSchedule } from '../../utils/dateUtils';
 import { extractUrls, extractProgramInfo } from '../../utils/textUtils';
 import useNoticeModal from './hooks/useNoticeModal';
+import { compressImage } from '../../utils/imageUtils';
+import confetti from 'canvas-confetti';
 
 // Components
 import NoticeCarousel from './components/NoticeCarousel';
 import NoticeHeader from './components/NoticeHeader';
 import WriteForm from '../admin/board/components/forms/WriteForm';
 
-const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, onResponse, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants }) => {
+const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
     const [zoomedImage, setZoomedImage] = useState(null);
@@ -22,6 +24,13 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     const introRef = React.useRef(null);
     const hostRef = React.useRef(null);
     const [activeTab, setActiveTab] = useState('intro');
+
+    // Challenge States
+    const [challengeParticipants, setChallengeParticipants] = useState([]);
+    const [uploadingMissionId, setUploadingMissionId] = useState(null);
+    const [selectedMissionForDetail, setSelectedMissionForDetail] = useState(null);
+    const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+    const [selectedParticipantForMissions, setSelectedParticipantForMissions] = useState(null);
 
     const scrollToSection = (section) => {
         setActiveTab(section);
@@ -64,6 +73,81 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
             setHostUsers([]);
         }
     }, [notice]);
+
+    useEffect(() => {
+        if (notice?.is_challenge && notice?.id) {
+            const fetchChallengeParticipants = async () => {
+                const { data, error } = await supabase
+                    .from('notice_responses')
+                    .select('user_id, status, challenge_mission_statuses, users(name, school)')
+                    .eq('notice_id', notice.id)
+                    .eq('status', 'JOIN');
+                if (data) {
+                    setChallengeParticipants(data);
+                }
+            };
+            fetchChallengeParticipants();
+        }
+    }, [notice?.id, notice?.is_challenge, responses]);
+
+    const handleUploadMissionImage = async (missionId, file) => {
+        if (!file) return;
+        setUploadingMissionId(missionId);
+        try {
+            const compressedFile = await compressImage(file);
+            const fileExt = file.name.split('.').pop();
+            const fileName = `mission_${notice.id}_${user.id}_${missionId}_${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('notice-images')
+                .upload(fileName, compressedFile);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('notice-images')
+                .getPublicUrl(fileName);
+
+            const myResponse = responseDetails[notice.id] || {};
+            const currentStatuses = myResponse.challenge_mission_statuses || {};
+
+            currentStatuses[missionId] = {
+                completed: true,
+                auth_image: publicUrl,
+                submitted_at: new Date().toISOString()
+            };
+
+            const { error: updateErr } = await supabase
+                .from('notice_responses')
+                .update({ challenge_mission_statuses: currentStatuses })
+                .eq('notice_id', notice.id)
+                .eq('user_id', user.id);
+
+            if (updateErr) throw updateErr;
+
+            alert('인증샷 등록이 완료되었습니다!');
+
+            const totalMissions = notice.challenge_missions?.length || 0;
+            const completedCount = Object.values(currentStatuses).filter(s => s.completed).length;
+            if (completedCount === totalMissions && totalMissions > 0) {
+                setTimeout(() => {
+                    confetti({
+                        particleCount: 150,
+                        spread: 80,
+                        origin: { y: 0.6 }
+                    });
+                    setShowSuccessPopup(true);
+                }, 500);
+            }
+            
+            if (onRefresh) onRefresh(); 
+        } catch (err) {
+            console.error('Failed to upload mission image:', err);
+            alert('인증샷 업로드에 실패했습니다: ' + err.message);
+        } finally {
+            setUploadingMissionId(null);
+        }
+    };
 
     const { cleanContent, duration, location } = extractProgramInfo(notice.content);
     const formattedSchedule = formatProgramSchedule(
@@ -209,23 +293,283 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                 </div>
                             )}
 
-                            {notice.category === 'PROGRAM' && (
-                                <div 
-                                    ref={notice.program_type === 'CENTER' && hostUsers.length > 0 ? introRef : null} 
-                                    className={`flex items-center gap-2 scroll-mt-20 ${
-                                        notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
-                                    }`}
-                                >
-                                    <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
-                                    <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
-                                        프로그램 소개
-                                    </h3>
+                            {/* Program Intro Content (Always rendered first) */}
+                            <div>
+                                {notice.category === 'PROGRAM' && (
+                                    <div 
+                                        ref={notice.program_type === 'CENTER' && hostUsers.length > 0 ? introRef : null} 
+                                        className={`flex items-center gap-2 scroll-mt-20 ${
+                                            notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
+                                        }`}
+                                    >
+                                        <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
+                                        <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
+                                            소개
+                                        </h3>
+                                    </div>
+                                )}
+                                <div className="prose max-w-none text-tossGrey850 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-2 overflow-hidden">
+                                    <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
+                                    {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                                 </div>
-                            )}
-                             <div className="prose max-w-none text-tossGrey850 leading-snug prose-p:leading-snug prose-headings:leading-snug prose-li:leading-snug prose-p:my-1.5 mb-2 overflow-hidden">
-                                 <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
-                                 {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
-                             </div>
+                            </div>
+
+                            {/* Challenge Sections: render below intro */}
+                            {notice.is_challenge && (() => {
+                                const myResponse = responseDetails[notice.id] || {};
+                                const statuses = myResponse.challenge_mission_statuses || {};
+                                const completedCount = Object.values(statuses).filter(s => s.completed).length;
+                                const totalMissions = notice.challenge_missions?.length || 0;
+                                const isAllDone = completedCount === totalMissions && totalMissions > 0;
+
+                                return (
+                                    <>
+                                        {isAllDone && (
+                                            <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-100/50 rounded-2xl p-5 flex flex-col items-center text-center shadow-sm animate-fade-in">
+                                                <span className="text-3xl mb-2">🎉</span>
+                                                <h4 className="font-black text-slate-800 text-sm">챌린지 미션 달성 완료!</h4>
+                                                <p className="text-[11px] text-slate-505 font-semibold mt-1">모든 미션 인증에 성공하셨습니다.</p>
+                                                <button
+                                                    onClick={() => {
+                                                        confetti({
+                                                            particleCount: 100,
+                                                            spread: 70,
+                                                            origin: { y: 0.6 }
+                                                        });
+                                                        setShowSuccessPopup(true);
+                                                    }}
+                                                    className="mt-3 px-4 py-2 bg-tossBlue hover:bg-tossBlueHover text-white font-extrabold text-xs rounded-xl shadow-sm active:scale-[0.98] transition-all"
+                                                >
+                                                    축하 메시지 다시보기
+                                                </button>
+                                            </div>
+                                        )}
+                                        {/* Missions List */}
+                                        <div className="mt-8 border-t border-tossGrey100 pt-8">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
+                                                <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
+                                                    미션 목록
+                                                </h3>
+                                            </div>
+                                        
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                            {notice.challenge_missions?.map((mission, index) => {
+                                                const myResponse = responseDetails[notice.id] || {};
+                                                const statuses = myResponse.challenge_mission_statuses || {};
+                                                const mStatus = statuses[mission.id] || {};
+                                                const isDone = mStatus.completed;
+                                                return (
+                                                    <div 
+                                                        key={mission.id}
+                                                        onClick={() => setSelectedMissionForDetail(mission)}
+                                                        className={`flex flex-col items-center p-5 border rounded-toss-2xl transition-all select-none relative text-center group border-tossGrey200 bg-white hover:border-tossBlue hover:shadow-toss-subtle cursor-pointer`}
+                                                    >
+                                                        {/* Icon Circle */}
+                                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-sm mb-3 transition-colors ${
+                                                            isDone 
+                                                                ? 'bg-tossGrey200 text-tossGrey400' 
+                                                                : 'bg-tossBlueLight text-tossBlue group-hover:bg-tossBlue group-hover:text-white'
+                                                        }`}>
+                                                            {isDone ? (
+                                                                <Check size={18} />
+                                                            ) : (
+                                                                index + 1
+                                                            )}
+                                                        </div>
+
+                                                        {/* Mission Info */}
+                                                        <span className={`text-sm font-bold leading-snug ${
+                                                            isDone ? 'text-tossGrey400 line-through font-medium' : 'text-tossGrey900'
+                                                        }`}>
+                                                            {mission.title}
+                                                        </span>
+                                                        {isDone && (
+                                                            <span className="bg-tossGrey100 text-tossGrey500 text-[9px] font-extrabold px-1.5 py-0.5 rounded mt-1.5">
+                                                                미션 성공!
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Mission Detail Modal (Overlay) */}
+                                    {selectedMissionForDetail && (() => {
+                                        const mission = selectedMissionForDetail;
+                                        const myResponse = responseDetails[notice.id] || {};
+                                        const statuses = myResponse.challenge_mission_statuses || {};
+                                        const mStatus = statuses[mission.id] || {};
+                                        const isDone = mStatus.completed;
+                                        const hasImg = !!mStatus.auth_image;
+                                        const hasJoined = responses[notice.id] === 'JOIN';
+
+                                        return (
+                                            <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSelectedMissionForDetail(null)}>
+                                                <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.15)] animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                                                    {/* Card Header Banner */}
+                                                    <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/50 px-6 py-4 border-b border-tossGrey100 flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-black text-tossBlue tracking-wider uppercase">Mission Card</span>
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-tossBlue animate-pulse"></div>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => setSelectedMissionForDetail(null)}
+                                                            className="p-1 hover:bg-tossGrey100 rounded-full transition text-tossGrey500"
+                                                        >
+                                                            <X size={18} className="stroke-[2.5]" />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Card Content */}
+                                                    <div className="p-6">
+                                                        <h3 className="text-2xl font-black text-tossGrey900 mb-6">{mission.title}</h3>
+
+                                                        <div className="space-y-5 mb-8">
+                                                            {mission.location && (
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className="text-xs font-bold text-tossGrey400 uppercase tracking-wider">지정 장소</span>
+                                                                    <span className="font-black text-tossGrey800 text-[15px]">{mission.location}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {mission.description && (
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    <span className="text-xs font-bold text-tossGrey400 uppercase tracking-wider">미션 가이드</span>
+                                                                    <span className="font-semibold text-tossGrey700 text-sm leading-relaxed whitespace-pre-wrap">{mission.description}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {hasImg && (
+                                                                <div className="pt-2">
+                                                                    <span className="text-xs font-bold text-tossGrey400 block mb-2">등록한 인증 사진</span>
+                                                                    <div className="relative rounded-2xl overflow-hidden border border-tossGrey150 max-h-56 bg-tossGrey50 flex items-center justify-center">
+                                                                        <img src={mStatus.auth_image} alt="" className="max-h-56 w-full object-cover" />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    {/* Verification Button */}
+                                                    {hasJoined && (
+                                                        isDone ? (
+                                                            <div className="flex gap-2">
+                                                                <a
+                                                                    href={mStatus.auth_image}
+                                                                    download={`mission_auth_${mission.id}.jpg`}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="flex-1 py-3 bg-tossGrey100 hover:bg-tossGrey200 text-tossGrey700 font-bold text-center rounded-2xl text-xs transition flex items-center justify-center gap-1"
+                                                                >
+                                                                    <span>사진 다운로드</span>
+                                                                </a>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        document.getElementById(`modal-file-input-${mission.id}`).click();
+                                                                    }}
+                                                                    disabled={uploadingMissionId === mission.id}
+                                                                    className="flex-1 py-3 bg-tossBlue text-white font-extrabold text-center rounded-2xl text-xs transition hover:bg-blue-600 active:scale-[0.98]"
+                                                                >
+                                                                    {uploadingMissionId === mission.id ? '업로드 중...' : '수정 후 재등록'}
+                                                                </button>
+                                                                <input 
+                                                                    type="file" 
+                                                                    id={`modal-file-input-${mission.id}`}
+                                                                    accept="image/*" 
+                                                                    className="hidden" 
+                                                                    onChange={async (e) => {
+                                                                        if (e.target.files[0]) {
+                                                                            await handleUploadMissionImage(mission.id, e.target.files[0]);
+                                                                            setSelectedMissionForDetail(null);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        document.getElementById(`modal-file-input-${mission.id}`).click();
+                                                                    }}
+                                                                    disabled={uploadingMissionId === mission.id}
+                                                                    className="w-full py-4 bg-tossBlue text-white font-black text-center rounded-2xl text-sm transition-all hover:bg-blue-600 active:scale-[0.98] flex items-center justify-center gap-1.5"
+                                                                >
+                                                                    {uploadingMissionId === mission.id ? (
+                                                                        <span className="animate-pulse">업로드 중...</span>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Upload size={16} />
+                                                                            <span>인증하기</span>
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                                <input 
+                                                                    type="file" 
+                                                                    id={`modal-file-input-${mission.id}`}
+                                                                    accept="image/*" 
+                                                                    className="hidden" 
+                                                                    onChange={async (e) => {
+                                                                        if (e.target.files[0]) {
+                                                                            await handleUploadMissionImage(mission.id, e.target.files[0]);
+                                                                            setSelectedMissionForDetail(null);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        )
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                    {/* Challengers Status */}
+                                    <div className="mt-8 border-t border-tossGrey100 pt-8">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
+                                            <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
+                                                참여자 현황
+                                            </h3>
+                                        </div>
+                                        <div className="border border-tossGrey200 rounded-toss-xl divide-y divide-tossGrey100 overflow-hidden bg-white">
+                                            {challengeParticipants.length === 0 ? (
+                                                <div className="p-8 text-center text-tossGrey400 text-xs font-bold">
+                                                    첫 번째 참여자가 되어보세요.
+                                                </div>
+                                            ) : (
+                                                challengeParticipants.map((challenger) => {
+                                                    const statuses = challenger.challenge_mission_statuses || {};
+                                                    const completedCount = Object.values(statuses).filter(s => s.completed).length;
+                                                    const isSuccess = completedCount === (notice.challenge_missions?.length || 0) && (notice.challenge_missions?.length || 0) > 0;
+
+                                                    return (
+                                                        <div 
+                                                            key={challenger.user_id} 
+                                                            className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                                                            onClick={() => setSelectedParticipantForMissions(challenger)}
+                                                        >
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-bold text-tossGrey850 hover:text-tossBlue transition-colors">{challenger.users?.name?.replace('(guest)', '')}</span>
+                                                                <span className="text-[10px] text-tossGrey400 font-bold mt-0.5">{challenger.users?.school || '더작은재단'}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                                                                    isSuccess 
+                                                                        ? 'bg-tossBlueLight text-tossBlue border border-tossBlue/20' 
+                                                                        : 'bg-tossGrey50 text-tossGrey600 border border-tossGrey200'
+                                                                }`}>
+                                                                    {completedCount} / {notice.challenge_missions?.length || 0} 완료
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )})()}
 
                             {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                                 <div ref={hostRef} className="mb-6 scroll-mt-20 flex flex-col gap-3">
@@ -465,7 +809,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
              {/* Zoom Overlay (Banner/Carousel & Poll Options) */}
              {zoomedImage && (
                  <div
-                     className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 cursor-pointer animate-fade-in"
+                     className="fixed inset-0 z-[220] bg-black/95 flex items-center justify-center p-4 cursor-pointer animate-fade-in"
                      onClick={() => setZoomedImage(null)}
                  >
                      <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full hover:bg-white/20 transition">
@@ -474,6 +818,94 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                      <img src={zoomedImage} className="max-w-full max-h-full object-contain animate-zoom-in" alt="Zoomed" />
                  </div>
              )}
+
+             {/* Challenge Success Congratulation Modal */}
+             {showSuccessPopup && (
+                 <div className="fixed inset-0 z-[210] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowSuccessPopup(false)}>
+                     <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.25)] animate-in fade-in zoom-in-95 duration-200 p-6 flex flex-col items-center text-center" onClick={(e) => e.stopPropagation()}>
+                         <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center text-3xl mb-4 animate-bounce">
+                             🏆
+                         </div>
+                         <h3 className="text-xl font-black text-slate-800 mb-2">축하합니다! 챌린지 성공!</h3>
+                         <div className="text-sm font-semibold text-slate-600 leading-relaxed whitespace-pre-wrap mb-6 max-h-48 overflow-y-auto w-full px-2">
+                             {notice.challenge_success_message || "모든 미션을 완벽히 해결하셨습니다! 대단해요 🎉"}
+                         </div>
+                         <button
+                             onClick={() => setShowSuccessPopup(false)}
+                             className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white font-black rounded-2xl text-sm transition-all active:scale-[0.98]"
+                         >
+                             확인
+                         </button>
+                     </div>
+                 </div>
+             )}
+
+             {/* Participant Mission Detail Overlay Modal */}
+             {selectedParticipantForMissions && (() => {
+                 const challenger = selectedParticipantForMissions;
+                 const statuses = challenger.challenge_mission_statuses || {};
+                 const name = challenger.users?.name?.replace('(guest)', '') || '참여자';
+                 
+                 return (
+                     <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSelectedParticipantForMissions(null)}>
+                         <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.15)] animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+                             {/* Header */}
+                             <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                                 <div className="flex items-center gap-2">
+                                     <span className="text-xs font-black text-tossBlue tracking-wider uppercase">Participant Missions</span>
+                                     <div className="w-1.5 h-1.5 rounded-full bg-tossBlue"></div>
+                                 </div>
+                                 <button 
+                                     onClick={() => setSelectedParticipantForMissions(null)}
+                                     className="p-1 hover:bg-tossGrey100 rounded-full transition text-tossGrey500"
+                                 >
+                                     <X size={18} className="stroke-[2.5]" />
+                                 </button>
+                             </div>
+                             
+                             {/* Body */}
+                             <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                                 <div className="pb-4 border-b border-slate-100">
+                                     <h3 className="text-lg font-black text-slate-800">{name}님의 미션 현황</h3>
+                                     <p className="text-[11px] text-slate-400 font-bold mt-1">{challenger.users?.school || '더작은재단'}</p>
+                                 </div>
+                                 
+                                 <div className="space-y-4">
+                                     {notice.challenge_missions?.map((mission, index) => {
+                                         const mStatus = statuses[mission.id] || {};
+                                         const isDone = mStatus.completed;
+                                         const authImg = mStatus.auth_image;
+                                         
+                                         return (
+                                             <div key={mission.id || index} className="bg-slate-50/60 border border-slate-200/50 rounded-2xl p-4 space-y-3">
+                                                 <div className="flex items-center gap-3">
+                                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                                                         isDone ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'
+                                                     }`}>
+                                                         {isDone ? <Check size={14} className="stroke-[3]" /> : index + 1}
+                                                     </div>
+                                                     <span className={`text-sm font-bold ${isDone ? 'text-slate-800' : 'text-slate-400'}`}>
+                                                         {mission.title}
+                                                     </span>
+                                                 </div>
+                                                 
+                                                 {isDone && authImg && (
+                                                     <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 max-h-48 flex items-center justify-center cursor-pointer group" onClick={() => setZoomedImage(authImg)}>
+                                                         <img src={authImg} alt="" className="max-h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                                                         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                             <ZoomIn className="text-white shrink-0" size={24} />
+                                                         </div>
+                                                     </div>
+                                                 )}
+                                             </div>
+                                         );
+                                     })}
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 );
+             })()}
          </motion.div>
      );
  };

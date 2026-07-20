@@ -119,7 +119,7 @@ export const useKioskManager = (navigate) => {
     // Scanner Settings
     const [facingMode, setFacingMode] = useState('environment'); // 'environment' (back) or 'user' (front)
     const [lastScan, setLastScan] = useState({ code: '', time: 0 });
-    const [challenges, setChallenges] = useState([]);
+    const [badges, setBadges] = useState([]);
     const [isBadgeSystemEnabled, setIsBadgeSystemEnabled] = useState(true);
 
     // 1. Initial Data Fetch
@@ -139,7 +139,7 @@ export const useKioskManager = (navigate) => {
             }
         }
 
-        const fetchChallenges = async () => {
+        const fetchBadges = async () => {
             try {
                 const { data: config } = await supabase
                     .from('notices')
@@ -157,7 +157,7 @@ export const useKioskManager = (navigate) => {
             }
 
             const { data } = await supabase.from('challenges').select('*');
-            if (data) setChallenges(data);
+            if (data) setBadges(data);
 
             const { data: surveyData } = await supabase
                 .from('notices')
@@ -175,7 +175,7 @@ export const useKioskManager = (navigate) => {
                 }
             }
         };
-        fetchChallenges();
+        fetchBadges();
 
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
@@ -363,11 +363,10 @@ export const useKioskManager = (navigate) => {
                 const currentPrgCount = totalPrgCount || 0;
 
                 const visitBadge = (nextType === 'CHECKIN' && isBadgeSystemEnabled)
-                    ? challenges.find(b => b.type === 'VISIT' && b.threshold === currentVisitCount)
+                    ? badges.find(b => b.type === 'VISIT' && b.threshold === currentVisitCount)
                     : null;
-
                 const prgBadge = (activeProgram && isBadgeSystemEnabled)
-                    ? challenges.find(b => b.type === 'PROGRAM' && b.threshold === currentPrgCount)
+                    ? badges.find(b => b.type === 'PROGRAM' && b.threshold === currentPrgCount)
                     : null;
 
                 if (visitBadge || prgBadge) {
@@ -1011,7 +1010,7 @@ export const useKioskManager = (navigate) => {
     return {
         // State
         locations, selectedLocation, matchingUsers, currentTime, pincode, status, result,
-        showMasterPin, showOptionsMenu, masterPinInput, showSignupForm, showGuestForm, facingMode, lastScan, challenges,
+        showMasterPin, showOptionsMenu, masterPinInput, showSignupForm, showGuestForm, facingMode, lastScan, badges,
         pendingKioskUser,
         // Setters
         setSelectedLocation, setPincode, setStatus, setResult,

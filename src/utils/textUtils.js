@@ -15,8 +15,8 @@ export const extractProgramInfo = (content) => {
     const info = { date: '', duration: '', location: '', cleanContent: content };
     if (!content) return info;
 
-    // Matches the info block div and its contents
-    const infoBlockRegex = /<div style="background-color: #f8fafc;[\s\S]*?<\/div>/;
+    // Matches the info block div and its contents (both light grey #f8fafc and challenge light green #f0fdf4)
+    const infoBlockRegex = /<div style="background-color: #(?:f8fafc|f0fdf4);[\s\S]*?<\/div>/;
     const match = content.match(infoBlockRegex);
 
     if (match) {

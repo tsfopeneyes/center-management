@@ -41,7 +41,7 @@ import { parseISO, isWithinInterval, startOfDay, eachDayOfInterval, isSameDay } 
 import { getBadgeProgress } from '../components/student/BadgeComponents';
 import { useDashboardNotifications } from './dashboard/useDashboardNotifications';
 import { useRealtimePresence } from './dashboard/useRealtimePresence';
-import { useDashboardChallenges } from './dashboard/useDashboardChallenges';
+import { useDashboardBadges } from './dashboard/useDashboardBadges';
 import { useDashboardCalendar } from './dashboard/useDashboardCalendar';
 
 export const useStudentDashboard = () => {
@@ -88,7 +88,7 @@ export const useStudentDashboard = () => {
     const [showProgramHistory, setShowProgramHistory] = useState(false);
     const [attendedProgramsList, setAttendedProgramsList] = useState([]);
     const [showEnlargedQr, setShowEnlargedQr] = useState(false);
-    const { challengeCategories, dynamicChallenges, challengesLoading, fetchChallengeData } = useDashboardChallenges();
+    const { badgeCategories, dynamicBadges, badgesLoading, fetchBadgeData } = useDashboardBadges();
     const [specialStats, setSpecialStats] = useState({ isBirthdayVisited: false, uniqueLocationsCount: 0, maxConsecutiveDays: 0, earnedChallengeIds: [] });
     const [selectedBadge, setSelectedBadge] = useState(null);
     const { adminSchedules, calendarCategories, fetchSchedules } = useDashboardCalendar();
@@ -101,7 +101,7 @@ export const useStudentDashboard = () => {
     ]);
     const [tabConfig, setTabConfig] = useState([
         { id: 'home', label: '홈', isVisible: true },
-        { id: 'challenges', label: '챌린지', isVisible: true },
+        { id: 'badges', label: '뱃지', isVisible: true },
         { id: 'programs', label: '센터', isVisible: true },
         { id: 'calendar', label: '캘린더', isVisible: true },
         { id: 'azit', label: '커뮤니티', isVisible: true },
@@ -120,7 +120,7 @@ export const useStudentDashboard = () => {
 
         // Celebration Logic
         if (tabName === TAB_NAMES.BADGES) {
-            const earnedCount = dynamicChallenges.filter(ch => getBadgeProgress(ch, { visitCount, programCount, specialStats }).earned).length;
+            const earnedCount = dynamicBadges.filter(ch => getBadgeProgress(ch, { visitCount, programCount, specialStats }).earned).length;
             const lastSeenEarned = parseInt(localStorage.getItem(`lastEarnedCount_${user?.id}`) || '0');
 
             if (earnedCount > lastSeenEarned) {
@@ -194,7 +194,7 @@ export const useStudentDashboard = () => {
             }
         });
 
-        fetchChallengeData();
+        fetchBadgeData();
         subscribeToPush(parsedUser.id);
         fetchSchedules();
         fetchRealtimeStatusData();
@@ -220,7 +220,7 @@ export const useStudentDashboard = () => {
 
         setLoading(false);
 
-    }, [navigate, fetchStats, fetchChallengeData, fetchNotifications, fetchSchedules]); // Removed dependencies that cause loops
+    }, [navigate, fetchStats, fetchBadgeData, fetchNotifications, fetchSchedules]); // Removed dependencies that cause loops
 
     // Handled by useRealtimePresence and useDashboardCalendar
 
@@ -257,7 +257,7 @@ export const useStudentDashboard = () => {
                     if (Array.isArray(parsed)) {
                         const defaultTabs = [
                             { id: 'home', label: '홈', isVisible: true },
-                            { id: 'challenges', label: '챌린지', isVisible: true },
+                            { id: 'badges', label: '뱃지', isVisible: true },
                             { id: 'programs', label: '센터', isVisible: true },
                             { id: 'calendar', label: '캘린더', isVisible: true },
                             { id: 'azit', label: '커뮤니티', isVisible: true },
@@ -294,7 +294,7 @@ export const useStudentDashboard = () => {
             const targetId = queryNoticeId || pendingNoticeId;
             
             if (targetId) {
-                const target = notices.find(n => n.id === targetId);
+                const target = notices.find(n => String(n.id) === String(targetId));
                 if (target) {
                     openNoticeDetail(target, 'all Programs'); // Open specifically
                     // Clear both
@@ -432,7 +432,7 @@ export const useStudentDashboard = () => {
 
     const allPrograms = notices.filter(n => {
         if (n.category !== CATEGORIES.PROGRAM) return false;
-        if (n.is_private) return false;
+        if (n.is_private && responses[n.id] !== 'JOIN') return false;
         const targets = n.target_regions || [];
         if (targets.length === 0 || targets.length === 2) return true;
         
@@ -565,7 +565,7 @@ export const useStudentDashboard = () => {
         studentRegion, locationGroups, locations, allUsers, activeUserCountByGroup,
         totalHours, visitCount, programCount,
         attendedProgramsList,
-        challengeCategories, dynamicChallenges, specialStats,
+        badgeCategories, dynamicBadges, badgesLoading, specialStats,
         adminSchedules, calendarCategories, dashboardConfig, tabConfig,
         notifications, unreadNotificationCount,
         updateProfile, profileLoadingState,

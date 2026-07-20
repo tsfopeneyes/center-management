@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const IntuitiveTimePicker = ({ value, onChange }) => {
     // value format: "HH:mm" (24h)
@@ -46,15 +46,15 @@ const IntuitiveTimePicker = ({ value, onChange }) => {
     };
 
     return (
-        <div className="flex bg-white rounded-xl p-1 border border-gray-200 items-center justify-between gap-1 shadow-sm h-[46px] min-w-[140px]">
+        <div className="flex items-center justify-between gap-1 w-full h-full">
             {/* Period Selection */}
-            <div className="flex bg-gray-100 rounded-lg p-0.5 ml-0.5">
+            <div className="flex bg-slate-200/60 rounded-lg p-0.5 shrink-0">
                 {['오전', '오후'].map(p => (
                     <button
                         key={p}
                         type="button"
                         onClick={() => handlePeriodChange(p)}
-                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${period === p ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-all ${period === p ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         {p}
                     </button>
@@ -62,23 +62,23 @@ const IntuitiveTimePicker = ({ value, onChange }) => {
             </div>
 
             {/* Time Selectors */}
-            <div className="flex items-center gap-1 px-2 flex-1 justify-center">
+            <div className="flex items-center gap-1 px-1 flex-1 justify-center">
                 <select
                     value={hour}
                     onChange={(e) => handleHourChange(e.target.value)}
-                    className="bg-transparent text-base font-extrabold text-gray-800 outline-none scrollbar-hide appearance-none cursor-pointer hover:text-blue-600 transition-colors w-6 text-center"
+                    className="bg-transparent text-xs font-bold text-slate-800 outline-none scrollbar-hide appearance-none cursor-pointer hover:text-blue-600 transition-colors w-5 text-center"
                 >
                     {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
                         <option key={h} value={h}>{h}</option>
                     ))}
                 </select>
 
-                <span className="text-gray-300 font-bold">:</span>
+                <span className="text-gray-300 font-bold text-xs">:</span>
 
                 <select
                     value={minute - (minute % 5)}
                     onChange={(e) => handleMinuteChange(parseInt(e.target.value))}
-                    className="bg-transparent text-base font-extrabold text-gray-800 outline-none scrollbar-hide appearance-none cursor-pointer hover:text-blue-600 transition-colors w-7 text-center"
+                    className="bg-transparent text-xs font-bold text-slate-800 outline-none scrollbar-hide appearance-none cursor-pointer hover:text-blue-600 transition-colors w-6 text-center"
                 >
                     {Array.from({ length: 12 }, (_, i) => i * 5).map(m => (
                         <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>

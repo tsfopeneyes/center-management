@@ -32,7 +32,7 @@ export const useAdminBadges = () => {
         try {
             const [catData, chData, { data: uData }] = await Promise.all([
                 badgesApi.fetchCategories(),
-                badgesApi.fetchChallenges(),
+                badgesApi.fetchBadges(),
                 supabase.from('users')
                     .select('id, name, school, user_group, role')
                     .neq('role', 'admin')
@@ -95,7 +95,7 @@ export const useAdminBadges = () => {
     const handleSaveChallenge = async (e) => {
         e.preventDefault();
         try {
-            await badgesApi.upsertChallenge(editingChallenge);
+            await badgesApi.upsertBadge(editingChallenge);
             setShowChallengeForm(false);
             setEditingChallenge({ name: '', description: '', category_id: expandedCategory, type: 'VISIT', threshold: 0, criteria_label: '', image_url: '' });
             fetchData();
@@ -108,7 +108,7 @@ export const useAdminBadges = () => {
     const handleDeleteChallenge = async (id) => {
         if (!window.confirm('뱃지를 삭제하시겠습니까?')) return;
         try {
-            await badgesApi.deleteChallenge(id);
+            await badgesApi.deleteBadge(id);
             fetchData();
         } catch (error) {
             alert('삭제 실패: ' + error.message);

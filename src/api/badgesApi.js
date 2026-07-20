@@ -71,7 +71,7 @@ export const badgesApi = {
     },
 
     // Badges
-    fetchChallenges: async () => {
+    fetchBadges: async () => {
         let { data, error } = await supabase
             .from('badges')
             .select('*')
@@ -87,7 +87,7 @@ export const badgesApi = {
         return data;
     },
 
-    upsertChallenge: async (challenge) => {
+    upsertBadge: async (challenge) => {
         let { data, error } = await supabase
             .from('badges')
             .upsert(challenge)
@@ -103,7 +103,7 @@ export const badgesApi = {
         return data[0];
     },
 
-    deleteChallenge: async (id) => {
+    deleteBadge: async (id) => {
         const { error } = await supabase
             .from('badges')
             .delete()
@@ -117,7 +117,7 @@ export const badgesApi = {
         }
     },
 
-    updateChallengeOrder: async (challenges) => {
+    updateBadgeOrder: async (challenges) => {
         try {
             const promises = challenges.map((ch, index) =>
                 supabase

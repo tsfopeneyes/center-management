@@ -28,6 +28,7 @@ import GuestbookWriteModal from '../components/student/modals/GuestbookWriteModa
 import GuestbookDetailModal from '../components/student/modals/GuestbookDetailModal';
 import NotificationsModal from '../components/student/modals/NotificationsModal';
 import ProgramHistoryModal from '../components/student/modals/ProgramHistoryModal';
+import SignUpForm from '../components/auth/SignUpForm';
 import QRModal from '../components/student/modals/QRModal';
 import VerificationWriteModal from '../components/student/modals/VerificationWriteModal';
 import { useFCM } from '../hooks/useFCM';
@@ -58,13 +59,14 @@ const StudentDashboard = () => {
         notices, responses, responseDetails, handleResponse, fetchNotices, filteredNotices, filteredPrograms, allPrograms,
         homeNotices, homePrograms, studentRegion, locationGroups, activeUserCountByGroup,
         totalHours, visitCount, programCount, attendedProgramsList,
-        challengeCategories, dynamicChallenges, specialStats,
+        badgeCategories, dynamicBadges, specialStats,
         adminSchedules, calendarCategories, dashboardConfig, tabConfig,
         notifications, unreadNotificationCount, updateProfile, profileLoadingState,
         guestPosts, uploadingGuest, handleCreatePost, fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestPost, handleDeleteGuestComment
     } = hookData;
 
     const [showVerificationWrite, setShowVerificationWrite] = useState(false);
+    const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [editVerificationPost, setEditVerificationPost] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [showMenuDrawer, setShowMenuDrawer] = useState(false);
@@ -551,7 +553,9 @@ const StudentDashboard = () => {
                         onClose={() => { setSelectedNotice(null); setNoticeContext(null); }}
                         user={user}
                         responses={responses}
+                        responseDetails={responseDetails}
                         onResponse={handleResponse}
+                        onRefresh={fetchNotices}
                         comments={comments}
                         newComment={newComment}
                         setNewComment={setNewComment}
@@ -623,6 +627,53 @@ const StudentDashboard = () => {
                         updateProfile={updateProfile}
                         profileLoadingState={profileLoadingState}
                     />
+                )}
+
+                {showRegisterModal && (
+                    <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+                        {/* Backdrop */}
+                        <div 
+                            onClick={() => setShowRegisterModal(false)}
+                            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                        />
+                        
+                        {/* Modal Panel */}
+                        <motion.div 
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto p-6 z-10 shadow-toss-elevated flex flex-col gap-4 relative"
+                        >
+                            <button
+                                onClick={() => setShowRegisterModal(false)}
+                                className="absolute right-4 top-4 p-2 text-tossGrey500 hover:text-tossGrey800 hover:bg-tossGrey100 rounded-full transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                            
+                            <div className="text-left mb-2">
+                                <h3 className="text-[18px] font-black text-tossGrey900 leading-tight">하이픈 정식 회원 가입</h3>
+                                <p className="text-xs text-tossGrey500 font-semibold mt-1">나머지 정보를 입력해 하이픈 등록을 완료해 주세요.</p>
+                            </div>
+                            
+                            <SignUpForm 
+                                onSuccess={() => {
+                                    setShowRegisterModal(false);
+                                    localStorage.removeItem('user');
+                                    supabase.auth.signOut().then(() => {
+                                        alert('하이픈 정식 등록이 완료되었습니다!\n방금 가입하신 정보로 다시 로그인해 주세요.');
+                                        window.location.href = '/';
+                                    });
+                                }}
+                                onCancel={() => setShowRegisterModal(false)}
+                                guestUserId={user.id}
+                                prefilledData={{
+                                    name: user.name.replace('(guest)', ''),
+                                    school: user.school
+                                }}
+                            />
+                        </motion.div>
+                    </div>
                 )}
 
                 {showGuestWrite && (
@@ -864,7 +915,7 @@ const StudentDashboard = () => {
                                 <div className="min-w-0">
                                     <p className="text-[10px] text-tossGrey500 font-bold tracking-wider uppercase mb-0.5">{user?.school || 'WELCOME'}</p>
                                     <h3 className="font-bold text-tossGrey900 text-sm flex items-center gap-1">
-                                        {user?.name} 님
+                                        {user?.name?.replace('(guest)', '')} 님
                                         {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                     </h3>
                                 </div>
@@ -895,6 +946,19 @@ const StudentDashboard = () => {
                                         </button>
                                     );
                                 })}
+
+                                {user?.user_group === '게스트' && (
+                                    <button
+                                        onClick={() => {
+                                            setShowMenuDrawer(false);
+                                            setShowRegisterModal(true);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-toss-lg text-left font-bold text-sm text-indigo-600 bg-indigo-50 hover:bg-indigo-100/60 border border-indigo-100/50 transition-all mt-1"
+                                    >
+                                        <Sparkles size={18} className="text-indigo-600 animate-pulse" />
+                                        <span>하이픈 정식 등록</span>
+                                    </button>
+                                )}
 
                                 <div className="h-px bg-tossGrey100 my-2" />
                                 <p className="px-4 py-1 text-[10px] text-tossGrey500 font-bold tracking-wider uppercase">사용자 설정</p>
@@ -980,7 +1044,7 @@ const StudentDashboard = () => {
                     homeNotices={homeNotices}
                     locationGroups={locationGroups}
                     activeUserCountByGroup={activeUserCountByGroup}
-                    dynamicChallenges={dynamicChallenges}
+                    dynamicChallenges={dynamicBadges}
                     specialStats={specialStats}
                     studentRegion={effectiveRegion}
                     selectedRegion={hookData.selectedRegion}
@@ -994,13 +1058,14 @@ const StudentDashboard = () => {
                     onExtendChat={handleExtendChat}
                     dismissedRejectedChatId={dismissedRejectedChatId}
                     onDismissRejection={handleDismissRejection}
+                    onRegisterRegularUser={() => setShowRegisterModal(true)}
                 />
             )}
 
             {activeTab === TAB_NAMES.BADGES && (
                 <StudentBadgesTab
-                    dynamicChallenges={dynamicChallenges}
-                    challengeCategories={challengeCategories}
+                    dynamicBadges={dynamicBadges}
+                    badgeCategories={badgeCategories}
                     visitCount={visitCount}
                     programCount={programCount}
                     specialStats={specialStats}

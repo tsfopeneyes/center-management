@@ -4,13 +4,22 @@ import SignUpBasicInfo from './components/SignUpBasicInfo';
 import SignUpSecurityInfo from './components/SignUpSecurityInfo';
 import { useSignUp } from './hooks/useSignUp';
 
-const SignUpForm = ({ onSuccess, onCancel, isKiosk = false }) => {
+const SignUpForm = ({ onSuccess, onCancel, isKiosk = false, prefilledData = null, guestUserId = null }) => {
     const {
         formData, setFormData,
         agreements, setAgreements,
         loading, showConsentModal, setShowConsentModal,
         isUnder14, handleChange, handlePhoneChange, handleGuardianPhoneChange, handleSignUp
-    } = useSignUp(onSuccess);
+    } = useSignUp(onSuccess, guestUserId);
+
+    React.useEffect(() => {
+        if (prefilledData) {
+            setFormData(prev => ({
+                ...prev,
+                ...prefilledData
+            }));
+        }
+    }, [prefilledData, setFormData]);
 
     return (
         <div className="w-full">

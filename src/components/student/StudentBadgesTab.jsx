@@ -2,8 +2,8 @@ import React from 'react';
 import { getBadgeProgress, BadgeItem } from './BadgeComponents';
 
 const StudentBadgesTab = ({
-    dynamicChallenges,
-    challengeCategories,
+    dynamicBadges,
+    badgeCategories,
     visitCount,
     programCount,
     specialStats,
@@ -18,7 +18,7 @@ const StudentBadgesTab = ({
                             뱃지 <span className="text-2xl">🏆</span>
                         </h2>
                         <span className="text-[11px] bg-blue-600 text-white px-3 py-1.5 rounded-full font-black shadow-sm">
-                            {dynamicChallenges.filter(ch => getBadgeProgress(ch, { visitCount, programCount, specialStats }).earned).length} / {dynamicChallenges.length} 획득
+                            {dynamicBadges.filter(ch => getBadgeProgress(ch, { visitCount, programCount, specialStats }).earned).length} / {dynamicBadges.length} 획득
                         </span>
                     </div>
                     <p className="text-gray-500 text-[13px] font-medium mt-1">활동을 통해 멋진 뱃지를 획득해보세요!</p>
@@ -26,8 +26,8 @@ const StudentBadgesTab = ({
             </div>
 
             <div className="px-5 space-y-8">
-                {challengeCategories.map(cat => {
-                    const catChallenges = dynamicChallenges.filter(ch => ch.category_id === cat.id);
+                {badgeCategories.map(cat => {
+                    const catChallenges = dynamicBadges.filter(ch => ch.category_id === cat.id);
                     if (catChallenges.length === 0) return null;
 
                     return (

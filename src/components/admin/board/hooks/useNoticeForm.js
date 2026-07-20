@@ -10,6 +10,9 @@ const INITIAL_NOTICE_STATE = {
     send_push: false,
     category: CATEGORIES.NOTICE,
     is_private: false,
+    is_challenge: false,
+    challenge_missions: [],
+    challenge_success_message: '',
     recruitment_deadline: '',
     max_capacity: '',
     program_date: '',
@@ -30,7 +33,8 @@ const INITIAL_NOTICE_STATE = {
     host_id: '',
     host_ids: [],
     hosts: [],
-    host_one_liner: ''
+    host_one_liner: '',
+    guest_properties: { allow_guest: true, require_school: true, require_phone: true }
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {

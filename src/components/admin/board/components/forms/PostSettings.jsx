@@ -57,7 +57,7 @@ const PostSettings = ({ formData, updateField, mode }) => {
                     <span className="text-[12px] sm:text-sm font-bold text-gray-700 tracking-tight leading-tight shrink-0">📊 투표 열기</span>
                 </label>
             </div>
-            
+
             {/* Poll Deadline Settings (Visible if is_poll is checked) */}
             {formData.is_poll && (
                 <div className="mt-4 border border-purple-200 rounded-2xl bg-white overflow-hidden shadow-sm animate-fade-in">
@@ -80,19 +80,14 @@ const PostSettings = ({ formData, updateField, mode }) => {
                                 className="w-full pl-12 pr-4 py-4 bg-transparent outline-none font-bold text-gray-700 text-sm"
                             />
                         </div>
-                        <div className="flex-1 flex items-center h-[52px]">
-                            <div className="pl-4 pr-2 flex justify-center items-center h-full">    
-                                <Clock className="text-purple-400 shrink-0" size={20} />
-                            </div>
-                            <div className="flex-1 px-2">
-                                <IntuitiveTimePicker
-                                    value={splitDateTime(formData.poll_deadline).time}
-                                    onChange={time => {
-                                        const newDate = joinDateTime(splitDateTime(formData.poll_deadline).date, time);
-                                        updateField('poll_deadline', newDate);
-                                    }}
-                                />
-                            </div>
+                        <div className="flex-1">
+                            <IntuitiveTimePicker
+                                value={splitDateTime(formData.poll_deadline).time}
+                                onChange={time => {
+                                    const newDate = joinDateTime(splitDateTime(formData.poll_deadline).date, time);
+                                    updateField('poll_deadline', newDate);
+                                }}
+                            />
                         </div>
                     </div>
 

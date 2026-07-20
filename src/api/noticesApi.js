@@ -41,7 +41,7 @@ export const noticesApi = {
     async fetchResponses(userId) {
         const { data, error } = await supabase
             .from('notice_responses')
-            .select('notice_id, status, is_attended')
+            .select('notice_id, status, is_attended, challenge_mission_statuses')
             .eq('user_id', userId);
         if (error) throw error;
         return data;

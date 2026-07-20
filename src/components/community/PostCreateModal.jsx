@@ -58,7 +58,7 @@ const PostCreateModal = ({ user, category, onClose, onSubmit }) => {
                 </div>
 
                 <div className="flex-1 flex flex-col pt-1">
-                    <span className="font-bold text-gray-900 text-[15px] mb-1">{user?.name}</span>
+                    <span className="font-bold text-gray-900 text-[15px] mb-1">{user?.name?.replace('(guest)', '')}</span>
                     <textarea
                         ref={textareaRef}
                         value={content}

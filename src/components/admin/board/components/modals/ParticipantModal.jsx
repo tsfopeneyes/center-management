@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { X, ClipboardList } from 'lucide-react';
 import useParticipantManagement from '../../hooks/useParticipantManagement';
@@ -7,6 +7,7 @@ import { exportParticipantsToExcel } from '../../../../../utils/exportUtils';
 import AttendanceSection from './AttendanceSection';
 import WalkInSection from './WalkInSection';
 import PollResultsSection from './PollResultsSection';
+import ChallengeStatusSection from './ChallengeStatusSection';
 
 const getKoreanDayOfWeek = (dateStr) => {
     if (!dateStr) return '';
@@ -45,6 +46,7 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
         setSelectedDate,
         availableDates
     } = useParticipantManagement(notice, onRefresh);
+    const [activeView, setActiveView] = useState(notice.is_challenge ? 'challenge' : 'attendance');
 
     useEffect(() => {
         if (notice) {
@@ -154,6 +156,31 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
 
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 bg-white relative">
+                    {notice.is_challenge && !showEntranceList && !notice.is_poll && (
+                        <div className="flex border-b border-gray-100 bg-white sticky top-0 z-10 shrink-0">
+                            <button
+                                onClick={() => setActiveView('challenge')}
+                                className={`flex-1 py-3 text-center text-xs font-black border-b-2 transition-all ${
+                                    activeView === 'challenge' 
+                                        ? 'border-blue-600 text-blue-600' 
+                                        : 'border-transparent text-gray-400 hover:text-gray-600'
+                                }`}
+                            >
+                                미션 인증 현황
+                            </button>
+                            <button
+                                onClick={() => setActiveView('attendance')}
+                                className={`flex-1 py-3 text-center text-xs font-black border-b-2 transition-all ${
+                                    activeView === 'attendance' 
+                                        ? 'border-blue-600 text-blue-600' 
+                                        : 'border-transparent text-gray-400 hover:text-gray-600'
+                                }`}
+                            >
+                                명단 및 출석 관리
+                            </button>
+                        </div>
+                    )}
+
                     {modalLoading ? (
                         <div className="flex-1 flex items-center justify-center p-8">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -177,6 +204,12 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
                                     setShowEntranceList={setShowEntranceList}
                                     activeSpaceUsers={activeSpaceUsers}
                                     alreadyJoinedUserIds={new Set((participantList.JOIN || []).map(u => u.id))}
+                                />
+                            ) : (notice.is_challenge && activeView === 'challenge') ? (
+                                <ChallengeStatusSection
+                                    notice={notice}
+                                    participantList={participantList}
+                                    onRefresh={() => fetchParticipants(notice)}
                                 />
                             ) : (
                                 <AttendanceSection 

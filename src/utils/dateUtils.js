@@ -196,7 +196,7 @@ export const formatKoreanTimeRange = (startDateStr, durationStr) => {
 };
 
 export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true, programDays = [], programStartDate = null, programEndDate = null) => {
-    if (isRecruiting === false) {
+    if (isRecruiting === false || (programStartDate && programEndDate)) {
         const start = programStartDate || dateStr;
         const end = programEndDate;
         

@@ -28,6 +28,9 @@ const PublicProgramDetail = () => {
         phone: ''
     });
     const [submitting, setSubmitting] = useState(false);
+    const [selectedMissionForDetail, setSelectedMissionForDetail] = useState(null);
+    const [loggedInUser, setLoggedInUser] = useState(null);
+    const [isRegistered, setIsRegistered] = useState(false);
 
     const handleGuestFormChange = (e) => {
         const { name, value } = e.target;
@@ -48,45 +51,65 @@ const PublicProgramDetail = () => {
 
     const handleGuestSubmit = async (e) => {
         e.preventDefault();
-        if (guestForm.phone.replace(/[^0-9]/g, '').length < 11) {
+        const gp = notice.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
+        const reqSchool = gp.require_school !== false;
+        const reqPhone = gp.require_phone !== false;
+
+        if (reqPhone && guestForm.phone.replace(/[^0-9]/g, '').length < 11) {
             alert('연락처 11자리를 올바르게 입력해주세요.');
             return;
         }
 
         setSubmitting(true);
         try {
-            // 1. Check for existing user by phone
             let userId = null;
-            const { data: existingUser, error: userCheckErr } = await supabase
-                .from('users')
-                .select('id, name')
-                .eq('phone', guestForm.phone)
-                .maybeSingle();
-
-            if (userCheckErr) throw userCheckErr;
-
-            if (existingUser) {
-                userId = existingUser.id;
-                // 2. Check if already signed up for this program
-                const { data: existingResponse, error: respCheckErr } = await supabase
-                    .from('notice_responses')
-                    .select('id')
-                    .eq('notice_id', id)
-                    .eq('user_id', userId)
+            let loggedInUser = null;
+            
+            // 1. Check for existing user by phone (only if phone is required and provided)
+            if (reqPhone && guestForm.phone) {
+                const { data: existingUser, error: userCheckErr } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('phone', guestForm.phone)
                     .maybeSingle();
-
-                if (respCheckErr) throw respCheckErr;
-
-                if (existingResponse) {
-                    alert('이미 이 연락처로 해당 프로그램 신청이 완료되어 있습니다!');
-                    setIsGuestModalOpen(false);
-                    setSubmitting(false);
-                    return;
+ 
+                if (userCheckErr) throw userCheckErr;
+ 
+                if (existingUser) {
+                    userId = existingUser.id;
+                    loggedInUser = existingUser;
+                    // 2. Check if already signed up for this program
+                    const { data: existingResponse, error: respCheckErr } = await supabase
+                        .from('notice_responses')
+                        .select('id')
+                        .eq('notice_id', id)
+                        .eq('user_id', userId)
+                        .maybeSingle();
+ 
+                    if (respCheckErr) throw respCheckErr;
+ 
+                    if (existingResponse) {
+                        alert('이미 이 연락처로 해당 프로그램 신청이 완료되어 있습니다!');
+                        setIsGuestModalOpen(false);
+                        setSubmitting(false);
+                        return;
+                    }
                 }
-            } else {
+            }
+ 
+            if (!userId) {
                 // Create a new guest user
-                const phoneParts = guestForm.phone.split('-');
-                const back4 = phoneParts[2];
+                let phoneVal = '';
+                let back4 = '';
+                if (reqPhone && guestForm.phone) {
+                    phoneVal = guestForm.phone;
+                    const phoneParts = guestForm.phone.split('-');
+                    back4 = phoneParts.length >= 3 ? phoneParts[2] : '';
+                } else {
+                    const random4 = String(Math.floor(1000 + Math.random() * 9000));
+                    phoneVal = `000-0000-${random4}`;
+                    back4 = random4;
+                }
                 const newUserId = '00000000-0000-0000-0000-' + Math.floor(100000000000 + Math.random() * 900000000000);
                 const memoText = `[가입일: ${new Date().toLocaleDateString()}] [공유링크 프로그램 비회원 신청]`;
 
@@ -96,8 +119,8 @@ const PublicProgramDetail = () => {
                         id: newUserId,
                         name: `${guestForm.name}(guest)`,
                         gender: 'M',
-                        school: guestForm.school,
-                        phone: guestForm.phone,
+                        school: reqSchool ? guestForm.school : '비회원 소속',
+                        phone: phoneVal,
                         phone_back4: back4,
                         user_group: '게스트',
                         password: '0000',
@@ -110,8 +133,9 @@ const PublicProgramDetail = () => {
 
                 if (createErr) throw createErr;
                 userId = newUser.id;
+                loggedInUser = newUser;
             }
-
+ 
             // 3. Register to notice_responses
             const { error: regErr } = await supabase
                 .from('notice_responses')
@@ -121,15 +145,47 @@ const PublicProgramDetail = () => {
                     status: 'JOIN',
                     is_attended: false
                 });
-
+ 
             if (regErr) throw regErr;
-
+ 
+            // Save guest user login session to localStorage
+            if (loggedInUser) {
+                localStorage.setItem('user', JSON.stringify(loggedInUser));
+                localStorage.setItem('pendingProgramJoin', id);
+            }
+ 
             setIsGuestModalOpen(false);
             setIsSuccessModalOpen(true);
             setGuestForm({ name: '', school: '', phone: '' });
 
         } catch (err) {
             console.error('Guest Registration Error:', err);
+            alert(`신청 처리 중 오류가 발생했습니다.\n${err.message || '다시 시도해 주세요.'}`);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleRegisterLoggedIn = async () => {
+        if (!loggedInUser) return;
+        setSubmitting(true);
+        try {
+            const { error: regErr } = await supabase
+                .from('notice_responses')
+                .insert({
+                    notice_id: parseInt(id),
+                    user_id: loggedInUser.id,
+                    status: 'JOIN',
+                    is_attended: false
+                });
+
+            if (regErr) throw regErr;
+
+            localStorage.setItem('pendingProgramJoin', id);
+            setIsRegistered(true);
+            setIsSuccessModalOpen(true);
+        } catch (err) {
+            console.error('Registration Error:', err);
             alert(`신청 처리 중 오류가 발생했습니다.\n${err.message || '다시 시도해 주세요.'}`);
         } finally {
             setSubmitting(false);
@@ -180,29 +236,34 @@ const PublicProgramDetail = () => {
         }
     }, [notice]);
     
-    // Auto redirect if already logged in
+    // Check existing login session on mount (do not redirect)
     useEffect(() => {
         const checkExistingLogin = async () => {
             const storedUser = localStorage.getItem('user');
             if (storedUser) {
-                // User is already logged in, redirect them seamlessly to the app and auto-open it
-                localStorage.setItem('pendingProgramJoin', id);
                 try {
                     const user = JSON.parse(storedUser);
-                    if (user.role === 'admin') {
-                        navigate('/admin');
-                    } else {
-                        navigate('/student');
+                    setLoggedInUser(user);
+                    
+                    // Check if already registered for this notice
+                    const { data } = await supabase
+                        .from('notice_responses')
+                        .select('id')
+                        .eq('notice_id', parseInt(id))
+                        .eq('user_id', user.id)
+                        .maybeSingle();
+                        
+                    if (data) {
+                        setIsRegistered(true);
                     }
-                } catch {
-                    // Invalid cache, continue rendering public view
+                } catch (e) {
+                    console.error('Error parsing stored user:', e);
                 }
-            } else {
-                fetchNotice();
             }
+            fetchNotice();
         };
         checkExistingLogin();
-    }, [id, navigate]);
+    }, [id]);
 
     const fetchNotice = async () => {
         try {
@@ -314,7 +375,7 @@ const PublicProgramDetail = () => {
     );
 
     return (
-        <div className="w-full md:max-w-lg mx-auto min-h-screen bg-white relative pb-24 shadow-2xl">
+        <div className="w-full md:max-w-lg mx-auto min-h-screen bg-white relative pb-64 shadow-2xl">
             {/* Header */}
             <div className="h-14 px-4 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-50">
                 <div className="flex items-center gap-3">
@@ -415,6 +476,93 @@ const PublicProgramDetail = () => {
                     <div dangerouslySetInnerHTML={{ __html: notice.category === 'PROGRAM' ? cleanContent : notice.content }} />
                     {extractUrls(notice.content).map((url, i) => <LinkPreview key={i} url={url} />)}
                 </div>
+
+                {/* Challenge Sections: render below intro */}
+                {notice.is_challenge && (
+                    <div className="mt-8 border-t border-gray-100 pt-8">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
+                            <h3 className="font-extrabold text-[15px] leading-none text-gray-900">
+                                미션 목록
+                            </h3>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {notice.challenge_missions?.map((mission, index) => (
+                                <div 
+                                    key={mission.id}
+                                    onClick={() => setSelectedMissionForDetail(mission)}
+                                    className="flex flex-col items-center p-5 border border-gray-200 bg-white rounded-2xl text-center cursor-pointer hover:border-blue-500 hover:shadow-sm transition-all"
+                                >
+                                    {/* Icon Circle */}
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center font-black text-sm mb-3 bg-blue-50 text-blue-600">
+                                        {index + 1}
+                                    </div>
+
+                                    {/* Mission Info */}
+                                    <span className="text-sm font-bold text-gray-900 leading-snug">
+                                        {mission.title}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Mission Detail Modal (Overlay) - Read-only for Public View */}
+                {selectedMissionForDetail && (() => {
+                    const mission = selectedMissionForDetail;
+                    return (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                            <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.15)] animate-in fade-in zoom-in-95 duration-200">
+                                {/* Card Header Banner */}
+                                <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/50 px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-black text-blue-600 tracking-wider uppercase">Mission Card</span>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setSelectedMissionForDetail(null)}
+                                        className="p-1 hover:bg-gray-100 rounded-full transition text-gray-500"
+                                    >
+                                        <X size={18} className="stroke-[2.5]" />
+                                    </button>
+                                </div>
+
+                                {/* Card Content */}
+                                <div className="p-6">
+                                    <h3 className="text-2xl font-black text-gray-900 mb-6">{mission.title}</h3>
+
+                                    <div className="space-y-5 mb-8">
+                                        {mission.location && (
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">지정 장소</span>
+                                                <span className="font-black text-gray-800 text-[15px]">{mission.location}</span>
+                                            </div>
+                                        )}
+
+                                        {mission.description && (
+                                            <div className="flex flex-col gap-1.5">
+                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">미션 가이드</span>
+                                                <span className="font-semibold text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{mission.description}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            setSelectedMissionForDetail(null);
+                                            handleActionClick();
+                                        }}
+                                        className="w-full py-4 bg-blue-600 text-white font-black text-center rounded-2xl text-sm transition-all hover:bg-blue-700 active:scale-[0.98]"
+                                    >
+                                        로그인하고 신청하기
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                     <div ref={hostRef} className="mb-8 scroll-mt-28 flex flex-col gap-3">
@@ -522,21 +670,47 @@ const PublicProgramDetail = () => {
                         )}
                         
                         <div className="p-4 flex flex-col gap-2">
-                            {/* Primary Button: Log in and apply */}
-                            <button 
-                                onClick={handleActionClick}
-                                className="w-full bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200 text-base transition active:scale-[0.98]"
-                            >
-                                로그인하고 신청하기
-                            </button>
-                            
-                            {/* Secondary Button: Subtle guest application */}
-                            <button 
-                                onClick={() => setIsGuestModalOpen(true)}
-                                className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl py-3 font-bold text-xs border border-slate-100 transition active:scale-[0.98]"
-                            >
-                                로그인 없이 비회원으로 신청하기
-                            </button>
+                            {loggedInUser ? (
+                                isRegistered ? (
+                                    <button 
+                                        onClick={() => {
+                                            localStorage.setItem('pendingProgramJoin', id);
+                                            navigate('/student');
+                                        }}
+                                        className="w-full bg-slate-900 text-white rounded-2xl py-4 font-black text-base transition active:scale-[0.98]"
+                                    >
+                                        신청 완료됨 (대시보드 이동)
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={handleRegisterLoggedIn}
+                                        disabled={submitting}
+                                        className="w-full bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200 text-base transition active:scale-[0.98] disabled:bg-gray-200 disabled:shadow-none"
+                                    >
+                                        {submitting ? '신청 처리 중...' : '신청하기'}
+                                    </button>
+                                )
+                            ) : (
+                                <>
+                                    {/* Primary Button: Log in and apply */}
+                                    <button 
+                                        onClick={handleActionClick}
+                                        className="w-full bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200 text-base transition active:scale-[0.98]"
+                                    >
+                                        로그인하고 신청하기
+                                    </button>
+                                    
+                                    {/* Secondary Button: Subtle guest application */}
+                                    {(notice.guest_properties?.allow_guest !== false) && (
+                                        <button 
+                                            onClick={() => setIsGuestModalOpen(true)}
+                                            className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl py-3 font-bold text-xs border border-slate-100 transition active:scale-[0.98]"
+                                        >
+                                            로그인 없이 비회원으로 신청하기
+                                        </button>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -552,82 +726,97 @@ const PublicProgramDetail = () => {
             </div>
 
             {/* Guest Form Modal */}
-            {isGuestModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2rem] w-full max-w-md p-6 relative shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-                        <button 
-                            onClick={() => setIsGuestModalOpen(false)}
-                            className="absolute right-6 top-6 p-2 hover:bg-gray-100 rounded-full transition text-gray-400"
-                        >
-                            <X size={20} />
-                        </button>
-                        
-                        <div className="mb-6">
-                            <h2 className="text-xl font-black text-gray-900 mb-1">프로그램 신청</h2>
-                            <p className="text-xs font-bold text-gray-400">로그인 없이 간단히 정보를 입력해 신청할 수 있습니다.</p>
-                        </div>
+            {isGuestModalOpen && (() => {
+                const gp = notice.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
+                const reqSchool = gp.require_school !== false;
+                const reqPhone = gp.require_phone !== false;
+                
+                const isSubmitDisabled = submitting || 
+                    !guestForm.name || 
+                    (reqSchool && !guestForm.school) || 
+                    (reqPhone && guestForm.phone.replace(/[^0-9]/g, '').length < 11);
 
-                        <form onSubmit={handleGuestSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">이름</label>
-                                <div className="relative">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                                    <input
-                                        type="text"
-                                        name="name"
-                                        required
-                                        value={guestForm.name}
-                                        onChange={handleGuestFormChange}
-                                        placeholder="이름을 입력하세요"
-                                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">학교 / 소속</label>
-                                <div className="relative">
-                                    <School className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                                    <input
-                                        type="text"
-                                        name="school"
-                                        required
-                                        value={guestForm.school}
-                                        onChange={handleGuestFormChange}
-                                        placeholder="학교 또는 소속 단체 입력 (예: OO고등학교)"
-                                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">연락처</label>
-                                <div className="relative">
-                                    <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                                    <input
-                                        type="text"
-                                        name="phone"
-                                        required
-                                        inputMode="tel"
-                                        value={guestForm.phone}
-                                        onChange={handleGuestPhoneChange}
-                                        placeholder="010-0000-0000"
-                                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm tracking-widest"
-                                    />
-                                </div>
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={submitting || !guestForm.name || !guestForm.school || guestForm.phone.replace(/[^0-9]/g, '').length < 11}
-                                className="w-full mt-6 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-100 disabled:bg-gray-200 disabled:shadow-none transition-all active:scale-[0.98] text-sm"
+                return (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2rem] w-full max-w-md p-6 relative shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                            <button 
+                                onClick={() => setIsGuestModalOpen(false)}
+                                className="absolute right-6 top-6 p-2 hover:bg-gray-100 rounded-full transition text-gray-400"
                             >
-                                {submitting ? '신청 처리 중...' : '신청 완료하기'}
+                                <X size={20} />
                             </button>
-                        </form>
+                            
+                            <div className="mb-6">
+                                <h2 className="text-xl font-black text-gray-900 mb-1">프로그램 신청</h2>
+                                <p className="text-xs font-bold text-gray-400">로그인 없이 간단히 정보를 입력해 신청할 수 있습니다.</p>
+                            </div>
+
+                            <form onSubmit={handleGuestSubmit} className="space-y-4">
+                                <div>
+                                    <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">이름</label>
+                                    <div className="relative">
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                                        <input
+                                            type="text"
+                                            name="name"
+                                            required
+                                            value={guestForm.name}
+                                            onChange={handleGuestFormChange}
+                                            placeholder="이름을 입력하세요"
+                                            className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm"
+                                        />
+                                    </div>
+                                </div>
+
+                                {reqSchool && (
+                                    <div>
+                                        <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">학교 / 소속</label>
+                                        <div className="relative">
+                                            <School className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                                            <input
+                                                type="text"
+                                                name="school"
+                                                required
+                                                value={guestForm.school}
+                                                onChange={handleGuestFormChange}
+                                                placeholder="학교 또는 소속 단체 입력 (예: OO고등학교)"
+                                                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {reqPhone && (
+                                    <div>
+                                        <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">연락처</label>
+                                        <div className="relative">
+                                            <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                                            <input
+                                                type="text"
+                                                name="phone"
+                                                required
+                                                inputMode="tel"
+                                                value={guestForm.phone}
+                                                onChange={handleGuestPhoneChange}
+                                                placeholder="010-0000-0000"
+                                                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold text-sm tracking-widest"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitDisabled}
+                                    className="w-full mt-6 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-100 disabled:bg-gray-200 disabled:shadow-none transition-all active:scale-[0.98] text-sm"
+                                >
+                                    {submitting ? '신청 처리 중...' : '신청 완료하기'}
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* Success Modal */}
             {isSuccessModalOpen && (
@@ -642,10 +831,13 @@ const PublicProgramDetail = () => {
                             프로그램 일정에 맞춰 늦지 않게 방문해 주세요! ✨
                         </p>
                         <button
-                            onClick={() => setIsSuccessModalOpen(false)}
-                            className="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-sm transition-all active:scale-[0.98]"
+                            onClick={() => {
+                                setIsSuccessModalOpen(false);
+                                navigate('/student');
+                            }}
+                            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm transition-all active:scale-[0.98] shadow-lg shadow-blue-100"
                         >
-                            확인
+                            내 신청 내역 확인하기
                         </button>
                     </div>
                 </div>

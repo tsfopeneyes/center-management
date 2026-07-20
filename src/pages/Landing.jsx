@@ -25,15 +25,23 @@ const LoginForm = ({ navigate }) => {
             const hashedPassword = await hashPassword(password);
 
             // 1. Call RPC to get matching users without auth
-            const { data: candidates, error: rpcError } = await supabase
+            let { data: candidates, error: rpcError } = await supabase
                 .rpc('get_login_candidates', { p_name: name });
 
             if (rpcError) throw rpcError;
 
             if (!candidates || candidates.length === 0) {
-                alert('가입된 이름이 없습니다. 이름을 다시 확인해주세요. (에러코드: RPC_NO_USER)');
-                setLoading(false);
-                return;
+                // Fallback to checking for guest users with name(guest) pattern
+                const { data: guestCandidates, error: guestError } = await supabase
+                    .rpc('get_login_candidates', { p_name: `${name}(guest)` });
+                
+                if (!guestError && guestCandidates && guestCandidates.length > 0) {
+                    candidates = guestCandidates;
+                } else {
+                    alert('가입된 이름이 없습니다. 이름을 다시 확인해주세요. (에러코드: RPC_NO_USER)');
+                    setLoading(false);
+                    return;
+                }
             }
 
             // If there is exactly one matching name, try to login
@@ -68,14 +76,13 @@ const LoginForm = ({ navigate }) => {
                     .from('users')
                     .select('*')
                     .eq('id', userCandidate.id)
-                    .eq('password', hashedPw)
                     .maybeSingle();
 
                 if (dbError) {
                     console.error("Database user query error:", dbError);
                 }
 
-                if (dbUser) {
+                if (dbUser && (dbUser.password === hashedPw || dbUser.password === rawPassword)) {
                     console.log("Direct database password match! Bypassing Supabase Auth login.");
                     checkTermsAgreement(dbUser);
                     return true;

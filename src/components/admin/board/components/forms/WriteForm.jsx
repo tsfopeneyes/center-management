@@ -200,14 +200,19 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.haifn_reward = formData.haifn_reward ? parseInt(formData.haifn_reward, 10) : 0;
                 noticeData.is_review_required = formData.is_review_required || false;
                 noticeData.is_private = formData.is_private || false;
+                noticeData.is_challenge = formData.is_challenge || false;
+                noticeData.challenge_missions = formData.challenge_missions || [];
+                noticeData.challenge_success_message = formData.challenge_success_message || '';
+                noticeData.guest_properties = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
                 const startDate = formData.program_start_date || formData.program_date;
                 const endDate = formData.program_end_date;
                 const days = formData.program_days || [];
 
-                noticeData.program_start_date = (!formData.is_recruiting && startDate)
+                const isPeriodRequired = !formData.is_recruiting || formData.is_challenge;
+                noticeData.program_start_date = (isPeriodRequired && startDate)
                     ? new Date(startDate).toISOString().split('T')[0]
                     : null;
-                noticeData.program_end_date = (!formData.is_recruiting && endDate)
+                noticeData.program_end_date = (isPeriodRequired && endDate)
                     ? new Date(endDate).toISOString().split('T')[0]
                     : null;
                 noticeData.program_days = !formData.is_recruiting ? days : [];

@@ -4,6 +4,7 @@ import { supabase } from '../../../../supabaseClient';
 import UserAvatar from '../../../common/UserAvatar';
 import { Loader2, Settings, X, UserCheck } from 'lucide-react';
 import StaffPresenceSettings from '../../settings/components/StaffPresenceSettings';
+import CheckinSurveySettings from '../../settings/components/CheckinSurveySettings';
 import AdminPageHeader from '../../common/AdminPageHeader';
 
 const StaffPresenceToggleCard = ({ users }) => {
@@ -17,18 +18,29 @@ const StaffPresenceToggleCard = ({ users }) => {
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
+    // Checkin Survey config state
+    const [checkinSurveyConfig, setCheckinSurveyConfig] = useState(null);
+    const [isSavingSurvey, setIsSavingSurvey] = useState(false);
+
     const fetchConfigAndStatus = async () => {
         try {
             const { data, error } = await supabase
                 .from('notices')
                 .select('id, title, content')
                 .eq('category', 'SYSTEM')
-                .in('title', ['STAFF_PRESENCE_CONFIG', 'STAFF_PRESENCE_STATUS', 'DAILY_DUTY_STAFF']);
+                .in('title', ['STAFF_PRESENCE_CONFIG', 'STAFF_PRESENCE_STATUS', 'DAILY_DUTY_STAFF', 'CHECKIN_SURVEY_CONFIG']);
 
             if (!error && data) {
                 const configNotice = data.find(n => n.title === 'STAFF_PRESENCE_CONFIG');
                 const statusNotice = data.find(n => n.title === 'STAFF_PRESENCE_STATUS');
                 const dutyNotice = data.find(n => n.title === 'DAILY_DUTY_STAFF');
+                const surveyNotice = data.find(n => n.title === 'CHECKIN_SURVEY_CONFIG');
+
+                if (surveyNotice?.content) {
+                    try {
+                        setCheckinSurveyConfig(JSON.parse(surveyNotice.content));
+                    } catch (e) { console.error('Failed to parse survey config', e); }
+                }
 
                 if (configNotice?.content) {
                     try {
@@ -131,6 +143,11 @@ const StaffPresenceToggleCard = ({ users }) => {
                         try {
                             const parsedDuty = JSON.parse(content);
                             setDutyStaff(parsedDuty || { "하이픈": "", "이높플레이스": "" });
+                        } catch (e) { console.error(e); }
+                    } else if (title === 'CHECKIN_SURVEY_CONFIG') {
+                        try {
+                            const parsedSurvey = JSON.parse(content);
+                            setCheckinSurveyConfig(parsedSurvey);
                         } catch (e) { console.error(e); }
                     }
                 }
@@ -270,6 +287,39 @@ const StaffPresenceToggleCard = ({ users }) => {
             alert('설정 저장 실패');
         } finally {
             setIsSavingSettings(false);
+        }
+    };
+
+    const handleSaveCheckinSurveyConfig = async (newConfig) => {
+        setIsSavingSurvey(true);
+        try {
+            const { data: existing } = await supabase
+                .from('notices')
+                .select('id')
+                .eq('category', 'SYSTEM')
+                .eq('title', 'CHECKIN_SURVEY_CONFIG')
+                .maybeSingle();
+
+            const payload = {
+                title: 'CHECKIN_SURVEY_CONFIG',
+                content: JSON.stringify(newConfig),
+                category: 'SYSTEM',
+                is_sticky: false,
+                is_recruiting: false
+            };
+
+            if (existing) {
+                await supabase.from('notices').update(payload).eq('id', existing.id);
+            } else {
+                await supabase.from('notices').insert([payload]);
+            }
+            setCheckinSurveyConfig(newConfig);
+            alert('설문 설정이 저장되었습니다.');
+        } catch (err) {
+            console.error('Failed to save survey config', err);
+            alert('설문 저장 실패');
+        } finally {
+            setIsSavingSurvey(false);
         }
     };
 
@@ -444,12 +494,17 @@ const StaffPresenceToggleCard = ({ users }) => {
                                 <X size={18} className="text-gray-400 hover:text-gray-600" />
                             </button>
                         </div>
-                        <div className="overflow-y-auto p-4 flex-1">
+                        <div className="overflow-y-auto p-4 flex-1 space-y-6">
                             <StaffPresenceSettings
                                 users={users}
                                 selectedStaffConfig={staffConfig}
                                 onSave={handleSaveSettingsConfig}
                                 isSaving={isSavingSettings}
+                            />
+                            <CheckinSurveySettings
+                                checkinSurveyConfig={checkinSurveyConfig}
+                                onSave={handleSaveCheckinSurveyConfig}
+                                isSaving={isSavingSurvey}
                             />
                         </div>
                     </div>

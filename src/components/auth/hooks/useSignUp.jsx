@@ -4,7 +4,7 @@ import { TERMS_VERSION } from '../../../constants/appConstants';
 import { hashPassword } from '../../../utils/hashUtils';
 import { normalizeSchoolName } from '../../../utils/userUtils';
 
-export const useSignUp = (onSuccess) => {
+export const useSignUp = (onSuccess, guestUserId = null) => {
     const [formData, setFormData] = useState({
         name: '', gender: '', school: '', church: '', birth: '', phone: '', user_group: '청소년',
         password: '', confirmPassword: '',
@@ -75,34 +75,58 @@ export const useSignUp = (onSuccess) => {
                 setLoading(false); return;
             }
 
-            const { data: existing, error: checkError } = await supabase
-                .from('users')
-                .select('id, name, school, user_group, preferences')
-                .eq('phone', formData.phone)
-                .maybeSingle();
+            let targetUserId = guestUserId;
+            let isAutoMerge = !!guestUserId;
+            let existingMemo = null;
 
-            if (checkError) throw checkError;
+            if (guestUserId) {
+                const { data: currentGuest, error: guestErr } = await supabase
+                    .from('users')
+                    .select('memo')
+                    .eq('id', guestUserId)
+                    .maybeSingle();
+                if (!guestErr && currentGuest) {
+                    existingMemo = currentGuest.memo;
+                }
 
-            let targetUserId = null;
-            let isAutoMerge = false;
-
-            if (existing) {
-                // Check if they have a valid auth record in the database
-                const { data: candidates } = await supabase
-                    .rpc('get_login_candidates', { p_name: existing.name });
-                const hasAuthRecord = candidates?.some(c => c.id === existing.id && c.email !== null);
-
-                const isTemporary = existing.user_group === '게스트' || 
-                                    existing.user_group === '미가입' || 
-                                    existing.preferences?.is_temporary === true ||
-                                    !hasAuthRecord;
-
-                if (isTemporary) {
-                    targetUserId = existing.id;
-                    isAutoMerge = true;
-                } else {
-                    alert(`이미 가입된 휴대폰 번호입니다.\n(${existing.name}님으로 가입되어 있습니다.)\n로그인 혹은 관리자에게 문의해주세요.`);
+                // Check if the phone they entered is already registered by another non-guest user
+                const { data: dupUser } = await supabase
+                    .from('users')
+                    .select('id, name, user_group')
+                    .eq('phone', formData.phone)
+                    .maybeSingle();
+                if (dupUser && dupUser.id !== guestUserId && dupUser.user_group !== '게스트') {
+                    alert(`이미 가입된 휴대폰 번호입니다.\n(${dupUser.name}님으로 가입되어 있습니다.)\n로그인 혹은 관리자에게 문의해주세요.`);
                     setLoading(false); return;
+                }
+            } else {
+                const { data: existing, error: checkError } = await supabase
+                    .from('users')
+                    .select('id, name, school, user_group, preferences, memo')
+                    .eq('phone', formData.phone)
+                    .maybeSingle();
+
+                if (checkError) throw checkError;
+
+                if (existing) {
+                    existingMemo = existing.memo;
+                    // Check if they have a valid auth record in the database
+                    const { data: candidates } = await supabase
+                        .rpc('get_login_candidates', { p_name: existing.name });
+                    const hasAuthRecord = candidates?.some(c => c.id === existing.id && c.email !== null);
+
+                    const isTemporary = existing.user_group === '게스트' || 
+                                        existing.user_group === '미가입' || 
+                                        existing.preferences?.is_temporary === true ||
+                                        !hasAuthRecord;
+
+                    if (isTemporary) {
+                        targetUserId = existing.id;
+                        isAutoMerge = true;
+                    } else {
+                        alert(`이미 가입된 휴대폰 번호입니다.\n(${existing.name}님으로 가입되어 있습니다.)\n로그인 혹은 관리자에게 문의해주세요.`);
+                        setLoading(false); return;
+                    }
                 }
             }
 
@@ -118,7 +142,7 @@ export const useSignUp = (onSuccess) => {
                 guardian_name: under14 ? formData.guardianName : null,
                 guardian_phone: under14 ? formData.guardianPhone : null,
                 guardian_relation: under14 ? formData.guardianRelation : null,
-                memo: isAutoMerge ? (existing.memo ? `${existing.memo}\n[자동병합: ${new Date().toLocaleDateString()}]` : `[자동병합: ${new Date().toLocaleDateString()}]`) : null,
+                memo: isAutoMerge ? (existingMemo ? `${existingMemo}\n[자동병합: ${new Date().toLocaleDateString()}]` : `[자동병합: ${new Date().toLocaleDateString()}]`) : null,
                 preferences: { terms_agreed: true, terms_version: TERMS_VERSION, is_school_church: formData.isSchoolChurch }
             };
 
