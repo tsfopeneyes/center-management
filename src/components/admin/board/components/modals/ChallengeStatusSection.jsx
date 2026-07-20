@@ -30,12 +30,11 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh }) => {
                 // Approve submission
                 missionStatus.completed = true;
                 missionStatus.completed_at = new Date().toISOString();
+                currentStatuses[missionId] = missionStatus;
             } else {
                 // Reject submission: clear image and status
                 delete currentStatuses[missionId];
             }
-
-            currentStatuses[missionId] = missionStatus;
 
             // 2. Save back to notice_responses
             const { error: updateErr } = await supabase

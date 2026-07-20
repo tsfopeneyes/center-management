@@ -128,8 +128,8 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
             alert('인증샷 등록이 완료되었습니다!');
 
             const totalMissions = notice.challenge_missions?.length || 0;
-            const completedCount = Object.values(currentStatuses).filter(s => s.completed).length;
-            if (completedCount === totalMissions && totalMissions > 0) {
+            const isAllCompleted = totalMissions > 0 && notice.challenge_missions.every(m => currentStatuses[m.id]?.completed);
+            if (isAllCompleted) {
                 setTimeout(() => {
                     confetti({
                         particleCount: 150,
@@ -318,9 +318,8 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             {notice.is_challenge && (() => {
                                 const myResponse = responseDetails[notice.id] || {};
                                 const statuses = myResponse.challenge_mission_statuses || {};
-                                const completedCount = Object.values(statuses).filter(s => s.completed).length;
                                 const totalMissions = notice.challenge_missions?.length || 0;
-                                const isAllDone = completedCount === totalMissions && totalMissions > 0;
+                                const isAllDone = totalMissions > 0 && notice.challenge_missions.every(m => statuses[m.id]?.completed);
 
                                 return (
                                     <>
@@ -540,8 +539,8 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                             ) : (
                                                 challengeParticipants.map((challenger) => {
                                                     const statuses = challenger.challenge_mission_statuses || {};
-                                                    const completedCount = Object.values(statuses).filter(s => s.completed).length;
-                                                    const isSuccess = completedCount === (notice.challenge_missions?.length || 0) && (notice.challenge_missions?.length || 0) > 0;
+                                                    const isSuccess = (notice.challenge_missions?.length || 0) > 0 && notice.challenge_missions.every(m => statuses[m.id]?.completed);
+                                                    const completedCount = notice.challenge_missions?.filter(m => statuses[m.id]?.completed).length || 0;
 
                                                     return (
                                                         <div 
