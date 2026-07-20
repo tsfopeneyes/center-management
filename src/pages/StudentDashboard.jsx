@@ -556,6 +556,7 @@ const StudentDashboard = () => {
                         responseDetails={responseDetails}
                         onResponse={handleResponse}
                         onRefresh={fetchNotices}
+                        onRegisterRegularUser={() => setShowRegisterModal(true)}
                         comments={comments}
                         newComment={newComment}
                         setNewComment={setNewComment}

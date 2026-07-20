@@ -125,6 +125,7 @@ export const prepareNoticeForEdit = (notice) => {
         host_one_liner: notice.host_one_liner || '',
         is_challenge: notice.is_challenge || false,
         challenge_missions: notice.challenge_missions || [],
-        challenge_success_message: notice.challenge_success_message || ''
+        challenge_success_message: notice.challenge_success_message || '',
+        challenge_show_hyphen_btn: notice.challenge_show_hyphen_btn || false
     };
 };

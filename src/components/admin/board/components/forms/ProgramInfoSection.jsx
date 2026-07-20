@@ -1066,6 +1066,19 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                         </div>
                         <p className="text-[10px] text-slate-400 font-medium">참여자가 모든 챌린지 미션 인증을 성공했을 때 화면에 노출되는 축하 팝업 메시지 내용입니다.</p>
                     </div>
+
+                    <div className="pt-2 flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            id="challenge_show_hyphen_btn"
+                            checked={formData.challenge_show_hyphen_btn || false}
+                            onChange={e => updateField('challenge_show_hyphen_btn', e.target.checked)}
+                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                        />
+                        <label htmlFor="challenge_show_hyphen_btn" className="text-xs font-bold text-slate-600 cursor-pointer select-none">
+                            성공 팝업 창에 '하이픈 등록' 버튼 노출하기 (게스트 참여자 대상)
+                        </label>
+                    </div>
                 </div>
             )}
         </div>

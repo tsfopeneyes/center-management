@@ -13,6 +13,7 @@ const INITIAL_NOTICE_STATE = {
     is_challenge: false,
     challenge_missions: [],
     challenge_success_message: '',
+    challenge_show_hyphen_btn: false,
     recruitment_deadline: '',
     max_capacity: '',
     program_date: '',

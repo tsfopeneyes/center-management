@@ -203,6 +203,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.is_challenge = formData.is_challenge || false;
                 noticeData.challenge_missions = formData.challenge_missions || [];
                 noticeData.challenge_success_message = formData.challenge_success_message || '';
+                noticeData.challenge_show_hyphen_btn = formData.challenge_show_hyphen_btn || false;
                 noticeData.guest_properties = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
                 const startDate = formData.program_start_date || formData.program_date;
                 const endDate = formData.program_end_date;

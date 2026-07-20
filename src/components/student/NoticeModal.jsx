@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check } from 'lucide-react';
+import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../supabaseClient';
 import ModernEditor from '../common/ModernEditor';
@@ -16,7 +16,7 @@ import NoticeCarousel from './components/NoticeCarousel';
 import NoticeHeader from './components/NoticeHeader';
 import WriteForm from '../admin/board/components/forms/WriteForm';
 
-const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants }) => {
+const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants, onRegisterRegularUser }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
     const [zoomedImage, setZoomedImage] = useState(null);
@@ -829,12 +829,26 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                          <div className="text-sm font-semibold text-slate-600 leading-relaxed whitespace-pre-wrap mb-6 max-h-48 overflow-y-auto w-full px-2">
                              {notice.challenge_success_message || "모든 미션을 완벽히 해결하셨습니다! 대단해요 🎉"}
                          </div>
-                         <button
-                             onClick={() => setShowSuccessPopup(false)}
-                             className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white font-black rounded-2xl text-sm transition-all active:scale-[0.98]"
-                         >
-                             확인
-                         </button>
+                         <div className="flex gap-2 w-full mt-2">
+                             {notice.challenge_show_hyphen_btn && user?.role === 'GUEST' && (
+                                 <button
+                                     onClick={() => {
+                                         setShowSuccessPopup(false);
+                                         if (onRegisterRegularUser) onRegisterRegularUser();
+                                     }}
+                                     className="flex-1 py-3.5 bg-white border border-tossBlue text-tossBlue font-black rounded-2xl text-xs transition-all active:scale-[0.98] flex items-center justify-center gap-1.5"
+                                 >
+                                     <Sparkles size={12} className="text-indigo-500 shrink-0" />
+                                     <span>하이픈 등록</span>
+                                 </button>
+                             )}
+                             <button
+                                 onClick={() => setShowSuccessPopup(false)}
+                                 className="flex-1 py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white font-black rounded-2xl text-xs transition-all active:scale-[0.98]"
+                             >
+                                 확인
+                             </button>
+                         </div>
                      </div>
                  </div>
              )}
