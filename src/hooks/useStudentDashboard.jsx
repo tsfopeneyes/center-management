@@ -163,7 +163,10 @@ export const useStudentDashboard = () => {
         const storedUser = localStorage.getItem('user');
         if (!storedUser) {
             alert('로그인이 필요합니다.');
-            navigate('/');
+            const params = new URLSearchParams(window.location.search);
+            const noticeId = params.get('noticeId');
+            const suffix = noticeId ? `?noticeId=${noticeId}` : '';
+            navigate('/' + suffix);
             return;
         }
 
@@ -429,6 +432,7 @@ export const useStudentDashboard = () => {
 
     const allPrograms = notices.filter(n => {
         if (n.category !== CATEGORIES.PROGRAM) return false;
+        if (n.is_private) return false;
         const targets = n.target_regions || [];
         if (targets.length === 0 || targets.length === 2) return true;
         

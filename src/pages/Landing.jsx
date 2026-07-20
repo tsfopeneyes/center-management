@@ -179,11 +179,16 @@ const LoginForm = ({ navigate }) => {
 
         // Keep localStorage sync for legacy compatibility across the app
         localStorage.setItem('user', JSON.stringify(user));
+        
+        const params = new URLSearchParams(window.location.search);
+        const noticeId = params.get('noticeId');
+        const suffix = noticeId ? `?noticeId=${noticeId}` : '';
+
         if (user.role === 'admin') {
             localStorage.setItem('admin_user', JSON.stringify(user)); 
-            navigate('/admin');
+            navigate('/admin' + suffix);
         } else {
-            navigate('/student');
+            navigate('/student' + suffix);
         }
     };
 
@@ -281,12 +286,16 @@ const Landing = () => {
         if (storedUser) {
             try {
                 const user = JSON.parse(storedUser);
+                const params = new URLSearchParams(window.location.search);
+                const noticeId = params.get('noticeId');
+                const suffix = noticeId ? `?noticeId=${noticeId}` : '';
+
                 if (user.role === 'admin') {
                     // Sync admin_user for AdminDashboard check
                     localStorage.setItem('admin_user', JSON.stringify(user));
-                    navigate('/admin');
+                    navigate('/admin' + suffix);
                 } else {
-                    navigate('/student');
+                    navigate('/student' + suffix);
                 }
             } catch (err) {
                 console.error("Auth persistence error:", err);

@@ -9,6 +9,7 @@ const INITIAL_NOTICE_STATE = {
     is_sticky: false,
     send_push: false,
     category: CATEGORIES.NOTICE,
+    is_private: false,
     recruitment_deadline: '',
     max_capacity: '',
     program_date: '',

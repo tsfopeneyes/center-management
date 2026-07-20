@@ -504,6 +504,18 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                 <p className="text-[11px] text-slate-400 font-medium ml-1">
                                     생략하면 프로그램 시작 시간과 같아집니다.
                                 </p>
+                                <div className="flex items-center gap-2 mt-3 pl-1">
+                                    <input
+                                        type="checkbox"
+                                        id="is_private"
+                                        checked={formData.is_private || false}
+                                        onChange={(e) => updateField('is_private', e.target.checked)}
+                                        className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <label htmlFor="is_private" className="text-xs font-bold text-slate-500 cursor-pointer select-none">
+                                        비공개 프로그램 (링크가 있는 대상자에게만 노출)
+                                    </label>
+                                </div>
                             </div>
 
                             {/* Right: Capacity */}
