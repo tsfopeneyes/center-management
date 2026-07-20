@@ -131,9 +131,9 @@ const CoffeeChatModal = ({ staff, student, onClose, onSuccess }) => {
                 <div className="flex flex-col items-center text-center px-6 pt-6 pb-4 border-b border-tossGrey100 bg-white shrink-0">
                     <div className="relative mb-2">
                         {staff.profile_image_url ? (
-                            <img src={staff.profile_image_url} alt={staff.name} className="w-14 h-14 rounded-full object-cover border border-tossGrey200 shadow-sm" />
+                            <img src={staff.profile_image_url} alt={staff.name} className="w-20 h-20 rounded-full object-cover border border-tossGrey200 shadow-sm" />
                         ) : (
-                            <div className="w-14 h-14 rounded-full bg-tossBlue/10 flex items-center justify-center text-tossBlue font-bold text-lg">
+                            <div className="w-20 h-20 rounded-full bg-tossBlue/10 flex items-center justify-center text-tossBlue font-bold text-2xl">
                                 {staff.name?.substring(0, 1)}
                             </div>
                         )}

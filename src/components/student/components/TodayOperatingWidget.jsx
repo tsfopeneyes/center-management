@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, DoorOpen, DoorClosed } from 'lucide-react';
+import { Clock, DoorOpen, DoorClosed, Calendar } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import UserAvatar from '../../common/UserAvatar';
-import { startOfDay } from 'date-fns';
+import { startOfDay, addDays, startOfWeek } from 'date-fns';
 
 const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCategories = [], onStaffClick }) => {
     const [operatingHours, setOperatingHours] = useState(null);
@@ -341,45 +341,144 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
         dividerHeight = 'h-11';
     }
 
+    // Get current week dates (Monday to Sunday)
+    const monday = startOfWeek(today, { weekStartsOn: 1 });
+    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+
+    const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const koDayMap = ['일', '월', '화', '수', '목', '금', '토'];
+
+    const getDayStatus = (date) => {
+        const targetDate = startOfDay(date);
+        
+        // 1. Check special closures
+        const isClosed = adminSchedules.some(sch => {
+            const cat = calendarCategories.find(c => c.id === sch.category_id);
+            if (cat?.name !== '휴관') return false;
+
+            const start = startOfDay(new Date(sch.start_date));
+            const end = startOfDay(new Date(sch.end_date));
+
+            if (targetDate >= start && targetDate <= end) {
+                let closedSpaces = [];
+                try {
+                    const parsed = JSON.parse(sch.content);
+                    if (parsed && typeof parsed === 'object' && parsed.closed_spaces) {
+                        closedSpaces = parsed.closed_spaces;
+                    }
+                } catch (e) { }
+
+                if (studentRegion === '강동') {
+                    return closedSpaces.includes('HAIFN');
+                } else if (studentRegion === '강서') {
+                    return closedSpaces.includes('ENOUGH_PLACE');
+                }
+                return true;
+            }
+            return false;
+        });
+
+        if (isClosed) {
+            return { status: 'CLOSED', text: '휴무' };
+        }
+
+        // 2. Check regular operating config
+        const dayOfWeekStr = dayNameMap[date.getDay()];
+        const dayConfig = operatingHours ? operatingHours[dayOfWeekStr] : null;
+
+        if (dayConfig && dayConfig.isOpen) {
+            return { status: 'OPEN', text: `${dayConfig.open} ~ ${dayConfig.close}` };
+        }
+
+        return { status: 'CLOSED', text: '휴무' };
+    };
+
     return (
         <div className="bg-white p-5 rounded-toss-xl shadow-toss-standard flex flex-col transition-all duration-300">
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isOpen ? 'bg-tossBlue text-white' : 'bg-tossGrey400 text-white'}`}>
-                        {isOpen ? <Clock size={18} /> : <DoorClosed size={18} />}
+                    <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                        <Calendar size={18} />
                     </div>
-                    <div className="flex flex-col">
-                        <span className={`font-bold text-[14px] ${isOpen ? 'text-tossBlue' : 'text-tossGrey500'} tracking-tight`}>
-                            {isOpen ? '오늘은 센터 오픈 날이에요!' : '오늘은 센터 쉬는 날이에요!'}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-tossGrey900 font-bold text-[14px] mt-0.5">
+                    <div>
+                        <h3 className="font-bold text-tossGrey900 text-[15px] tracking-tight leading-none">이번 주 오픈 현황</h3>
+                        <p className="text-[11px] text-tossGrey500 font-semibold mt-1.5 flex items-center gap-1">
                             {isOpen ? (
                                 <>
-                                    <Clock size={14} className="text-tossBlue shrink-0" />
-                                    <span>{openTime} ~ {closeTime}</span>
+                                    <Clock size={12} className="text-tossBlue shrink-0" />
+                                    <span>오늘 운영 시간: <strong className="text-tossBlue">{openTime} ~ {closeTime}</strong></span>
                                 </>
                             ) : (
-                                <span className="text-tossGrey400 text-xs font-semibold">오늘은 휴관일입니다</span>
+                                <span className="text-red-500 font-bold">오늘은 휴관일입니다</span>
                             )}
-                        </div>
+                        </p>
                     </div>
                 </div>
-                <div>
-                    {isOpen ? (
-                        <span className="px-3 py-1 bg-white border border-tossBlue text-tossBlue rounded-full text-[11px] font-bold select-none">
-                            OPEN
-                        </span>
-                    ) : (
-                        <span className="px-3 py-1 bg-white border border-tossGrey300 text-tossGrey400 rounded-full text-[11px] font-bold select-none">
-                            CLOSED
-                        </span>
-                    )}
+                
+                {/* Legend (범례) */}
+                <div className="flex items-center gap-2.5 text-[10px] font-extrabold text-tossGrey500 select-none">
+                    <div className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                        <span>오픈</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                        <span>휴무</span>
+                    </div>
                 </div>
+            </div>
+
+            {/* 7 Days Grid */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mt-4">
+                {weekDays.map((date, idx) => {
+                    const { status } = getDayStatus(date);
+                    const isToday = startOfDay(date).getTime() === startOfDay(today).getTime();
+                    const dayLabel = koDayMap[date.getDay()];
+                    const isOpenDay = status === 'OPEN';
+                    
+                    let dayCircleClass = "";
+                    if (isOpenDay) {
+                        dayCircleClass = isToday 
+                            ? 'bg-blue-600 text-white font-extrabold ring-4 ring-blue-100' 
+                            : 'bg-blue-50 text-blue-600 font-bold';
+                    } else {
+                        dayCircleClass = isToday 
+                            ? 'bg-red-500 text-white font-extrabold ring-4 ring-red-100' 
+                            : 'bg-red-50 text-red-500 font-bold';
+                    }
+
+                    return (
+                        <div 
+                            key={idx} 
+                            className={`flex flex-col items-center py-3 px-1 rounded-2xl transition-all border ${
+                                isToday 
+                                    ? 'bg-tossGrey50/50 border-tossGrey200 shadow-sm' 
+                                    : 'bg-transparent border-transparent'
+                            }`}
+                        >
+                            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] transition-all ${dayCircleClass}`}>
+                                {dayLabel}
+                            </span>
+                            
+                            <span className={`text-[13px] font-black mt-2 ${
+                                isToday ? 'text-tossGrey900' : 'text-tossGrey700'
+                            }`}>
+                                {date.getDate()}
+                            </span>
+                            
+                            {isToday && (
+                                <span className="text-[8px] text-tossGrey400 font-black mt-0.5 scale-90">
+                                    오늘
+                                </span>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Present/Duty Staff Section */}
             {hasAnyone && (
-                <div className="w-full flex flex-col gap-3 mt-6 pt-5 border-t border-tossGrey100 animate-fade-in">
+                <div className="w-full flex flex-col gap-3 mt-5 pt-5 border-t border-tossGrey100 animate-fade-in">
                     <div className="flex flex-wrap items-center gap-1">
                         <span className="text-[11px] font-bold text-tossGrey500 tracking-tight">지금 센터에서 만나요!</span>
                         <span className="text-[11px] font-bold text-tossBlue tracking-tight shrink-0">(스처쌤을 클릭하면 커피챗을 신청할 수 있어요)</span>

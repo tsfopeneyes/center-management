@@ -4,7 +4,6 @@ import { Info, Clock, ChevronRight, MapPin } from 'lucide-react';
 import { startOfDay, isSameDay } from 'date-fns';
 import { CATEGORIES } from '../../constants/appConstants';
 import TodayOperatingWidget from './components/TodayOperatingWidget';
-import WeeklyOperatingWidget from './components/WeeklyOperatingWidget';
 import { formatKoreanTimeRange } from '../../utils/dateUtils';
 
 const StudentCalendarTab = ({
@@ -12,7 +11,8 @@ const StudentCalendarTab = ({
     notices,
     calendarCategories,
     openNoticeDetail,
-    studentRegion
+    studentRegion,
+    onStaffClick
 }) => {
     return (
         <div className="animate-fade-in pb-32 relative min-h-screen">
@@ -27,11 +27,11 @@ const StudentCalendarTab = ({
 
             <div className="px-5">
                 <div className="mb-4 space-y-4">
-                    <TodayOperatingWidget studentRegion={studentRegion} />
-                    <WeeklyOperatingWidget 
+                    <TodayOperatingWidget 
                         studentRegion={studentRegion} 
                         adminSchedules={adminSchedules} 
                         calendarCategories={calendarCategories} 
+                        onStaffClick={onStaffClick} 
                     />
                 </div>
 

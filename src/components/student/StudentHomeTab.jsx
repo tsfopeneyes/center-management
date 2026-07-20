@@ -9,7 +9,6 @@ import { startOfDay } from 'date-fns';
 import { TAB_NAMES, CATEGORIES } from '../../constants/appConstants';
 import { stripHtml } from '../../utils/textUtils';
 import TodayOperatingWidget from './components/TodayOperatingWidget';
-import WeeklyOperatingWidget from './components/WeeklyOperatingWidget';
 import CoffeeChatModal from './modals/CoffeeChatModal';
 import { supabase } from '../../supabaseClient';
 
@@ -335,21 +334,12 @@ const StudentHomeTab = ({
                     </motion.div>
                 )}
 
-                {/* 1. Today Operating Widget */}
-                {!isTodayClosed && (
-                    <TodayOperatingWidget 
-                        studentRegion={studentRegion} 
-                        adminSchedules={adminSchedules} 
-                        calendarCategories={calendarCategories} 
-                        onStaffClick={onStaffClick}
-                    />
-                )}
-
-                {/* 1-2. Weekly Operating Widget */}
-                <WeeklyOperatingWidget 
+                {/* 1. Today Operating Widget (includes weekly calendar and staff) */}
+                <TodayOperatingWidget 
                     studentRegion={studentRegion} 
                     adminSchedules={adminSchedules} 
                     calendarCategories={calendarCategories} 
+                    onStaffClick={onStaffClick}
                 />
 
                 {/* 2. Notices (공지사항) */}

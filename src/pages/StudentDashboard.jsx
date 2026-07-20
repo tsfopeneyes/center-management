@@ -1049,6 +1049,7 @@ const StudentDashboard = () => {
                     calendarCategories={calendarCategories}
                     openNoticeDetail={openNoticeDetail}
                     studentRegion={effectiveRegion}
+                    onStaffClick={(staff) => setSelectedStaffForChat(staff)}
                 />
             )}
 
