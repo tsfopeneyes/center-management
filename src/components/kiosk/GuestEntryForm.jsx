@@ -32,45 +32,43 @@ const GuestEntryForm = ({ onSuccess, onCancel }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (formData.phone.replace(/[^0-9]/g, '').length < 11) {
-            alert('핸드폰 번호 11자리를 올바르게 입력해주세요.');
-            return;
-        }
-
-        if (formData.birth.length !== 6) {
-            alert('생년월일 6자리를 정확히 입력해주세요. (예: 050101)');
-            return;
-        }
-
         setLoading(true);
         try {
-            // Check for existing user
-            const { data: existing, error: checkError } = await supabase
-                .from('users')
-                .select('id, name')
-                .eq('phone', formData.phone)
-                .maybeSingle();
-
-            if (checkError) throw checkError;
-
-            if (existing) {
-                alert(`이미 등록된 번호입니다.\n(${existing.name} 님)\n키오스크 첫 화면에서 번호 뒷자리를 입력해 입장해주세요!`);
-                onCancel();
-                setLoading(false);
-                return;
+            // Generate a unique dummy phone number to satisfy constraints
+            let uniquePhone = '';
+            let isUnique = false;
+            let retries = 0;
+            
+            while (!isUnique && retries < 10) {
+                const random8Digits = Math.floor(10000000 + Math.random() * 90000000).toString();
+                const testPhone = `010-${random8Digits.slice(0, 4)}-${random8Digits.slice(4)}`;
+                const { data: existing } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq('phone', testPhone)
+                    .maybeSingle();
+                if (!existing) {
+                    uniquePhone = testPhone;
+                    isUnique = true;
+                }
+                retries++;
             }
 
-            const phoneParts = formData.phone.split('-');
+            if (!uniquePhone) {
+                throw new Error("임시 전화번호 생성 실패. 다시 시도해 주세요.");
+            }
+
+            const phoneParts = uniquePhone.split('-');
             const back4 = phoneParts[2];
             const memoText = `[가입일: ${new Date().toLocaleDateString()}] [게스트 입장 완료]`;
 
             // Append (guest) to name and set user_group
             const { data: newUser, error } = await supabase.from('users').insert([{
-                name: `${formData.name}(guest)`,
+                name: `${formData.name.trim()}(guest)`,
                 gender: 'M', // default filler
-                school: formData.school,
-                birth: formData.birth,
-                phone: formData.phone,
+                school: formData.school.trim(),
+                birth: '000000',
+                phone: uniquePhone,
                 phone_back4: back4,
                 user_group: '게스트',
                 password: '0000', // default filler
@@ -126,46 +124,9 @@ const GuestEntryForm = ({ onSuccess, onCancel }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                    <label className="block text-xs font-black text-slate-400 mb-1 ml-1 uppercase">생년월일 (6자리)</label>
-                    <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                        <input
-                            type="text"
-                            name="birth"
-                            required
-                            maxLength="6"
-                            value={formData.birth}
-                            onChange={(e) => setFormData(prev => ({ ...prev, birth: e.target.value.replace(/[^0-9]/g, '') }))}
-                            inputMode="numeric"
-                            placeholder="YYMMDD"
-                            className="w-full pl-10 pr-4 py-3 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold tracking-widest"
-                        />
-                    </div>
-                </div>
-
-                <div>
-                    <label className="block text-xs font-black text-slate-400 mb-1 ml-1 uppercase">휴대폰 번호</label>
-                    <div className="relative">
-                        <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                        <input
-                            type="text"
-                            name="phone"
-                            required
-                            inputMode="tel"
-                            value={formData.phone}
-                            onChange={handlePhoneChange}
-                            placeholder="010-0000-0000"
-                            className="w-full pl-10 pr-4 py-3 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold tracking-widest"
-                        />
-                    </div>
-                </div>
-            </div>
-
             <button
                 type="submit"
-                disabled={loading || formData.birth.length < 6 || formData.phone.replace(/[^0-9]/g, '').length < 11}
+                disabled={loading || !formData.name.trim() || !formData.school.trim()}
                 className="w-full mt-6 py-4 sm:py-5 bg-indigo-600 text-white rounded-2xl font-black transition-all shadow-lg active:scale-95 disabled:bg-slate-300 disabled:shadow-none hover:bg-indigo-700 text-lg sm:text-xl"
             >
                 {loading ? '입장 처리 중...' : '게스트로 바로 입장하기'}
