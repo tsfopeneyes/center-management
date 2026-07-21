@@ -179,7 +179,16 @@ const StudentHomeTab = ({
                         <div className="flex flex-col items-center justify-center text-center -mt-2 mb-1.5 gap-2.5">
                             <span className="text-white/90 text-[13.5px] sm:text-[14.5px] font-bold tracking-tight">
                                 {isGuest ? (
-                                    "오늘은 잠깐 들렀지만, 하이픈에서 계속 만나요!"
+                                    <>
+                                        {user?.school && (
+                                            <span className="block text-yellow-200 text-[13px] sm:text-[14px] font-bold tracking-tight mb-1">
+                                                {user.school.replace('(guest)', '')} 친구 만나서 반가워요 :)
+                                            </span>
+                                        )}
+                                        <span className="block text-white/95">
+                                            오늘은 잠깐 들렀지만, 하이픈에서 계속 만나요!
+                                        </span>
+                                    </>
                                 ) : (
                                     <>
                                         그동안 센터에서 <span className="text-tossCaution font-bold">{visitCount}번</span> 만났고, <span className="text-emerald-300 font-bold">{programCount}개</span>의 활동을 함께했어요!
