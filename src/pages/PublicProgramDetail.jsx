@@ -480,31 +480,33 @@ const PublicProgramDetail = () => {
                 {/* Challenge Sections: render below intro */}
                 {notice.is_challenge && (
                     <div className="mt-8 border-t border-gray-100 pt-8">
-                        <div className="flex items-center gap-2 mb-6">
+                        <div className="flex items-center gap-2 mb-4">
                             <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
                             <h3 className="font-extrabold text-[15px] leading-none text-gray-900">
                                 미션 목록
                             </h3>
                         </div>
                         
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            {notice.challenge_missions?.map((mission, index) => (
-                                <div 
-                                    key={mission.id}
-                                    onClick={() => setSelectedMissionForDetail(mission)}
-                                    className="flex flex-col items-center p-5 border border-gray-200 bg-white rounded-2xl text-center cursor-pointer hover:border-blue-500 hover:shadow-sm transition-all"
-                                >
-                                    {/* Icon Circle */}
-                                    <div className="w-12 h-12 rounded-full flex items-center justify-center font-black text-sm mb-3 bg-blue-50 text-blue-600">
-                                        {index + 1}
-                                    </div>
+                        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.015)]">
+                            <div className="flex items-center justify-around gap-2">
+                                {notice.challenge_missions?.map((mission, index) => (
+                                    <div 
+                                        key={mission.id}
+                                        onClick={() => setSelectedMissionForDetail(mission)}
+                                        className="flex flex-col items-center cursor-pointer select-none group flex-1"
+                                    >
+                                        {/* Icon Circle */}
+                                        <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 bg-blue-50 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                                            {index + 1}
+                                        </div>
 
-                                    {/* Mission Info */}
-                                    <span className="text-sm font-bold text-gray-900 leading-snug">
-                                        {mission.title}
-                                    </span>
-                                </div>
-                            ))}
+                                        {/* Mission Info */}
+                                        <span className="text-[11px] font-bold text-gray-900 leading-snug text-center break-all">
+                                            {mission.title}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )}

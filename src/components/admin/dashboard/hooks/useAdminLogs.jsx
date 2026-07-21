@@ -244,8 +244,25 @@ export const useAdminLogs = ({ allLogs, schoolLogs, users, locations, notices, f
         if (!confirm('해당 로그(들)를 삭제하시겠습니까?')) return;
         const ids = Array.isArray(id) ? id : [id];
         try {
+            const logsToDelete = allLogs.filter(l => ids.includes(l.id));
+            
             const { error } = await supabase.from('logs').delete().in('id', ids);
             if (error) throw error;
+            
+            for (const log of logsToDelete) {
+                if (log.user_id && log.created_at) {
+                    const logDate = new Date(log.created_at);
+                    const startOfDay = new Date(logDate.getFullYear(), logDate.getMonth(), logDate.getDate(), 0, 0, 0, 0).toISOString();
+                    const endOfDay = new Date(logDate.getFullYear(), logDate.getMonth(), logDate.getDate(), 23, 59, 59, 999).toISOString();
+                    await supabase
+                        .from('checkin_surveys')
+                        .delete()
+                        .eq('user_id', log.user_id)
+                        .gte('created_at', startOfDay)
+                        .lte('created_at', endOfDay);
+                }
+            }
+            
             setSelectedRows(new Set());
             fetchData();
         } catch (err) { alert('삭제 실패: ' + err.message); }

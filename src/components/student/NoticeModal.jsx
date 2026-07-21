@@ -351,48 +351,50 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                                     미션 목록
                                                 </h3>
                                             </div>
-                                        
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                            {notice.challenge_missions?.map((mission, index) => {
-                                                const myResponse = responseDetails[notice.id] || {};
-                                                const statuses = myResponse.challenge_mission_statuses || {};
-                                                const mStatus = statuses[mission.id] || {};
-                                                const isDone = mStatus.completed;
-                                                return (
-                                                    <div 
-                                                        key={mission.id}
-                                                        onClick={() => setSelectedMissionForDetail(mission)}
-                                                        className={`flex flex-col items-center p-5 border rounded-toss-2xl transition-all select-none relative text-center group border-tossGrey200 bg-white hover:border-tossBlue hover:shadow-toss-subtle cursor-pointer`}
-                                                    >
-                                                        {/* Icon Circle */}
-                                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-sm mb-3 transition-colors ${
-                                                            isDone 
-                                                                ? 'bg-tossGrey200 text-tossGrey400' 
-                                                                : 'bg-tossBlueLight text-tossBlue group-hover:bg-tossBlue group-hover:text-white'
-                                                        }`}>
-                                                            {isDone ? (
-                                                                <Check size={18} />
-                                                            ) : (
-                                                                index + 1
-                                                            )}
-                                                        </div>
+                                            
+                                            <div className="bg-white border border-tossGrey200 rounded-toss-2xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.015)]">
+                                                <div className="flex items-center justify-around gap-2">
+                                                    {notice.challenge_missions?.map((mission, index) => {
+                                                        const myResponse = responseDetails[notice.id] || {};
+                                                        const statuses = myResponse.challenge_mission_statuses || {};
+                                                        const mStatus = statuses[mission.id] || {};
+                                                        const isDone = mStatus.completed;
+                                                        return (
+                                                            <div 
+                                                                key={mission.id}
+                                                                onClick={() => setSelectedMissionForDetail(mission)}
+                                                                className="flex flex-col items-center cursor-pointer select-none group flex-1"
+                                                            >
+                                                                {/* Icon Circle */}
+                                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 transition-colors ${
+                                                                    isDone 
+                                                                        ? 'bg-tossGrey200 text-tossGrey400' 
+                                                                        : 'bg-tossBlueLight text-tossBlue group-hover:bg-tossBlue group-hover:text-white'
+                                                                }`}>
+                                                                    {isDone ? (
+                                                                        <Check size={14} />
+                                                                    ) : (
+                                                                        index + 1
+                                                                    )}
+                                                                </div>
 
-                                                        {/* Mission Info */}
-                                                        <span className={`text-sm font-bold leading-snug ${
-                                                            isDone ? 'text-tossGrey400 line-through font-medium' : 'text-tossGrey900'
-                                                        }`}>
-                                                            {mission.title}
-                                                        </span>
-                                                        {isDone && (
-                                                            <span className="bg-tossGrey100 text-tossGrey500 text-[9px] font-extrabold px-1.5 py-0.5 rounded mt-1.5">
-                                                                미션 성공!
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
+                                                                {/* Mission Info */}
+                                                                <span className={`text-[11px] font-bold text-center leading-snug break-all ${
+                                                                    isDone ? 'text-tossGrey400 line-through font-medium' : 'text-tossGrey900'
+                                                                }`}>
+                                                                    {mission.title}
+                                                                </span>
+                                                                {isDone && (
+                                                                    <span className="bg-tossGrey100 text-tossGrey500 text-[8px] font-extrabold px-1.5 py-0.2 rounded mt-1">
+                                                                        성공
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
 
                                     {/* Mission Detail Modal (Overlay) */}
                                     {selectedMissionForDetail && (() => {
@@ -531,9 +533,9 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                                 참여자 현황
                                             </h3>
                                         </div>
-                                        <div className="border border-tossGrey200 rounded-toss-xl divide-y divide-tossGrey100 overflow-hidden bg-white">
+                                        <div className="flex flex-wrap gap-2.5 justify-start">
                                             {challengeParticipants.length === 0 ? (
-                                                <div className="p-8 text-center text-tossGrey400 text-xs font-bold">
+                                                <div className="w-full p-8 text-center text-tossGrey400 text-xs font-bold bg-white border border-tossGrey200 rounded-toss-xl">
                                                     첫 번째 참여자가 되어보세요.
                                                 </div>
                                             ) : (
@@ -545,22 +547,19 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                                     return (
                                                         <div 
                                                             key={challenger.user_id} 
-                                                            className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                                                            className="px-3 py-2 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors border border-tossGrey200 rounded-2xl bg-white text-center hover:border-tossBlue hover:shadow-toss-subtle min-w-[75px] max-w-[100px] flex-1"
                                                             onClick={() => setSelectedParticipantForMissions(challenger)}
                                                         >
-                                                            <div className="flex flex-col">
-                                                                <span className="text-sm font-bold text-tossGrey850 hover:text-tossBlue transition-colors">{challenger.users?.name?.replace('(guest)', '')}</span>
-                                                                <span className="text-[10px] text-tossGrey400 font-bold mt-0.5">{challenger.users?.school || '더작은재단'}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
-                                                                    isSuccess 
-                                                                        ? 'bg-tossBlueLight text-tossBlue border border-tossBlue/20' 
-                                                                        : 'bg-tossGrey50 text-tossGrey600 border border-tossGrey200'
-                                                                }`}>
-                                                                    {completedCount} / {notice.challenge_missions?.length || 0} 완료
-                                                                </span>
-                                                            </div>
+                                                            <span className="text-xs font-bold text-tossGrey850 truncate w-full px-1">
+                                                                {challenger.users?.name?.replace('(guest)', '')}
+                                                            </span>
+                                                            <span className={`text-[9px] font-black mt-1 px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                                                                isSuccess 
+                                                                    ? 'bg-tossBlueLight text-tossBlue' 
+                                                                    : 'bg-tossGrey50 text-tossGrey500'
+                                                            }`}>
+                                                                {completedCount}/{notice.challenge_missions?.length || 0} 완료
+                                                            </span>
                                                         </div>
                                                     );
                                                 })
@@ -830,7 +829,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                              {notice.challenge_success_message || "모든 미션을 완벽히 해결하셨습니다! 대단해요 🎉"}
                          </div>
                          <div className="flex gap-2 w-full mt-2">
-                             {notice.challenge_show_hyphen_btn && user?.role === 'GUEST' && (
+                             {notice.challenge_show_hyphen_btn && (user?.role === 'GUEST' || user?.user_group === '게스트') && (
                                  <button
                                      onClick={() => {
                                          setShowSuccessPopup(false);

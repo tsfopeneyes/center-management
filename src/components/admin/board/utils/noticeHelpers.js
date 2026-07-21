@@ -127,6 +127,7 @@ export const prepareNoticeForEdit = (notice) => {
         is_challenge: notice.is_challenge || false,
         challenge_missions: notice.challenge_missions || [],
         challenge_success_message: notice.challenge_success_message || '',
-        challenge_show_hyphen_btn: notice.challenge_show_hyphen_btn || false
+        challenge_show_hyphen_btn: notice.challenge_show_hyphen_btn || false,
+        guest_properties: notice.guest_properties || { allow_guest: true, require_school: true, require_phone: true }
     };
 };
