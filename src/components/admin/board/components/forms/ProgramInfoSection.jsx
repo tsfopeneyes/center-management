@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import IntuitiveTimePicker from '../../../../common/IntuitiveTimePicker';
 import { splitDateTime, joinDateTime } from '../../utils/noticeHelpers';
 import { PROGRAM_TYPES } from '../../utils/constants';
-import { Calendar, Clock, MapPin, Gift, CheckSquare, Users, ChevronUp, ChevronDown, MessageSquare, Target, Trash, Bookmark, User, School, Smartphone } from 'lucide-react';
+import { Calendar, Clock, MapPin, Gift, CheckSquare, Users, ChevronUp, ChevronDown, MessageSquare, Target, Trash, Bookmark, User, School, Smartphone, Sparkles, ToggleLeft, ToggleRight, HelpCircle, Dices } from 'lucide-react';
 import { supabase } from '../../../../../supabaseClient';
 
 const HAIFN_DETAILS = [
@@ -18,6 +18,30 @@ const HAIFN_DETAILS = [
 ];
 
 const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
+    // Single Source of Truth for Host Active State
+    const isHostActive = formData.enable_hosts === true;
+
+    // Cache last hosts to restore if user toggles off/on
+    const savedHostsRef = React.useRef(
+        (Array.isArray(formData.hosts) && formData.hosts.length > 0)
+            ? formData.hosts
+            : (formData.host_id ? [{ host_id: formData.host_id, one_liner: formData.host_one_liner || '' }] : [])
+    );
+
+    React.useEffect(() => {
+        if (Array.isArray(formData.hosts) && formData.hosts.length > 0) {
+            savedHostsRef.current = formData.hosts;
+        }
+    }, [formData.hosts]);
+
+    const [openSections, setOpenSections] = React.useState({
+        guest: formData.guest_properties?.allow_guest !== false,
+        reward: Number(formData.haifn_reward) > 0
+    });
+
+    const toggleSection = (key) => {
+        setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+    };
     const [admins, setAdmins] = React.useState([]);
 
     React.useEffect(() => {
@@ -657,277 +681,392 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
             </div>
 
             {/* 3. 비회원(게스트) 신청 설정 카드 */}
+{/* 3. 비회원(게스트) 신청 설정 (아코디언 카드) */}
             {formData.is_recruiting && (
-                <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.015)] space-y-4">
-                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100/80">
-                        <Users size={18} className="text-blue-600" />
-                        <span className="text-sm font-bold text-slate-800">비회원(게스트) 신청 설정</span>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div 
-                            className={`flex items-start gap-3 p-3.5 border rounded-2xl cursor-pointer select-none transition-all duration-200 ${
-                                formData.guest_properties?.allow_guest !== false 
-                                    ? 'bg-blue-50/10 border-blue-500/20 text-blue-600 shadow-[0_4px_12px_rgba(49,130,246,0.01)] text-blue-600 shadow-[0_4px_12px_rgba(49,130,246,0.01)]' 
-                                    : 'bg-slate-50 border-slate-200/60 text-slate-500 hover:bg-slate-100/50'
-                            }`}
-                            onClick={() => {
-                                const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
-                                updateField('guest_properties', { ...gp, allow_guest: !gp.allow_guest });
-                            }}
-                        >
-                            <input 
-                                type="checkbox" 
-                                checked={formData.guest_properties?.allow_guest !== false} 
-                                onChange={() => {}} // handled by click wrapper
-                                className="w-4 h-4 text-blue-600 rounded cursor-pointer mt-0.5 shrink-0" 
-                            />
-                            <div className="flex flex-col">
-                                <span className="text-xs font-bold text-slate-800">로그인 없이 비회원(게스트) 신청 허용</span>
-                                <span className="text-[10px] text-slate-400 font-semibold mt-0.5">비회원도 링크를 통해 이름 등을 기입하여 즉시 신청할 수 있습니다.</span>
+                <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${
+                    formData.guest_properties?.allow_guest !== false ? 'border-blue-300 shadow-md' : 'border-slate-200/80 hover:border-slate-300'
+                }`}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const isCurrentlyAllowed = formData.guest_properties?.allow_guest !== false;
+                            const nextState = !isCurrentlyAllowed;
+                            const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
+                            updateField('guest_properties', { ...gp, allow_guest: nextState });
+                            setOpenSections(prev => ({ ...prev, guest: nextState }));
+                        }}
+                        className="w-full p-4 sm:p-5 flex items-center justify-between bg-white hover:bg-slate-50/60 transition-colors cursor-pointer select-none"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-xl transition-colors ${
+                                formData.guest_properties?.allow_guest !== false ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
+                            }`}>
+                                <Users size={18} />
+                            </div>
+                            <div className="flex flex-col items-start text-left">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-bold text-slate-800">비회원(게스트) 신청 설정</span>
+                                    <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border ${
+                                        formData.guest_properties?.allow_guest !== false ? 'bg-blue-50 text-blue-600 border-blue-200/60' : 'bg-slate-100 text-slate-500 border-slate-200/60'
+                                    }`}>
+                                        {formData.guest_properties?.allow_guest !== false ? '게스트 허용 (활성화)' : '미사용 (비활성화)'}
+                                    </span>
+                                </div>
+                                <span className="text-[11px] text-slate-400 font-medium mt-0.5">로그인 없이 참여할 수 있는 비회원 신청 옵션입니다.</span>
                             </div>
                         </div>
 
-                        {formData.guest_properties?.allow_guest !== false && (
-                            <div className="pl-2 space-y-2.5 animate-fade-in">
-                                <span className="text-[10px] font-bold text-slate-400 ml-1 block uppercase tracking-wider">수집할 개인 정보 항목</span>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <div className="flex items-center gap-2 p-3 bg-slate-50/50 border border-slate-200/40 rounded-xl opacity-60">
-                                        <User className="text-slate-400 mr-1.5" size={14} />
-                                        <span className="text-xs font-bold text-slate-500">이름 (필수)</span>
-                                    </div>
+                        <div className="flex items-center gap-3">
+                            {formData.guest_properties?.allow_guest !== false ? (
+                                <ToggleRight size={28} className="text-blue-600" />
+                            ) : (
+                                <ToggleLeft size={28} className="text-slate-300" />
+                            )}
+                            {formData.guest_properties?.allow_guest !== false ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                        </div>
+                    </button>
 
-                                    <div 
-                                        className={`flex items-center gap-2 p-3 border rounded-xl cursor-pointer transition-all duration-200 ${
-                                            formData.guest_properties?.require_school !== false 
-                                                ? 'bg-blue-50/10 border-blue-500/20 text-blue-600 font-semibold' 
-                                                : 'bg-slate-50/50 border-slate-200/40 text-slate-500 hover:bg-slate-100/50'
-                                        }`}
-                                        onClick={() => {
-                                            const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
-                                            updateField('guest_properties', { ...gp, require_school: !gp.require_school });
-                                        }}
-                                    >
-                                        <School className="mr-1.5" size={14} />
-                                        <span className="text-xs font-bold">학교 / 소속</span>
-                                    </div>
+                    {formData.guest_properties?.allow_guest !== false && (
+                        <div className="p-5 pt-3 border-t border-slate-100 bg-slate-50/40 space-y-3 animate-fade-in">
+                            <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">수집할 개인 정보 항목 선택</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <div className="flex items-center gap-2 p-3 bg-white border border-slate-200/60 rounded-xl opacity-70">
+                                    <User className="text-slate-400 shrink-0" size={15} />
+                                    <span className="text-xs font-bold text-slate-600">이름 (필수 수집)</span>
+                                </div>
 
-                                    <div 
-                                        className={`flex items-center gap-2 p-3 border rounded-xl cursor-pointer transition-all duration-200 ${
-                                            formData.guest_properties?.require_phone !== false 
-                                                ? 'bg-blue-50/10 border-blue-500/20 text-blue-600 font-semibold' 
-                                                : 'bg-slate-50/50 border-slate-200/40 text-slate-500 hover:bg-slate-100/50'
-                                        }`}
-                                        onClick={() => {
-                                            const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
-                                            updateField('guest_properties', { ...gp, require_phone: !gp.require_phone });
-                                        }}
-                                    >
-                                        <Smartphone className="mr-1.5" size={14} />
-                                        <span className="text-xs font-bold">연락처</span>
-                                    </div>
+                                <div 
+                                    className={`flex items-center gap-2 p-3 border rounded-xl cursor-pointer transition-all duration-200 ${
+                                        formData.guest_properties?.require_school !== false 
+                                            ? 'bg-blue-50/60 border-blue-400 text-blue-700 font-bold' 
+                                            : 'bg-white border-slate-200/60 text-slate-400 hover:bg-slate-50'
+                                    }`}
+                                    onClick={() => {
+                                        const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
+                                        updateField('guest_properties', { ...gp, require_school: !gp.require_school });
+                                    }}
+                                >
+                                    <School className="shrink-0" size={15} />
+                                    <span className="text-xs font-bold">학교 / 소속</span>
+                                </div>
+
+                                <div 
+                                    className={`flex items-center gap-2 p-3 border rounded-xl cursor-pointer transition-all duration-200 ${
+                                        formData.guest_properties?.require_phone !== false 
+                                            ? 'bg-blue-50/60 border-blue-400 text-blue-700 font-bold' 
+                                            : 'bg-white border-slate-200/60 text-slate-400 hover:bg-slate-50'
+                                    }`}
+                                    onClick={() => {
+                                        const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
+                                        updateField('guest_properties', { ...gp, require_phone: !gp.require_phone });
+                                    }}
+                                >
+                                    <Smartphone className="shrink-0" size={15} />
+                                    <span className="text-xs font-bold">연락처</span>
                                 </div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* 4. 지급 포인트 및 리뷰 설정 카드 */}
-            <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.015)] space-y-4">
-                <div className="flex items-center gap-2 pb-3 border-b border-slate-100/80">
-                    <Gift size={18} className="text-blue-600" />
-                    <span className="text-sm font-bold text-slate-800">지급 포인트 및 리뷰 설정</span>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-500 mb-1.5 ml-1 block">지급 포인트</label>
-                        <div className="relative h-11 flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all">
-                            <Gift className="absolute left-3.5 text-slate-400 shrink-0" size={15} />
-                            <input
-                                type="number"
-                                placeholder="단위: 하이픈 (지급 포인트)"
-                                min="0"
-                                value={formData.haifn_reward || ''}
-                                onChange={e => updateField('haifn_reward', e.target.value)}
-                                className="w-full h-full pl-10 pr-3.5 bg-transparent outline-none font-bold text-slate-800 text-xs"
-                            />
+            {/* 4. 지급 포인트 및 리뷰 설정 (아코디언 카드) */}
+            <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${
+                Number(formData.haifn_reward) > 0 ? 'border-blue-300 shadow-md' : 'border-slate-200/80 hover:border-slate-300'
+            }`}>
+                <button
+                    type="button"
+                    onClick={() => {
+                        const hasReward = Number(formData.haifn_reward) > 0;
+                        if (hasReward) {
+                            updateField('haifn_reward', 0);
+                            updateField('is_review_required', false);
+                            setOpenSections(prev => ({ ...prev, reward: false }));
+                        } else {
+                            updateField('haifn_reward', 5);
+                            setOpenSections(prev => ({ ...prev, reward: true }));
+                        }
+                    }}
+                    className="w-full p-4 sm:p-5 flex items-center justify-between bg-white hover:bg-slate-50/60 transition-colors cursor-pointer select-none"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl transition-colors ${
+                            Number(formData.haifn_reward) > 0 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                            <Gift size={18} />
                         </div>
-                        <p className="text-[11px] text-slate-400 font-medium mt-1.5 ml-1 block leading-normal">프로그램 참여 완료 시 학생에게 지급되는 HP(하이픈 포인트)입니다.</p>
+                        <div className="flex flex-col items-start text-left">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold text-slate-800">지급 포인트 및 리뷰 설정</span>
+                                <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border ${
+                                    Number(formData.haifn_reward) > 0 ? 'bg-blue-50 text-blue-600 border-blue-200/60' : 'bg-slate-100 text-slate-500 border-slate-200/60'
+                                }`}>
+                                    {Number(formData.haifn_reward) > 0 ? `${formData.haifn_reward} HP 지급 (활성화)` : '미사용 (비활성화)'}
+                                </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-medium mt-0.5">참여 완료 시 학생에게 포인트를 지급하고 후기를 수집합니다.</span>
+                        </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-500 mb-1.5 ml-1 block">후기 등록 조건</label>
-                        <div 
-                            className={`flex items-start gap-3 p-3.5 border rounded-2xl cursor-pointer select-none transition-all duration-200 ${
-                                formData.is_review_required 
-                                    ? 'bg-blue-50/10 border-blue-500/20 text-blue-600 shadow-[0_4px_12px_rgba(49,130,246,0.01)]' 
-                                    : 'bg-slate-50 border-slate-200/60 text-slate-500 hover:bg-slate-100/50'
-                            }`}
-                            onClick={() => updateField('is_review_required', !formData.is_review_required)}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={formData.is_review_required || false}
-                                onChange={() => {}} // handled by click wrapper
-                                className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5 shrink-0"
-                            />
-                            <div className="flex flex-col">
-                                <span className="text-xs font-bold text-slate-800">리뷰(인증후기) 필수 작성</span>
-                                <span className="text-[10px] font-semibold text-slate-400 mt-0.5">인증/후기가 완료되어야 포인트가 최종 지급됩니다.</span>
+                    <div className="flex items-center gap-3">
+                        {Number(formData.haifn_reward) > 0 ? (
+                            <ToggleRight size={28} className="text-blue-600" />
+                        ) : (
+                            <ToggleLeft size={28} className="text-slate-300" />
+                        )}
+                        {Number(formData.haifn_reward) > 0 ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                    </div>
+                </button>
+
+                {Number(formData.haifn_reward) > 0 && (
+                    <div className="p-5 pt-3 border-t border-slate-100 bg-slate-50/40 grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-600 mb-1.5 block">지급 포인트 (HP)</label>
+                            <div className="relative h-11 flex items-center bg-white border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 transition-all">
+                                <Gift className="absolute left-3.5 text-slate-400 shrink-0" size={15} />
+                                <input
+                                    type="number"
+                                    placeholder="단위: 하이픈 (지급 포인트)"
+                                    min="1"
+                                    value={formData.haifn_reward || ''}
+                                    onChange={e => updateField('haifn_reward', e.target.value)}
+                                    className="w-full h-full pl-10 pr-3.5 bg-transparent outline-none font-bold text-slate-800 text-xs"
+                                />
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium mt-1.5 block leading-normal">프로그램 참여 완료 시 지급되는 하이픈 포인트입니다.</p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-600 mb-1.5 block">후기 등록 조건</label>
+                            <div 
+                                className={`flex items-start gap-3 p-3.5 border rounded-2xl cursor-pointer select-none transition-all duration-200 ${
+                                    formData.is_review_required 
+                                        ? 'bg-blue-50/60 border-blue-400 text-blue-700' 
+                                        : 'bg-white border-slate-200/60 text-slate-500 hover:bg-slate-50'
+                                }`}
+                                onClick={() => updateField('is_review_required', !formData.is_review_required)}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={formData.is_review_required || false}
+                                    onChange={() => {}} // handled by click wrapper
+                                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5 shrink-0"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-slate-800">리뷰(인증후기) 필수 작성</span>
+                                    <span className="text-[10px] font-semibold text-slate-400 mt-0.5">인증/후기가 완료되어야 포인트가 최종 지급됩니다.</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* Host settings: conditionally visible for CENTER programs */}
+            {/* 5. 호스트 설정 (아코디언 카드) */}
             {(!formData.program_type || formData.program_type === 'CENTER') && (
-                <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.015)] space-y-4">
-                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100/80">
-                        <Users size={18} className="text-blue-600" />
-                        <span className="text-sm font-bold text-slate-800">호스트 설정</span>
-                    </div>
-
-                    <div className="space-y-4">
-                        {/* Dynamic Multi-Host Settings */}
-                        {(() => {
-                            const currentHosts = (formData.hosts && Array.isArray(formData.hosts)) && formData.hosts.length > 0
-                                ? formData.hosts
-                                : [{ host_id: formData.host_id || '', one_liner: formData.host_one_liner || '' }];
-                            return (
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                        {currentHosts.map((host, index) => (
-                                            <div key={index} className="bg-white border border-slate-200/60 rounded-2xl p-5 space-y-3.5 relative transition-all hover:border-blue-500/20 shadow-sm">
-                                                <div className="flex justify-between items-center pb-2 border-b border-slate-200/40">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-extrabold text-[11px] text-slate-500">호스트 #{index + 1}</span>
-                                                        <div className="flex gap-0.5">
-                                                            <button
-                                                                type="button"
-                                                                disabled={index === 0}
-                                                                onClick={() => {
-                                                                    if (index === 0) return;
-                                                                    const nextHosts = [...currentHosts];
-                                                                    const temp = nextHosts[index];
-                                                                    nextHosts[index] = nextHosts[index - 1];
-                                                                    nextHosts[index - 1] = temp;
-                                                                    updateField('hosts', nextHosts);
-                                                                }}
-                                                                className={`p-0.5 rounded hover:bg-slate-200/80 transition ${index === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500'}`}
-                                                                title="위로 이동"
-                                                            >
-                                                                <ChevronUp size={13} />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={index === currentHosts.length - 1}
-                                                                onClick={() => {
-                                                                    if (index === currentHosts.length - 1) return;
-                                                                    const nextHosts = [...currentHosts];
-                                                                    const temp = nextHosts[index];
-                                                                    nextHosts[index] = nextHosts[index + 1];
-                                                                    nextHosts[index + 1] = temp;
-                                                                    updateField('hosts', nextHosts);
-                                                                }}
-                                                                className={`p-0.5 rounded hover:bg-slate-200/80 transition ${index === currentHosts.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500'}`}
-                                                                title="아래로 이동"
-                                                            >
-                                                                <ChevronDown size={13} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    {currentHosts.length > 1 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const nextHosts = currentHosts.filter((_, i) => i !== index);
-                                                                updateField('hosts', nextHosts);
-                                                            }}
-                                                            className="text-[10px] font-black text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100/80 px-2 py-1 rounded-lg transition-colors"
-                                                        >
-                                                            삭제
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    {/* Host Selector */}
-                                                    <div className="flex flex-col gap-1">
-                                                        <label className="text-xs font-bold text-slate-500 mb-1.5 ml-1 block">호스트 지정</label>
-                                                        <div className="h-11 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3.5">
-                                                            <Users className="text-slate-400 shrink-0 mr-2" size={15} />
-                                                            <select
-                                                                value={host.host_id || ''}
-                                                                onChange={e => {
-                                                                    const nextHosts = [...currentHosts];
-                                                                    nextHosts[index] = { ...nextHosts[index], host_id: e.target.value };
-                                                                    updateField('hosts', nextHosts);
-                                                                }}
-                                                                className="w-full bg-transparent outline-none font-bold text-slate-800 text-xs cursor-pointer"
-                                                            >
-                                                                <option value="">호스트 선택</option>
-                                                                {admins.map(admin => {
-                                                                    const hasNoSchoolOrHaifn = !admin.school || admin.school === '더작은재단';
-                                                                    const optionText = hasNoSchoolOrHaifn ? admin.name : `${admin.name} (${admin.school})`;
-                                                                    return (
-                                                                        <option key={admin.id} value={admin.id}>
-                                                                            {optionText}
-                                                                        </option>
-                                                                    );
-                                                                })}
-                                                            </select>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Host One-liner */}
-                                                    <div className="flex flex-col gap-1">
-                                                        <label className="text-xs font-bold text-slate-500 mb-1.5 ml-1 block">호스트 한마디</label>
-                                                        <div className="h-11 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3.5">
-                                                            <MessageSquare className="text-slate-400 shrink-0 mr-2" size={15} />
-                                                            <input
-                                                                type="text"
-                                                                placeholder="호스트의 다짐이나 한마디를 입력해주세요."
-                                                                value={host.one_liner || ''}
-                                                                onChange={e => {
-                                                                    const nextHosts = [...currentHosts];
-                                                                    nextHosts[index] = { ...nextHosts[index], one_liner: e.target.value };
-                                                                    updateField('hosts', nextHosts);
-                                                                }}
-                                                                className="w-full bg-transparent outline-none font-bold text-slate-800 text-xs"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const nextHosts = [...currentHosts, { host_id: '', one_liner: '' }];
-                                            updateField('hosts', nextHosts);
-                                        }}
-                                        className="w-full py-3.5 border border-dashed border-slate-200 hover:border-blue-500 rounded-2xl font-bold text-slate-500 hover:text-blue-600 bg-slate-50/30 hover:bg-blue-50/5 transition-all text-xs flex items-center justify-center gap-1.5"
-                                    >
-                                        + 호스트 추가
-                                    </button>
+                <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${
+                    isHostActive ? 'border-blue-300 shadow-md' : 'border-slate-200/80 hover:border-slate-300'
+                }`}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const nextState = !isHostActive;
+                            if (!nextState) {
+                                if (Array.isArray(formData.hosts) && formData.hosts.length > 0) {
+                                    savedHostsRef.current = formData.hosts;
+                                }
+                                updateField('enable_hosts', false);
+                            } else {
+                                updateField('enable_hosts', true);
+                                const hostsToRestore = (savedHostsRef.current && Array.isArray(savedHostsRef.current) && savedHostsRef.current.length > 0)
+                                    ? savedHostsRef.current
+                                    : [{ host_id: formData.host_id || '', one_liner: formData.host_one_liner || '' }];
+                                updateField('hosts', hostsToRestore);
+                                if (hostsToRestore[0]?.host_id) {
+                                    updateField('host_id', hostsToRestore[0].host_id);
+                                    updateField('host_one_liner', hostsToRestore[0].one_liner || '');
+                                }
+                            }
+                        }}
+                        className="w-full p-4 sm:p-5 flex items-center justify-between bg-white hover:bg-slate-50/60 transition-colors cursor-pointer select-none"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-xl transition-colors ${
+                                isHostActive ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
+                            }`}>
+                                <Users size={18} />
+                            </div>
+                            <div className="flex flex-col items-start text-left">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-bold text-slate-800">호스트(진행자) 설정</span>
+                                    <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border ${
+                                        isHostActive ? 'bg-blue-50 text-blue-600 border-blue-200/60' : 'bg-slate-100 text-slate-500 border-slate-200/60'
+                                    }`}>
+                                        {isHostActive ? '호스트 지정 (활성화)' : '미사용 (비활성화)'}
+                                    </span>
                                 </div>
-                            );
-                        })()}
-                    </div>
-                    <p className="text-[11px] text-slate-400 font-medium ml-1">
-                        센터 프로그램으로 진행할 때 해당 프로그램을 책임지고 운영할 호스트를 설정합니다.
-                    </p>
+                                <span className="text-[11px] text-slate-400 font-medium mt-0.5">프로그램을 담당하여 진행할 전담 호스트를 지정합니다.</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {isHostActive ? (
+                                <ToggleRight size={28} className="text-blue-600" />
+                            ) : (
+                                <ToggleLeft size={28} className="text-slate-300" />
+                            )}
+                            {isHostActive ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                        </div>
+                    </button>
+
+                    {isHostActive && (
+                        <div className="p-5 pt-3 border-t border-slate-100 bg-slate-50/40 space-y-4 animate-fade-in">
+                            {(() => {
+                                const currentHosts = (formData.hosts && Array.isArray(formData.hosts)) && formData.hosts.length > 0
+                                    ? formData.hosts
+                                    : [{ host_id: formData.host_id || '', one_liner: formData.host_one_liner || '' }];
+                                return (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                            {currentHosts.map((host, index) => (
+                                                <div key={index} className="bg-white border border-slate-200/60 rounded-xl p-4 space-y-3 relative transition-all hover:border-blue-400 shadow-sm">
+                                                    <div className="flex justify-between items-center pb-2 border-b border-slate-200/40">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-extrabold text-[11px] text-slate-500">호스트 #{index + 1}</span>
+                                                            <div className="flex gap-0.5">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={index === 0}
+                                                                    onClick={() => {
+                                                                        if (index === 0) return;
+                                                                        const nextHosts = [...currentHosts];
+                                                                        const temp = nextHosts[index];
+                                                                        nextHosts[index] = nextHosts[index - 1];
+                                                                        nextHosts[index - 1] = temp;
+                                                                        updateField('hosts', nextHosts);
+                                                                    }}
+                                                                    className={`p-0.5 rounded hover:bg-slate-200/80 transition ${index === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500'}`}
+                                                                    title="위로 이동"
+                                                                >
+                                                                    <ChevronUp size={13} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={index === currentHosts.length - 1}
+                                                                    onClick={() => {
+                                                                        if (index === currentHosts.length - 1) return;
+                                                                        const nextHosts = [...currentHosts];
+                                                                        const temp = nextHosts[index];
+                                                                        nextHosts[index] = nextHosts[index + 1];
+                                                                        nextHosts[index + 1] = temp;
+                                                                        updateField('hosts', nextHosts);
+                                                                    }}
+                                                                    className={`p-0.5 rounded hover:bg-slate-200/80 transition ${index === currentHosts.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500'}`}
+                                                                    title="아래로 이동"
+                                                                >
+                                                                    <ChevronDown size={13} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        {currentHosts.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const nextHosts = currentHosts.filter((_, i) => i !== index);
+                                                                    updateField('hosts', nextHosts);
+                                                                    if (nextHosts[0]?.host_id) {
+                                                                        updateField('host_id', nextHosts[0].host_id);
+                                                                        updateField('host_one_liner', nextHosts[0].one_liner || '');
+                                                                    }
+                                                                }}
+                                                                className="text-[10px] font-black text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100/80 px-2 py-1 rounded-lg transition-colors"
+                                                            >
+                                                                삭제
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="space-y-3">
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-xs font-bold text-slate-500 mb-1 block">호스트 지정</label>
+                                                            <div className="h-10 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                                                <Users className="text-slate-400 shrink-0 mr-2" size={14} />
+                                                                <select
+                                                                    value={host.host_id || ''}
+                                                                    onChange={e => {
+                                                                        const nextHosts = [...currentHosts];
+                                                                        nextHosts[index] = { ...nextHosts[index], host_id: e.target.value };
+                                                                        updateField('hosts', nextHosts);
+                                                                        updateField('host_id', nextHosts[0]?.host_id || '');
+                                                                        updateField('host_one_liner', nextHosts[0]?.one_liner || '');
+                                                                    }}
+                                                                    className="w-full bg-transparent outline-none font-bold text-slate-800 text-xs cursor-pointer"
+                                                                >
+                                                                    <option value="">호스트 선택</option>
+                                                                    {(() => {
+                                                                        const selectedInOtherCards = currentHosts
+                                                                            .filter((_, i) => i !== index)
+                                                                            .map(h => h.host_id)
+                                                                            .filter(Boolean);
+                                                                        const availableAdmins = admins.filter(a => !selectedInOtherCards.includes(a.id));
+                                                                        return availableAdmins.map(admin => {
+                                                                            const hasNoSchoolOrHaifn = !admin.school || admin.school === '더작은재단';
+                                                                            const optionText = hasNoSchoolOrHaifn ? admin.name : `${admin.name} (${admin.school})`;
+                                                                            return (
+                                                                                <option key={admin.id} value={admin.id}>
+                                                                                    {optionText}
+                                                                                </option>
+                                                                            );
+                                                                        });
+                                                                    })()}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-xs font-bold text-slate-500 mb-1 block">호스트 한마디</label>
+                                                            <div className="h-10 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                                                <MessageSquare className="text-slate-400 shrink-0 mr-2" size={14} />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="호스트의 다짐이나 한마디를 입력해주세요."
+                                                                    value={host.one_liner || ''}
+                                                                    onChange={e => {
+                                                                        const nextHosts = [...currentHosts];
+                                                                        nextHosts[index] = { ...nextHosts[index], one_liner: e.target.value };
+                                                                        updateField('hosts', nextHosts);
+                                                                        updateField('host_one_liner', nextHosts[0]?.one_liner || '');
+                                                                    }}
+                                                                    className="w-full bg-transparent outline-none font-bold text-slate-800 text-xs"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const nextHosts = [...currentHosts, { host_id: '', one_liner: '' }];
+                                                updateField('hosts', nextHosts);
+                                            }}
+                                            className="w-full py-3 border border-dashed border-slate-200 hover:border-blue-500 rounded-xl font-bold text-slate-500 hover:text-blue-600 bg-white hover:bg-blue-50/20 transition-all text-xs flex items-center justify-center gap-1.5"
+                                        >
+                                            + 호스트 추가
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    )}
                 </div>
             )}
 
             {/* 6. 챌린지 미션 설정 카드 */}
             {formData.is_challenge && (
-                <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.015)] space-y-4">
-                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100/80">
+                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                         <Target size={18} className="text-blue-600" />
                         <span className="text-sm font-bold text-slate-800">챌린지 미션 설정</span>
                     </div>
@@ -937,7 +1076,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                             {(formData.challenge_missions || []).map((mission, index) => {
                                 const showCustomLoc = mission.location_type === 'custom' || (!['', '이높플레이스', ...HAIFN_DETAILS.map(d => `하이픈 ${d}`)].includes(mission.location) && mission.location);
                                 return (
-                                    <div key={mission.id || index} className="bg-white border border-slate-200/60 rounded-2xl p-5 space-y-3.5 relative transition-all hover:border-blue-500/20 shadow-sm animate-fade-in">
+                                    <div key={mission.id || index} className="bg-white border border-slate-200/60 rounded-xl p-4 space-y-3 relative transition-all hover:border-blue-400 shadow-sm animate-fade-in">
                                         <div className="flex justify-between items-center pb-2 border-b border-slate-200/40">
                                             <span className="font-extrabold text-xs text-slate-600">미션 {index + 1}</span>
                                             <button
@@ -952,12 +1091,11 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                             </button>
                                         </div>
 
-                                        <div className="space-y-3.5">
-                                            {/* Title */}
+                                        <div className="space-y-3">
                                             <div className="flex flex-col gap-1">
-                                                <label className="text-xs font-bold text-slate-500 mb-1.5 ml-1 block">미션명</label>
-                                                <div className="h-11 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3.5">
-                                                    <Bookmark className="text-slate-400 shrink-0 mr-2" size={15} />
+                                                <label className="text-xs font-bold text-slate-500 mb-1 block">미션명</label>
+                                                <div className="h-10 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                                    <Bookmark className="text-slate-400 shrink-0 mr-2" size={14} />
                                                     <input
                                                         type="text"
                                                         placeholder="예: 보드게임 참여하기"
@@ -967,44 +1105,42 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                             updated[index] = { ...updated[index], title: e.target.value };
                                                             updateField('challenge_missions', updated);
                                                         }}
-                                                        className="w-full bg-transparent outline-none font-bold text-slate-800 text-xs placeholder:text-slate-400"
-                                                        required
+                                                        className="w-full bg-transparent outline-none font-bold text-slate-800 text-xs"
                                                     />
                                                 </div>
                                             </div>
 
-                                            {/* Location */}
                                             <div className="flex flex-col gap-1">
-                                                <label className="text-xs font-bold text-slate-500 mb-1.5 ml-1 block">진행 장소</label>
+                                                <label className="text-xs font-bold text-slate-500 mb-1 block">수행 장소</label>
                                                 <div className="flex flex-col sm:flex-row gap-2">
-                                                    <div className="flex-1 h-11 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3.5">
-                                                        <MapPin className="text-slate-400 shrink-0 mr-2" size={15} />
+                                                    <div className="flex-1 h-10 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                                        <MapPin className="text-slate-400 shrink-0 mr-2" size={14} />
                                                         <select
-                                                            value={mission.location_type || (mission.location ? (mission.location === '이높플레이스' || HAIFN_DETAILS.some(d => `하이픈 ${d}`) ? mission.location : 'custom') : '')}
+                                                            value={mission.location_type || (HAIFN_DETAILS.map(d => `하이픈 ${d}`).includes(mission.location) ? '하이픈' : (mission.location === '이높플레이스' ? '이높플레이스' : (mission.location ? 'custom' : '')))}
                                                             onChange={(e) => {
-                                                                const val = e.target.value;
+                                                                const type = e.target.value;
                                                                 const updated = [...(formData.challenge_missions || [])];
-                                                                updated[index] = { 
-                                                                    ...updated[index], 
-                                                                    location_type: val,
-                                                                    location: val === 'custom' ? '' : val 
-                                                                };
+                                                                if (type === '하이픈') {
+                                                                    updated[index] = { ...updated[index], location_type: '하이픈', location: '하이픈 B1F STAGE' };
+                                                                } else if (type === '이높플레이스') {
+                                                                    updated[index] = { ...updated[index], location_type: '이높플레이스', location: '이높플레이스' };
+                                                                } else {
+                                                                    updated[index] = { ...updated[index], location_type: 'custom', location: '' };
+                                                                }
                                                                 updateField('challenge_missions', updated);
                                                             }}
                                                             className="w-full bg-transparent outline-none font-bold text-slate-800 text-xs cursor-pointer appearance-none"
                                                         >
-                                                            <option value="">장소 선택 안함</option>
-                                                            {HAIFN_DETAILS.map(d => (
-                                                                <option key={d} value={`하이픈 ${d}`}>하이픈 {d}</option>
-                                                            ))}
+                                                            <option value="">장소 선택</option>
+                                                            <option value="하이픈">하이픈 (센터)</option>
                                                             <option value="이높플레이스">이높플레이스</option>
                                                             <option value="custom">기타 (직접 입력)</option>
                                                         </select>
                                                     </div>
 
                                                     {(mission.location_type === 'custom' || showCustomLoc) && (
-                                                        <div className="flex-1 h-11 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3.5">
-                                                            <MapPin className="text-slate-400 shrink-0 mr-2" size={15} />
+                                                        <div className="flex-1 h-10 relative flex items-center bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all px-3">
+                                                            <MapPin className="text-slate-400 shrink-0 mr-2" size={14} />
                                                             <input
                                                                 type="text"
                                                                 placeholder="예: 센터 외부"
@@ -1021,9 +1157,8 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                 </div>
                                             </div>
 
-                                            {/* Description */}
                                             <div className="flex flex-col gap-1">
-                                                <label className="text-xs font-bold text-slate-500 mb-1.5 ml-1 block">세부 내용</label>
+                                                <label className="text-xs font-bold text-slate-500 mb-1 block">세부 내용</label>
                                                 <textarea
                                                     placeholder="미션 수행을 위한 상세 가이드를 적어주세요 (옵션)"
                                                     value={mission.description || ''}
@@ -1048,7 +1183,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                 const newMission = { id: `m-${Date.now()}-${Math.random()}`, title: '' };
                                 updateField('challenge_missions', [...(formData.challenge_missions || []), newMission]);
                             }}
-                            className="w-full py-3.5 bg-slate-50 border border-dashed border-slate-200 hover:border-blue-500 rounded-2xl font-bold text-slate-500 hover:text-blue-600 transition-all text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                            className="w-full py-3 bg-slate-50 border border-dashed border-slate-200 hover:border-blue-500 rounded-xl font-bold text-slate-500 hover:text-blue-600 transition-all text-xs flex items-center justify-center gap-1.5 shadow-sm"
                         >
                             + 미션 추가
                         </button>
@@ -1060,27 +1195,251 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                             <textarea
                                 value={formData.challenge_success_message || ''}
                                 onChange={e => updateField('challenge_success_message', e.target.value)}
-                                placeholder="축하합니다! 모든 미션을 완료하여 챌린지를 성공적으로 마치셨습니다! (완료 시 팝업 창에 표시됩니다.)"
+                                placeholder="축하합니다! 모든 미션을 완료하여 챌린지를 성공적으로 마치셨습니다!"
                                 className="w-full h-20 bg-transparent outline-none font-bold text-slate-800 text-xs resize-none"
                             />
                         </div>
-                        <p className="text-[10px] text-slate-400 font-medium">참여자가 모든 챌린지 미션 인증을 성공했을 때 화면에 노출되는 축하 팝업 메시지 내용입니다.</p>
-                    </div>
-
-                    <div className="pt-2 flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            id="challenge_show_hyphen_btn"
-                            checked={formData.challenge_show_hyphen_btn || false}
-                            onChange={e => updateField('challenge_show_hyphen_btn', e.target.checked)}
-                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
-                        />
-                        <label htmlFor="challenge_show_hyphen_btn" className="text-xs font-bold text-slate-600 cursor-pointer select-none">
-                            성공 팝업 창에 '하이픈 등록' 버튼 노출하기 (게스트 참여자 대상)
-                        </label>
                     </div>
                 </div>
             )}
+
+            {/* 7. 신청자 전용 맞춤 버튼 및 팝업 설정 (아코디언 카드) */}
+            <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${
+                formData.enable_post_program_button ? 'border-blue-300 shadow-md' : 'border-slate-200/80 hover:border-slate-300'
+            }`}>
+                <button
+                    type="button"
+                    onClick={() => {
+                        const nextState = !formData.enable_post_program_button;
+                        updateField('enable_post_program_button', nextState);
+                    }}
+                    className="w-full p-4 sm:p-5 flex items-center justify-between bg-white hover:bg-slate-50/60 transition-colors cursor-pointer select-none"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl transition-colors ${
+                            formData.enable_post_program_button ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                            <Sparkles size={18} />
+                        </div>
+                        <div className="flex flex-col items-start text-left">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold text-slate-800">신청자 전용 맞춤 버튼 및 팝업 설정</span>
+                                <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border ${
+                                    formData.enable_post_program_button ? 'bg-blue-50 text-blue-600 border-blue-200/60' : 'bg-slate-100 text-slate-500 border-slate-200/60'
+                                }`}>
+                                    {formData.enable_post_program_button ? '맞춤 버튼 사용 (활성화)' : '미사용 (비활성화)'}
+                                </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-medium mt-0.5">종료 또는 시작 시점에 신청자에게 노출될 맞춤 버튼을 설정합니다.</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {formData.enable_post_program_button ? (
+                            <ToggleRight size={28} className="text-blue-600" />
+                        ) : (
+                            <ToggleLeft size={28} className="text-slate-300" />
+                        )}
+                        {formData.enable_post_program_button ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                    </div>
+                </button>
+
+                {formData.enable_post_program_button && (
+                    <div className="p-5 pt-3 border-t border-slate-100 bg-slate-50/40 space-y-4 animate-fade-in">
+                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                            지정한 시점이 지난 후, 해당 프로그램을 신청했던 참가자들에게 노출될 맞춤 버튼 이름과 클릭 시 표시될 팝업 내용/링크를 작성할 수 있습니다.
+                        </p>
+
+                        <div className="bg-white p-3.5 rounded-xl border border-slate-200/60 space-y-1.5">
+                            <label className="text-[11px] font-bold text-slate-600 block">버튼 활성화 시점 선택</label>
+                            <div className="flex flex-wrap gap-4 text-xs font-bold text-slate-700">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="post_program_button_trigger"
+                                        value="start_time"
+                                        checked={(formData.post_program_button_trigger || 'start_time') === 'start_time'}
+                                        onChange={e => updateField('post_program_button_trigger', e.target.value)}
+                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <span>프로그램 시작 시간 기준</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="post_program_button_trigger"
+                                        value="end_time"
+                                        checked={formData.post_program_button_trigger === 'end_time'}
+                                        onChange={e => updateField('post_program_button_trigger', e.target.value)}
+                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <span>프로그램 종료/마감 시간 기준</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-bold text-slate-600">버튼 이름 (선택)</label>
+                                    <span className="text-[10px] font-semibold text-blue-600">
+                                        {(() => {
+                                            if (formData.post_program_button_name?.trim()) return '직접 입력한 이름 사용';
+                                            const hasGroup = formData.enable_group_assignment;
+                                            const hasQ = formData.enable_random_questions && formData.random_questions?.length > 0;
+                                            if (hasGroup && hasQ) return '자동 설정: "조 배치 & 아이스브레이킹 🎲"';
+                                            if (hasGroup) return '자동 설정: "나의 조 배치 확인 👥"';
+                                            if (hasQ) return '자동 설정: "아이스브레이킹 질문 🎲"';
+                                            return '미입력 시 "프로그램 안내"로 노출';
+                                        })()}
+                                    </span>
+                                </div>
+                                <input
+                                    type="text"
+                                    value={formData.post_program_button_name || ''}
+                                    onChange={e => updateField('post_program_button_name', e.target.value)}
+                                    placeholder="비워두면 하단에서 선택한 기능(조 배치, 질문 등)에 맞게 자동 명명됩니다."
+                                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200/60 rounded-xl outline-none font-bold text-slate-800 text-xs focus:border-blue-600 transition-all placeholder:text-slate-400"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 mb-1 block">버튼 클릭 시 나타날 팝업 내용</label>
+                                <textarea
+                                    value={formData.post_program_button_content || ''}
+                                    onChange={e => updateField('post_program_button_content', e.target.value)}
+                                    placeholder="버튼을 눌렀을 때 학생들에게 전달할 안내 문구나 메시지를 입력하세요."
+                                    rows={3}
+                                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200/60 rounded-xl outline-none font-bold text-slate-800 text-xs focus:border-blue-600 transition-all resize-none placeholder:text-slate-400"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 mb-1 block">연결할 외부 링크 (옵션)</label>
+                                <input
+                                    type="text"
+                                    value={formData.post_program_button_link || ''}
+                                    onChange={e => updateField('post_program_button_link', e.target.value)}
+                                    placeholder="예: https://forms.google.com/... (링크 입력 시 팝업 창에 바로가기 버튼이 노출됩니다)"
+                                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200/60 rounded-xl outline-none font-bold text-slate-800 text-xs focus:border-blue-600 transition-all placeholder:text-slate-400"
+                                />
+                            </div>
+                        </div>
+
+                        {/* 조 배치 설정 카드 */}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200/60 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Users size={16} className="text-blue-600" />
+                                    <span className="text-xs font-bold text-slate-800">랜덤 팀 배치</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => updateField('enable_group_assignment', !formData.enable_group_assignment)}
+                                    className="cursor-pointer"
+                                >
+                                    {formData.enable_group_assignment ? (
+                                        <ToggleRight size={24} className="text-blue-600" />
+                                    ) : (
+                                        <ToggleLeft size={24} className="text-slate-300" />
+                                    )}
+                                </button>
+                            </div>
+
+                            {formData.enable_group_assignment && (
+                                <div className="pt-2 border-t border-slate-100 space-y-2.5 animate-fade-in">
+                                    <p className="text-[11px] text-slate-400 font-medium">
+                                        신청자들이 팝업을 열었을 때 본인의 조 배치 정보(예: 2조)를 확인할 수 있도록 안내합니다.
+                                    </p>
+                                    <div className="flex items-center gap-3">
+                                        <label className="text-xs font-bold text-slate-600 shrink-0">총 조 개수 설정:</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="50"
+                                            value={formData.group_count || 4}
+                                            onChange={e => updateField('group_count', parseInt(e.target.value) || 1)}
+                                            className="w-24 px-3 py-1.5 bg-slate-50 border border-slate-200/60 rounded-lg outline-none font-bold text-slate-800 text-xs focus:border-blue-600"
+                                        />
+                                        <span className="text-xs font-bold text-slate-500">개 조 (무작위 랜덤 균등 자동 배치됩니다)</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 랜덤 질문 설정 카드 */}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200/60 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Dices size={16} className="text-blue-600" />
+                                    <span className="text-xs font-bold text-slate-800">랜덤 질문</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => updateField('enable_random_questions', !formData.enable_random_questions)}
+                                    className="cursor-pointer"
+                                >
+                                    {formData.enable_random_questions ? (
+                                        <ToggleRight size={24} className="text-blue-600" />
+                                    ) : (
+                                        <ToggleLeft size={24} className="text-slate-300" />
+                                    )}
+                                </button>
+                            </div>
+
+                            {formData.enable_random_questions && (
+                                <div className="pt-2 border-t border-slate-100 space-y-3 animate-fade-in">
+                                    <p className="text-[11px] text-slate-400 font-medium">
+                                        팝업 모달에 '🎲 다른 질문 뽑기' 버튼이 노출되며 아래 등록한 질문들이 무작위로 나타납니다.
+                                    </p>
+                                    
+                                    {/* 질문 목록 */}
+                                    <div className="space-y-2">
+                                        {(formData.random_questions || []).map((q, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200/40">
+                                                <span className="text-xs font-bold text-blue-600 shrink-0 w-6 text-center">Q{idx + 1}.</span>
+                                                <input
+                                                    type="text"
+                                                    value={q}
+                                                    onChange={e => {
+                                                        const updated = [...(formData.random_questions || [])];
+                                                        updated[idx] = e.target.value;
+                                                        updateField('random_questions', updated);
+                                                    }}
+                                                    placeholder="신규 질문을 입력하세요"
+                                                    className="w-full bg-transparent outline-none text-xs font-bold text-slate-800 placeholder:text-slate-400 placeholder:font-normal"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const updated = (formData.random_questions || []).filter((_, i) => i !== idx);
+                                                        updateField('random_questions', updated);
+                                                    }}
+                                                    className="text-[10px] font-black text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition-colors shrink-0"
+                                                >
+                                                    삭제
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* 질문 추가 버튼 */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const updated = [...(formData.random_questions || []), ''];
+                                            updateField('random_questions', updated);
+                                        }}
+                                        className="w-full py-2 bg-slate-50 hover:bg-blue-50/20 border border-dashed border-slate-200 hover:border-blue-400 rounded-xl font-bold text-slate-500 hover:text-blue-600 transition-all text-xs flex items-center justify-center gap-1"
+                                    >
+                                        + 질문 추가하기
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

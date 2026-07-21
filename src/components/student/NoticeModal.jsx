@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles, XCircle } from 'lucide-react';
+import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles, XCircle, ExternalLink, Dices, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../supabaseClient';
 import ModernEditor from '../common/ModernEditor';
@@ -24,6 +24,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     const introRef = React.useRef(null);
     const hostRef = React.useRef(null);
     const [activeTab, setActiveTab] = useState('intro');
+    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
     // Challenge States
     const [challengeParticipants, setChallengeParticipants] = useState([]);
@@ -31,6 +32,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     const [selectedMissionForDetail, setSelectedMissionForDetail] = useState(null);
     const [showSuccessPopup, setShowSuccessPopup] = useState(false);
     const [selectedParticipantForMissions, setSelectedParticipantForMissions] = useState(null);
+    const [showPostProgramPopup, setShowPostProgramPopup] = useState(false);
 
     const scrollToSection = (section) => {
         setActiveTab(section);
@@ -945,8 +947,126 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                      </div>
                  );
              })()}
-         </motion.div>
-     );
- };
+            {/* Post-Program Custom Popup Modal */}
+            {showPostProgramPopup && (
+                <div 
+                    className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in"
+                    onClick={() => setShowPostProgramPopup(false)}
+                >
+                    <div 
+                        className="bg-white w-full max-w-md rounded-[2rem] p-6 shadow-2xl space-y-4 animate-scale-up border border-tossGrey100"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center pb-3 border-b border-tossGrey100">
+                            <h3 className="font-extrabold text-tossGrey900 text-base flex items-center gap-2">
+                                <Sparkles className="text-blue-600" size={18} />
+                                <span>{(() => {
+                                    if ((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim()) return (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name);
+                                    const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
+                                    const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;
+                                    if (hasGroup && hasQ) return '조 배치 & 아이스브레이킹';
+                                    if (hasGroup) return '나의 조 배치 확인';
+                                    if (hasQ) return '아이스브레이킹 질문';
+                                    return '프로그램 맞춤 안내';
+                                })()}</span>
+                            </h3>
+                            <button 
+                                onClick={() => setShowPostProgramPopup(false)}
+                                className="p-1 text-tossGrey400 hover:text-tossGrey700 rounded-full transition-colors cursor-pointer"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
 
- export default NoticeModal;
+                        <div className="py-1 text-sm text-tossGrey800 font-medium whitespace-pre-wrap leading-relaxed max-h-[35vh] overflow-y-auto">
+                            {(notice.guest_properties?.post_program_button_content ?? notice.post_program_button_content) || '프로그램에 참여해 주셔서 감사합니다! 만족스러운 시간이 되었기를 바랍니다.'}
+                        </div>
+
+                        {/* 조 배치 안내 카드 */}
+                        {(notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment) && (
+                            <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-4 space-y-2 animate-fade-in">
+                                <div className="flex items-center gap-2 text-blue-700 font-extrabold text-xs">
+                                    <Users size={16} />
+                                    <span>나의 조 배치 정보</span>
+                                </div>
+                                <div className="py-2.5 px-3 bg-white rounded-xl border border-blue-100 shadow-sm text-center">
+                                    <span className="text-[11px] font-bold text-slate-400 block">참가자 배치 결과</span>
+                                    {(() => {
+                                        const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || '참가자';
+                                        const userId = user?.id || userName;
+                                        const noticeId = notice?.id || 'notice';
+                                        const groupCount = (notice.guest_properties?.group_count ?? notice.group_count) || 4;
+                                        
+                                        // Scrambled Hash for true randomized & balanced group allocation
+                                        const seedStr = `${noticeId}_${userId}`;
+                                        let hash = 0;
+                                        for (let i = 0; i < seedStr.length; i++) {
+                                            hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+                                            hash |= 0;
+                                        }
+                                        const groupNum = (Math.abs(hash) % groupCount) + 1;
+                                        return (
+                                            <span className="text-base font-extrabold text-blue-600 mt-0.5 block">
+                                                🎉 <strong className="underline decoration-blue-300 decoration-2">{userName}</strong> 님은 <strong className="text-lg text-blue-700">[{groupNum}조]</strong>에 배치되었습니다!
+                                            </span>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 랜덤 아이스브레이킹 질문 카드 */}
+                        {(notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && ((notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0) && (
+                            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 space-y-2.5 animate-fade-in">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
+                                        <Dices size={16} className="text-amber-600" />
+                                        <span>조원들과 공유할 아이스브레이킹 질문</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const qList = (notice.guest_properties?.random_questions ?? notice.random_questions);
+                                            const nextIdx = Math.floor(Math.random() * qList.length);
+                                            setCurrentQuestionIndex(nextIdx);
+                                        }}
+                                        className="text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-100/80 hover:bg-amber-200/80 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <RefreshCw size={12} />
+                                        <span>질문 뽑기 🎲</span>
+                                    </button>
+                                </div>
+                                <div className="p-3 bg-white rounded-xl border border-amber-100/80 shadow-sm text-center">
+                                    <p className="text-xs font-bold text-slate-800 leading-relaxed">
+                                        "{(notice.guest_properties?.random_questions ?? notice.random_questions)[currentQuestionIndex % (notice.guest_properties?.random_questions ?? notice.random_questions).length]}"
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {(notice.guest_properties?.post_program_button_link ?? notice.post_program_button_link) && (
+                            <a
+                                href={(notice.guest_properties?.post_program_button_link ?? notice.post_program_button_link)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-toss-xl flex items-center justify-center gap-2 transition shadow-md text-sm"
+                            >
+                                <span>바로가기</span>
+                                <ExternalLink size={16} />
+                            </a>
+                        )}
+
+                        <button
+                            onClick={() => setShowPostProgramPopup(false)}
+                            className="w-full py-3 bg-tossGrey100 hover:bg-tossGrey200 text-tossGrey700 font-bold rounded-toss-xl transition text-sm cursor-pointer"
+                        >
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            )}
+        </motion.div>
+    );
+};
+
+export default NoticeModal;

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { X, Calendar, MapPin, Clock, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import useModalClose from '../../../hooks/useModalClose';
 
 const RentalBookingModal = ({ user, rental, bookings, onClose, onSuccess }) => {
+    useModalClose(!!rental, onClose);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedSlot, setSelectedSlot] = useState({ start: '10:00', end: '12:00' });
     const [meetingName, setMeetingName] = useState('');

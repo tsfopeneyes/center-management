@@ -2,8 +2,10 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import useModalClose from '../../../hooks/useModalClose';
 
 const QRModal = ({ user, setShowEnlargedQr }) => {
+    useModalClose(true, () => setShowEnlargedQr(false));
     return (
                     <motion.div
                         key="enlarged-qr"

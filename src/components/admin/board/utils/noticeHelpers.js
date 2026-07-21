@@ -119,15 +119,29 @@ export const prepareNoticeForEdit = (notice) => {
         program_start_date: notice.program_start_date ? formatToLocalISO(notice.program_start_date).split('T')[0] : '',
         program_end_date: notice.program_end_date ? formatToLocalISO(notice.program_end_date).split('T')[0] : '',
         program_days: notice.program_days || [],
+        enable_hosts: Boolean(Array.isArray(notice.hosts) && notice.hosts.some(h => h && h.host_id)),
         host_id: notice.host_id || '',
         host_ids: notice.host_ids || (notice.host_id ? [notice.host_id] : []),
-        hosts: notice.hosts || (notice.host_id ? [{ host_id: notice.host_id, one_liner: notice.host_one_liner }] : []),
+        hosts: (Array.isArray(notice.hosts) && notice.hosts.some(h => h && h.host_id))
+            ? notice.hosts
+            : ((Array.isArray(notice.guest_properties?.cached_hosts) && notice.guest_properties.cached_hosts.length > 0)
+                ? notice.guest_properties.cached_hosts
+                : (notice.host_id ? [{ host_id: notice.host_id, one_liner: notice.host_one_liner }] : [])),
         host_one_liner: notice.host_one_liner || '',
         is_private: notice.is_private || false,
         is_challenge: notice.is_challenge || false,
         challenge_missions: notice.challenge_missions || [],
         challenge_success_message: notice.challenge_success_message || '',
         challenge_show_hyphen_btn: notice.challenge_show_hyphen_btn || false,
-        guest_properties: notice.guest_properties || { allow_guest: true, require_school: true, require_phone: true }
+        guest_properties: notice.guest_properties || { allow_guest: true, require_school: true, require_phone: true },
+        enable_post_program_button: notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button ?? false,
+        post_program_button_trigger: notice.guest_properties?.post_program_button_trigger ?? notice.post_program_button_trigger ?? 'start_time',
+        post_program_button_name: notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name ?? '',
+        post_program_button_content: notice.guest_properties?.post_program_button_content ?? notice.post_program_button_content ?? '',
+        post_program_button_link: notice.guest_properties?.post_program_button_link ?? notice.post_program_button_link ?? '',
+        enable_group_assignment: notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment ?? false,
+        group_count: notice.guest_properties?.group_count ?? notice.group_count ?? 4,
+        enable_random_questions: notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions ?? false,
+        random_questions: notice.guest_properties?.random_questions ?? notice.random_questions ?? []
     };
 };

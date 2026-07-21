@@ -35,7 +35,21 @@ const INITIAL_NOTICE_STATE = {
     host_ids: [],
     hosts: [],
     host_one_liner: '',
-    guest_properties: { allow_guest: true, require_school: true, require_phone: true }
+    guest_properties: { allow_guest: true, require_school: true, require_phone: true },
+    enable_post_program_button: false,
+    post_program_button_trigger: 'start_time',
+    post_program_button_name: '',
+    post_program_button_content: '',
+    post_program_button_link: '',
+    enable_group_assignment: false,
+    group_count: 4,
+    group_assignments: {},
+    enable_random_questions: false,
+    random_questions: [
+        '오늘 가장 기분 좋았던 일은 무엇인가요?',
+        '가장 좋아하는 음식과 그 이유는?',
+        '오늘 함께하는 조원들에게 바라는 점은?'
+    ]
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {

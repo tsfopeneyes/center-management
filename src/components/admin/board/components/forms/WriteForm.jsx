@@ -188,8 +188,10 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 
                 noticeData.program_type = formData.program_type;
                 
-                const isCenter = formData.program_type === 'CENTER';
-                const activeHosts = isCenter ? (formData.hosts || []).filter(h => h.host_id) : [];
+                const isCenter = !formData.program_type || formData.program_type === 'CENTER';
+                const isHostEnabled = formData.enable_hosts === true;
+                const allConfiguredHosts = (formData.hosts || []).filter(h => h && h.host_id);
+                const activeHosts = (isCenter && isHostEnabled) ? allConfiguredHosts : [];
                 
                 noticeData.hosts = activeHosts;
                 noticeData.host_id = activeHosts[0]?.host_id || null;
@@ -204,7 +206,21 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.challenge_missions = formData.challenge_missions || [];
                 noticeData.challenge_success_message = formData.challenge_success_message || '';
                 noticeData.challenge_show_hyphen_btn = formData.challenge_show_hyphen_btn || false;
-                noticeData.guest_properties = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
+                const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
+                const configuredHosts = (formData.hosts || []).filter(h => h && h.host_id);
+                noticeData.guest_properties = {
+                    ...gp,
+                    cached_hosts: configuredHosts.length > 0 ? configuredHosts : (gp.cached_hosts || []),
+                    enable_post_program_button: formData.enable_post_program_button || false,
+                    post_program_button_trigger: formData.post_program_button_trigger || 'start_time',
+                    post_program_button_name: formData.post_program_button_name || '',
+                    post_program_button_content: formData.post_program_button_content || '',
+                    post_program_button_link: formData.post_program_button_link || '',
+                    enable_group_assignment: formData.enable_group_assignment || false,
+                    group_count: formData.group_count || 4,
+                    enable_random_questions: formData.enable_random_questions || false,
+                    random_questions: formData.random_questions || []
+                };
                 const startDate = formData.program_start_date || formData.program_date;
                 const endDate = formData.program_end_date;
                 const days = formData.program_days || [];

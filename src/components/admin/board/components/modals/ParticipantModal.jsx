@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { X, ClipboardList } from 'lucide-react';
 import useParticipantManagement from '../../hooks/useParticipantManagement';
 import { exportParticipantsToExcel } from '../../../../../utils/exportUtils';
+import useModalClose from '../../../../../hooks/useModalClose';
 
 import AttendanceSection from './AttendanceSection';
 import WalkInSection from './WalkInSection';
@@ -23,6 +24,7 @@ const getKoreanDayOfWeek = (dateStr) => {
 };
 
 const ParticipantModal = ({ notice, onClose, onRefresh }) => {
+    useModalClose(!!notice, onClose);
     const {
         participantList,
         pollModalResults,

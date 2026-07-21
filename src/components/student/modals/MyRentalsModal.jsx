@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { X, Calendar, MapPin, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import useModalClose from '../../../hooks/useModalClose';
 
 const MyRentalsModal = ({ user, onClose }) => {
+    useModalClose(true, onClose);
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
 

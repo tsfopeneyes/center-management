@@ -4,6 +4,7 @@ import { X, User, Image as ImageIcon, ZoomIn, RotateCw } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '../../../utils/imageUtils';
 import { hashPassword } from '../../../utils/hashUtils';
+import useModalClose from '../../../hooks/useModalClose';
 
 const ProfileSettingsModal = ({ 
     user, 
@@ -11,6 +12,7 @@ const ProfileSettingsModal = ({
     updateProfile, 
     profileLoadingState 
 }) => {
+    useModalClose(true, () => setShowProfileSettings(false));
     const [profileImage, setProfileImage] = useState(null);
     const [profilePreview, setProfilePreview] = useState(null);
     const [newPassword, setNewPassword] = useState('');
