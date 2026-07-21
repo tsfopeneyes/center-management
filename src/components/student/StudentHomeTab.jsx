@@ -181,7 +181,7 @@ const StudentHomeTab = ({
                                 {isGuest ? (
                                     <>
                                         {user?.school && (
-                                            <span className="block text-yellow-200 text-[13px] sm:text-[14px] font-bold tracking-tight mb-1">
+                                            <span className="block text-white/70 text-[13.5px] sm:text-[14.5px] font-bold tracking-tight mb-1">
                                                 {user.school.replace('(guest)', '')} 친구 만나서 반가워요 :)
                                             </span>
                                         )}
