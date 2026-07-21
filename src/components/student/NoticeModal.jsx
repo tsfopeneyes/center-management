@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles } from 'lucide-react';
+import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../supabaseClient';
 import ModernEditor from '../common/ModernEditor';
@@ -692,17 +692,30 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                              </button>
                                          ) : (
                                              <button
-                                                 disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
-                                                 onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
-                                                 className={`w-full py-3.5 rounded-toss-xl font-bold text-white transition-all active:scale-[0.98] ${
+                                                 disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (!responses[notice.id] && notice.is_leader_only && !user?.is_leader)}
+                                                 onClick={() => {
+                                                     if (responses[notice.id]) {
+                                                         onResponse(notice.id, 'CANCEL');
+                                                     } else {
+                                                         onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
+                                                     }
+                                                 }}
+                                                 className={`w-full py-3.5 rounded-toss-xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 ${
                                                      responses[notice.id]
-                                                         ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none'
+                                                         ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100'
                                                          : (notice.max_capacity > 0 && joinCount >= notice.max_capacity
-                                                             ? 'bg-tossWarning hover:bg-tossWarning/90'
-                                                             : 'bg-tossBlue hover:bg-tossBlueHover')
+                                                             ? 'bg-tossWarning hover:bg-tossWarning/90 text-white'
+                                                             : 'bg-tossBlue hover:bg-tossBlueHover text-white')
                                                  }`}
                                              >
-                                                 {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
+                                                 {responses[notice.id] ? (
+                                                     <>
+                                                         <XCircle size={16} />
+                                                         <span>{responses[notice.id] === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}</span>
+                                                     </>
+                                                 ) : (
+                                                     notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'
+                                                 )}
                                              </button>
                                          )}
                                      </div>
@@ -770,17 +783,30 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                      ) : notice.is_recruiting ? (
                          <div className="p-4 flex gap-3">
                              <button
-                                 disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (notice.is_leader_only && !user.is_leader)}
-                                 onClick={() => onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN')}
-                                 className={`flex-1 py-3.5 rounded-toss-xl font-bold text-white text-base transition transform active:scale-[0.98] ${
+                                 disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (!responses[notice.id] && notice.is_leader_only && !user?.is_leader)}
+                                 onClick={() => {
+                                     if (responses[notice.id]) {
+                                         onResponse(notice.id, 'CANCEL');
+                                     } else {
+                                         onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
+                                     }
+                                 }}
+                                 className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 ${
                                      responses[notice.id] 
-                                         ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none' 
+                                         ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100' 
                                          : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
-                                             ? 'bg-tossWarning' 
-                                             : 'bg-tossBlue hover:bg-tossBlueHover')
+                                             ? 'bg-tossWarning hover:bg-tossWarning/90 text-white' 
+                                             : 'bg-tossBlue hover:bg-tossBlueHover text-white')
                                  }`}
                              >
-                                 {responses[notice.id] ? '신청 완료' : (notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기')}
+                                 {responses[notice.id] ? (
+                                     <>
+                                         <XCircle size={18} />
+                                         <span>{responses[notice.id] === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}</span>
+                                     </>
+                                 ) : (
+                                     notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'
+                                 )}
                              </button>
                          </div>
                      ) : (

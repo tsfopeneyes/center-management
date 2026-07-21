@@ -77,7 +77,7 @@ export const useNotices = (userId) => {
             const oldStatus = responses[noticeId];
 
             // 3. Toggle/Cancel Logic
-            if (status === oldStatus || (status === RESPONSE_STATUS.JOIN && oldStatus === RESPONSE_STATUS.WAITLIST)) {
+            if (status === 'CANCEL' || status === oldStatus || (status === RESPONSE_STATUS.JOIN && oldStatus === RESPONSE_STATUS.WAITLIST)) {
                 if (window.confirm('신청을 취소하시겠습니까?')) {
                     await noticesApi.deleteResponse(noticeId, userId);
                     setResponses(prev => {
