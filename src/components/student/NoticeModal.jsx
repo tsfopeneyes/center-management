@@ -81,7 +81,8 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                     .from('notice_responses')
                     .select('user_id, status, challenge_mission_statuses, users(name, school)')
                     .eq('notice_id', notice.id)
-                    .eq('status', 'JOIN');
+                    .eq('status', 'JOIN')
+                    .order('created_at', { ascending: true });
                 if (data) {
                     setChallengeParticipants(data);
                 }

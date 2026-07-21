@@ -98,7 +98,8 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     .from('haifn_transactions')
                     .select('user_id, users(id, name, school, phone_back4, is_leader)')
                     .eq('source_description', descMatch)
-                    .eq('transaction_type', 'EARN');
+                    .eq('transaction_type', 'EARN')
+                    .order('created_at', { ascending: true });
                     
                 if (latestQueryDateRef.current !== dateQuerying) {
                     // Stale query, ignore results to prevent race conditions
@@ -122,7 +123,8 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const { data, error } = await supabase
                     .from('notice_responses')
                     .select('status, is_attended, is_staff, challenge_mission_statuses, users(id, name, school, phone_back4, is_leader)')
-                    .eq('notice_id', notice.id);
+                    .eq('notice_id', notice.id)
+                    .order('created_at', { ascending: true });
                     
                 if (error) throw error;
                 
