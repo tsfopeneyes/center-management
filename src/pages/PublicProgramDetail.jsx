@@ -7,6 +7,7 @@ import LinkPreview from '../components/common/LinkPreview';
 import { extractUrls, extractProgramInfo } from '../utils/textUtils';
 import { formatToLocalISO, formatProgramSchedule } from '../utils/dateUtils';
 import { TAB_NAMES } from '../constants/appConstants';
+import { trackUserWebActivity } from '../utils/userActivityUtils';
 
 const PublicProgramDetail = () => {
     const { id } = useParams();
@@ -180,6 +181,8 @@ const PublicProgramDetail = () => {
                 });
 
             if (regErr) throw regErr;
+
+            await trackUserWebActivity(loggedInUser);
 
             localStorage.setItem('pendingProgramJoin', id);
             setIsRegistered(true);

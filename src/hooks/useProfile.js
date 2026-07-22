@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { userApi } from '../api/userApi';
 import { compressImage } from '../utils/imageUtils';
 import { isConsecutiveWorkingDay } from '../utils/analyticsUtils';
+import { trackUserWebActivity } from '../utils/userActivityUtils';
 
 export const useProfile = (initialUser) => {
     const [user, setUser] = useState(initialUser);
@@ -14,6 +15,9 @@ export const useProfile = (initialUser) => {
     const fetchStats = useCallback(async (userId) => {
         if (!userId) return;
         try {
+            if (user) {
+                trackUserWebActivity(user);
+            }
             const logs = await userApi.fetchLogs(userId);
 
             // Helper to get local YYYY-MM-DD

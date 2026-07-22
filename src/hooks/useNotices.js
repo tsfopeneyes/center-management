@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { noticesApi } from '../api/noticesApi';
 import { RESPONSE_STATUS } from '../constants/appConstants';
+import { trackUserWebActivity } from '../utils/userActivityUtils';
 
 export const useNotices = (userId) => {
     const [notices, setNotices] = useState([]);
@@ -100,6 +101,7 @@ export const useNotices = (userId) => {
 
             await noticesApi.upsertResponse(noticeId, userId, finalStatus);
             setResponses(prev => ({ ...prev, [noticeId]: finalStatus }));
+            await trackUserWebActivity({ id: userId });
 
             // 4. Auto Promotion Logic (When changing FROM join to something else)
             if (oldStatus === RESPONSE_STATUS.JOIN && finalStatus !== RESPONSE_STATUS.JOIN) {
