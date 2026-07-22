@@ -57,16 +57,37 @@ export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStat
 
     const totalActive = filteredLocations.reduce((sum, loc) => sum + (zoneStats[loc.id] || 0), 0);
 
-    const activeUsersList = users.filter(u => {
-        if (isAdminOrStaff(u)) return false;
-        const locId = currentLocations[u.id]?.locId;
-        if (!locId) return false;
-        return filteredLocations.some(l => l.id === locId);
-    }).map(u => ({
-        ...u,
-        currentLocationName: locations.find(l => l.id === currentLocations[u.id]?.locId)?.name || 'Unknown',
-        checkInTime: currentLocations[u.id]?.checkInTime
-    })).sort((a, b) => new Date(b.checkInTime) - new Date(a.checkInTime));
+    const activeUsersList = Object.entries(currentLocations)
+        .filter(([key, locData]) => {
+            const locId = locData?.locId;
+            if (!locId) return false;
+            const isGuestKey = locData?.isGuest || key.startsWith('guest_');
+            if (!isGuestKey && adminIdsSet.has(key)) return false;
+            return filteredLocations.some(l => l.id === locId);
+        })
+        .map(([key, locData]) => {
+            const isGuestKey = locData?.isGuest || key.startsWith('guest_');
+            if (isGuestKey) {
+                const userObj = users.find(u => u.id === key);
+                return {
+                    id: key,
+                    name: userObj?.name || locData.guestName || '게스트',
+                    school: userObj?.school || locData.guestSchool || '-',
+                    user_group: '게스트',
+                    currentLocationName: locations.find(l => l.id === locData.locId)?.name || 'Unknown',
+                    checkInTime: locData.checkInTime
+                };
+            }
+            const user = users.find(u => u.id === key);
+            if (!user) return null;
+            return {
+                ...user,
+                currentLocationName: locations.find(l => l.id === locData.locId)?.name || 'Unknown',
+                checkInTime: locData.checkInTime
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.checkInTime) - new Date(a.checkInTime));
 
     const handleZoneClick = (location) => {
         const todayStart = new Date();
@@ -75,38 +96,63 @@ export const useAdminStatus = ({ users, locations, locationGroups = [], zoneStat
         const todayLocationLogs = allLogs.filter(log => {
             const isToday = new Date(log.created_at) >= todayStart;
             const isTargetLocation = log.location_id === location.id;
-            const isNotAdmin = !adminIdsSet.has(log.user_id);
+            const isNotAdmin = !log.user_id || !adminIdsSet.has(log.user_id);
             return isToday && isTargetLocation && isNotAdmin;
         });
 
-        const visitedUserIds = Array.from(new Set(
-            todayLocationLogs
-                .filter(log => log.type === 'CHECKIN' || log.type === 'MOVE')
-                .map(log => log.user_id)
-        ));
+        // Group logs by user_id or guest log id
+        const logsByUser = {};
+        todayLocationLogs.forEach(log => {
+            const key = log.user_id || `guest_${log.id}`;
+            if (!logsByUser[key]) logsByUser[key] = [];
+            logsByUser[key].push(log);
+        });
 
         const activeUserIds = Object.keys(currentLocations).filter(uid =>
-            currentLocations[uid]?.locId === location.id && !adminIdsSet.has(uid)
+            currentLocations[uid]?.locId === location.id && (!uid || !adminIdsSet.has(uid))
         );
 
-        const combinedUserIds = Array.from(new Set([...activeUserIds, ...visitedUserIds]));
+        const combinedUserKeys = Array.from(new Set([...activeUserIds, ...Object.keys(logsByUser)]));
 
-        const mappedUsers = combinedUserIds.map(uid => {
-            const user = users.find(u => u.id === uid);
-            if (!user) return null;
+        const mappedUsers = combinedUserKeys.map(key => {
+            const uLogs = logsByUser[key] || [];
+            const sortedAsc = [...uLogs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            const firstLog = sortedAsc[0];
 
-            const isActive = currentLocations[uid]?.locId === location.id;
-            const firstLogAtLoc = todayLocationLogs
-                .filter(log => log.user_id === uid && (log.type === 'CHECKIN' || log.type === 'MOVE'))
-                .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0];
+            const userObj = users.find(u => u.id === key);
+            const isGuest = userObj?.user_group === '게스트' || key.startsWith('guest_') || (firstLog && !firstLog.user_id);
 
-            const checkInTime = firstLogAtLoc ? firstLogAtLoc.created_at : (currentLocations[uid]?.checkInTime || null);
+            if (isGuest) {
+                const guestName = userObj?.name || (firstLog && firstLog.metadata?.guest_name) || '게스트';
+                const guestSchool = userObj?.school || (firstLog && firstLog.metadata?.guest_school) || '-';
+                const checkOutLog = uLogs.find(l => l.type === 'CHECKOUT');
+                const locId = currentLocations[key]?.locId;
+                const isActive = locId === location.id || (!checkOutLog && firstLog?.location_id === location.id);
 
-            return {
-                ...user,
-                isActive,
-                checkInTime
-            };
+                return {
+                    id: key,
+                    name: guestName.includes('게스트') ? guestName : `${guestName}(게스트)`,
+                    school: guestSchool,
+                    user_group: '게스트',
+                    isActive,
+                    checkInTime: firstLog ? firstLog.created_at : (currentLocations[key]?.checkInTime || null),
+                    checkOutTime: checkOutLog ? checkOutLog.created_at : null
+                };
+            } else {
+                if (!userObj) return null;
+
+                const locId = currentLocations[key]?.locId;
+                const isActive = locId === location.id;
+                const firstLogAtLoc = uLogs.find(log => log.type === 'CHECKIN' || log.type === 'MOVE');
+                const checkOutLog = uLogs.find(l => l.type === 'CHECKOUT');
+
+                return {
+                    ...userObj,
+                    isActive,
+                    checkInTime: firstLogAtLoc ? firstLogAtLoc.created_at : (currentLocations[key]?.checkInTime || null),
+                    checkOutTime: checkOutLog ? checkOutLog.created_at : null
+                };
+            }
         }).filter(Boolean)
         .sort((a, b) => {
             if (a.isActive && !b.isActive) return -1;

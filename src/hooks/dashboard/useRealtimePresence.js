@@ -35,8 +35,9 @@ export const useRealtimePresence = () => {
 
             const userCurrentLocation = {};
             fetchedLogs.forEach(log => {
-                if (log.type === 'CHECKIN' || log.type === 'MOVE') userCurrentLocation[log.user_id] = log.location_id;
-                else if (log.type === 'CHECKOUT') userCurrentLocation[log.user_id] = null;
+                const key = log.user_id || `guest_${log.id}`;
+                if (log.type === 'CHECKIN' || log.type === 'MOVE') userCurrentLocation[key] = log.location_id;
+                else if (log.type === 'CHECKOUT') userCurrentLocation[key] = null;
             });
 
             const groupCounts = {};
@@ -44,7 +45,8 @@ export const useRealtimePresence = () => {
             groupCounts['unassigned'] = 0;
 
             Object.entries(userCurrentLocation).forEach(([uid, locId]) => {
-                if (locId && !adminIdsSet.has(uid)) {
+                const isGuestKey = uid.startsWith('guest_');
+                if (locId && (isGuestKey || !adminIdsSet.has(uid))) {
                     const loc = fetchedLocations.find(l => l.id === locId);
                     if (loc && loc.group_id) {
                         if (groupCounts[loc.group_id] !== undefined) {

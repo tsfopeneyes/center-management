@@ -6,7 +6,7 @@ const SignUpBasicInfo = ({ formData, setFormData, handleChange, handlePhoneChang
     return (
         <div className="w-full">
             {/* Group 1: Profile & Contact Info */}
-            <div className={`mt-2 border ${isKiosk ? 'border-slate-200 rounded-2xl bg-white' : 'border-gray-300 rounded-xl bg-white'} overflow-hidden focus-within:border-blue-500 transition-colors`}>
+            <div className={`mt-2 border ${isKiosk ? 'border-slate-200 rounded-2xl bg-white' : 'border-gray-300 rounded-xl bg-white'} overflow-hidden focus-within:border-[#E63946] transition-colors`}>
                 
                 {/* Row 1: Name and Gender */}
                 <div className="flex border-b border-gray-200">
@@ -27,7 +27,7 @@ const SignUpBasicInfo = ({ formData, setFormData, handleChange, handlePhoneChang
                             <button
                                 key={g.value} type="button"
                                 onClick={() => setFormData(prev => ({ ...prev, gender: g.value }))}
-                                className={`flex-1 py-3 text-sm font-bold transition ${formData.gender === g.value ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-500 hover:bg-gray-50'} ${idx === 0 ? 'border-r border-gray-200' : ''} ${isKiosk ? 'sm:py-4 font-black' : ''}`}
+                                className={`flex-1 py-3 text-sm font-bold transition ${formData.gender === g.value ? 'bg-[#E63946] text-white' : 'bg-transparent text-gray-500 hover:bg-gray-50'} ${idx === 0 ? 'border-r border-gray-200' : ''} ${isKiosk ? 'sm:py-4 font-black' : ''}`}
                             >
                                 {g.label}
                             </button>
@@ -41,7 +41,7 @@ const SignUpBasicInfo = ({ formData, setFormData, handleChange, handlePhoneChang
                         <button
                             key={g} type="button"
                             onClick={() => setFormData(prev => ({ ...prev, user_group: g }))}
-                            className={`flex-1 py-3 text-sm font-bold transition ${formData.user_group === g ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-500 hover:bg-gray-50'} ${idx === 0 ? 'border-r border-gray-200' : ''} ${isKiosk ? 'sm:py-4 font-black' : ''}`}
+                            className={`flex-1 py-3 text-sm font-bold transition ${formData.user_group === g ? 'bg-[#E63946] text-white' : 'bg-transparent text-gray-500 hover:bg-gray-50'} ${idx === 0 ? 'border-r border-gray-200' : ''} ${isKiosk ? 'sm:py-4 font-black' : ''}`}
                         >
                             {g}
                         </button>
@@ -111,17 +111,17 @@ const SignUpBasicInfo = ({ formData, setFormData, handleChange, handlePhoneChang
                         className="overflow-hidden transition-all"
                     >
                         <div className="flex items-center gap-2 mb-2 mt-2">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                            <h4 className={`text-xs font-bold text-blue-600 uppercase tracking-widest ${isKiosk ? 'text-sm' : ''}`}>보호자 정보 (만 14세 미만 필수)</h4>
+                            <div className="w-2 h-2 bg-[#E63946] rounded-full" />
+                            <h4 className={`text-xs font-bold text-[#E63946] uppercase tracking-widest ${isKiosk ? 'text-sm' : ''}`}>보호자 정보 (만 14세 미만 필수)</h4>
                         </div>
 
-                        <div className={`border ${isKiosk ? 'border-blue-200 rounded-2xl bg-blue-50/30' : 'border-blue-200 rounded-xl bg-blue-50/50'} overflow-hidden focus-within:border-blue-500 transition-colors`}>
-                            <div className="flex border-b border-blue-100">
+                        <div className={`border ${isKiosk ? 'border-[#E63946]/30 rounded-2xl bg-[#E63946]/5' : 'border-[#E63946]/30 rounded-xl bg-[#E63946]/5'} overflow-hidden focus-within:border-[#E63946] transition-colors`}>
+                            <div className="flex border-b border-[#E63946]/20">
                                 <input
                                     type="text" name="guardianName" required
                                     value={formData.guardianName} onChange={handleChange}
                                     placeholder="보호자  이름"
-                                    className={`w-1/2 px-4 py-3 bg-transparent border-r border-blue-100 outline-none ${isKiosk ? 'sm:py-4 font-bold' : ''}`}
+                                    className={`w-1/2 px-4 py-3 bg-transparent border-r border-[#E63946]/20 outline-none ${isKiosk ? 'sm:py-4 font-bold' : ''}`}
                                 />
                                 <input
                                     type="text" name="guardianRelation" required

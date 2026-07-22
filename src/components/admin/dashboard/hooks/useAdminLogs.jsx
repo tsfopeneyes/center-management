@@ -144,7 +144,7 @@ export const useAdminLogs = ({ allLogs, schoolLogs, users, locations, notices, f
         return { data: sorted, options: uniqueOptions };
     }, [allLogs, users, locations, startDate, endDate, visitFilters, visitNotes, userGroupMap]);
 
-    const filteredVisitSummaries = useMemo(() => visitSummaries.data.filter(s => s.userGroup !== '게스트'), [visitSummaries.data]);
+    const filteredVisitSummaries = useMemo(() => visitSummaries.data, [visitSummaries.data]);
     const filteredGuestSummaries = useMemo(() => visitSummaries.data.filter(s => s.userGroup === '게스트'), [visitSummaries.data]);
 
     const currentSummaries = useMemo(() => {

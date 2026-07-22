@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle } from 'lucide-react';
 
@@ -28,18 +29,18 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 bg-black/60 z-[300] flex items-center justify-center p-4 backdrop-blur-md">
+    return createPortal(
+        <div className="fixed inset-0 bg-black/80 z-[99999] flex items-center justify-center p-4 backdrop-blur-md">
             <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className={`bg-white w-full max-w-2xl rounded-3xl p-6 md:p-8 shadow-2xl max-h-[90vh] flex flex-col ${isKiosk ? 'sm:p-10 sm:rounded-[3rem] max-w-3xl' : ''}`}
+                className={`bg-white w-full max-w-2xl rounded-3xl p-5 md:p-7 shadow-2xl max-h-[85vh] flex flex-col overflow-hidden ${isKiosk ? 'sm:p-8 sm:rounded-[2.5rem] max-w-3xl' : ''}`}
             >
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className={`text-xl font-black text-gray-800 tracking-tight ${isKiosk ? 'sm:text-3xl' : ''}`}>이용 약관 및 개인정보 수집 동의</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-                        <X size={24} />
+                <div className="flex justify-between items-center mb-4 shrink-0 border-b border-gray-100 pb-3">
+                    <h3 className={`text-xl font-black text-gray-800 tracking-tight ${isKiosk ? 'sm:text-2xl' : ''}`}>이용 약관 및 개인정보 수집 동의</h3>
+                    <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
+                        <X size={22} />
                     </button>
                 </div>
 
@@ -47,19 +48,19 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
                 <button
                     type="button"
                     onClick={handleAllAgree}
-                    className={`mb-6 w-full py-4 rounded-2xl flex items-center justify-center gap-3 transition-all ${isAllAgreed
-                        ? 'bg-blue-600 text-white shadow-lg'
+                    className={`mb-4 w-full py-3.5 rounded-2xl flex items-center justify-center gap-3 transition-all shrink-0 ${isAllAgreed
+                        ? 'bg-[#E63946] text-white shadow-lg hover:bg-[#D62839]'
                         : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                        } font-black text-lg`}
+                        } font-black text-base md:text-lg`}
                 >
                     <CheckCircle size={22} />
                     [전체 동의] 모든 항목에 동의합니다
                 </button>
 
-                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar text-sm text-gray-600 leading-relaxed space-y-8">
+                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar text-sm text-gray-600 leading-relaxed space-y-6 min-h-0">
                     {/* Article 1 */}
                     <div className="space-y-4">
-                        <h4 className="text-lg font-black text-gray-900 border-l-4 border-blue-500 pl-3">제1조 회원 가입 약관</h4>
+                        <h4 className="text-lg font-black text-gray-900 border-l-4 border-[#E63946] pl-3">제1조 회원 가입 약관</h4>
                         <div className="bg-gray-50 p-4 rounded-xl space-y-3">
                             <p className="font-bold">제1조 (목적)</p>
                             <p>본 약관은 (재)더작은재단이 운영하는 지역 거점 청소년 복합문화예술센터(이하 “센터”)의 서비스 이용과 관련하여 회원과 센터 간 권리, 의무 및 책임사항을 규정함을 목적으로 합니다. 본 약관은 센터가 제공하는 모든 서비스에 적용됩니다.</p>
@@ -113,7 +114,7 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
                         <button
                             type="button"
                             onClick={() => toggleAgreement('art1')}
-                            className={`w-full py-3 rounded-xl font-bold border transition ${agreements.art1 ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                            className={`w-full py-3 rounded-xl font-bold border transition ${agreements.art1 ? 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]' : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'}`}
                         >
                             {agreements.art1 ? '✓ 제1조 동의함' : '제1조 동의합니다'}
                         </button>
@@ -121,7 +122,7 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
 
                     {/* Article 2 */}
                     <div className="space-y-4">
-                        <h4 className="text-lg font-black text-gray-900 border-l-4 border-blue-500 pl-3">제2조 개인정보 처리 방침</h4>
+                        <h4 className="text-lg font-black text-gray-900 border-l-4 border-[#E63946] pl-3">제2조 개인정보 처리 방침</h4>
                         <div className="bg-gray-50 p-4 rounded-xl space-y-3">
                             <p className="font-bold">제1조 (개인정보 처리 목적)</p>
                             <p>센터는 다음 목적을 위하여 개인정보를 처리합니다.</p>
@@ -177,7 +178,7 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
                         <button
                             type="button"
                             onClick={() => toggleAgreement('art2')}
-                            className={`w-full py-3 rounded-xl font-bold border transition ${agreements.art2 ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                            className={`w-full py-3 rounded-xl font-bold border transition ${agreements.art2 ? 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]' : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'}`}
                         >
                             {agreements.art2 ? '✓ 제2조 동의함' : '제2조 동의합니다'}
                         </button>
@@ -185,26 +186,26 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
 
                     {/* Article 3 */}
                     <div className="space-y-4">
-                        <h4 className="text-lg font-black text-gray-900 border-l-4 border-blue-500 pl-3">제3조 개인정보 수집 및 이용 동의</h4>
+                        <h4 className="text-lg font-black text-gray-900 border-l-4 border-[#E63946] pl-3">제3조 개인정보 수집 및 이용 동의</h4>
                         <div className="bg-gray-50 p-4 rounded-xl space-y-3">
                             <p>센터는 회원 가입 및 서비스 제공을 위하여 다음과 같이 개인정보를 수집·이용합니다.</p>
 
-                            <p className="font-bold mt-4 text-blue-800">수집 항목</p>
+                            <p className="font-bold mt-4 text-[#E63946]">수집 항목</p>
                             <p>이름, 학교, 생년월일, 연락처, 비밀번호 (만 14세 미만: 보호자 정보 포함)</p>
 
-                            <p className="font-bold mt-4 text-blue-800">이용 목적</p>
+                            <p className="font-bold mt-4 text-[#E63946]">이용 목적</p>
                             <p>회원 관리, 서비스 제공, 이용 기록 분석 및 프로그램 개선</p>
 
-                            <p className="font-bold mt-4 text-blue-800">보유 기간</p>
+                            <p className="font-bold mt-4 text-[#E63946]">보유 기간</p>
                             <p>회원 탈퇴 시까지 보관합니다. 다만 관련 법령에 따라 보관이 필요한 정보는 해당 기간 동안 보관합니다.</p>
 
-                            <p className="font-bold mt-4 text-blue-800">동의 거부 권리</p>
+                            <p className="font-bold mt-4 text-[#E63946]">동의 거부 권리</p>
                             <p>이용자는 개인정보 수집 및 이용 동의를 거부할 권리가 있으나 필수 정보 미동의 시 서비스 이용이 제한됩니다.</p>
                         </div>
                         <button
                             type="button"
                             onClick={() => toggleAgreement('art3')}
-                            className={`w-full py-3 rounded-xl font-bold border transition ${agreements.art3 ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                            className={`w-full py-3 rounded-xl font-bold border transition ${agreements.art3 ? 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]' : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'}`}
                         >
                             {agreements.art3 ? '✓ 제3조 동의함' : '제3조 동의합니다'}
                         </button>
@@ -212,38 +213,38 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
 
                     {/* Article 4 */}
                     <div className="space-y-4">
-                        <h4 className="text-lg font-black text-gray-900 border-l-4 border-blue-500 pl-3">제4조 초상권 및 활동 기록 이용 동의</h4>
+                        <h4 className="text-lg font-black text-gray-900 border-l-4 border-[#E63946] pl-3">제4조 초상권 및 활동 기록 이용 동의</h4>
                         <div className="bg-gray-50 p-4 rounded-xl space-y-3">
                             <p>센터는 프로그램 운영을 위하여 회원 활동 기록물을 활용합니다.</p>
 
-                            <p className="font-bold mt-4 text-blue-800">활용 범위</p>
+                            <p className="font-bold mt-4 text-[#E63946]">활용 범위</p>
                             <p>공식 홈페이지, SNS, 홍보물, 보도자료, 아카이브 자료</p>
 
-                            <p className="font-bold mt-4 text-blue-800">활용 목적</p>
+                            <p className="font-bold mt-4 text-[#E63946]">활용 목적</p>
                             <p>활동 기록, 프로그램 소개 및 홍보</p>
 
-                            <p className="font-bold mt-4 text-blue-800">보유 기간</p>
+                            <p className="font-bold mt-4 text-[#E63946]">보유 기간</p>
                             <p>동의 철회 또는 목적 달성 시까지</p>
 
-                            <p className="font-bold mt-4 text-blue-800">안내</p>
+                            <p className="font-bold mt-4 text-[#E63946]">안내</p>
                             <p>센터는 프로그램 운영 과정에서 회원의 활동 모습, 음성, 영상 및 창작물을 촬영 또는 기록할 수 있으며 이에 대한 동의는 서비스 이용을 위한 필수 조건입니다. 이용자가 이에 동의하지 않을 경우 서비스 이용이 제한될 수 있습니다. 동의 후 철회 요청 시 신규 활용은 중단되나 이미 제작된 인쇄물 등은 삭제가 제한될 수 있습니다.</p>
                         </div>
                         <button
                             type="button"
                             onClick={() => toggleAgreement('art4')}
-                            className={`w-full py-3 rounded-xl font-bold border transition ${agreements.art4 ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                            className={`w-full py-3 rounded-xl font-bold border transition ${agreements.art4 ? 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]' : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-50'}`}
                         >
                             {agreements.art4 ? '✓ 제4조 동의함' : '제4조 동의합니다'}
                         </button>
                     </div>
                 </div>
 
-                <div className="mt-8 flex gap-3">
+                <div className="pt-3 mt-3 border-t border-gray-100 shrink-0 flex gap-3">
                     <button
                         type="button"
                         onClick={handleComplete}
-                        className={`flex-1 py-4 rounded-2xl font-black text-lg transition-all ${isAllAgreed
-                            ? 'bg-blue-600 text-white shadow-xl hover:bg-blue-700'
+                        className={`flex-1 py-3.5 rounded-2xl font-black text-base md:text-lg transition-all ${isAllAgreed
+                            ? 'bg-[#E63946] text-white shadow-xl hover:bg-[#D62839]'
                             : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                             }`}
                     >
@@ -251,7 +252,8 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
                     </button>
                 </div>
             </motion.div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

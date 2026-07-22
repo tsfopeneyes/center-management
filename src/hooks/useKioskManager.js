@@ -57,10 +57,20 @@ const sendRealtimeNotification = async (user, type, location, metadata = {}) => 
     let message = '';
     
     if (type === 'CHECKIN') {
-        const surveyText = metadata.survey 
-            ? `\n▪ ${metadata.survey.split(', ').join('\n▪ ')}` 
-            : '';
-        message = `[CHECK-IN]\n💌 ${user.name}님이 ${location.name}에 방문했어요 (${timeStr})${surveyText}`;
+        const isGuest = user.user_group === '게스트' || user.name?.includes('(guest)');
+        if (isGuest) {
+            const cleanName = user.name.replace('(guest)', '').trim();
+            const cleanSchool = user.school || '-';
+            const surveyText = metadata.survey 
+                ? `\n🧭 방문 경로\n▪ ${metadata.survey.split(', ').join('\n▪ ')}` 
+                : '';
+            message = `[GUEST CHECK-IN]\n💌 ${cleanName}(${cleanSchool})님이 게스트로 ${location.name}에 방문했어요 (${timeStr})${surveyText}`;
+        } else {
+            const surveyText = metadata.survey 
+                ? `\n▪ ${metadata.survey.split(', ').join('\n▪ ')}` 
+                : '';
+            message = `[CHECK-IN]\n💌 ${user.name}님이 ${location.name}에 방문했어요 (${timeStr})${surveyText}`;
+        }
     } else if (type === 'CHECKOUT') {
         const durationText = metadata.duration ? `\n🕑 ${metadata.duration} 이용` : '';
         const purposeText = metadata.purpose 

@@ -160,15 +160,17 @@ const AdminDashboard = () => {
 
             const userCurrentLocation = {};
             logs?.forEach(log => {
+                const key = log.user_id || `guest_${log.id}`;
                 if (log.type === 'CHECKIN') {
-                    userCurrentLocation[log.user_id] = { locId: log.location_id, checkInTime: log.created_at };
+                    userCurrentLocation[key] = { locId: log.location_id, checkInTime: log.created_at, isGuest: !log.user_id };
                 } else if (log.type === 'MOVE') {
-                    userCurrentLocation[log.user_id] = { 
+                    userCurrentLocation[key] = { 
                         locId: log.location_id, 
-                        checkInTime: userCurrentLocation[log.user_id]?.checkInTime || log.created_at 
+                        checkInTime: userCurrentLocation[key]?.checkInTime || log.created_at,
+                        isGuest: !log.user_id
                     };
                 } else if (log.type === 'CHECKOUT') {
-                    userCurrentLocation[log.user_id] = null;
+                    userCurrentLocation[key] = null;
                 }
             });
 
@@ -176,12 +178,13 @@ const AdminDashboard = () => {
                 u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
             ).map(u => u.id) || []);
 
-            // Occupancy Stats Calculation (Real-time) - Only count students
+            // Occupancy Stats Calculation (Real-time) - Only count non-staff
             const zStats = {};
             locData?.forEach(l => zStats[l.id] = 0);
-            Object.entries(userCurrentLocation).forEach(([userId, locData]) => {
-                const locId = locData?.locId;
-                if (locId && zStats[locId] !== undefined && !adminIdsSet.has(userId)) {
+            Object.entries(userCurrentLocation).forEach(([key, locInfo]) => {
+                const locId = locInfo?.locId;
+                const userId = locInfo?.isGuest ? null : key;
+                if (locId && zStats[locId] !== undefined && (!userId || !adminIdsSet.has(userId))) {
                     zStats[locId]++;
                 }
             });
@@ -203,8 +206,9 @@ const AdminDashboard = () => {
                 if (log.location_id && vStats[log.location_id] !== undefined) {
                     if (log.type === 'GUEST_ENTRY') {
                         vStats[log.location_id]++;
-                    } else if ((log.type === 'CHECKIN' || log.type === 'MOVE') && !adminIdsSet.has(log.user_id)) {
-                        locVisitors[log.location_id].add(log.user_id);
+                    } else if ((log.type === 'CHECKIN' || log.type === 'MOVE') && (!log.user_id || !adminIdsSet.has(log.user_id))) {
+                        const visitorKey = log.user_id || `guest_${log.id}`;
+                        locVisitors[log.location_id].add(visitorKey);
                     }
                 }
             });
@@ -375,10 +379,12 @@ const AdminDashboard = () => {
     }, [navigate, fetchData, playChime]);
 
     const handleForceCheckout = useCallback(async (userId) => {
-        if (!confirm('해당 회원을 강제 퇴실 처리하시겠습니까?')) return;
+        if (!confirm('해당 이용자를 강제 퇴실 처리하시겠습니까?')) return;
         try {
+            const isGuestId = typeof userId === 'string' && userId.startsWith('guest_');
+            const targetUserId = isGuestId ? null : userId;
             const { error } = await supabase.from('logs').insert([{
-                user_id: userId,
+                user_id: targetUserId,
                 type: 'CHECKOUT',
                 location_id: null
             }]);

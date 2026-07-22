@@ -30,7 +30,7 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
     const aggregated = [];
 
     visitLogs.forEach(log => {
-        if (log.metadata?.is_guest || (!log.user_id && log.metadata?.guest_name)) {
+        if (!log.user_id || log.metadata?.is_guest) {
             const guestName = log.metadata?.guest_name || '게스트';
             const guestSchool = log.metadata?.guest_school || '-';
             const startAt = new Date(log.created_at);
@@ -43,12 +43,12 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
 
             aggregated.push({
                 id: `guest_${log.id}_${startAt.getTime()}`,
-                userId: null,
+                userId: `guest_${log.id}`,
                 date,
                 weekId: getWeekIdentifier(startAt.toISOString()),
                 dayOfWeek: startAt.toLocaleDateString('ko-KR', { weekday: 'short' }),
                 school: guestSchool,
-                name: `${guestName}(guest)`,
+                name: guestName.includes('게스트') ? guestName : `${guestName}(게스트)`,
                 userGroup: '게스트',
                 birth: '-',
                 phone: '-',
