@@ -79,10 +79,16 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             const latestLog = [...userLogs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
 
             let lastActiveTime = null;
-            if (latestLog?.created_at) {
+            let lastActiveLabel = '최근 웹 접속';
+            if (user.preferences?.last_web_login_at) {
+                lastActiveTime = new Date(user.preferences.last_web_login_at);
+                lastActiveLabel = '최근 웹 접속';
+            } else if (latestLog?.created_at) {
                 lastActiveTime = new Date(latestLog.created_at);
+                lastActiveLabel = '최근 키오스크 접속';
             } else if (user.created_at) {
                 lastActiveTime = new Date(user.created_at);
+                lastActiveLabel = '가입 시각';
             }
 
             let formatted = '-';

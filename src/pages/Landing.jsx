@@ -145,20 +145,30 @@ const LoginForm = ({ navigate }) => {
         }
     };
 
-    const proceedLoginSuccess = (user) => {
+    const proceedLoginSuccess = async (user) => {
         if (user.status === 'pending') {
             alert('관리자의 승인이 필요한 계정입니다. (임시 회원)\n보호자 동의 확인 후 정식 회원으로 승인됩니다.');
             supabase.auth.signOut();
             return;
         }
 
-        localStorage.setItem('user', JSON.stringify(user));
+        const nowIso = new Date().toISOString();
+        const updatedPreferences = { ...(user.preferences || {}), last_web_login_at: nowIso };
+        const updatedUser = { ...user, preferences: updatedPreferences };
+
+        try {
+            await supabase.from('users').update({ preferences: updatedPreferences }).eq('id', user.id);
+        } catch (e) {
+            console.error('Failed to update last_web_login_at:', e);
+        }
+
+        localStorage.setItem('user', JSON.stringify(updatedUser));
         const params = new URLSearchParams(window.location.search);
         const noticeId = params.get('noticeId');
         const suffix = noticeId ? `?noticeId=${noticeId}` : '';
 
         if (user.role === 'admin') {
-            localStorage.setItem('admin_user', JSON.stringify(user));
+            localStorage.setItem('admin_user', JSON.stringify(updatedUser));
             navigate('/admin' + suffix);
         } else {
             navigate('/student' + suffix);

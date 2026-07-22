@@ -331,7 +331,7 @@ const UserEditModal = ({
                             <UserAvatar user={editingUser} size="w-20 h-20" textSize="text-2xl" />
                         )}
                         <div className="mt-2.5 text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
-                            <span>최근 접속:</span>
+                            <span>최근 웹 접속:</span>
                             <span className="text-blue-600 font-extrabold">{editingUser.lastActiveFormatted || '-'}</span>
                         </div>
                     </div>
