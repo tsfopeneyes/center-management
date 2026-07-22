@@ -22,7 +22,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
 
     // Filter Logic
     const filteredUsers = useMemo(() => {
-        return users.filter(user => {
+        const rawFiltered = users.filter(user => {
             // Calculate Age from YYMMDD
             let age = '';
             if (user.birth && user.birth.length === 6) {
@@ -71,9 +71,42 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             if (isAKorean && !isBKorean) return -1;
             if (!isAKorean && isBKorean) return 1;
 
-            return nameA.localeCompare(nameB, 'ko');
+            return nameA.localeCompare(nameB, 'ko-KR');
         });
-    }, [users, searchTerm, filterGroup, excludeLeaders, showOnlyNonSchoolChurch]);
+
+        return rawFiltered.map(user => {
+            const userLogs = (allLogs || []).filter(l => l.user_id === user.id);
+            const latestLog = [...userLogs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+            let lastActiveTime = null;
+            if (latestLog?.created_at) {
+                lastActiveTime = new Date(latestLog.created_at);
+            } else if (user.created_at) {
+                lastActiveTime = new Date(user.created_at);
+            }
+
+            let formatted = '-';
+            if (lastActiveTime) {
+                const todayStr = new Date().toLocaleDateString('ko-KR');
+                const targetStr = lastActiveTime.toLocaleDateString('ko-KR');
+                if (todayStr === targetStr) {
+                    formatted = `오늘 ${lastActiveTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+                } else {
+                    const m = lastActiveTime.getMonth() + 1;
+                    const d = lastActiveTime.getDate();
+                    const hh = String(lastActiveTime.getHours()).padStart(2, '0');
+                    const mm = String(lastActiveTime.getMinutes()).padStart(2, '0');
+                    formatted = `${m}/${d} ${hh}:${mm}`;
+                }
+            }
+
+            return {
+                ...user,
+                lastActiveAt: lastActiveTime ? lastActiveTime.toISOString() : null,
+                lastActiveFormatted: formatted
+            };
+        });
+    }, [users, searchTerm, filterGroup, excludeLeaders, showOnlyNonSchoolChurch, allLogs]);
 
     // Selection Logic
     const toggleSelectAll = () => {

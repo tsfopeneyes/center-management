@@ -17,16 +17,17 @@ const UserTable = ({
                 <table className="w-full text-left border-collapse bg-white table-fixed min-w-[768px]">
                     <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-semibold border-y border-gray-100">
                         <tr>
-                            <th className="p-4 pl-6 w-[22%] min-w-[150px]">이름 (성별/나이)</th>
-                            <th className="p-4 w-[12%] min-w-[80px]">생년월일</th>
-                            <th className="p-4 w-[10%] min-w-[80px]">그룹</th>
-                            <th className="p-4 w-[28%] min-w-[160px]">학교 / 교회</th>
-                            <th className="p-4 w-[18%] min-w-[120px]">연락처</th>
-                            <th className="p-4 pr-6 text-center w-[10%] min-w-[70px]">하이픈</th>
+                            <th className="p-4 pl-6 w-[20%] min-w-[140px]">이름 (성별/나이)</th>
+                            <th className="p-4 w-[10%] min-w-[70px]">생년월일</th>
+                            <th className="p-4 w-[9%] min-w-[70px]">그룹</th>
+                            <th className="p-4 w-[23%] min-w-[140px]">학교 / 교회</th>
+                            <th className="p-4 w-[16%] min-w-[110px]">연락처</th>
+                            <th className="p-4 w-[14%] min-w-[100px]">최근 접속</th>
+                            <th className="p-4 pr-6 text-center w-[8%] min-w-[60px]">하이픈</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-sm">
-                        {filteredUsers.length === 0 ? <tr><td colSpan="6" className="p-10 text-center text-gray-400">검색 결과가 없습니다.</td></tr> :
+                        {filteredUsers.length === 0 ? <tr><td colSpan="7" className="p-10 text-center text-gray-400">검색 결과가 없습니다.</td></tr> :
                             filteredUsers.map((user) => (
                                 <tr key={user.id} className="hover:bg-blue-50/10 transition group cursor-pointer" onClick={() => setEditingUser(user)}>
                                     <td className="p-4 pl-6 align-middle">
@@ -72,6 +73,11 @@ const UserTable = ({
                                         <div className="text-xs text-gray-400 mt-0.5 truncate" title={user.church}>{user.church || '-'}</div>
                                     </td>
                                     <td className="p-4 font-mono text-gray-500 text-xs md:text-sm align-middle whitespace-nowrap">{user.phone}</td>
+                                    <td className="p-4 align-middle whitespace-nowrap">
+                                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg">
+                                            {user.lastActiveFormatted || '-'}
+                                        </span>
+                                    </td>
                                     <td className="p-4 text-center font-bold text-blue-600 align-middle whitespace-nowrap pr-6">{user.current_haifn || 0} H</td>
                                 </tr>
                             ))
@@ -117,6 +123,7 @@ const UserTable = ({
                                     <span className="truncate max-w-[100px]">{user.school}</span>
                                     {user.church && <span className="truncate max-w-[80px] text-gray-300">({user.church})</span>}
                                     <span className="font-mono">{user.phone}</span>
+                                    <span className="px-1.5 py-0.2 bg-gray-100 text-gray-600 font-medium rounded text-[9px]">최근 {user.lastActiveFormatted || '-'}</span>
                                     <span className="ml-auto font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md">H {user.current_haifn || 0}</span>
                                 </div>
                             </div>
