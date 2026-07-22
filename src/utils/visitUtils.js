@@ -25,16 +25,50 @@ export const aggregateVisitSessions = (allLogs, users, locations, startDate = ''
     const userMap = new Map(users.map(u => [u.id, u]));
     const locationMap = new Map(locations.map(l => [l.id, l]));
 
-    // Group logs by user
+    // Group logs by user (or process mobile guest logs directly)
     const userLogs = {};
+    const aggregated = [];
+
     visitLogs.forEach(log => {
+        if (log.metadata?.is_guest || (!log.user_id && log.metadata?.guest_name)) {
+            const guestName = log.metadata?.guest_name || '게스트';
+            const guestSchool = log.metadata?.guest_school || '-';
+            const startAt = new Date(log.created_at);
+            const date = getKSTDateString(startAt);
+            if (!isWithinRange(date)) return;
+
+            const loc = locationMap.get(log.location_id);
+            const locName = loc?.name || '하이픈';
+            const startTimeStr = startAt.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+
+            aggregated.push({
+                id: `guest_${log.id}_${startAt.getTime()}`,
+                userId: null,
+                date,
+                weekId: getWeekIdentifier(startAt.toISOString()),
+                dayOfWeek: startAt.toLocaleDateString('ko-KR', { weekday: 'short' }),
+                school: guestSchool,
+                name: `${guestName}(guest)`,
+                userGroup: '게스트',
+                birth: '-',
+                phone: '-',
+                age: '-',
+                rawLogs: [log],
+                startTime: startTimeStr,
+                endTime: '-',
+                durationStr: '0:00:00',
+                durationMin: '0분',
+                usedSpaces: locName,
+                sortTime: startAt.getTime()
+            });
+            return;
+        }
+
         const user = userMap.get(log.user_id);
         if (!user || isAdminOrStaff(user)) return;
         if (!userLogs[log.user_id]) userLogs[log.user_id] = [];
         userLogs[log.user_id].push(log);
     });
-
-    const aggregated = [];
 
     Object.entries(userLogs).forEach(([userId, logs]) => {
         const user = userMap.get(userId);

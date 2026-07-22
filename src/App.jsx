@@ -8,6 +8,7 @@ import StudentDashboard from './pages/StudentDashboard'
 import Kiosk from './pages/Kiosk'
 import SplashScreen from './components/common/SplashScreen'
 import PublicProgramDetail from './pages/PublicProgramDetail'
+import GuestMobileWelcome from './pages/GuestMobileWelcome'
 import { supabase } from './supabaseClient'
 
 function App() {
@@ -45,6 +46,8 @@ function App() {
             <BrowserRouter>
                 <Routes>
                     <Route path="/" element={<Landing />} />
+                    <Route path="/guest" element={<GuestMobileWelcome />} />
+                    <Route path="/welcome" element={<GuestMobileWelcome />} />
                     <Route path="/p/:id" element={<PublicProgramDetail />} />
                     <Route path="student" element={<StudentDashboard />} />
                     <Route element={<Layout />}>

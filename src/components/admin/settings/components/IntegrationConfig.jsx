@@ -135,6 +135,57 @@ const IntegrationConfig = ({
                     </button>
                 </div>
             </div>
+
+            {/* Mobile Guest Check-in QR Code Card */}
+            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h4 className="text-base font-bold text-[#191f28] flex items-center gap-2">
+                            <span>📱</span> 모바일 게스트 체크인 QR 코드
+                        </h4>
+                        <p className="text-xs text-gray-400 mt-1">
+                            센터 입구 포스터나 안내판에 부착하여 방문 학생들이 스마트폰으로 게스트 체크인할 수 있는 QR 코드입니다.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="p-4 bg-[#f8f9fa] rounded-2xl border border-gray-100 flex flex-col md:flex-row items-center gap-6">
+                    <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-col items-center">
+                        <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('https://app.schoolchurchimpact.org/guest')}`}
+                            alt="Mobile Guest Checkin QR"
+                            className="w-40 h-40 object-contain rounded-lg"
+                        />
+                        <span className="text-[11px] font-bold text-gray-400 mt-2 font-mono">/guest</span>
+                    </div>
+
+                    <div className="space-y-3 flex-1 text-center md:text-left">
+                        <div>
+                            <div className="text-xs font-bold text-gray-400">QR 연결 주소</div>
+                            <div className="text-sm font-bold text-blue-600 font-mono mt-0.5 break-all">
+                                https://app.schoolchurchimpact.org/guest
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                            <a
+                                href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent('https://app.schoolchurchimpact.org/guest')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                download="haifn_guest_qr.png"
+                                className="px-4 py-2 bg-[#191f28] text-white text-xs font-bold rounded-xl hover:bg-black transition shadow-sm inline-flex items-center gap-1.5"
+                            >
+                                <span>📥 QR 코드 원본 다운로드</span>
+                            </a>
+                            <button
+                                onClick={() => window.open('/guest', '_blank')}
+                                className="px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 text-xs font-bold rounded-xl hover:bg-blue-100 transition inline-flex items-center gap-1.5"
+                            >
+                                <span>🔗 페이지 미리보기</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
