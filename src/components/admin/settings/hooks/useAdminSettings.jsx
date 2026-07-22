@@ -424,12 +424,14 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                 { key: 'kiosk_master_pin', value: kioskMasterPin }
             ];
             for (const setting of settingsToSave) {
-                await supabase
+                const { error: upsertErr } = await supabase
                     .from('global_settings')
                     .upsert(setting, { onConflict: 'key' });
+                if (upsertErr) throw upsertErr;
             }
         } catch (e) {
             console.error("Failed to save settings to global_settings table:", e);
+            alert('DB 설정 저장 실패 (Supabase RLS 확인 필요): ' + e.message);
         }
         
         try {

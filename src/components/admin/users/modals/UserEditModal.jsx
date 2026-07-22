@@ -42,7 +42,7 @@ const getRevealedPassword = (user) => {
 
 const UserEditModal = ({
     editingUser, setEditingUser,
-    handleDeleteUser, handleResetPassword, handleToggleAdminRole,
+    handleDeleteUser, handleResetPassword, handleToggleAdminRole, handleApproveUser,
     userStats, fetchData, setIsMergeModalOpen, setViewerImage, locations
 }) => {
     const [editFormData, setEditFormData] = useState({
@@ -546,6 +546,18 @@ const UserEditModal = ({
                         </div>
                     </div>
                     <div className="p-6 pt-0 space-y-3 mt-4">
+                        {editingUser.status === 'pending' && (
+                            <button
+                                onClick={async () => {
+                                    await handleApproveUser(editingUser);
+                                    setEditingUser(null);
+                                }}
+                                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 shadow-md mb-3"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                회원 승인 완료하기
+                            </button>
+                        )}
                         {(editingUser.user_group === '게스트' || editingUser.preferences?.is_temporary) && (
                             <button
                                 onClick={() => setIsMergeModalOpen(true)}

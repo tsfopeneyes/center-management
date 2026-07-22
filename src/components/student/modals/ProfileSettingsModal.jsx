@@ -47,14 +47,22 @@ const ProfileSettingsModal = ({
 
     const handleCropSave = async () => {
         try {
+            if (!croppedAreaPixels) {
+                alert('이미지를 로드하는 중입니다. 잠시 후 다시 시도해주세요.');
+                return;
+            }
             const croppedImageBlob = await getCroppedImg(photoURL, croppedAreaPixels, rotation);
+            if (!croppedImageBlob) {
+                alert('이미지 크롭 실패');
+                return;
+            }
             const file = new File([croppedImageBlob], "profile_cropped.jpg", { type: "image/jpeg" });
             setProfileImage(file);
             setProfilePreview(URL.createObjectURL(file));
             setShowCropModal(false);
         } catch (e) {
             console.error(e);
-            alert('이미지 크롭 실패');
+            alert('이미지 크롭 실패: ' + e.message);
         }
     };
 
@@ -209,7 +217,7 @@ const ProfileSettingsModal = ({
                                 min={1}
                                 max={3}
                                 step={0.1}
-                                onChange={(e) => setZoom(e.target.value)}
+                                onChange={(e) => setZoom(Number(e.target.value))}
                                 className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                             />
                         </div>
@@ -222,7 +230,7 @@ const ProfileSettingsModal = ({
                                 min={0}
                                 max={360}
                                 step={1}
-                                onChange={(e) => setRotation(e.target.value)}
+                                onChange={(e) => setRotation(Number(e.target.value))}
                                 className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                             />
                         </div>

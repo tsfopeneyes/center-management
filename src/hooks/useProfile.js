@@ -122,18 +122,21 @@ export const useProfile = (initialUser) => {
     }, []);
 
     const updateProfile = async (updates, profileImage) => {
+        if (!user) {
+            return { success: false, error: '유저 정보를 찾을 수 없습니다.' };
+        }
         setLoading(true);
         try {
-            let imageUrl = user.profile_image_url;
+            let imageUrl = user?.profile_image_url || null;
 
             if (profileImage) {
                 // Apply automatic compression before upload
                 const compressedFile = await compressImage(profileImage);
-                const fileExt = compressedFile.name.split('.').pop();
+                const fileExt = compressedFile.name ? compressedFile.name.split('.').pop() : 'jpg';
                 const fileName = `profile_${user.id}_${Date.now()}.${fileExt}`;
                 const { error: uploadError } = await supabase.storage
                     .from('avatars')
-                    .upload(fileName, compressedFile);
+                    .upload(fileName, compressedFile, { upsert: true });
 
                 if (uploadError) throw uploadError;
 
@@ -153,7 +156,7 @@ export const useProfile = (initialUser) => {
             return { success: true, user: updatedUser };
         } catch (err) {
             console.error('Error updating profile:', err);
-            return { success: false, error: err.message };
+            return { success: false, error: err.message || '프로필 업데이트 중 오류가 발생했습니다.' };
         } finally {
             setLoading(false);
         }

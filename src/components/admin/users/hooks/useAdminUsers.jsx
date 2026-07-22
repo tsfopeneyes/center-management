@@ -56,6 +56,22 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             const isInternalAdmin = user.name === 'admin';
 
             return !isInternalAdmin && matchesSearch && matchesGroup && !isExcludedLeader && !isNonSchoolChurchFilter;
+        }).sort((a, b) => {
+            const isAPending = a.status === 'pending';
+            const isBPending = b.status === 'pending';
+
+            if (isAPending && !isBPending) return -1;
+            if (!isAPending && isBPending) return 1;
+
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            const isAKorean = /^[가-힣]/.test(nameA);
+            const isBKorean = /^[가-힣]/.test(nameB);
+
+            if (isAKorean && !isBKorean) return -1;
+            if (!isAKorean && isBKorean) return 1;
+
+            return nameA.localeCompare(nameB, 'ko');
         });
     }, [users, searchTerm, filterGroup, excludeLeaders, showOnlyNonSchoolChurch]);
 

@@ -68,6 +68,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 handleDeleteUser={handleDeleteUser}
                 handleResetPassword={handleResetPassword}
                 handleToggleAdminRole={handleToggleAdminRole}
+                handleApproveUser={handleApproveUser}
                 userStats={editingUser ? getUserStats(editingUser.id) : null}
                 fetchData={fetchData}
                 setIsMergeModalOpen={setIsMergeModalOpen}

@@ -56,10 +56,36 @@ const CoffeeChatModal = ({ staff, student, onClose, onSuccess }) => {
             if (dbError) throw dbError;
 
             // 2. Send LINE and Discord notifications
-            const lineToken = localStorage.getItem('line_channel_access_token');
-            const lineGroupId = localStorage.getItem('line_group_id');
-            const gsWebhookUrl = localStorage.getItem('gs_webhook_url');
-            const discordWebhookUrl = localStorage.getItem('discord_webhook_url');
+            let lineToken = localStorage.getItem('line_channel_access_token');
+            let lineGroupId = localStorage.getItem('line_group_id');
+            let gsWebhookUrl = localStorage.getItem('gs_webhook_url');
+            let discordWebhookUrl = localStorage.getItem('discord_webhook_url');
+
+            try {
+                const { data: settings } = await supabase.from('global_settings').select('*');
+                if (settings && settings.length > 0) {
+                    settings.forEach(s => {
+                        if (s.key === 'line_channel_access_token' && s.value) {
+                            lineToken = s.value;
+                            localStorage.setItem('line_channel_access_token', s.value);
+                        }
+                        if (s.key === 'line_group_id' && s.value) {
+                            lineGroupId = s.value;
+                            localStorage.setItem('line_group_id', s.value);
+                        }
+                        if (s.key === 'gs_webhook_url' && s.value) {
+                            gsWebhookUrl = s.value;
+                            localStorage.setItem('gs_webhook_url', s.value);
+                        }
+                        if (s.key === 'discord_webhook_url' && s.value) {
+                            discordWebhookUrl = s.value;
+                            localStorage.setItem('discord_webhook_url', s.value);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to fetch latest global_settings for coffee chat:", e);
+            }
 
             const formattedTopics = selectedTopics.join(', ');
             const alertMsg = `[COFFEE CHAT]\n☕ ${student.name} 학생이 ${staff.name} 쌤에게 대화를 신청했어요!\n📌 주제: ${formattedTopics}${message.trim() ? `\n💬 스처쌤에게 하고 싶은 말:\n"${message.trim()}"` : ''}`;

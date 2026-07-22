@@ -5,10 +5,36 @@ import confetti from 'canvas-confetti';
 import { TERMS_VERSION } from '../constants/appConstants';
 
 const sendRealtimeNotification = async (user, type, location, metadata = {}) => {
-    const lineToken = localStorage.getItem('line_channel_access_token');
-    const lineGroupId = localStorage.getItem('line_group_id');
-    const gsWebhookUrl = localStorage.getItem('gs_webhook_url');
-    const discordWebhookUrl = localStorage.getItem('discord_webhook_url');
+    let lineToken = localStorage.getItem('line_channel_access_token');
+    let lineGroupId = localStorage.getItem('line_group_id');
+    let gsWebhookUrl = localStorage.getItem('gs_webhook_url');
+    let discordWebhookUrl = localStorage.getItem('discord_webhook_url');
+
+    try {
+        const { data: settings } = await supabase.from('global_settings').select('*');
+        if (settings && settings.length > 0) {
+            settings.forEach(s => {
+                if (s.key === 'line_channel_access_token' && s.value) {
+                    lineToken = s.value;
+                    localStorage.setItem('line_channel_access_token', s.value);
+                }
+                if (s.key === 'line_group_id' && s.value) {
+                    lineGroupId = s.value;
+                    localStorage.setItem('line_group_id', s.value);
+                }
+                if (s.key === 'gs_webhook_url' && s.value) {
+                    gsWebhookUrl = s.value;
+                    localStorage.setItem('gs_webhook_url', s.value);
+                }
+                if (s.key === 'discord_webhook_url' && s.value) {
+                    discordWebhookUrl = s.value;
+                    localStorage.setItem('discord_webhook_url', s.value);
+                }
+            });
+        }
+    } catch (e) {
+        console.error("Failed to fetch latest global_settings for realtime notification:", e);
+    }
 
     // 0. Check if it is Haifn branch to prevent LINE usage on ENOUGH_PLACE
     let isHaifnBranch = false;
