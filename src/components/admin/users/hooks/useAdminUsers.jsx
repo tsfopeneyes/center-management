@@ -79,19 +79,13 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             const latestLog = [...userLogs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
 
             let lastActiveTime = null;
-            let lastActiveLabel = '최근 웹 접속';
+            let hasWebRecord = false;
             if (user.preferences?.last_web_login_at) {
                 lastActiveTime = new Date(user.preferences.last_web_login_at);
-                lastActiveLabel = '최근 웹 접속';
-            } else if (latestLog?.created_at) {
-                lastActiveTime = new Date(latestLog.created_at);
-                lastActiveLabel = '최근 키오스크 접속';
-            } else if (user.created_at) {
-                lastActiveTime = new Date(user.created_at);
-                lastActiveLabel = '가입 시각';
+                hasWebRecord = true;
             }
 
-            let formatted = '-';
+            let formatted = '기록 없음';
             if (lastActiveTime) {
                 const todayStr = new Date().toLocaleDateString('ko-KR');
                 const targetStr = lastActiveTime.toLocaleDateString('ko-KR');
@@ -109,7 +103,8 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             return {
                 ...user,
                 lastActiveAt: lastActiveTime ? lastActiveTime.toISOString() : null,
-                lastActiveFormatted: formatted
+                lastActiveFormatted: formatted,
+                hasWebRecord
             };
         });
     }, [users, searchTerm, filterGroup, excludeLeaders, showOnlyNonSchoolChurch, allLogs]);

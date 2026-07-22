@@ -32,7 +32,32 @@ function App() {
                 console.error('Failed to load global settings:', e);
             }
         };
+
+        const trackWebSession = async () => {
+            try {
+                const stored = localStorage.getItem('user') || localStorage.getItem('admin_user');
+                if (!stored) return;
+                const currentUser = JSON.parse(stored);
+                if (!currentUser?.id) return;
+
+                const nowIso = new Date().toISOString();
+                const lastTracked = currentUser.preferences?.last_web_login_at;
+
+                if (!lastTracked || (new Date() - new Date(lastTracked)) > 3 * 60 * 1000) {
+                    const updatedPreferences = { ...(currentUser.preferences || {}), last_web_login_at: nowIso };
+                    await supabase.from('users').update({ preferences: updatedPreferences }).eq('id', currentUser.id);
+
+                    const updatedUser = { ...currentUser, preferences: updatedPreferences };
+                    if (localStorage.getItem('user')) localStorage.setItem('user', JSON.stringify(updatedUser));
+                    if (localStorage.getItem('admin_user')) localStorage.setItem('admin_user', JSON.stringify(updatedUser));
+                }
+            } catch (e) {
+                console.error('Failed to track web session:', e);
+            }
+        };
+
         loadGlobalSettings();
+        trackWebSession();
     }, []);
 
     const handleFinishLoading = () => {
