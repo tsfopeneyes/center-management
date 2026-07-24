@@ -243,28 +243,52 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
 
     useEffect(() => {
         const isGroupEnabled = notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment;
-        if (isGroupEnabled && notice?.id) {
-            const fetchParticipants = async () => {
-                const { data, error } = await supabase
+        if (!isGroupEnabled || !notice?.id) return;
+
+        const fetchParticipantsAndSeed = async () => {
+            try {
+                // Fetch latest guest_properties to catch remote shuffles from mobile
+                const { data: latestNotice } = await supabase
+                    .from('notices')
+                    .select('guest_properties')
+                    .eq('id', notice.id)
+                    .single();
+
+                const latestSeed = latestNotice?.guest_properties?.team_shuffle_seed ?? notice.guest_properties?.team_shuffle_seed ?? '';
+
+                if (latestNotice?.guest_properties) {
+                    notice.guest_properties = {
+                        ...notice.guest_properties,
+                        ...latestNotice.guest_properties
+                    };
+                }
+
+                const { data } = await supabase
                     .from('notice_responses')
                     .select('user_id, status, users(id, name, school)')
                     .eq('notice_id', notice.id)
                     .eq('status', 'JOIN');
+
                 if (data) {
-                    // Sort deterministically by user_id/id
                     const sorted = data.map(d => ({
-                        id: d.users?.id || d.user_id,
+                        id: String(d.users?.id || d.user_id || ''),
                         name: d.users?.name || '참가자',
                         school: d.users?.school || ''
                     })).sort((a, b) => a.id.localeCompare(b.id));
-                    
-                    const seed = notice.guest_properties?.team_shuffle_seed || '';
-                    const shuffled = seededShuffle(sorted, seed);
+
+                    const shuffled = seededShuffle(sorted, latestSeed);
                     setGroupParticipants(shuffled);
                 }
-            };
-            fetchParticipants();
-        }
+            } catch (err) {
+                console.error("Auto sync error:", err);
+            }
+        };
+
+        fetchParticipantsAndSeed();
+
+        // Auto poll every 2.5 seconds while modal is active for instant F5-free sync!
+        const interval = setInterval(fetchParticipantsAndSeed, 2500);
+        return () => clearInterval(interval);
     }, [notice?.id, responses, notice.guest_properties?.team_shuffle_seed]);
     const { isStarted, isEnded, hasCustomFeatures } = (() => {
         const isManuallyEnded = (notice.guest_properties?.is_ended ?? notice.is_ended) === true;
