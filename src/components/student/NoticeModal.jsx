@@ -229,6 +229,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
 
     const isAdmin = Boolean(
         fromAdmin ||
+        context === 'admin' ||
         user?.role === 'admin' ||
         user?.role === 'ADMIN' ||
         user?.role === 'master' ||
@@ -1054,7 +1055,8 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                            <div className="p-4 flex gap-3">
                                {responses[notice.id] === 'JOIN' && hasCustomFeatures ? (
                                    <button
-                                       className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer"
+                                        onClick={() => setShowPostProgramPopup(true)}
+                                        className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer"
                                    >
                                        <Sparkles size={18} />
                                        <span>{customButtonName}</span>
