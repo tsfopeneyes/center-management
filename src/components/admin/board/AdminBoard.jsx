@@ -114,10 +114,25 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
 
     const handleProgramStatusChange = useCallback(async (id, newStatus) => {
         try {
-            await noticesApi.update(id, { program_status: newStatus });
-            setNotices(prev => prev.map(n => n.id === id ? { ...n, program_status: newStatus } : n));
-            
             const notice = notices.find(n => n.id === id);
+            const currentGp = notice?.guest_properties || {};
+            const isEndedVal = newStatus === 'COMPLETED';
+
+            await noticesApi.update(id, { 
+                program_status: newStatus,
+                guest_properties: {
+                    ...currentGp,
+                    is_ended: isEndedVal
+                }
+            });
+            setNotices(prev => prev.map(n => n.id === id ? { 
+                ...n, 
+                program_status: newStatus,
+                guest_properties: {
+                    ...(n.guest_properties || {}),
+                    is_ended: isEndedVal
+                }
+            } : n));
             
             if (newStatus === 'COMPLETED') {
                 if (notice) await noticesApi.finalizeProgramLogs(id, notice);

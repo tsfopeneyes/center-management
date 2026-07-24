@@ -31,10 +31,24 @@ const StudentProgramsTab = ({
         fetchFeedback();
     }, []);
 
-    // History: attended programs
+    // History: attended & ENDED programs only
     const historyPrograms = (allPrograms || []).filter(n => {
-        const detail = responseDetails?.[n.id];
-        return detail && detail.status === 'JOIN' && detail.is_attended;
+        const isJoined = responses?.[n.id] === 'JOIN' || responseDetails?.[n.id]?.status === 'JOIN';
+        if (!isJoined) return false;
+
+        // 종료 되었거나 종료 시간이 지난 프로그램만 '나의 참여 내역'에 노출
+        const isEnded = n.program_status === 'COMPLETED' || 
+                        (n.guest_properties?.is_ended ?? n.is_ended) === true ||
+                        (() => {
+                            const pDateStr = n.program_end_date || n.program_date;
+                            if (!pDateStr) return false;
+                            const pDate = new Date(pDateStr);
+                            const durationHours = parseFloat(n.program_duration) || 0;
+                            const pEndDate = new Date(pDate.getTime() + (durationHours > 0 ? durationHours : 2) * 60 * 60 * 1000);
+                            return new Date() >= pEndDate;
+                        })();
+
+        return isEnded;
     });
 
     return (
@@ -99,6 +113,7 @@ const StudentProgramsTab = ({
                                     <div className="grid grid-cols-2 gap-3">
                                         {historyPrograms.map(n => {
                                             const hasReviewed = userFeedbacks.some(f => f.notice_id === n.id);
+                                            const isFeedbackEnabled = (n.guest_properties?.enable_feedback ?? n.enable_feedback) === true;
                                             
                                             return (
                                                 <div key={n.id} className="bg-white text-left shadow-toss-standard rounded-toss-xl p-4 flex flex-col justify-between hover:shadow-toss-elevated active:scale-[0.98] transition-all border border-tossGrey100/50">
@@ -119,20 +134,26 @@ const StudentProgramsTab = ({
                                                     </div>
      
                                                     {/* Action Area */}
-                                                    {hasReviewed ? (
-                                                        <button
-                                                            onClick={() => setSelectedFeedbackProgram(n)}
-                                                            className="w-full py-2 rounded-toss-lg text-tossGrey700 text-xs font-bold bg-tossGrey100 hover:bg-tossGrey200 transition-colors"
-                                                        >
-                                                            피드백 수정
-                                                        </button>
+                                                    {isFeedbackEnabled ? (
+                                                        hasReviewed ? (
+                                                            <button
+                                                                onClick={() => setSelectedFeedbackProgram(n)}
+                                                                className="w-full py-2 rounded-toss-lg text-tossGrey700 text-xs font-bold bg-tossGrey100 hover:bg-tossGrey200 transition-colors cursor-pointer"
+                                                            >
+                                                                피드백 작성 완료
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => setSelectedFeedbackProgram(n)}
+                                                                className="w-full py-2 rounded-toss-lg text-white text-xs font-bold bg-tossBlue hover:bg-tossBlueHover transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                                            >
+                                                                피드백 작성 {n.haifn_reward && n.haifn_reward > 0 ? `(${n.haifn_reward}H)` : ''}
+                                                            </button>
+                                                        )
                                                     ) : (
-                                                        <button
-                                                            onClick={() => setSelectedFeedbackProgram(n)}
-                                                            className="w-full py-2 rounded-toss-lg text-white text-xs font-bold bg-tossBlue hover:bg-tossBlueHover transition-all flex items-center justify-center gap-1"
-                                                        >
-                                                            피드백 작성 {n.haifn_reward && n.haifn_reward > 0 ? `(${n.haifn_reward}H)` : ''}
-                                                        </button>
+                                                        <div className="w-full py-2 rounded-toss-lg text-tossGrey400 text-xs font-bold bg-tossGrey50 border border-tossGrey100 text-center select-none">
+                                                            참여 완료
+                                                        </div>
                                                     )}
                                                 </div>
                                             );

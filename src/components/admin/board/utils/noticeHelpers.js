@@ -142,6 +142,17 @@ export const prepareNoticeForEdit = (notice) => {
         enable_group_assignment: notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment ?? false,
         group_count: notice.guest_properties?.group_count ?? notice.group_count ?? 4,
         enable_random_questions: notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions ?? false,
-        random_questions: notice.guest_properties?.random_questions ?? notice.random_questions ?? []
+        random_questions: notice.guest_properties?.random_questions ?? notice.random_questions ?? [],
+        enable_feedback: notice.guest_properties?.enable_feedback ?? notice.enable_feedback ?? false,
+        custom_feedback_config: notice.guest_properties?.custom_feedback_config ?? notice.custom_feedback_config ?? {
+            questions: [
+                { id: 'q1', type: 'choice', title: '프로그램 참여 이유', options: ['친구 추천', '기존 센터 경험', '프로그램 흥미', '기타'], required: true },
+                { id: 'q2', type: 'text', title: '새로 배우거나 경험한 점', placeholder: '어떤 것을 느끼고 경험하셨나요?', required: true },
+                { id: 'q3', type: 'star', title: '프로그램 전체 만족도', required: true },
+                { id: 'q4', type: 'text', title: '가장 좋았던 순간', placeholder: '가장 인상 깊었던 순간을 적어주세요.', required: true },
+                { id: 'q5', type: 'text', title: '아쉬웠던 점 및 개선 의견', placeholder: '아쉬웠던 점이 있다면 편하게 적어주세요.', required: true },
+                { id: 'q6', type: 'star', title: '다음 프로그램 재참여 의사', required: true }
+            ]
+        }
     };
 };

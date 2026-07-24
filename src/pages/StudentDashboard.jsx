@@ -19,6 +19,7 @@ import StudentAzitTab from '../components/student/StudentAzitTab';
 import { userApi } from '../api/userApi';
 import { noticesApi } from '../api/noticesApi';
 import UserAvatar from '../components/common/UserAvatar';
+import StudentImpersonateBar from '../components/student/modals/StudentImpersonateBar';
 
 // Extracted Modals
 import NoticeModal from '../components/student/NoticeModal';
@@ -523,6 +524,13 @@ const StudentDashboard = () => {
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
+            {/* 마스터 스태프 전용 학생 시점 미리보기 바 */}
+            <StudentImpersonateBar
+                user={hookData.realUser || user}
+                impersonatedUser={hookData.impersonatedUser}
+                onSelectStudent={(st) => hookData.setImpersonatedUser(st)}
+                onReset={() => hookData.setImpersonatedUser(null)}
+            />
             
             {/* Verification Write Modal */}
             {showVerificationWrite && (

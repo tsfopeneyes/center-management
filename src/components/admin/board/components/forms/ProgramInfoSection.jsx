@@ -768,96 +768,251 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                         </div>
                     )}
                 </div>
-            )}
-
-            {/* 4. 지급 포인트 및 리뷰 설정 (아코디언 카드) */}
+            )}            {/* 4. 보상 & 피드백 설정 (아코디언 카드) */}
             <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${
-                Number(formData.haifn_reward) > 0 ? 'border-blue-300 shadow-md' : 'border-slate-200/80 hover:border-slate-300'
+                (Number(formData.haifn_reward) > 0 || formData.enable_feedback) ? 'border-blue-300 shadow-md' : 'border-slate-200/80 hover:border-slate-300'
             }`}>
                 <button
                     type="button"
                     onClick={() => {
-                        const hasReward = Number(formData.haifn_reward) > 0;
-                        if (hasReward) {
+                        const isActive = Number(formData.haifn_reward) > 0 || formData.enable_feedback;
+                        if (isActive) {
                             updateField('haifn_reward', 0);
+                            updateField('enable_feedback', false);
                             updateField('is_review_required', false);
-                            setOpenSections(prev => ({ ...prev, reward: false }));
                         } else {
-                            updateField('haifn_reward', 5);
-                            setOpenSections(prev => ({ ...prev, reward: true }));
+                            updateField('haifn_reward', 30);
+                            updateField('enable_feedback', true);
                         }
                     }}
                     className="w-full p-4 sm:p-5 flex items-center justify-between bg-white hover:bg-slate-50/60 transition-colors cursor-pointer select-none"
                 >
                     <div className="flex items-center gap-3">
                         <div className={`p-2.5 rounded-xl transition-colors ${
-                            Number(formData.haifn_reward) > 0 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
+                            (Number(formData.haifn_reward) > 0 || formData.enable_feedback) ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
                         }`}>
                             <Gift size={18} />
                         </div>
                         <div className="flex flex-col items-start text-left">
                             <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-bold text-slate-800">지급 포인트 및 리뷰 설정</span>
+                                <span className="text-sm font-bold text-slate-800">지급 포인트 & 피드백 설정</span>
                                 <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border ${
-                                    Number(formData.haifn_reward) > 0 ? 'bg-blue-50 text-blue-600 border-blue-200/60' : 'bg-slate-100 text-slate-500 border-slate-200/60'
+                                    (Number(formData.haifn_reward) > 0 || formData.enable_feedback) ? 'bg-blue-50 text-blue-600 border-blue-200/60' : 'bg-slate-100 text-slate-500 border-slate-200/60'
                                 }`}>
-                                    {Number(formData.haifn_reward) > 0 ? `${formData.haifn_reward} HP 지급 (활성화)` : '미사용 (비활성화)'}
+                                    {Number(formData.haifn_reward) > 0 && formData.enable_feedback
+                                        ? `${formData.haifn_reward} HP 지급 & 피드백 수집`
+                                        : Number(formData.haifn_reward) > 0
+                                            ? `${formData.haifn_reward} HP 지급 (설문 없음)`
+                                            : formData.enable_feedback
+                                                ? '피드백 수집 (포인트 없음)'
+                                                : '미사용 (비활성화)'}
                                 </span>
                             </div>
-                            <span className="text-[11px] text-slate-400 font-medium mt-0.5">참여 완료 시 학생에게 포인트를 지급하고 후기를 수집합니다.</span>
+                            <span className="text-[11px] text-slate-400 font-medium mt-0.5">참여 학생에게 지급할 하이픈 포인트와 피드백 설문 수집 여부를 각각 설정합니다.</span>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {Number(formData.haifn_reward) > 0 ? (
+                        {(Number(formData.haifn_reward) > 0 || formData.enable_feedback) ? (
                             <ToggleRight size={28} className="text-blue-600" />
                         ) : (
                             <ToggleLeft size={28} className="text-slate-300" />
                         )}
-                        {Number(formData.haifn_reward) > 0 ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                        {(Number(formData.haifn_reward) > 0 || formData.enable_feedback) ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
                     </div>
                 </button>
 
-                {Number(formData.haifn_reward) > 0 && (
-                    <div className="p-5 pt-3 border-t border-slate-100 bg-slate-50/40 grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-600 mb-1.5 block">지급 포인트 (HP)</label>
-                            <div className="relative h-11 flex items-center bg-white border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 transition-all">
-                                <Gift className="absolute left-3.5 text-slate-400 shrink-0" size={15} />
-                                <input
-                                    type="number"
-                                    placeholder="단위: 하이픈 (지급 포인트)"
-                                    min="1"
-                                    value={formData.haifn_reward || ''}
-                                    onChange={e => updateField('haifn_reward', e.target.value)}
-                                    className="w-full h-full pl-10 pr-3.5 bg-transparent outline-none font-bold text-slate-800 text-xs"
-                                />
+                {(Number(formData.haifn_reward) > 0 || formData.enable_feedback) && (
+                    <div className="p-5 pt-3 border-t border-slate-100 bg-slate-50/40 space-y-5 animate-fade-in">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* 포인트 설정 */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-600 mb-1.5 block">지급 포인트 (HP)</label>
+                                <div className="relative h-11 flex items-center bg-white border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 transition-all">
+                                    <Gift className="absolute left-3.5 text-slate-400 shrink-0" size={15} />
+                                    <input
+                                        type="number"
+                                        placeholder="단위: 하이픈 (지급 포인트)"
+                                        min="0"
+                                        value={formData.haifn_reward ?? ''}
+                                        onChange={e => updateField('haifn_reward', parseInt(e.target.value) || 0)}
+                                        className="w-full h-full pl-10 pr-3.5 bg-transparent outline-none font-bold text-slate-800 text-xs"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-slate-400 font-medium mt-1.5 block leading-normal">프로그램 참여 완료 시 학생에게 부여할 포인트입니다. (0 입력 시 포인트 미지급)</p>
                             </div>
-                            <p className="text-[11px] text-slate-400 font-medium mt-1.5 block leading-normal">프로그램 참여 완료 시 지급되는 하이픈 포인트입니다.</p>
-                        </div>
 
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-600 mb-1.5 block">후기 등록 조건</label>
-                            <div 
-                                className={`flex items-start gap-3 p-3.5 border rounded-2xl cursor-pointer select-none transition-all duration-200 ${
-                                    formData.is_review_required 
-                                        ? 'bg-blue-50/60 border-blue-400 text-blue-700' 
-                                        : 'bg-white border-slate-200/60 text-slate-500 hover:bg-slate-50'
-                                }`}
-                                onClick={() => updateField('is_review_required', !formData.is_review_required)}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={formData.is_review_required || false}
-                                    onChange={() => {}} // handled by click wrapper
-                                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5 shrink-0"
-                                />
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-bold text-slate-800">리뷰(인증후기) 필수 작성</span>
-                                    <span className="text-[10px] font-semibold text-slate-400 mt-0.5">인증/후기가 완료되어야 포인트가 최종 지급됩니다.</span>
+                            {/* 피드백 설문 수집 여부 스위치 */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-600 mb-1.5 block">종료 후 피드백 설문 수집</label>
+                                <div 
+                                    className={`flex items-start gap-3 p-3 border rounded-2xl cursor-pointer select-none transition-all duration-200 ${
+                                        formData.enable_feedback 
+                                            ? 'bg-blue-50/60 border-blue-400 text-blue-700' 
+                                            : 'bg-white border-slate-200/60 text-slate-500 hover:bg-slate-50'
+                                    }`}
+                                    onClick={() => {
+                                        const nextState = !formData.enable_feedback;
+                                        updateField('enable_feedback', nextState);
+                                        if (!nextState) updateField('is_review_required', false);
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.enable_feedback || false}
+                                        onChange={() => {}} 
+                                        className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5 shrink-0"
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-slate-800">피드백/만족도 설문 수집</span>
+                                        <span className="text-[10px] font-semibold text-slate-400 mt-0.5">체크 시 종료 후 출석한 학생에게 만족도 및 후기 설문을 받습니다.</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* 피드백 설문 수집이 활성화된 경우만 노출되는 상세 질문 & 조건 설정 */}
+                        {formData.enable_feedback && (
+                            <div className="pt-4 border-t border-slate-200/60 space-y-4 animate-fade-in">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-600 mb-1 block">후기 작성 필수 여부</label>
+                                    <div 
+                                        className={`flex items-start gap-3 p-3 border rounded-2xl cursor-pointer select-none transition-all duration-200 ${
+                                            formData.is_review_required 
+                                                ? 'bg-blue-50/60 border-blue-400 text-blue-700' 
+                                                : 'bg-white border-slate-200/60 text-slate-500 hover:bg-slate-50'
+                                        }`}
+                                        onClick={() => updateField('is_review_required', !formData.is_review_required)}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.is_review_required || false}
+                                            onChange={() => {}}
+                                            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5 shrink-0"
+                                        />
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold text-slate-800">리뷰(인증후기) 작성 완료 시 최종 포인트 지급</span>
+                                            <span className="text-[10px] font-semibold text-slate-400 mt-0.5">체크 해제 시 출석 체크 직후 포인트가 즉시 지급되고 피드백 작성은 자율 제출로 변경됩니다.</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 피드백 질문 항목 빌더 */}
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-slate-700">피드백 설문 질문 항목 설정</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const defaultQuestions = [
+                                                    { id: 'q1', type: 'choice', title: '프로그램 참여 이유', options: ['친구 추천', '기존 센터 경험', '프로그램 흥미', '기타'], required: true },
+                                                    { id: 'q2', type: 'text', title: '새로 배우거나 경험한 점', placeholder: '어떤 것을 느끼고 경험하셨나요?', required: true },
+                                                    { id: 'q3', type: 'star', title: '프로그램 전체 만족도', required: true },
+                                                    { id: 'q4', type: 'text', title: '가장 좋았던 순간', placeholder: '가장 인상 깊었던 순간을 적어주세요.', required: true },
+                                                    { id: 'q5', type: 'text', title: '아쉬웠던 점 및 개선 의견', placeholder: '아쉬웠던 점이 있다면 편하게 적어주세요.', required: true },
+                                                    { id: 'q6', type: 'star', title: '다음 프로그램 재참여 의사', required: true }
+                                                ];
+                                                updateField('custom_feedback_config', { questions: defaultQuestions });
+                                            }}
+                                            className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer"
+                                        >
+                                            기본 템플릿 불러오기
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2.5">
+                                        {((formData.custom_feedback_config?.questions) || []).map((q, idx) => (
+                                            <div key={q.id || idx} className="p-3 bg-white rounded-xl border border-slate-200/60 space-y-2 shadow-2xs">
+                                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                                    <div className="flex items-center gap-2.5 flex-wrap">
+                                                        <span className="text-xs font-extrabold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100 shrink-0">문항 {idx + 1}</span>
+                                                        
+                                                        <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-xl border border-slate-200 shadow-2xs">
+                                                            {[
+                                                                { type: 'star', label: '별점 평가' },
+                                                                { type: 'text', label: '주관식' },
+                                                                { type: 'short', label: '단답형' },
+                                                                { type: 'choice', label: '객관식' }
+                                                            ].map(opt => (
+                                                                <button
+                                                                    key={opt.type}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const questions = [...(formData.custom_feedback_config?.questions || [])];
+                                                                        questions[idx] = { ...questions[idx], type: opt.type };
+                                                                        updateField('custom_feedback_config', { questions });
+                                                                    }}
+                                                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                                                        (q.type || 'text') === opt.type
+                                                                            ? 'bg-blue-600 text-white shadow-xs'
+                                                                            : 'text-slate-500 hover:text-slate-800 hover:bg-white'
+                                                                    }`}
+                                                                >
+                                                                    {opt.label}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const questions = (formData.custom_feedback_config?.questions || []).filter((_, i) => i !== idx);
+                                                            updateField('custom_feedback_config', { questions });
+                                                        }}
+                                                        className="text-xs font-semibold text-slate-400 hover:text-red-500 px-2.5 py-1 hover:bg-red-50 rounded-lg transition shrink-0 cursor-pointer"
+                                                    >
+                                                        삭제
+                                                    </button>
+                                                </div>
+
+                                                <input
+                                                    type="text"
+                                                    value={q.title || ''}
+                                                    onChange={e => {
+                                                        const questions = [...(formData.custom_feedback_config?.questions || [])];
+                                                        questions[idx] = { ...questions[idx], title: e.target.value };
+                                                        updateField('custom_feedback_config', { questions });
+                                                    }}
+                                                    placeholder="질문 제목을 입력하세요"
+                                                    className="w-full px-3 py-1.5 bg-slate-50/60 border border-slate-200 rounded-lg outline-none text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white transition-all"
+                                                />
+
+                                                {q.type === 'choice' && (
+                                                    <div className="space-y-1 pl-2">
+                                                        <label className="text-[10px] font-bold text-slate-500 block">선택 항목 (쉼표로 구분):</label>
+                                                        <input
+                                                            type="text"
+                                                            value={Array.isArray(q.options) ? q.options.join(', ') : (q.options || '')}
+                                                            onChange={e => {
+                                                                const questions = [...(formData.custom_feedback_config?.questions || [])];
+                                                                questions[idx] = { ...questions[idx], options: e.target.value };
+                                                                updateField('custom_feedback_config', { questions });
+                                                            }}
+                                                            placeholder="예: 친구 추천, 기존 경험, 프로그램 흥미, 기타"
+                                                            className="w-full px-2.5 py-1 bg-slate-50/60 border border-slate-200 rounded-lg outline-none text-[11px] font-semibold text-slate-700 focus:border-blue-600 focus:bg-white transition-all"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const questions = [...(formData.custom_feedback_config?.questions || [])];
+                                            const newId = 'q' + (questions.length + 1);
+                                            questions.push({ id: newId, type: 'text', title: '', required: true });
+                                            updateField('custom_feedback_config', { questions });
+                                        }}
+                                        className="w-full py-2.5 bg-white hover:bg-blue-50/20 border border-dashed border-slate-200 hover:border-blue-400 rounded-xl font-bold text-slate-500 hover:text-blue-600 transition-all text-xs flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                                    >
+                                        + 피드백 질문 항목 추가
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -1223,11 +1378,11 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                         </div>
                         <div className="flex flex-col items-start text-left">
                             <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-bold text-slate-800">신청자 전용 맞춤 버튼 및 팝업 설정</span>
+                                <span className="text-sm font-bold text-slate-800">버튼 및 팝업 설정</span>
                                 <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border ${
                                     formData.enable_post_program_button ? 'bg-blue-50 text-blue-600 border-blue-200/60' : 'bg-slate-100 text-slate-500 border-slate-200/60'
                                 }`}>
-                                    {formData.enable_post_program_button ? '맞춤 버튼 사용 (활성화)' : '미사용 (비활성화)'}
+                                    {formData.enable_post_program_button ? '사용 중' : '미사용'}
                                 </span>
                             </div>
                             <span className="text-[11px] text-slate-400 font-medium mt-0.5">종료 또는 시작 시점에 신청자에게 노출될 맞춤 버튼을 설정합니다.</span>
@@ -1287,9 +1442,9 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                             if (formData.post_program_button_name?.trim()) return '직접 입력한 이름 사용';
                                             const hasGroup = formData.enable_group_assignment;
                                             const hasQ = formData.enable_random_questions && formData.random_questions?.length > 0;
-                                            if (hasGroup && hasQ) return '자동 설정: "조 배치 & 아이스브레이킹 🎲"';
-                                            if (hasGroup) return '자동 설정: "나의 조 배치 확인 👥"';
-                                            if (hasQ) return '자동 설정: "아이스브레이킹 질문 🎲"';
+                                            if (hasGroup && hasQ) return '자동 설정: "팀 확인 및 질문"';
+                                            if (hasGroup) return '자동 설정: "팀 확인하기"';
+                                            if (hasQ) return '자동 설정: "아이스브레이킹 질문"';
                                             return '미입력 시 "프로그램 안내"로 노출';
                                         })()}
                                     </span>
@@ -1434,153 +1589,6 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                     >
                                         + 질문 추가하기
                                     </button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* 피드백 설정 카드 (통합) */}
-                        <div className="bg-white p-4 rounded-xl border border-slate-200/60 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <MessageSquare size={16} className="text-blue-600" />
-                                    <span className="text-xs font-bold text-slate-800">피드백 설정 (종료 후 피드백 & 리뷰)</span>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const nextState = !(formData.enable_feedback || formData.is_review_required);
-                                        updateField('enable_feedback', nextState);
-                                        updateField('is_review_required', nextState);
-                                    }}
-                                    className="cursor-pointer"
-                                >
-                                    {(formData.enable_feedback || formData.is_review_required) ? (
-                                        <ToggleRight size={24} className="text-blue-600" />
-                                    ) : (
-                                        <ToggleLeft size={24} className="text-slate-300" />
-                                    )}
-                                </button>
-                            </div>
-
-                            {(formData.enable_feedback || formData.is_review_required) && (
-                                <div className="pt-2 border-t border-slate-100 space-y-4 animate-fade-in">
-                                    <p className="text-[11px] text-slate-400 font-medium">
-                                        프로그램이 종료된 후 출석한 학생들에게 '피드백 작성' 버튼이 노출되며 피드백 제출 시 하이픈 보상이 지급됩니다.
-                                    </p>
-
-                                    <div className="flex items-center gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100/60">
-                                        <Gift size={16} className="text-blue-600 shrink-0" />
-                                        <label className="text-xs font-bold text-slate-700 shrink-0">리뷰 작성 보상 하이픈:</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={formData.haifn_reward ?? 5}
-                                            onChange={e => updateField('haifn_reward', parseInt(e.target.value) || 0)}
-                                            className="w-24 px-3 py-1.5 bg-white border border-slate-200/60 rounded-lg outline-none font-bold text-slate-800 text-xs focus:border-blue-600"
-                                        />
-                                        <span className="text-xs font-bold text-slate-500">H (0 설정 시 포인트 지급 없음)</span>
-                                    </div>
-
-                                    {/* 피드백 질문 항목 빌더 */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-bold text-slate-700">설문 질문 항목 설정</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const defaultQuestions = [
-                                                        { id: 'q1', type: 'choice', title: '프로그램 참여 이유', options: ['친구 추천', '기존 센터 경험', '프로그램 흥미', '기타'], required: true },
-                                                        { id: 'q2', type: 'text', title: '새로 배우거나 경험한 점', placeholder: '어떤 것을 느끼고 경험하셨나요?', required: true },
-                                                        { id: 'q3', type: 'star', title: '프로그램 전체 만족도', required: true },
-                                                        { id: 'q4', type: 'text', title: '가장 좋았던 순간', placeholder: '가장 인상 깊었던 순간을 적어주세요.', required: true },
-                                                        { id: 'q5', type: 'text', title: '아쉬웠던 점 및 개선 의견', placeholder: '아쉬웠던 점이 있다면 편하게 적어주세요.', required: true },
-                                                        { id: 'q6', type: 'star', title: '다음 프로그램 재참여 의사', required: true }
-                                                    ];
-                                                    updateField('custom_feedback_config', { questions: defaultQuestions });
-                                                }}
-                                                className="text-[10px] font-bold text-blue-600 hover:underline"
-                                            >
-                                                🔄 기본 템플릿 불러오기
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-2.5">
-                                            {((formData.custom_feedback_config?.questions) || []).map((q, idx) => (
-                                                <div key={q.id || idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200/50 space-y-2">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-xs font-black text-blue-600 shrink-0">문항 {idx + 1}</span>
-                                                        <select
-                                                            value={q.type || 'text'}
-                                                            onChange={e => {
-                                                                const questions = [...(formData.custom_feedback_config?.questions || [])];
-                                                                questions[idx] = { ...questions[idx], type: e.target.value };
-                                                                updateField('custom_feedback_config', { questions });
-                                                            }}
-                                                            className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
-                                                        >
-                                                            <option value="star">⭐ 별점 평가 (1~5점)</option>
-                                                            <option value="text">✍️ 주관식 (서술형)</option>
-                                                            <option value="short">📝 단답형</option>
-                                                            <option value="choice">🔘 객관식 (선택형)</option>
-                                                        </select>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const questions = (formData.custom_feedback_config?.questions || []).filter((_, i) => i !== idx);
-                                                                updateField('custom_feedback_config', { questions });
-                                                            }}
-                                                            className="text-[10px] font-bold text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition shrink-0"
-                                                        >
-                                                            삭제
-                                                        </button>
-                                                    </div>
-
-                                                    <input
-                                                        type="text"
-                                                        value={q.title || ''}
-                                                        onChange={e => {
-                                                            const questions = [...(formData.custom_feedback_config?.questions || [])];
-                                                            questions[idx] = { ...questions[idx], title: e.target.value };
-                                                            updateField('custom_feedback_config', { questions });
-                                                        }}
-                                                        placeholder="질문 제목을 입력하세요"
-                                                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold text-slate-800 placeholder:text-slate-400"
-                                                    />
-
-                                                    {q.type === 'choice' && (
-                                                        <div className="space-y-1 pl-2">
-                                                            <label className="text-[10px] font-bold text-slate-500 block">선택 항목 (쉼표로 구분):</label>
-                                                            <input
-                                                                type="text"
-                                                                value={Array.isArray(q.options) ? q.options.join(', ') : (q.options || '')}
-                                                                onChange={e => {
-                                                                    const optionsArr = e.target.value.split(',').map(s => s.trim());
-                                                                    const questions = [...(formData.custom_feedback_config?.questions || [])];
-                                                                    questions[idx] = { ...questions[idx], options: optionsArr };
-                                                                    updateField('custom_feedback_config', { questions });
-                                                                }}
-                                                                placeholder="예: 친구 추천, 기존 경험, 프로그램 흥미, 기타"
-                                                                className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg outline-none text-[11px] font-semibold text-slate-700"
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const questions = [...(formData.custom_feedback_config?.questions || [])];
-                                                const newId = 'q' + (questions.length + 1);
-                                                questions.push({ id: newId, type: 'text', title: '', required: true });
-                                                updateField('custom_feedback_config', { questions });
-                                            }}
-                                            className="w-full py-2 bg-slate-50 hover:bg-blue-50/20 border border-dashed border-slate-200 hover:border-blue-400 rounded-xl font-bold text-slate-500 hover:text-blue-600 transition-all text-xs flex items-center justify-center gap-1"
-                                        >
-                                            + 피드백 질문 항목 추가
-                                        </button>
-                                    </div>
                                 </div>
                             )}
                         </div>

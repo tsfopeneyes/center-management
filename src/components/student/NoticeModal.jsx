@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles, XCircle, ExternalLink, Dices, RefreshCw } from 'lucide-react';
+import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles, XCircle, ExternalLink, Dices, RefreshCw, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../supabaseClient';
 import ModernEditor from '../common/ModernEditor';
@@ -39,6 +39,7 @@ const seededShuffle = (array, seed) => {
 };
 
 import ProgramFeedbackModal from './modals/ProgramFeedbackModal';
+import AdminFeedbackListModal from '../admin/board/components/modals/AdminFeedbackListModal';
 
 const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants, onRegisterRegularUser }) => {
     const [isEditing, setIsEditing] = useState(false);
@@ -58,6 +59,45 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     const [selectedParticipantForMissions, setSelectedParticipantForMissions] = useState(null);
     const [showPostProgramPopup, setShowPostProgramPopup] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+    const [showAdminFeedbackModal, setShowAdminFeedbackModal] = useState(false);
+    const [feedbackCount, setFeedbackCount] = useState(0);
+
+    useEffect(() => {
+        const fetchFbCount = async () => {
+            if (fromAdmin && notice?.id) {
+                try {
+                    const { count } = await supabase
+                        .from('program_feedback')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('notice_id', notice.id);
+                    setFeedbackCount(count || 0);
+                } catch (e) {
+                    console.error('Error fetching fb count:', e);
+                }
+            }
+        };
+        fetchFbCount();
+    }, [fromAdmin, notice?.id, showAdminFeedbackModal]);
+    const [hasReviewed, setHasReviewed] = useState(false);
+
+    useEffect(() => {
+        const checkReview = async () => {
+            if (notice?.id && user?.id) {
+                try {
+                    const { data } = await supabase
+                        .from('program_feedback')
+                        .select('id')
+                        .eq('notice_id', notice.id)
+                        .eq('user_id', user.id)
+                        .maybeSingle();
+                    setHasReviewed(!!data);
+                } catch (e) {
+                    console.error('Failed to check review status:', e);
+                }
+            }
+        };
+        checkReview();
+    }, [notice?.id, user?.id, showFeedbackModal]);
 
     const scrollToSection = (section) => {
         setActiveTab(section);
@@ -227,32 +267,35 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         }
     }, [notice?.id, responses, notice.guest_properties?.team_shuffle_seed]);
     const { isStarted, isEnded, hasCustomFeatures } = (() => {
-        const isManuallyEnded = notice.is_ended === true;
-        
+        const isManuallyEnded = (notice.guest_properties?.is_ended ?? notice.is_ended) === true;
         const pDate = notice.program_date;
         if (!pDate) return { isStarted: false, isEnded: isManuallyEnded, hasCustomFeatures: false };
 
-        let startDateTime;
-        if (pDate.includes('T')) {
-            startDateTime = new Date(pDate);
-        } else {
+        let startDateTime = new Date(pDate);
+        if (isNaN(startDateTime.getTime())) {
             const pTime = notice.program_time || '00:00';
             startDateTime = new Date(`${pDate}T${pTime}`);
         }
+
         const now = new Date();
         const started = now >= startDateTime;
 
-        let durationMinutes = 120;
-        const durationStr = notice.program_duration || '';
-        const match = durationStr.match(/(\d+)\s*(시간|분|h|m)/);
-        if (match) {
-            const val = parseInt(match[1]);
-            const unit = match[2];
-            if (unit === '시간' || unit === 'h') durationMinutes = val * 60;
-            else durationMinutes = val;
-        } else {
-            const plainNum = parseInt(durationStr);
-            if (!isNaN(plainNum)) durationMinutes = plainNum * 60;
+        let durationMinutes = 60;
+        const durationStr = String(notice.program_duration || '').trim();
+
+        if (durationStr) {
+            const hourMatch = durationStr.match(/([\d.]+)\s*(시간|h)/i);
+            const minMatch = durationStr.match(/([\d.]+)\s*(분|m)/i);
+            if (hourMatch || minMatch) {
+                durationMinutes = 0;
+                if (hourMatch) durationMinutes += parseFloat(hourMatch[1]) * 60;
+                if (minMatch) durationMinutes += parseFloat(minMatch[1]);
+            } else {
+                const plainNum = parseFloat(durationStr);
+                if (!isNaN(plainNum) && plainNum > 0) {
+                    durationMinutes = plainNum <= 12 ? plainNum * 60 : plainNum;
+                }
+            }
         }
 
         const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
@@ -261,7 +304,8 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
         const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;
         const hasCustomBtnName = !!((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim());
-        const customFeatures = hasGroup || hasQ || hasCustomBtnName;
+        const isButtonEnabled = notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button ?? true;
+        const customFeatures = isButtonEnabled && (hasGroup || hasQ || hasCustomBtnName);
 
         return { isStarted: started, isEnded: ended, hasCustomFeatures: customFeatures };
     })();
@@ -272,8 +316,8 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         if ((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim()) return (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name);
         const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
         const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;
-        if (hasGroup && hasQ) return '팀 배치 & 질문 뽑기';
-        if (hasGroup) return '나의 조 배치 확인';
+        if (hasGroup && hasQ) return '팀 확인 및 질문';
+        if (hasGroup) return '팀 확인하기';
         if (hasQ) return '아이스브레이킹 질문';
         return '프로그램 안내';
     })();
@@ -328,7 +372,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-0 z-[130] bg-white flex flex-col sm:max-w-lg mx-auto overflow-hidden shadow-2xl pb-20 gpu-accelerated"
+            className="fixed inset-0 z-[130] bg-white flex flex-col sm:max-w-lg mx-auto overflow-hidden shadow-2xl gpu-accelerated"
         >
             <NoticeHeader
                 onClose={onClose}
@@ -856,134 +900,172 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                          </div>
                      ))}
                      
-                     {/* Inline Comment Input for Program Notices */}
-                     {/* Program Notice Fixed Bottom Action Bar */}
-              {notice.category === 'PROGRAM' && !isEditing && (
-                  <div className="bg-white border-t border-tossGrey200 z-[60]">
-                      {notice.is_recruiting && notice.recruitment_deadline && !isEnded && (
-                          <div className="bg-tossGrey900 text-center py-2.5 px-4 text-xs font-bold text-tossCaution tracking-tight">
-                              {timeLeft}
-                          </div>
-                      )}
-                      {isAdmin ? (
-                          <div className="p-4 flex gap-3">
-                              <button
-                                  onClick={() => onViewParticipants && onViewParticipants(notice)}
-                                  className="flex-1 py-3.5 rounded-toss-xl font-bold text-white text-base bg-tossBlue hover:bg-tossBlueHover transition transform active:scale-[0.98] flex items-center justify-center gap-2"
-                              >
-                                  {notice.is_recruiting ? `신청자 명단 (${joinCount}명)` : '참석자 명단'}
-                              </button>
-                              {(notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment) && (
-                                  <button
-                                      onClick={() => setShowAdminTeamsModal(true)}
-                                      className="flex-1 py-3.5 rounded-toss-xl font-bold text-blue-600 text-base bg-blue-50 hover:bg-blue-100 transition transform active:scale-[0.98] flex items-center justify-center gap-2 border border-blue-200"
-                                  >
-                                      <Users size={18} />
-                                      <span>팀 배치 정보 ({(notice.guest_properties?.group_count ?? notice.group_count) || 4}개 팀)</span>
-                                  </button>
-                              )}
-                              {!isEnded && (
-                                  <button
-                                      onClick={async () => {
-                                          if (window.confirm('프로그램을 지금 종료하시겠습니까?\n\n종료하면 참가했던 학생들에게 피드백 작성 버튼이 노출됩니다.')) {
-                                              try {
-                                                  await supabase
-                                                      .from('notices')
-                                                      .update({ is_ended: true })
-                                                      .eq('id', notice.id);
-                                                  alert('프로그램이 종료 처리되었습니다.');
-                                                  if (onRefresh) onRefresh();
-                                                  onClose();
-                                              } catch (err) {
-                                                  console.error('Error ending program:', err);
-                                              }
-                                          }
-                                      }}
-                                      className="px-4 py-3.5 bg-red-50 hover:bg-red-100 text-tossError border border-red-200 rounded-toss-xl font-bold text-sm transition transform active:scale-[0.98] shrink-0"
-                                  >
-                                      프로그램 종료
-                                  </button>
-                              )}
-                          </div>
-                      ) : isEnded ? (
-                          <div className="p-4 flex gap-3">
-                              {responses[notice.id] === 'JOIN' && responseDetails[notice.id]?.is_attended ? (
-                                  <button
-                                      onClick={() => setShowFeedbackModal(true)}
-                                      className="flex-1 py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100"
-                                  >
-                                      <Sparkles size={18} />
-                                      <span>피드백 작성</span>
-                                  </button>
-                              ) : (
-                                  <div className="flex-1 py-3.5 bg-tossGrey100 text-tossGrey400 text-center font-bold rounded-toss-xl text-sm">
-                                      종료된 프로그램입니다.
-                                  </div>
-                              )}
-                          </div>
-                      ) : isStarted ? (
-                          <div className="p-4 flex gap-3">
-                              {responses[notice.id] === 'JOIN' && hasCustomFeatures ? (
-                                  <>
-                                      <button
-                                          onClick={() => onResponse(notice.id, 'CANCEL')}
-                                          className="px-4 py-3.5 bg-red-50 hover:bg-red-100 text-tossError border border-red-100 rounded-toss-xl font-bold text-sm transition transform active:scale-[0.98] flex items-center justify-center gap-1 shrink-0"
-                                      >
-                                          <XCircle size={16} />
-                                          <span>취소</span>
-                                      </button>
-                                      <button
-                                          onClick={() => setShowPostProgramPopup(true)}
-                                          className="flex-1 py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100"
-                                      >
-                                          <Sparkles size={18} />
-                                          <span>{customButtonName}</span>
-                                      </button>
-                                  </>
-                              ) : (
-                                  <button
-                                      disabled={true}
-                                      className="flex-1 py-3.5 rounded-toss-xl font-bold text-base bg-tossGrey100 text-tossGrey400 cursor-not-allowed text-center"
-                                  >
-                                      신청 마감
-                                  </button>
-                              )}
-                          </div>
-                      ) : (
-                          <div className="p-4 flex gap-3">
-                              <button
-                                  disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (!responses[notice.id] && notice.is_leader_only && !user?.is_leader)}
-                                  onClick={() => {
-                                      if (responses[notice.id]) {
-                                          onResponse(notice.id, 'CANCEL');
-                                      } else {
-                                          onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
-                                      }
-                                  }}
-                                  className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 ${
-                                      responses[notice.id] 
-                                          ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100' 
-                                          : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
-                                              ? 'bg-tossWarning hover:bg-tossWarning/90 text-white' 
-                                              : 'bg-tossBlue hover:bg-tossBlueHover text-white')
-                                  }`}
-                              >
-                                  {responses[notice.id] ? (
-                                      <>
-                                          <XCircle size={18} />
-                                          <span>{responses[notice.id] === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}</span>
-                                      </>
-                                  ) : (
-                                      notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'
-                                  )}
-                              </button>
-                          </div>
-                      )}
-                  </div>
-              )}
+                 </div>
+             </div>
+             {/* Program Notice Fixed Bottom Action Bar */}
+             {notice.category === 'PROGRAM' && !isEditing && (
+                 <div className="bg-white border-t border-tossGrey200 z-[60] shrink-0 shadow-toss-standard">
+                     {notice.is_recruiting && notice.recruitment_deadline && !isEnded && (
+                         <div className="bg-tossGrey900 text-center py-2.5 px-4 text-xs font-bold text-tossCaution tracking-tight">
+                             {timeLeft}
+                         </div>
+                     )}
+                     {isAdmin ? (
+                         <div className="p-4 bg-white space-y-2.5">
+                             {/* 1. 상단 숏컷 버튼 (신청자 / 팀배치 / 피드백) */}
+                             <div className="flex items-center gap-2">
+                                 <button
+                                     onClick={() => onViewParticipants && onViewParticipants(notice)}
+                                     className="flex-1 h-11 rounded-toss-xl font-bold text-tossBlue text-xs bg-tossBlueLight hover:bg-blue-100 transition transform active:scale-[0.98] flex items-center justify-center cursor-pointer px-2"
+                                 >
+                                     <span>신청자 ({joinCount}명)</span>
+                                 </button>
+
+                                 {(notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment) && (
+                                     <button
+                                         onClick={() => setShowAdminTeamsModal(true)}
+                                         className="flex-1 h-11 rounded-toss-xl font-bold text-indigo-600 text-xs bg-indigo-50 hover:bg-indigo-100 transition transform active:scale-[0.98] flex items-center justify-center border border-indigo-100 cursor-pointer px-2"
+                                     >
+                                         <span>팀 배치 ({(notice.guest_properties?.group_count ?? notice.group_count) || 4}팀)</span>
+                                     </button>
+                                 )}
+
+                                 {(notice.enable_feedback ?? notice.guest_properties?.enable_feedback ?? true) && (
+                                     <button
+                                         onClick={() => setShowAdminFeedbackModal(true)}
+                                         className="flex-1 h-11 rounded-toss-xl font-bold text-amber-800 text-xs bg-amber-50 hover:bg-amber-100 transition transform active:scale-[0.98] flex items-center justify-center border border-amber-200 cursor-pointer px-2"
+                                     >
+                                         <span>피드백 ({feedbackCount}건)</span>
+                                     </button>
+                                 )}
+                             </div>
+
+                             {/* 2. 하단 메인 상태 / 라이프사이클 버튼 */}
+                             <div>
+                                 {isEnded ? (
+                                     <div className="w-full h-11 bg-tossGrey100 text-tossGrey400 rounded-toss-xl font-bold text-xs flex items-center justify-center select-none border border-tossGrey200">
+                                         <span>종료된 프로그램입니다</span>
+                                     </div>
+                                 ) : (
+                                     <button
+                                         onClick={async () => {
+                                             if (window.confirm('프로그램을 지금 종료하시겠습니까?\n\n종료하면 [종료된 프로그램] 상태로 변경되며, 참가했던 학생들에게 피드백 작성 버튼이 노출됩니다.')) {
+                                                 try {
+                                                     const currentGp = notice.guest_properties || {};
+                                                     const { error } = await supabase
+                                                         .from('notices')
+                                                         .update({ 
+                                                             program_status: 'COMPLETED',
+                                                             guest_properties: {
+                                                                 ...currentGp,
+                                                                 is_ended: true
+                                                             }
+                                                         })
+                                                         .eq('id', notice.id);
+
+                                                     if (error) {
+                                                         console.error('Error ending program:', error);
+                                                         alert('프로그램 종료 처리 중 오류가 발생했습니다: ' + error.message);
+                                                         return;
+                                                     }
+                                                     alert('프로그램이 종료 처리되었습니다.');
+                                                     if (onRefresh) onRefresh();
+                                                     onClose();
+                                                 } catch (err) {
+                                                     console.error('Error ending program:', err);
+                                                     alert('프로그램 종료 처리 중 오류가 발생했습니다.');
+                                                 }
+                                             }
+                                         }}
+                                         className="w-full h-11 bg-red-50 hover:bg-red-100 text-tossError border border-red-200 rounded-toss-xl font-bold text-xs transition transform active:scale-[0.98] cursor-pointer flex items-center justify-center"
+                                     >
+                                         <span>프로그램 종료</span>
+                                     </button>
+                                 )}
+                             </div>
+                         </div>
+                     ) : isEnded ? (
+                           /* 1. 프로그램 종료 상태 (종료 시간 경과 OR 관리자가 수동 종료): 팀 확인 버튼 대신 피드백 작성/완료 버튼 노출 */
+                           <div className="p-4 flex gap-3">
+                               {responses[notice.id] === 'JOIN' && (notice.enable_feedback ?? notice.guest_properties?.enable_feedback ?? false) ? (
+                                   <button
+                                       onClick={() => setShowFeedbackModal(true)}
+                                       className={`flex-1 py-3.5 rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer ${
+                                           hasReviewed 
+                                           ? 'bg-tossGrey100 hover:bg-tossGrey200 text-tossGrey700 border border-tossGrey200' 
+                                           : 'bg-tossBlue hover:bg-tossBlueHover text-white shadow-md shadow-blue-100'
+                                       }`}
+                                   >
+                                       <Sparkles size={18} />
+                                       <span>{hasReviewed ? '피드백 작성 완료' : '피드백 작성'}</span>
+                                   </button>
+                               ) : (
+                                   <div className="flex-1 py-3.5 bg-tossGrey100 text-tossGrey400 text-center font-bold rounded-toss-xl text-sm select-none">
+                                       종료된 프로그램입니다.
+                                   </div>
+                               )}
+                           </div>
+                       ) : isStarted ? (
+                           /* 2. 프로그램 진행 중 상태 (시작 시간 경과 ~ 종료 전): 팀 확인 및 질문 버튼 노출 */
+                           <div className="p-4 flex gap-3">
+                               {responses[notice.id] === 'JOIN' && hasCustomFeatures ? (
+                                   <button
+                                       className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer"
+                                   >
+                                       <Sparkles size={18} />
+                                       <span>{customButtonName}</span>
+                                   </button>
+                               ) : (
+                                   <button
+                                       disabled={true}
+                                       className="flex-1 py-3.5 rounded-toss-xl font-bold text-base bg-tossGrey100 text-tossGrey400 cursor-not-allowed text-center"
+                                   >
+                                       신청 마감
+                                   </button>
+                               )}
+                           </div>
+                       ) : (
+                           /* 3. 프로그램 시작 전 상태: 신청하기 / 취소 버튼 */
+                           <div className="p-4 flex gap-3">
+                               <button
+                                   disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (!responses[notice.id] && notice.is_leader_only && !user?.is_leader)}
+                                   onClick={() => {
+                                       if (responses[notice.id]) {
+                                           onResponse(notice.id, 'CANCEL');
+                                       } else {
+                                           onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
+                                       }
+                                   }}
+                                   className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 ${
+                                       responses[notice.id] 
+                                           ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100' 
+                                           : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
+                                               ? 'bg-tossWarning hover:bg-tossWarning/90 text-white' 
+                                               : 'bg-tossBlue hover:bg-tossBlueHover text-white')
+                                   }`}
+                               >
+                                   {responses[notice.id] ? (
+                                       <>
+                                           <XCircle size={18} />
+                                           <span>{responses[notice.id] === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}</span>
+                                       </>
+                                   ) : (
+                                       notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'
+                                   )}
+                               </button>
+                           </div>
+                       )}
+                   </div>
+               )}
 
               {/* Program Feedback Modal */}
-              {showFeedbackModal && (
+              {showAdminFeedbackModal && (
+                <AdminFeedbackListModal
+                    notice={notice}
+                    onClose={() => setShowAdminFeedbackModal(false)}
+                />
+            )}
+            {showFeedbackModal && (
                   <ProgramFeedbackModal
                       program={notice}
                       existingFeedback={responseDetails[notice.id]?.feedback}
@@ -1304,8 +1386,6 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                     </div>
                 </div>
             )}
-            </div>
-        </div>
     </motion.div>
     );
 };

@@ -201,7 +201,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.is_leader_only = formData.is_leader_only;
                 noticeData.haifn_reward = formData.haifn_reward ? parseInt(formData.haifn_reward, 10) : 0;
                 noticeData.is_review_required = formData.is_review_required || false;
-                noticeData.is_private = formData.is_private || false;
+                                noticeData.is_private = formData.is_private || false;
                 noticeData.is_challenge = formData.is_challenge || false;
                 noticeData.challenge_missions = formData.challenge_missions || [];
                 noticeData.challenge_success_message = formData.challenge_success_message || '';
@@ -219,7 +219,9 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                     enable_group_assignment: formData.enable_group_assignment || false,
                     group_count: formData.group_count || 4,
                     enable_random_questions: formData.enable_random_questions || false,
-                    random_questions: formData.random_questions || []
+                    random_questions: formData.random_questions || [],
+                    enable_feedback: formData.enable_feedback || false,
+                    custom_feedback_config: formData.custom_feedback_config || { questions: [] }
                 };
                 const startDate = formData.program_start_date || formData.program_date;
                 const endDate = formData.program_end_date;

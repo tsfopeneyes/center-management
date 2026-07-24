@@ -5,8 +5,10 @@ export const haifnApi = {
     async grantProgramReward(userId, noticeId, rewardAmount, adminId, noticeTitle) {
         if (!rewardAmount || rewardAmount <= 0) return;
 
-        // 1. Check if already granted for this specific program (source_id logic or string matching)
-        // Since we don't have a source_id column, we match by source_description
+        // admin_id가 유효한 UUID 형식이 아니면(예: 'System') null로 처리하여 DB 22P02 오류 방지
+        const isValidUuid = typeof adminId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(adminId);
+        const validAdminId = isValidUuid ? adminId : null;
+
         const descMatch = `[프로그램 참여] ${noticeTitle}`;
 
         const { data: existing, error: checkErr } = await supabase
@@ -29,7 +31,7 @@ export const haifnApi = {
                 amount: rewardAmount,
                 transaction_type: 'EARN',
                 source_description: descMatch,
-                admin_id: adminId
+                admin_id: validAdminId
             }]);
 
         if (insertErr) throw insertErr;

@@ -62,13 +62,19 @@ const useNoticeFiltering = (notices, categoryMode) => {
 
     const activePrograms = useMemo(() => 
         categoryMode === 'PROGRAM' 
-            ? filteredNotices.filter(n => n.program_status === 'ACTIVE' || !n.program_status) 
+            ? filteredNotices.filter(n => {
+                const isEnded = n.program_status === 'COMPLETED' || n.program_status === 'CANCELLED' || (n.guest_properties?.is_ended ?? n.is_ended) === true;
+                return !isEnded;
+            }) 
             : filteredNotices,
     [filteredNotices, categoryMode]);
 
     const completedPrograms = useMemo(() => 
         categoryMode === 'PROGRAM' 
-            ? filteredNotices.filter(n => n.program_status === 'COMPLETED' || n.program_status === 'CANCELLED') 
+            ? filteredNotices.filter(n => {
+                const isEnded = n.program_status === 'COMPLETED' || n.program_status === 'CANCELLED' || (n.guest_properties?.is_ended ?? n.is_ended) === true;
+                return isEnded;
+            }) 
             : [],
     [filteredNotices, categoryMode]);
 

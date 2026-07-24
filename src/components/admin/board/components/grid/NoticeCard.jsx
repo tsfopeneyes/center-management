@@ -56,9 +56,10 @@ const NoticeCard = ({
     const hasThumbnail = (notice.images?.length > 0 || notice.image_url);
     const thumbnailSrc = notice.images?.length > 0 ? notice.images[0] : notice.image_url;
 
-    const isActive = notice.program_status === 'ACTIVE' || !notice.program_status;
-    const isCompleted = notice.program_status === 'COMPLETED';
+    const isEnded = (notice.guest_properties?.is_ended ?? notice.is_ended) === true;
+    const isCompleted = notice.program_status === 'COMPLETED' || isEnded;
     const isCancelled = notice.program_status === 'CANCELLED';
+    const isActive = (notice.program_status === 'ACTIVE' || !notice.program_status) && !isCompleted && !isCancelled;
 
     const getDeadlineWarning = () => {
         if (!notice.recruitment_deadline) return null;

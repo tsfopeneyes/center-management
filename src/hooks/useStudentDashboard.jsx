@@ -55,10 +55,15 @@ export const useStudentDashboard = () => {
 
     // Hooks
     const { user, setUser, totalHours, visitCount, programCount, fetchStats, updateProfile, withdrawMembership, loading: profileLoadingState } = useProfile(null);
-    const { notices, responses, responseDetails, fetchNotices, handleResponse } = useNotices(user?.id);
-    const { messages, unreadCount, markAsRead } = useMessaging(user?.id);
-    const { guestPosts, uploading: uploadingGuest, handleCreatePost, handleUpdatePost, fetchComments: fetchGuestCommentsData, handlePostComment: handleGuestCommentSubmit, handleDeletePost: handleDeleteGuestPost, handleDeleteComment: handleDeleteGuestComment } = useGuestbook(user?.id);
-    const { notifications, unreadNotificationCount, showNotificationsModal, setShowNotificationsModal, fetchNotifications, markNotificationsAsRead } = useDashboardNotifications(user);
+    
+    // Master Preview / Impersonation State
+    const [impersonatedUser, setImpersonatedUser] = useState(null);
+    const effectiveUser = impersonatedUser || user;
+
+    const { notices, responses, responseDetails, fetchNotices, handleResponse } = useNotices(effectiveUser?.id);
+    const { messages, unreadCount, markAsRead } = useMessaging(effectiveUser?.id);
+    const { guestPosts, uploading: uploadingGuest, handleCreatePost, handleUpdatePost, fetchComments: fetchGuestCommentsData, handlePostComment: handleGuestCommentSubmit, handleDeletePost: handleDeleteGuestPost, handleDeleteComment: handleDeleteGuestComment } = useGuestbook(effectiveUser?.id);
+    const { notifications, unreadNotificationCount, showNotificationsModal, setShowNotificationsModal, fetchNotifications, markNotificationsAsRead } = useDashboardNotifications(effectiveUser);
 
     // UI-Specific State (Not in hooks)
     const [selectedNotice, setSelectedNotice] = useState(null);
@@ -226,27 +231,31 @@ export const useStudentDashboard = () => {
         fetchRealtimeStatusData();
         fetchNotifications(parsedUser);
 
-        // Fetch student's region based on their school
-        if (parsedUser.school) {
+        // Region fetching handled in dedicated useEffect below for effectiveUser
+
+        setLoading(false);
+
+    }, [navigate, fetchStats, fetchBadgeData, fetchNotifications, fetchSchedules]); // Removed dependencies that cause loops
+
+        useEffect(() => {
+        if (effectiveUser?.school) {
             supabase
                 .from('schools')
                 .select('region')
-                .eq('name', parsedUser.school)
+                .eq('name', effectiveUser.school)
                 .maybeSingle()
                 .then(({ data, error }) => {
                     if (!error && data && data.region) {
                         setStudentRegion(data.region);
                     } else {
-                        // Fallback region state directly based on name check if not found in DB
-                        const mappedName = parsedUser.school.includes('강서') ? '강서' : '강동';
+                        const mappedName = effectiveUser.school.includes('강서') ? '강서' : '강동';
                         setStudentRegion(mappedName);
                     }
                 });
+        } else {
+            setStudentRegion(null);
         }
-
-        setLoading(false);
-
-    }, [navigate, fetchStats, fetchBadgeData, fetchNotifications, fetchSchedules]); // Removed dependencies that cause loops
+    }, [effectiveUser?.school]);
 
     // Handled by useRealtimePresence and useDashboardCalendar
 
@@ -462,8 +471,8 @@ export const useStudentDashboard = () => {
         const targets = n.target_regions || [];
         if (targets.length === 0 || targets.length === 2) return true;
         
-        // Admin preview switcher logic
-        if (user?.role === 'admin' || user?.user_group === '관리자') {
+        // Admin preview switcher logic (skip when impersonating a student)
+        if (!impersonatedUser && (user?.role === 'admin' || user?.user_group === '관리자')) {
             if (selectedRegion === 'GANGDONG') return targets.includes('강동');
             if (selectedRegion === 'GANGSEO') return targets.includes('강서');
             return true; // Show all if 'ALL'
@@ -473,20 +482,53 @@ export const useStudentDashboard = () => {
         return targets.includes(studentRegion);
     });
 
-    const filteredPrograms = allPrograms.filter(n => {
-        if (n.program_status === 'CANCELLED' || n.program_status === 'COMPLETED') return false;
+    const isNoticeEnded = (n) => {
+        if (n.program_status === 'COMPLETED' || n.program_status === 'CANCELLED') return true;
+        if ((n.guest_properties?.is_ended ?? n.is_ended) === true) return true;
         
-        if (n.is_recruiting === false) {
-            const endDate = n.program_end_date || n.program_date;
-            if (endDate && new Date(endDate) < startOfDay(new Date())) return false;
-        } else {
-            if (n.program_date && new Date(n.program_date) < startOfDay(new Date())) return false;
-        }
-        return true;
+        const pDateStr = n.program_end_date || n.program_date;
+        if (!pDateStr) return false;
+        const pDate = new Date(pDateStr);
+        const durationHours = parseFloat(n.program_duration) || 0;
+        const pEndDate = new Date(pDate.getTime() + (durationHours > 0 ? durationHours : 2) * 60 * 60 * 1000);
+
+        return new Date() >= pEndDate;
+    };
+
+    const filteredPrograms = allPrograms.filter(n => {
+        if (n.program_status === 'CANCELLED') return false;
+
+        // 종료 시간이 지났거나 수동 종료된 프로그램은 '진행 중인 프로그램' 탭에서 제외하고 '나의 참여 내역'으로 이동
+        if (isNoticeEnded(n)) return false;
+
+        const todayStart = startOfDay(new Date());
+        const pDateStr = n.program_end_date || n.program_date || n.program_start_date;
+        const pDate = pDateStr ? parseISO(pDateStr) : null;
+        const isTodayOrFuture = pDate ? pDate >= todayStart : true;
+
+        return isTodayOrFuture;
     });
 
     const homeNotices = filteredNotices.slice(0, 3);
-    const homePrograms = filteredPrograms.slice(0, 10);
+
+    // 홈 탭의 '내가 신청한 프로그램': 오늘 진행/종료된 프로그램 및 미래 신청 프로그램 포함 (오늘 종료된 프로그램도 홈 탭에서 피드백 작성 가능)
+    const homePrograms = allPrograms.filter(n => {
+        if (n.program_status === 'CANCELLED') return false;
+
+        const todayStart = startOfDay(new Date());
+        const isJoined = responses[n.id] === 'JOIN' || responses[n.id] === 'WAITLIST';
+
+        const pDateStr = n.program_end_date || n.program_date || n.program_start_date;
+        const pDate = pDateStr ? parseISO(pDateStr) : null;
+        const isTodayOrFuture = pDate ? pDate >= todayStart : true;
+
+        if (isJoined) {
+            return isTodayOrFuture;
+        }
+
+        if (isNoticeEnded(n)) return false;
+        return isTodayOrFuture;
+    }).slice(0, 10);
 
 
     const handleProfileImageSelect = (e) => {
@@ -558,7 +600,11 @@ export const useStudentDashboard = () => {
     return {
         // Core State
         loading,
-        user, setUser,
+        user: effectiveUser, 
+        realUser: user, 
+        impersonatedUser, 
+        setImpersonatedUser,
+        setUser,
         activeTab,
         handleLogout,
         selectedRegion,

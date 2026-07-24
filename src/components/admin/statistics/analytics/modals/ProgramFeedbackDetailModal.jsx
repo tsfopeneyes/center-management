@@ -1,43 +1,108 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Star, MessageCircle, ThumbsUp, Frown, Users } from 'lucide-react';
+import { X, Star, MessageCircle, Users } from 'lucide-react';
 
 const ProgramFeedbackDetailModal = ({ program, feedbacks, onClose }) => {
-    
+    const customConfig = program?.guest_properties?.custom_feedback_config || program?.custom_feedback_config;
+    const customQuestions = Array.isArray(customConfig?.questions) ? customConfig.questions : [];
+    const hasCustomQuestions = customQuestions.length > 0;
+
     const stats = useMemo(() => {
         if (!feedbacks || feedbacks.length === 0) return null;
 
         const total = feedbacks.length;
-        const sumSatisfaction = feedbacks.reduce((acc, f) => acc + (f.q3_satisfaction || 0), 0);
-        const sumRejoin = feedbacks.reduce((acc, f) => acc + (f.q6_would_rejoin || 0), 0);
+        
+        // Find star questions
+        const starQuestions = hasCustomQuestions 
+            ? customQuestions.filter(q => q.type === 'star')
+            : [];
 
-        // Reason (Q1) counts
+        let starStats = [];
+        if (hasCustomQuestions) {
+            starStats = starQuestions.map(q => {
+                let sum = 0;
+                let cnt = 0;
+                feedbacks.forEach(f => {
+                    if (f.q8_additional_comments) {
+                        try {
+                            const parsed = JSON.parse(f.q8_additional_comments);
+                            const val = parsed[q.id];
+                            if (typeof val === 'number' && val > 0) {
+                                sum += val;
+                                cnt++;
+                            }
+                        } catch (e) {}
+                    }
+                });
+                return {
+                    title: q.title,
+                    avg: cnt > 0 ? (sum / cnt).toFixed(1) : '-'
+                };
+            });
+        } else {
+            const sumSatisfaction = feedbacks.reduce((acc, f) => acc + (f.q3_satisfaction || 0), 0);
+            const sumRejoin = feedbacks.reduce((acc, f) => acc + (f.q6_would_rejoin || 0), 0);
+            starStats = [
+                { title: '평균 만족도', avg: (sumSatisfaction / total).toFixed(1) },
+                { title: '재참여 의사', avg: (sumRejoin / total).toFixed(1) }
+            ];
+        }
+
+        // Question 1 distribution
+        const firstQ = hasCustomQuestions ? customQuestions[0] : null;
+        const distributionTitle = firstQ ? `1. ${firstQ.title}` : '참여 이유 분포 (Q1)';
         const reasonCounts = {};
         feedbacks.forEach(f => {
-            const r = f.q1_reason || '미응답';
+            let r = f.q1_reason || '미응답';
+            if (hasCustomQuestions && f.q8_additional_comments) {
+                try {
+                    const parsed = JSON.parse(f.q8_additional_comments);
+                    const val = parsed[firstQ?.id] || parsed['q1'];
+                    if (val !== undefined && val !== null && val !== '') r = String(val);
+                } catch (e) {}
+            }
             reasonCounts[r] = (reasonCounts[r] || 0) + 1;
         });
+
         const topReasons = Object.entries(reasonCounts)
             .map(([reason, count]) => ({ reason, count, percentage: Math.round((count / total) * 100) }))
             .sort((a, b) => b.count - a.count);
 
         return {
             total,
-            avgSatisfaction: (sumSatisfaction / total).toFixed(1),
-            avgRejoin: (sumRejoin / total).toFixed(1),
+            starStats,
+            distributionTitle,
             topReasons
         };
-    }, [feedbacks]);
+    }, [feedbacks, hasCustomQuestions, customQuestions]);
 
-    // Format stars for display
     const renderStars = (score) => {
-        const fullStars = Math.floor(score);
+        if (!score) return null;
         return (
             <div className="flex items-center gap-1 text-yellow-400">
                 <Star size={16} className="fill-current" />
                 <span className="text-gray-800 font-bold">{score}</span>
             </div>
         );
+    };
+
+    const getAnswerForQuestion = (f, q, qIdx) => {
+        let parsed = null;
+        if (f.q8_additional_comments) {
+            try { parsed = JSON.parse(f.q8_additional_comments); } catch (e) {}
+        }
+
+        if (parsed && typeof parsed === 'object') {
+            const val = parsed[q.id] ?? parsed[`q${qIdx + 1}`];
+            if (val !== undefined && val !== null && val !== '') return val;
+        }
+
+        if (qIdx === 0) return f.q1_reason;
+        if (qIdx === 1) return f.q2_experience;
+        if (qIdx === 2) return f.q3_satisfaction;
+        if (qIdx === 3) return f.q4_best_moment;
+        if (qIdx === 4) return f.q5_disappointments;
+        return null;
     };
 
     return (
@@ -68,10 +133,10 @@ const ProgramFeedbackDetailModal = ({ program, feedbacks, onClose }) => {
                             <div className="text-center py-20 text-gray-400 font-bold">등록된 리뷰가 없습니다.</div>
                         ) : (
                             <>
-                                {/* KPI Cards */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {/* Dynamic KPI Cards */}
+                                <div className={`grid gap-4 ${stats.starStats.length > 1 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                                        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
                                             <Users size={24} />
                                         </div>
                                         <div>
@@ -79,33 +144,25 @@ const ProgramFeedbackDetailModal = ({ program, feedbacks, onClose }) => {
                                             <p className="text-2xl font-black text-gray-800">{stats.total}명</p>
                                         </div>
                                     </div>
-                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-xl flex items-center justify-center">
-                                            <ThumbsUp size={24} />
+
+                                    {stats.starStats.map((st, i) => (
+                                        <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-xl flex items-center justify-center shrink-0">
+                                                <Star size={24} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold text-gray-500 truncate" title={st.title}>{st.title}</p>
+                                                <p className="text-2xl font-black text-gray-800 flex items-baseline gap-1">
+                                                    {st.avg} <span className="text-sm text-gray-400 font-bold">/ 5.0</span>
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-sm font-semibold text-gray-500">평균 만족도</p>
-                                            <p className="text-2xl font-black text-gray-800 flex items-baseline gap-1">
-                                                {stats.avgSatisfaction} <span className="text-sm text-gray-400 font-bold">/ 5.0</span>
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
-                                            <Star size={24} />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-semibold text-gray-500">재참여 의사</p>
-                                            <p className="text-2xl font-black text-gray-800 flex items-baseline gap-1">
-                                                {stats.avgRejoin} <span className="text-sm text-gray-400 font-bold">/ 5.0</span>
-                                            </p>
-                                        </div>
-                                    </div>
+                                    ))}
                                 </div>
 
-                                {/* Reason Analytics */}
+                                {/* Dynamic Question 1 Distribution */}
                                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                                    <h3 className="text-sm font-bold text-gray-800 mb-4">참여 이유 분포 (Q1)</h3>
+                                    <h3 className="text-sm font-bold text-gray-800 mb-4">{stats.distributionTitle}</h3>
                                     <div className="space-y-3">
                                         {stats.topReasons.map((r, i) => (
                                             <div key={i}>
@@ -136,43 +193,75 @@ const ProgramFeedbackDetailModal = ({ program, feedbacks, onClose }) => {
                                                         <span className="text-xs text-gray-400">{f.users?.school || '알 수 없음'}</span>
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-3">
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-[10px] text-gray-400 font-bold">만족도</span>
-                                                        {renderStars(f.q3_satisfaction)}
+                                                
+                                                {/* Header Ratings */}
+                                                {!hasCustomQuestions ? (
+                                                    <div className="flex gap-3">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-[10px] text-gray-400 font-bold">만족도</span>
+                                                            {renderStars(f.q3_satisfaction)}
+                                                        </div>
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-[10px] text-gray-400 font-bold">재참여의사</span>
+                                                            {renderStars(f.q6_would_rejoin)}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-[10px] text-gray-400 font-bold">재참여의사</span>
-                                                        {renderStars(f.q6_would_rejoin)}
+                                                ) : (
+                                                    <div className="flex flex-wrap gap-2 justify-end">
+                                                        {customQuestions.filter(q => q.type === 'star').map((sq, sqIdx) => {
+                                                            const val = getAnswerForQuestion(f, sq, customQuestions.indexOf(sq));
+                                                            if (typeof val !== 'number') return null;
+                                                            return (
+                                                                <div key={sq.id || sqIdx} className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100">
+                                                                    <span className="text-[11px] font-bold text-amber-800 truncate max-w-[90px]">{sq.title}:</span>
+                                                                    <Star size={13} className="fill-amber-400 text-amber-400 shrink-0" />
+                                                                    <span className="text-xs font-black text-amber-700">{val}</span>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
                                             
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                                <div>
-                                                    <p className="text-xs font-bold text-gray-500 mb-1">어떤 것을 경험했나요? (Q2)</p>
-                                                    <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{f.q2_experience}</p>
+                                            {/* Dynamic Questions & Answers Display */}
+                                            {hasCustomQuestions ? (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                                    {customQuestions.map((q, qIdx) => {
+                                                        const ans = getAnswerForQuestion(f, q, qIdx);
+                                                        return (
+                                                            <div key={q.id || qIdx} className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
+                                                                <p className="text-xs font-bold text-gray-500 mb-1">
+                                                                    Q{qIdx + 1}. {q.title}
+                                                                </p>
+                                                                <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">
+                                                                    {typeof ans === 'number' ? `${ans}점` : (ans ? String(ans) : '(미응답)')}
+                                                                </p>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-gray-500 mb-1">가장 좋았던 순간 (Q4)</p>
-                                                    <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{f.q4_best_moment}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1">
-                                                        <Frown size={14} className="text-red-400" /> 아쉬웠던 점 (Q5)
-                                                    </p>
-                                                    <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{f.q5_disappointments}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-gray-500 mb-1">재참여 이유/망설임 (Q7)</p>
-                                                    <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{f.q7_rejoin_reason}</p>
-                                                </div>
-                                            </div>
-                                            {f.q8_additional_comments && (
-                                                <div className="pt-3 border-t border-gray-50">
-                                                    <p className="text-xs font-bold text-gray-500 mb-1">기타 코멘트 (Q8)</p>
-                                                    <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed italic">"{f.q8_additional_comments}"</p>
-                                                </div>
+                                            ) : (
+                                                /* Fallback Standard Display */
+                                                <>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                                        <div>
+                                                            <p className="text-xs font-bold text-gray-500 mb-1">어떤 것을 경험했나요? (Q2)</p>
+                                                            <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{f.q2_experience}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-gray-500 mb-1">가장 좋았던 순간 (Q4)</p>
+                                                            <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{f.q4_best_moment}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-gray-500 mb-1">아쉬웠던 점 (Q5)</p>
+                                                            <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{f.q5_disappointments}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-gray-500 mb-1">재참여 이유/망설임 (Q7)</p>
+                                                            <p className="text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">{f.q7_rejoin_reason}</p>
+                                                        </div>
+                                                    </div>
+                                                </>
                                             )}
                                         </div>
                                     ))}
