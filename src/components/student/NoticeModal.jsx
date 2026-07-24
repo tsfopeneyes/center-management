@@ -38,6 +38,8 @@ const seededShuffle = (array, seed) => {
     return shuffled;
 };
 
+import ProgramFeedbackModal from './modals/ProgramFeedbackModal';
+
 const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants, onRegisterRegularUser }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
@@ -48,13 +50,14 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
     const [activeTab, setActiveTab] = useState('intro');
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
-    // Challenge States
+    // Challenge & Modal States
     const [challengeParticipants, setChallengeParticipants] = useState([]);
     const [uploadingMissionId, setUploadingMissionId] = useState(null);
     const [selectedMissionForDetail, setSelectedMissionForDetail] = useState(null);
     const [showSuccessPopup, setShowSuccessPopup] = useState(false);
     const [selectedParticipantForMissions, setSelectedParticipantForMissions] = useState(null);
     const [showPostProgramPopup, setShowPostProgramPopup] = useState(false);
+    const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
     const scrollToSection = (section) => {
         setActiveTab(section);
@@ -223,16 +226,12 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
             fetchParticipants();
         }
     }, [notice?.id, responses, notice.guest_properties?.team_shuffle_seed]);
-    const isTriggered = (() => {
-        const isEnabled = notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button;
-        if (!isEnabled) return false;
+    const { isStarted, isEnded, hasCustomFeatures } = (() => {
+        const isManuallyEnded = notice.is_ended === true;
+        
+        const pDate = notice.program_date;
+        if (!pDate) return { isStarted: false, isEnded: isManuallyEnded, hasCustomFeatures: false };
 
-        const trigger = notice.guest_properties?.post_program_button_trigger ?? notice.post_program_button_trigger ?? 'start_time';
-        
-        // Program start date & time
-        const pDate = notice.program_date; // e.g. "2026-07-23" or "2026-07-23T06:20:00+00:00"
-        if (!pDate) return false;
-        
         let startDateTime;
         if (pDate.includes('T')) {
             startDateTime = new Date(pDate);
@@ -241,36 +240,33 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
             startDateTime = new Date(`${pDate}T${pTime}`);
         }
         const now = new Date();
-        
-        if (trigger === 'start_time') {
-            return now >= startDateTime;
-        } else if (trigger === 'end_time') {
-            // Compute end time based on duration (if specified)
-            // Default to start time + 2 hours if duration is not parseable or empty
-            let durationMinutes = 120;
-            const durationStr = notice.program_duration || '';
-            const match = durationStr.match(/(\d+)\s*(시간|분|h|m)/);
-            if (match) {
-                const val = parseInt(match[1]);
-                const unit = match[2];
-                if (unit === '시간' || unit === 'h') {
-                    durationMinutes = val * 60;
-                } else {
-                    durationMinutes = val;
-                }
-            } else {
-                // Check if duration is a plain number
-                const plainNum = parseInt(durationStr);
-                if (!isNaN(plainNum)) {
-                    durationMinutes = plainNum * 60; // assume hours
-                }
-            }
-            
-            const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
-            return now >= endDateTime;
+        const started = now >= startDateTime;
+
+        let durationMinutes = 120;
+        const durationStr = notice.program_duration || '';
+        const match = durationStr.match(/(\d+)\s*(시간|분|h|m)/);
+        if (match) {
+            const val = parseInt(match[1]);
+            const unit = match[2];
+            if (unit === '시간' || unit === 'h') durationMinutes = val * 60;
+            else durationMinutes = val;
+        } else {
+            const plainNum = parseInt(durationStr);
+            if (!isNaN(plainNum)) durationMinutes = plainNum * 60;
         }
-        return false;
+
+        const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
+        const ended = isManuallyEnded || (now >= endDateTime);
+
+        const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
+        const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;
+        const hasCustomBtnName = !!((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim());
+        const customFeatures = hasGroup || hasQ || hasCustomBtnName;
+
+        return { isStarted: started, isEnded: ended, hasCustomFeatures: customFeatures };
     })();
+
+    const isTriggered = isStarted;
 
     const customButtonName = (() => {
         if ((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim()) return (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name);
@@ -279,7 +275,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         if (hasGroup && hasQ) return '팀 배치 & 질문 뽑기';
         if (hasGroup) return '나의 조 배치 확인';
         if (hasQ) return '아이스브레이킹 질문';
-        return '프로그램 맞춤 안내';
+        return '프로그램 안내';
     })();
 
     let allImages = [];
@@ -861,101 +857,143 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                      ))}
                      
                      {/* Inline Comment Input for Program Notices */}
-                     {notice.category === 'PROGRAM' && (
-                         <div className="p-4 bg-white border-t border-tossGrey100">
-                             <form onSubmit={(e) => { e.preventDefault(); onPostComment(e); }} className="flex items-center gap-3">
-                                 <UserAvatar user={user} size="w-8 h-8" />
-                                 <div className="flex-1 bg-tossGrey50 border border-tossGrey200 rounded-toss-xl px-4 py-2 flex items-center">
-                                     <input type="text" value={newComment || ''} onChange={(e) => setNewComment(e.target.value)} placeholder="댓글 달기..." className="bg-transparent text-sm w-full outline-none py-1.5 text-tossGrey850" />
-                                     {newComment?.trim() && <button type="submit" className="text-tossBlue text-sm font-bold ml-2">게시</button>}
-                                 </div>
-                             </form>
-                         </div>
-                     )}
-                 </div>
-             </div>
+                     {/* Program Notice Fixed Bottom Action Bar */}
+              {notice.category === 'PROGRAM' && !isEditing && (
+                  <div className="bg-white border-t border-tossGrey200 z-[60]">
+                      {notice.is_recruiting && notice.recruitment_deadline && !isEnded && (
+                          <div className="bg-tossGrey900 text-center py-2.5 px-4 text-xs font-bold text-tossCaution tracking-tight">
+                              {timeLeft}
+                          </div>
+                      )}
+                      {isAdmin ? (
+                          <div className="p-4 flex gap-3">
+                              <button
+                                  onClick={() => onViewParticipants && onViewParticipants(notice)}
+                                  className="flex-1 py-3.5 rounded-toss-xl font-bold text-white text-base bg-tossBlue hover:bg-tossBlueHover transition transform active:scale-[0.98] flex items-center justify-center gap-2"
+                              >
+                                  {notice.is_recruiting ? `신청자 명단 (${joinCount}명)` : '참석자 명단'}
+                              </button>
+                              {(notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment) && (
+                                  <button
+                                      onClick={() => setShowAdminTeamsModal(true)}
+                                      className="flex-1 py-3.5 rounded-toss-xl font-bold text-blue-600 text-base bg-blue-50 hover:bg-blue-100 transition transform active:scale-[0.98] flex items-center justify-center gap-2 border border-blue-200"
+                                  >
+                                      <Users size={18} />
+                                      <span>팀 배치 정보 ({(notice.guest_properties?.group_count ?? notice.group_count) || 4}개 팀)</span>
+                                  </button>
+                              )}
+                              {!isEnded && (
+                                  <button
+                                      onClick={async () => {
+                                          if (window.confirm('프로그램을 지금 종료하시겠습니까?\n\n종료하면 참가했던 학생들에게 피드백 작성 버튼이 노출됩니다.')) {
+                                              try {
+                                                  await supabase
+                                                      .from('notices')
+                                                      .update({ is_ended: true })
+                                                      .eq('id', notice.id);
+                                                  alert('프로그램이 종료 처리되었습니다.');
+                                                  if (onRefresh) onRefresh();
+                                                  onClose();
+                                              } catch (err) {
+                                                  console.error('Error ending program:', err);
+                                              }
+                                          }
+                                      }}
+                                      className="px-4 py-3.5 bg-red-50 hover:bg-red-100 text-tossError border border-red-200 rounded-toss-xl font-bold text-sm transition transform active:scale-[0.98] shrink-0"
+                                  >
+                                      프로그램 종료
+                                  </button>
+                              )}
+                          </div>
+                      ) : isEnded ? (
+                          <div className="p-4 flex gap-3">
+                              {responses[notice.id] === 'JOIN' && responseDetails[notice.id]?.is_attended ? (
+                                  <button
+                                      onClick={() => setShowFeedbackModal(true)}
+                                      className="flex-1 py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100"
+                                  >
+                                      <Sparkles size={18} />
+                                      <span>피드백 작성</span>
+                                  </button>
+                              ) : (
+                                  <div className="flex-1 py-3.5 bg-tossGrey100 text-tossGrey400 text-center font-bold rounded-toss-xl text-sm">
+                                      종료된 프로그램입니다.
+                                  </div>
+                              )}
+                          </div>
+                      ) : isStarted ? (
+                          <div className="p-4 flex gap-3">
+                              {responses[notice.id] === 'JOIN' && hasCustomFeatures ? (
+                                  <>
+                                      <button
+                                          onClick={() => onResponse(notice.id, 'CANCEL')}
+                                          className="px-4 py-3.5 bg-red-50 hover:bg-red-100 text-tossError border border-red-100 rounded-toss-xl font-bold text-sm transition transform active:scale-[0.98] flex items-center justify-center gap-1 shrink-0"
+                                      >
+                                          <XCircle size={16} />
+                                          <span>취소</span>
+                                      </button>
+                                      <button
+                                          onClick={() => setShowPostProgramPopup(true)}
+                                          className="flex-1 py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100"
+                                      >
+                                          <Sparkles size={18} />
+                                          <span>{customButtonName}</span>
+                                      </button>
+                                  </>
+                              ) : (
+                                  <button
+                                      disabled={true}
+                                      className="flex-1 py-3.5 rounded-toss-xl font-bold text-base bg-tossGrey100 text-tossGrey400 cursor-not-allowed text-center"
+                                  >
+                                      신청 마감
+                                  </button>
+                              )}
+                          </div>
+                      ) : (
+                          <div className="p-4 flex gap-3">
+                              <button
+                                  disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (!responses[notice.id] && notice.is_leader_only && !user?.is_leader)}
+                                  onClick={() => {
+                                      if (responses[notice.id]) {
+                                          onResponse(notice.id, 'CANCEL');
+                                      } else {
+                                          onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
+                                      }
+                                  }}
+                                  className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 ${
+                                      responses[notice.id] 
+                                          ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100' 
+                                          : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
+                                              ? 'bg-tossWarning hover:bg-tossWarning/90 text-white' 
+                                              : 'bg-tossBlue hover:bg-tossBlueHover text-white')
+                                  }`}
+                              >
+                                  {responses[notice.id] ? (
+                                      <>
+                                          <XCircle size={18} />
+                                          <span>{responses[notice.id] === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}</span>
+                                      </>
+                                  ) : (
+                                      notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'
+                                  )}
+                              </button>
+                          </div>
+                      )}
+                  </div>
+              )}
 
-             {/* Program Notice Fixed Bottom Action Bar */}
-             {notice.category === 'PROGRAM' && !isEditing && (
-                 <div className="bg-white border-t border-tossGrey200 z-[60]">
-                     {notice.is_recruiting && notice.recruitment_deadline && (
-                         <div className="bg-tossGrey900 text-center py-2.5 px-4 text-xs font-bold text-tossCaution tracking-tight">
-                             {timeLeft}
-                         </div>
-                     )}
-                     {isAdmin ? (
-                         <div className="p-4 flex gap-3">
-                             <button
-                                 onClick={() => onViewParticipants && onViewParticipants(notice)}
-                                 className="flex-1 py-3.5 rounded-toss-xl font-bold text-white text-base bg-tossBlue hover:bg-tossBlueHover transition transform active:scale-[0.98] flex items-center justify-center gap-2"
-                             >
-                                 {notice.is_recruiting ? `신청자 명단 (${joinCount}명)` : '참석자 명단'}
-                             </button>
-                             {(notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment) && (
-                                 <button
-                                     onClick={() => setShowAdminTeamsModal(true)}
-                                     className="flex-1 py-3.5 rounded-toss-xl font-bold text-blue-600 text-base bg-blue-50 hover:bg-blue-100 transition transform active:scale-[0.98] flex items-center justify-center gap-2 border border-blue-200"
-                                 >
-                                     <Users size={18} />
-                                     <span>팀 배치 정보 ({(notice.guest_properties?.group_count ?? notice.group_count) || 4}개 팀)</span>
-                                 </button>
-                             )}
-                         </div>
-                     ) : notice.is_recruiting ? (
-                         <div className="p-4 flex gap-3">
-                             {responses[notice.id] === 'JOIN' && isTriggered ? (
-                                 <>
-                                     <button
-                                         onClick={() => onResponse(notice.id, 'CANCEL')}
-                                         className="px-4 py-3.5 bg-red-50 hover:bg-red-100 text-tossError border border-red-100 rounded-toss-xl font-bold text-sm transition transform active:scale-[0.98] flex items-center justify-center gap-1 shrink-0"
-                                     >
-                                         <XCircle size={16} />
-                                         <span>취소</span>
-                                     </button>
-                                     <button
-                                         onClick={() => setShowPostProgramPopup(true)}
-                                         className="flex-1 py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100"
-                                     >
-                                         <Sparkles size={18} />
-                                         <span>{customButtonName}</span>
-                                     </button>
-                                 </>
-                             ) : (
-                                 <button
-                                     disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (!responses[notice.id] && notice.is_leader_only && !user?.is_leader)}
-                                     onClick={() => {
-                                         if (responses[notice.id]) {
-                                             onResponse(notice.id, 'CANCEL');
-                                         } else {
-                                             onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
-                                         }
-                                     }}
-                                     className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 ${
-                                         responses[notice.id] 
-                                             ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100' 
-                                             : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
-                                                 ? 'bg-tossWarning hover:bg-tossWarning/90 text-white' 
-                                                 : 'bg-tossBlue hover:bg-tossBlueHover text-white')
-                                     }`}
-                                 >
-                                     {responses[notice.id] ? (
-                                         <>
-                                             <XCircle size={18} />
-                                             <span>{responses[notice.id] === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}</span>
-                                         </>
-                                     ) : (
-                                         notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'
-                                     )}
-                                 </button>
-                             )}
-                         </div>
-                     ) : (
-                         <div className="p-4 bg-tossBlueLight text-center">
-                             <p className="text-sm font-bold text-tossBlue">오픈 프로그램입니다. 자유롭게 참여하세요.</p>
-                         </div>
-                     )}
-                 </div>
-             )}
+              {/* Program Feedback Modal */}
+              {showFeedbackModal && (
+                  <ProgramFeedbackModal
+                      program={notice}
+                      existingFeedback={responseDetails[notice.id]?.feedback}
+                      onClose={() => setShowFeedbackModal(false)}
+                      onSuccess={() => {
+                          setShowFeedbackModal(false);
+                          if (onRefresh) onRefresh();
+                      }}
+                  />
+              )}
 
              {/* Comment Input for Non-Program Notices */}
              {notice.category !== 'PROGRAM' && (
@@ -1266,7 +1304,9 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                     </div>
                 </div>
             )}
-        </motion.div>
+            </div>
+        </div>
+    </motion.div>
     );
 };
 

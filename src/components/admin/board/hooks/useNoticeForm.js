@@ -49,7 +49,19 @@ const INITIAL_NOTICE_STATE = {
         '오늘 가장 기분 좋았던 일은 무엇인가요?',
         '가장 좋아하는 음식과 그 이유는?',
         '오늘 함께하는 조원들에게 바라는 점은?'
-    ]
+    ],
+    enable_feedback: false,
+    is_review_required: false,
+    custom_feedback_config: {
+        questions: [
+            { id: 'q1', type: 'choice', title: '프로그램 참여 이유', options: ['친구 추천', '기존 센터 경험', '프로그램 흥미', '기타'], required: true },
+            { id: 'q2', type: 'text', title: '새로 배우거나 경험한 점', placeholder: '어떤 것을 느끼고 경험하셨나요?', required: true },
+            { id: 'q3', type: 'star', title: '프로그램 전체 만족도', required: true },
+            { id: 'q4', type: 'text', title: '가장 좋았던 순간', placeholder: '가장 인상 깊었던 순간을 적어주세요.', required: true },
+            { id: 'q5', type: 'text', title: '아쉬웠던 점 및 개선 의견', placeholder: '아쉬웠던 점이 있다면 편하게 적어주세요.', required: true },
+            { id: 'q6', type: 'star', title: '다음 프로그램 재참여 의사', required: true }
+        ]
+    }
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {

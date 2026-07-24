@@ -1437,6 +1437,153 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                 </div>
                             )}
                         </div>
+
+                        {/* 피드백 설정 카드 (통합) */}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200/60 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <MessageSquare size={16} className="text-blue-600" />
+                                    <span className="text-xs font-bold text-slate-800">피드백 설정 (종료 후 피드백 & 리뷰)</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const nextState = !(formData.enable_feedback || formData.is_review_required);
+                                        updateField('enable_feedback', nextState);
+                                        updateField('is_review_required', nextState);
+                                    }}
+                                    className="cursor-pointer"
+                                >
+                                    {(formData.enable_feedback || formData.is_review_required) ? (
+                                        <ToggleRight size={24} className="text-blue-600" />
+                                    ) : (
+                                        <ToggleLeft size={24} className="text-slate-300" />
+                                    )}
+                                </button>
+                            </div>
+
+                            {(formData.enable_feedback || formData.is_review_required) && (
+                                <div className="pt-2 border-t border-slate-100 space-y-4 animate-fade-in">
+                                    <p className="text-[11px] text-slate-400 font-medium">
+                                        프로그램이 종료된 후 출석한 학생들에게 '피드백 작성' 버튼이 노출되며 피드백 제출 시 하이픈 보상이 지급됩니다.
+                                    </p>
+
+                                    <div className="flex items-center gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100/60">
+                                        <Gift size={16} className="text-blue-600 shrink-0" />
+                                        <label className="text-xs font-bold text-slate-700 shrink-0">리뷰 작성 보상 하이픈:</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={formData.haifn_reward ?? 5}
+                                            onChange={e => updateField('haifn_reward', parseInt(e.target.value) || 0)}
+                                            className="w-24 px-3 py-1.5 bg-white border border-slate-200/60 rounded-lg outline-none font-bold text-slate-800 text-xs focus:border-blue-600"
+                                        />
+                                        <span className="text-xs font-bold text-slate-500">H (0 설정 시 포인트 지급 없음)</span>
+                                    </div>
+
+                                    {/* 피드백 질문 항목 빌더 */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-700">설문 질문 항목 설정</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const defaultQuestions = [
+                                                        { id: 'q1', type: 'choice', title: '프로그램 참여 이유', options: ['친구 추천', '기존 센터 경험', '프로그램 흥미', '기타'], required: true },
+                                                        { id: 'q2', type: 'text', title: '새로 배우거나 경험한 점', placeholder: '어떤 것을 느끼고 경험하셨나요?', required: true },
+                                                        { id: 'q3', type: 'star', title: '프로그램 전체 만족도', required: true },
+                                                        { id: 'q4', type: 'text', title: '가장 좋았던 순간', placeholder: '가장 인상 깊었던 순간을 적어주세요.', required: true },
+                                                        { id: 'q5', type: 'text', title: '아쉬웠던 점 및 개선 의견', placeholder: '아쉬웠던 점이 있다면 편하게 적어주세요.', required: true },
+                                                        { id: 'q6', type: 'star', title: '다음 프로그램 재참여 의사', required: true }
+                                                    ];
+                                                    updateField('custom_feedback_config', { questions: defaultQuestions });
+                                                }}
+                                                className="text-[10px] font-bold text-blue-600 hover:underline"
+                                            >
+                                                🔄 기본 템플릿 불러오기
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-2.5">
+                                            {((formData.custom_feedback_config?.questions) || []).map((q, idx) => (
+                                                <div key={q.id || idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200/50 space-y-2">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-xs font-black text-blue-600 shrink-0">문항 {idx + 1}</span>
+                                                        <select
+                                                            value={q.type || 'text'}
+                                                            onChange={e => {
+                                                                const questions = [...(formData.custom_feedback_config?.questions || [])];
+                                                                questions[idx] = { ...questions[idx], type: e.target.value };
+                                                                updateField('custom_feedback_config', { questions });
+                                                            }}
+                                                            className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
+                                                        >
+                                                            <option value="star">⭐ 별점 평가 (1~5점)</option>
+                                                            <option value="text">✍️ 주관식 (서술형)</option>
+                                                            <option value="short">📝 단답형</option>
+                                                            <option value="choice">🔘 객관식 (선택형)</option>
+                                                        </select>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const questions = (formData.custom_feedback_config?.questions || []).filter((_, i) => i !== idx);
+                                                                updateField('custom_feedback_config', { questions });
+                                                            }}
+                                                            className="text-[10px] font-bold text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition shrink-0"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </div>
+
+                                                    <input
+                                                        type="text"
+                                                        value={q.title || ''}
+                                                        onChange={e => {
+                                                            const questions = [...(formData.custom_feedback_config?.questions || [])];
+                                                            questions[idx] = { ...questions[idx], title: e.target.value };
+                                                            updateField('custom_feedback_config', { questions });
+                                                        }}
+                                                        placeholder="질문 제목을 입력하세요"
+                                                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold text-slate-800 placeholder:text-slate-400"
+                                                    />
+
+                                                    {q.type === 'choice' && (
+                                                        <div className="space-y-1 pl-2">
+                                                            <label className="text-[10px] font-bold text-slate-500 block">선택 항목 (쉼표로 구분):</label>
+                                                            <input
+                                                                type="text"
+                                                                value={Array.isArray(q.options) ? q.options.join(', ') : (q.options || '')}
+                                                                onChange={e => {
+                                                                    const optionsArr = e.target.value.split(',').map(s => s.trim());
+                                                                    const questions = [...(formData.custom_feedback_config?.questions || [])];
+                                                                    questions[idx] = { ...questions[idx], options: optionsArr };
+                                                                    updateField('custom_feedback_config', { questions });
+                                                                }}
+                                                                placeholder="예: 친구 추천, 기존 경험, 프로그램 흥미, 기타"
+                                                                className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg outline-none text-[11px] font-semibold text-slate-700"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const questions = [...(formData.custom_feedback_config?.questions || [])];
+                                                const newId = 'q' + (questions.length + 1);
+                                                questions.push({ id: newId, type: 'text', title: '', required: true });
+                                                updateField('custom_feedback_config', { questions });
+                                            }}
+                                            className="w-full py-2 bg-slate-50 hover:bg-blue-50/20 border border-dashed border-slate-200 hover:border-blue-400 rounded-xl font-bold text-slate-500 hover:text-blue-600 transition-all text-xs flex items-center justify-center gap-1"
+                                        >
+                                            + 피드백 질문 항목 추가
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

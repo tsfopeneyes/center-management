@@ -124,14 +124,14 @@ const StudentProgramsTab = ({
                                                             onClick={() => setSelectedFeedbackProgram(n)}
                                                             className="w-full py-2 rounded-toss-lg text-tossGrey700 text-xs font-bold bg-tossGrey100 hover:bg-tossGrey200 transition-colors"
                                                         >
-                                                            리뷰 수정하기
+                                                            피드백 수정
                                                         </button>
                                                     ) : (
                                                         <button
                                                             onClick={() => setSelectedFeedbackProgram(n)}
                                                             className="w-full py-2 rounded-toss-lg text-white text-xs font-bold bg-tossBlue hover:bg-tossBlueHover transition-all flex items-center justify-center gap-1"
                                                         >
-                                                            리뷰 작성하고 {n.haifn_reward && n.haifn_reward > 0 && n.is_review_required ? `${n.haifn_reward}H 받기` : '피드백 남기기'}
+                                                            피드백 작성 {n.haifn_reward && n.haifn_reward > 0 ? `(${n.haifn_reward}H)` : ''}
                                                         </button>
                                                     )}
                                                 </div>
