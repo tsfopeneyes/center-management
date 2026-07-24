@@ -96,7 +96,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 
                 const { data, error } = await supabase
                     .from('haifn_transactions')
-                    .select('user_id, users(id, name, school, phone_back4, is_leader)')
+                    .select('user_id, users(id, name, school, phone, phone_back4, is_leader)')
                     .eq('source_description', descMatch)
                     .eq('transaction_type', 'EARN')
                     .order('created_at', { ascending: true });
@@ -122,7 +122,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 // 신청 프로그램 (기존 동일)
                 const { data, error } = await supabase
                     .from('notice_responses')
-                    .select('status, is_attended, is_staff, challenge_mission_statuses, users(id, name, school, phone_back4, is_leader)')
+                    .select('status, is_attended, is_staff, challenge_mission_statuses, users(id, name, school, phone, phone_back4, is_leader)')
                     .eq('notice_id', notice.id)
                     .order('created_at', { ascending: true });
                     
@@ -425,7 +425,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     type, 
                     user_id,
                     location_id,
-                    users (id, name, school, phone_back4, profile_image_url, is_leader)
+                    users (id, name, school, phone, phone_back4, profile_image_url, is_leader)
                 `)
                 .gte('created_at', todayStartsStr)
                 .order('created_at', { ascending: true });

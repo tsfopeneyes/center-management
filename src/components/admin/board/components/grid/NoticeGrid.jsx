@@ -14,12 +14,18 @@ const NoticeGrid = ({
     onEdit, 
     onDelete 
 }) => {
-    // Grid container styles based on viewMode
+    // Normalize viewMode to only support LARGE (큰 카드) and SMALLER (작은 카드)
+    const activeMode = (viewMode === VIEW_MODES.LARGE || viewMode === VIEW_MODES.SMALLER) 
+        ? viewMode 
+        : VIEW_MODES.LARGE;
+
+    // Grid container styles based on activeMode
     let gridClass = "grid gap-4 md:gap-6 lg:gap-8 ";
-    if (viewMode === VIEW_MODES.LARGE) gridClass += "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
-    else if (viewMode === VIEW_MODES.SMALL) gridClass += "grid-cols-2 md:grid-cols-3 xl:grid-cols-4";
-    else if (viewMode === VIEW_MODES.SMALLER) gridClass += "grid-cols-3 md:grid-cols-4 xl:grid-cols-5";
-    else gridClass = "flex flex-col gap-2"; // list
+    if (activeMode === VIEW_MODES.LARGE) {
+        gridClass += "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
+    } else {
+        gridClass += "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5";
+    }
 
     return (
         <div className={gridClass}>
@@ -27,7 +33,7 @@ const NoticeGrid = ({
                 <NoticeCard
                     key={notice.id}
                     notice={notice}
-                    viewMode={viewMode}
+                    viewMode={activeMode}
                     mode={mode}
                     noticeStats={noticeStats}
                     onViewDetails={onViewDetails}

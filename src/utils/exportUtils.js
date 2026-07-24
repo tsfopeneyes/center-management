@@ -95,11 +95,19 @@ export const exportParticipantsToExcel = (notice, list) => {
         return;
     }
 
+    const correctPin = localStorage.getItem('kiosk_master_pin') || '1801';
+    const enteredPin = window.prompt('전화번호 전체가 포함된 엑셀을 다운로드하려면 마스터 PIN 번호를 입력하세요 (취소하거나 잘못 입력하면 뒷자리 4자리만 표시됩니다):');
+    const showFullPhone = enteredPin === correctPin;
+
+    if (enteredPin !== null && !showFullPhone) {
+        alert('마스터 PIN 번호가 올바르지 않습니다. 전화번호는 뒷자리 4자리만 표시됩니다.');
+    }
+
     const exportData = list.JOIN.map((user, idx) => ({
         '순번': idx + 1,
         '이름': user.name,
         '소속': user.school || '-',
-        '전화번호(뒤4자리)': user.phone_back4 || '-',
+        '전화번호': showFullPhone ? (user.phone || user.phone_back4 || '-') : (user.phone_back4 || '-'),
         '출석여부': user.is_attended ? '참석' : '미참석'
     }));
 

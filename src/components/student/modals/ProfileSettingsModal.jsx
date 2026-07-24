@@ -10,6 +10,7 @@ const ProfileSettingsModal = ({
     user, 
     setShowProfileSettings, 
     updateProfile, 
+    withdrawMembership,
     profileLoadingState 
 }) => {
     useModalClose(true, () => setShowProfileSettings(false));
@@ -186,6 +187,36 @@ const ProfileSettingsModal = ({
                             <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">새 비밀번호 확인</label>
                             <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="비밀번호를 다시 입력하세요" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base" />
                         </div>
+                    </div>
+
+                    <div className="space-y-3 pt-6 border-t border-gray-100 pb-8">
+                        <h4 className="font-bold text-red-600 text-sm">회원 탈퇴</h4>
+                        <p className="text-xs text-gray-400 font-semibold leading-relaxed">
+                            탈퇴 시 회원 정보, 로그인 정보 및 연락처가 즉시 파기되며 복구할 수 없습니다.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                const confirmFirst = window.confirm(
+                                    `정말로 회원 탈퇴를 진행하시겠습니까?\n\n탈퇴 시 연락처 및 비밀번호 등의 개인정보는 영구 파기되며 다시 로그인할 수 없습니다.`
+                                );
+                                if (!confirmFirst) return;
+
+                                if (withdrawMembership) {
+                                    const res = await withdrawMembership(user);
+                                    if (res?.success) {
+                                        alert('회원 탈퇴가 완료되었습니다.');
+                                        window.location.href = '/';
+                                    } else {
+                                        alert('탈퇴 실패: ' + (res?.error || '오류가 발생했습니다.'));
+                                    }
+                                }
+                            }}
+                            disabled={profileLoadingState}
+                            className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl font-bold text-xs transition-all active:scale-98 disabled:opacity-50"
+                        >
+                            회원 탈퇴하기
+                        </button>
                     </div>
                 </div>
             </motion.div>

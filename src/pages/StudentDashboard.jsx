@@ -626,6 +626,7 @@ const StudentDashboard = () => {
                         user={user}
                         setShowProfileSettings={setShowProfileSettings}
                         updateProfile={updateProfile}
+                        withdrawMembership={hookData.withdrawMembership}
                         profileLoadingState={profileLoadingState}
                     />
                 )}

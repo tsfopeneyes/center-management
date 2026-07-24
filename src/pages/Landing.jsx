@@ -120,7 +120,8 @@ const LoginForm = ({ navigate }) => {
     };
 
     const checkTermsAgreement = (user) => {
-        if (!user.terms_agreed) {
+        const hasAgreed = user.terms_agreed || user.preferences?.terms_agreed;
+        if (!hasAgreed) {
             setPendingUser(user);
             setShowTermsModal(true);
         } else {
@@ -131,12 +132,25 @@ const LoginForm = ({ navigate }) => {
     const handleTermsAgree = async () => {
         if (!pendingUser) return;
         try {
-            await supabase
+            const currentPrefs = pendingUser.preferences || {};
+            const updatedPrefs = {
+                ...currentPrefs,
+                terms_agreed: true,
+                terms_version: '2024-03-05'
+            };
+
+            const { error } = await supabase
                 .from('users')
-                .update({ terms_agreed: true })
+                .update({ preferences: updatedPrefs })
                 .eq('id', pendingUser.id);
             
-            const updatedUser = { ...pendingUser, terms_agreed: true };
+            if (error) throw error;
+            
+            const updatedUser = { 
+                ...pendingUser, 
+                terms_agreed: true,
+                preferences: updatedPrefs
+            };
             setShowTermsModal(false);
             proceedLoginSuccess(updatedUser);
         } catch (err) {

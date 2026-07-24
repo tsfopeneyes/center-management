@@ -16,6 +16,28 @@ import NoticeCarousel from './components/NoticeCarousel';
 import NoticeHeader from './components/NoticeHeader';
 import WriteForm from '../admin/board/components/forms/WriteForm';
 
+const seededShuffle = (array, seed) => {
+    if (!seed) return array;
+    
+    let seedNum = 0;
+    for (let i = 0; i < seed.length; i++) {
+        seedNum = (seedNum << 5) - seedNum + seed.charCodeAt(i);
+        seedNum |= 0;
+    }
+    
+    const random = () => {
+        const x = Math.sin(seedNum++) * 10000;
+        return x - Math.floor(x);
+    };
+    
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+};
+
 const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants, onRegisterRegularUser }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
@@ -173,6 +195,93 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         handleOptionClick, handleSubmitVote,
     } = useNoticeModal({ notice, user, context, responses });
 
+    const [groupParticipants, setGroupParticipants] = useState([]);
+    const [showAdminTeamsModal, setShowAdminTeamsModal] = useState(false);
+
+    useEffect(() => {
+        const isGroupEnabled = notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment;
+        if (isGroupEnabled && notice?.id) {
+            const fetchParticipants = async () => {
+                const { data, error } = await supabase
+                    .from('notice_responses')
+                    .select('user_id, status, users(id, name, school)')
+                    .eq('notice_id', notice.id)
+                    .eq('status', 'JOIN');
+                if (data) {
+                    // Sort deterministically by user_id/id
+                    const sorted = data.map(d => ({
+                        id: d.users?.id || d.user_id,
+                        name: d.users?.name || '참가자',
+                        school: d.users?.school || ''
+                    })).sort((a, b) => a.id.localeCompare(b.id));
+                    
+                    const seed = notice.guest_properties?.team_shuffle_seed || '';
+                    const shuffled = seededShuffle(sorted, seed);
+                    setGroupParticipants(shuffled);
+                }
+            };
+            fetchParticipants();
+        }
+    }, [notice?.id, responses, notice.guest_properties?.team_shuffle_seed]);
+    const isTriggered = (() => {
+        const isEnabled = notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button;
+        if (!isEnabled) return false;
+
+        const trigger = notice.guest_properties?.post_program_button_trigger ?? notice.post_program_button_trigger ?? 'start_time';
+        
+        // Program start date & time
+        const pDate = notice.program_date; // e.g. "2026-07-23" or "2026-07-23T06:20:00+00:00"
+        if (!pDate) return false;
+        
+        let startDateTime;
+        if (pDate.includes('T')) {
+            startDateTime = new Date(pDate);
+        } else {
+            const pTime = notice.program_time || '00:00';
+            startDateTime = new Date(`${pDate}T${pTime}`);
+        }
+        const now = new Date();
+        
+        if (trigger === 'start_time') {
+            return now >= startDateTime;
+        } else if (trigger === 'end_time') {
+            // Compute end time based on duration (if specified)
+            // Default to start time + 2 hours if duration is not parseable or empty
+            let durationMinutes = 120;
+            const durationStr = notice.program_duration || '';
+            const match = durationStr.match(/(\d+)\s*(시간|분|h|m)/);
+            if (match) {
+                const val = parseInt(match[1]);
+                const unit = match[2];
+                if (unit === '시간' || unit === 'h') {
+                    durationMinutes = val * 60;
+                } else {
+                    durationMinutes = val;
+                }
+            } else {
+                // Check if duration is a plain number
+                const plainNum = parseInt(durationStr);
+                if (!isNaN(plainNum)) {
+                    durationMinutes = plainNum * 60; // assume hours
+                }
+            }
+            
+            const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
+            return now >= endDateTime;
+        }
+        return false;
+    })();
+
+    const customButtonName = (() => {
+        if ((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim()) return (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name);
+        const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
+        const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;
+        if (hasGroup && hasQ) return '팀 배치 & 질문 뽑기';
+        if (hasGroup) return '나의 조 배치 확인';
+        if (hasQ) return '아이스브레이킹 질문';
+        return '프로그램 맞춤 안내';
+    })();
+
     let allImages = [];
     if (notice.images && Array.isArray(notice.images)) {
         allImages = [...notice.images];
@@ -223,7 +332,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-0 z-[110] bg-white flex flex-col sm:max-w-lg mx-auto overflow-hidden shadow-2xl pb-20 gpu-accelerated"
+            className="fixed inset-0 z-[130] bg-white flex flex-col sm:max-w-lg mx-auto overflow-hidden shadow-2xl pb-20 gpu-accelerated"
         >
             <NoticeHeader
                 onClose={onClose}
@@ -782,35 +891,63 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                              >
                                  {notice.is_recruiting ? `신청자 명단 (${joinCount}명)` : '참석자 명단'}
                              </button>
+                             {(notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment) && (
+                                 <button
+                                     onClick={() => setShowAdminTeamsModal(true)}
+                                     className="flex-1 py-3.5 rounded-toss-xl font-bold text-blue-600 text-base bg-blue-50 hover:bg-blue-100 transition transform active:scale-[0.98] flex items-center justify-center gap-2 border border-blue-200"
+                                 >
+                                     <Users size={18} />
+                                     <span>팀 배치 정보 ({(notice.guest_properties?.group_count ?? notice.group_count) || 4}개 팀)</span>
+                                 </button>
+                             )}
                          </div>
                      ) : notice.is_recruiting ? (
                          <div className="p-4 flex gap-3">
-                             <button
-                                 disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (!responses[notice.id] && notice.is_leader_only && !user?.is_leader)}
-                                 onClick={() => {
-                                     if (responses[notice.id]) {
-                                         onResponse(notice.id, 'CANCEL');
-                                     } else {
-                                         onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
-                                     }
-                                 }}
-                                 className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 ${
-                                     responses[notice.id] 
-                                         ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100' 
-                                         : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
-                                             ? 'bg-tossWarning hover:bg-tossWarning/90 text-white' 
-                                             : 'bg-tossBlue hover:bg-tossBlueHover text-white')
-                                 }`}
-                             >
-                                 {responses[notice.id] ? (
-                                     <>
-                                         <XCircle size={18} />
-                                         <span>{responses[notice.id] === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}</span>
-                                     </>
-                                 ) : (
-                                     notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'
-                                 )}
-                             </button>
+                             {responses[notice.id] === 'JOIN' && isTriggered ? (
+                                 <>
+                                     <button
+                                         onClick={() => onResponse(notice.id, 'CANCEL')}
+                                         className="px-4 py-3.5 bg-red-50 hover:bg-red-100 text-tossError border border-red-100 rounded-toss-xl font-bold text-sm transition transform active:scale-[0.98] flex items-center justify-center gap-1 shrink-0"
+                                     >
+                                         <XCircle size={16} />
+                                         <span>취소</span>
+                                     </button>
+                                     <button
+                                         onClick={() => setShowPostProgramPopup(true)}
+                                         className="flex-1 py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100"
+                                     >
+                                         <Sparkles size={18} />
+                                         <span>{customButtonName}</span>
+                                     </button>
+                                 </>
+                             ) : (
+                                 <button
+                                     disabled={(notice.recruitment_deadline && new Date(notice.recruitment_deadline) < new Date()) || (!responses[notice.id] && notice.is_leader_only && !user?.is_leader)}
+                                     onClick={() => {
+                                         if (responses[notice.id]) {
+                                             onResponse(notice.id, 'CANCEL');
+                                         } else {
+                                             onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
+                                         }
+                                     }}
+                                     className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 ${
+                                         responses[notice.id] 
+                                             ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100' 
+                                             : (notice.max_capacity > 0 && joinCount >= notice.max_capacity 
+                                                 ? 'bg-tossWarning hover:bg-tossWarning/90 text-white' 
+                                                 : 'bg-tossBlue hover:bg-tossBlueHover text-white')
+                                     }`}
+                                 >
+                                     {responses[notice.id] ? (
+                                         <>
+                                             <XCircle size={18} />
+                                             <span>{responses[notice.id] === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}</span>
+                                         </>
+                                     ) : (
+                                         notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'
+                                     )}
+                                 </button>
+                             )}
                          </div>
                      ) : (
                          <div className="p-4 bg-tossBlueLight text-center">
@@ -964,7 +1101,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                     if ((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim()) return (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name);
                                     const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
                                     const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;
-                                    if (hasGroup && hasQ) return '조 배치 & 아이스브레이킹';
+                                    if (hasGroup && hasQ) return '팀 배치 & 질문 뽑기';
                                     if (hasGroup) return '나의 조 배치 확인';
                                     if (hasQ) return '아이스브레이킹 질문';
                                     return '프로그램 맞춤 안내';
@@ -979,35 +1116,24 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                         </div>
 
                         <div className="py-1 text-sm text-tossGrey800 font-medium whitespace-pre-wrap leading-relaxed max-h-[35vh] overflow-y-auto">
-                            {(notice.guest_properties?.post_program_button_content ?? notice.post_program_button_content) || '프로그램에 참여해 주셔서 감사합니다! 만족스러운 시간이 되었기를 바랍니다.'}
+                            {(notice.guest_properties?.post_program_button_content ?? notice.post_program_button_content) || '오늘 함께할 팀원은 누구일까요? 연결의 기쁨을 누려보세요'}
                         </div>
 
                         {/* 조 배치 안내 카드 */}
                         {(notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment) && (
-                            <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-4 space-y-2 animate-fade-in">
+                            <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-4 space-y-2.5 animate-fade-in">
                                 <div className="flex items-center gap-2 text-blue-700 font-extrabold text-xs">
                                     <Users size={16} />
-                                    <span>나의 조 배치 정보</span>
+                                    <span>나의 팀 배치 정보</span>
                                 </div>
-                                <div className="py-2.5 px-3 bg-white rounded-xl border border-blue-100 shadow-sm text-center">
-                                    <span className="text-[11px] font-bold text-slate-400 block">참가자 배치 결과</span>
+                                <div className="py-3 px-4 bg-white rounded-xl border border-blue-100 shadow-sm text-center">
                                     {(() => {
-                                        const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || '참가자';
-                                        const userId = user?.id || userName;
-                                        const noticeId = notice?.id || 'notice';
                                         const groupCount = (notice.guest_properties?.group_count ?? notice.group_count) || 4;
-                                        
-                                        // Scrambled Hash for true randomized & balanced group allocation
-                                        const seedStr = `${noticeId}_${userId}`;
-                                        let hash = 0;
-                                        for (let i = 0; i < seedStr.length; i++) {
-                                            hash = (hash << 5) - hash + seedStr.charCodeAt(i);
-                                            hash |= 0;
-                                        }
-                                        const groupNum = (Math.abs(hash) % groupCount) + 1;
+                                        const myIndex = groupParticipants.findIndex(p => p.id === user?.id);
+                                        const groupNum = myIndex !== -1 ? (myIndex % groupCount) + 1 : 1;
                                         return (
-                                            <span className="text-base font-extrabold text-blue-600 mt-0.5 block">
-                                                🎉 <strong className="underline decoration-blue-300 decoration-2">{userName}</strong> 님은 <strong className="text-lg text-blue-700">[{groupNum}조]</strong>에 배치되었습니다!
+                                            <span className="text-2xl font-black text-blue-600 block py-1">
+                                                {groupNum}팀
                                             </span>
                                         );
                                     })()}
@@ -1018,27 +1144,13 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                         {/* 랜덤 아이스브레이킹 질문 카드 */}
                         {(notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && ((notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0) && (
                             <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 space-y-2.5 animate-fade-in">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
-                                        <Dices size={16} className="text-amber-600" />
-                                        <span>조원들과 공유할 아이스브레이킹 질문</span>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const qList = (notice.guest_properties?.random_questions ?? notice.random_questions);
-                                            const nextIdx = Math.floor(Math.random() * qList.length);
-                                            setCurrentQuestionIndex(nextIdx);
-                                        }}
-                                        className="text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-100/80 hover:bg-amber-200/80 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                                    >
-                                        <RefreshCw size={12} />
-                                        <span>질문 뽑기 🎲</span>
-                                    </button>
+                                <div className="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
+                                    <Dices size={16} className="text-amber-600" />
+                                    <span>나눔 질문</span>
                                 </div>
-                                <div className="p-3 bg-white rounded-xl border border-amber-100/80 shadow-sm text-center">
-                                    <p className="text-xs font-bold text-slate-800 leading-relaxed">
-                                        "{(notice.guest_properties?.random_questions ?? notice.random_questions)[currentQuestionIndex % (notice.guest_properties?.random_questions ?? notice.random_questions).length]}"
+                                <div className="p-3.5 bg-white rounded-xl border border-amber-100/80 shadow-sm text-center">
+                                    <p className="text-sm font-extrabold text-amber-900 leading-relaxed py-1">
+                                        {(notice.guest_properties?.random_questions ?? notice.random_questions)[currentQuestionIndex % (notice.guest_properties?.random_questions ?? notice.random_questions).length]}
                                     </p>
                                 </div>
                             </div>
@@ -1059,6 +1171,95 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                         <button
                             onClick={() => setShowPostProgramPopup(false)}
                             className="w-full py-3 bg-tossGrey100 hover:bg-tossGrey200 text-tossGrey700 font-bold rounded-toss-xl transition text-sm cursor-pointer"
+                        >
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Admin Teams Management Modal */}
+            {showAdminTeamsModal && (
+                <div 
+                    className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in"
+                    onClick={() => setShowAdminTeamsModal(false)}
+                >
+                    <div 
+                        className="bg-white w-full max-w-lg rounded-[2rem] p-6 shadow-2xl space-y-4 animate-scale-up border border-tossGrey100 max-h-[85vh] flex flex-col"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center pb-3 border-b border-tossGrey100 shrink-0">
+                            <h3 className="font-extrabold text-tossGrey900 text-base flex items-center gap-2">
+                                <Users className="text-blue-600" size={18} />
+                                <span>전체 팀 배치 현황 (총 {(notice.guest_properties?.group_count ?? notice.group_count) || 4}개 팀)</span>
+                            </h3>
+                                                        <button
+                                onClick={async () => {
+                                    const newSeed = Math.random().toString(36).substring(2, 8);
+                                    const updatedNotice = {
+                                        ...notice,
+                                        guest_properties: {
+                                            ...(notice.guest_properties || {}),
+                                            team_shuffle_seed: newSeed
+                                        }
+                                    };
+                                    if (onUpdate) {
+                                        await onUpdate(updatedNotice);
+                                    }
+                                }}
+                                className="mr-2 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                                <RefreshCw size={12} />
+                                <span>팀 다시 섞기 🎲</span>
+                            </button>
+<button 
+                                onClick={() => setShowAdminTeamsModal(false)}
+                                className="p-1 text-tossGrey400 hover:text-tossGrey700 rounded-full transition-colors cursor-pointer"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-hide py-2">
+                            {(() => {
+                                const groupCount = (notice.guest_properties?.group_count ?? notice.group_count) || 4;
+                                const teamsList = Array.from({ length: groupCount }, (_, i) => ({
+                                    teamNum: i + 1,
+                                    members: []
+                                }));
+
+                                groupParticipants.forEach((member, index) => {
+                                    const teamIdx = index % groupCount;
+                                    teamsList[teamIdx].members.push(member);
+                                });
+                                return teamsList.map(t => (
+                                    <div key={t.teamNum} className="bg-blue-50/40 border border-blue-100 rounded-2xl p-4 space-y-2">
+                                        <div className="text-blue-700 font-extrabold text-xs flex justify-between items-center">
+                                            <span>{t.teamNum}팀 ({t.members.length}명)</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {t.members.length > 0 ? (
+                                                t.members.map(m => (
+                                                    <span 
+                                                        key={m.id} 
+                                                        className="px-2.5 py-1.5 bg-white border border-blue-100 rounded-lg text-xs font-bold text-slate-700 shadow-sm"
+                                                        title={m.school}
+                                                    >
+                                                        {m.name} <span className="text-[10px] text-slate-400 font-normal">({m.school || '소속없음'})</span>
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="text-[11px] text-slate-400 font-medium italic">배치된 인원 없음</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+
+                        <button
+                            onClick={() => setShowAdminTeamsModal(false)}
+                            className="w-full py-3 bg-tossGrey100 hover:bg-tossGrey200 text-tossGrey700 font-bold rounded-toss-xl transition text-sm cursor-pointer shrink-0"
                         >
                             닫기
                         </button>

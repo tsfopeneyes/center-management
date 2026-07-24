@@ -340,8 +340,8 @@ export const noticesApi = {
     async searchUsers(query) {
         const { data, error } = await supabase
             .from('users')
-            .select('id, name, school, phone_back4, is_leader, profile_image_url')
-            .or(`name.ilike.%${query}%,phone_back4.ilike.%${query}%`)
+            .select('id, name, school, phone, phone_back4, is_leader, profile_image_url')
+            .or(`name.ilike.%${query}%,phone.ilike.%${query}%,phone_back4.ilike.%${query}%`)
             .limit(10);
         if (error) throw error;
         return data;

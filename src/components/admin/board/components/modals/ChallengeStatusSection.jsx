@@ -4,7 +4,7 @@ import { Award, CheckCircle, Clock, Image, ExternalLink, RefreshCw, Check, X as 
 import { supabase } from '../../../../../supabaseClient';
 import { haifnApi } from '../../../../../api/haifnApi';
 
-const ChallengeStatusSection = ({ notice, participantList, onRefresh }) => {
+const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClick }) => {
     const [previewImage, setPreviewImage] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
     const challengers = participantList.JOIN || [];
@@ -109,12 +109,17 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh }) => {
                                     <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="py-4 pl-3">
                                             <div className="flex flex-col">
-                                                <span className="font-bold text-sm text-gray-800 flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onUserClick && onUserClick(student)}
+                                                    className="font-bold text-sm text-gray-800 hover:text-blue-600 hover:underline flex items-center gap-1.5 text-left"
+                                                    title="회원 정보 카드 보기"
+                                                >
                                                     {student.name}
                                                     {student.is_leader && (
                                                         <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded text-[9px] font-bold">리더</span>
                                                     )}
-                                                </span>
+                                                </button>
                                                 <span className="text-[10px] text-gray-400 font-bold mt-0.5">
                                                     {student.school} • 번호 {student.phone_back4 || '----'}
                                                 </span>

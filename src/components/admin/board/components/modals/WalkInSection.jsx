@@ -117,82 +117,83 @@ const WalkInSection = ({
                         검색 결과가 없습니다.
                     </div>
                 )}
-                {searchQuery === '' && (
-                    <div className="mt-6 animate-fade-in group/bulk">
-                        <div className="flex justify-between items-center mb-3">
-                            <h4 className="text-xs font-black text-gray-500 flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                                현재 공간 입실 인원 ({activeSpaceUsers?.length || 0}명)
-                            </h4>
-                            {selectedUsers.size > 0 && (
-                                <button 
-                                    onClick={handleBulkSubmit}
-                                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-md active:scale-95"
-                                >
-                                    <CheckSquare size={14} />
-                                    선택 인원 참석 처리 ({selectedUsers.size}명)
-                                </button>
-                            )}
-                        </div>
-                        
-                        {activeSpaceUsers && activeSpaceUsers.length > 0 ? (
-                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
-                                {activeSpaceUsers.map(user => {
-                                    const isJoined = alreadyJoinedUserIds?.has(user.id);
-                                    const isSelected = selectedUsers.has(user.id);
-                                    return (
-                                        <button
-                                            key={user.id}
-                                            onClick={() => {
-                                                if (!isJoined) toggleUserSelect(user.id);
-                                            }}
-                                            disabled={isJoined}
-                                            className={`flex items-center gap-2 p-2 rounded-xl transition-all text-left group border ${
-                                                isJoined
-                                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed shadow-none'
-                                                    : isSelected 
-                                                        ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500 shadow-sm' 
-                                                        : 'bg-white border-gray-100 hover:border-blue-300 shadow-sm'
-                                            }`}
-                                        >
-                                            <div className="relative shrink-0">
-                                                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold overflow-hidden">
-                                                    {user.profile_image_url ? (
-                                                        <img src={user.profile_image_url} alt="profile" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        user.name?.charAt(0) || '?'
-                                                    )}
-                                                </div>
-                                                {isSelected && !isJoined && (
-                                                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center border-2 border-white">
-                                                        <Check size={10} strokeWidth={4} />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col flex-1 min-w-0">
-                                                <span className={`font-bold text-xs truncate flex items-center gap-1 ${isJoined ? 'text-gray-500 line-through' : isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
-                                                    {user.name}
-                                                    {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
-                                                </span>
-                                                <span className="text-[9px] text-gray-500 truncate">{user.school}</span>
-                                            </div>
-                                            {isJoined && (
-                                                <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-md self-start ml-auto whitespace-nowrap shrink-0">
-                                                    추가됨
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="text-center py-6 bg-white/50 rounded-xl border border-gray-100 border-dashed">
-                                <p className="text-xs text-gray-400 font-bold">현재 입실 중인 학생이 없습니다.</p>
-                            </div>
+            </div>
+
+            {searchQuery === '' && (
+                <div className="mt-6 animate-fade-in group/bulk list-none">
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-xs font-black text-gray-500 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                            현재 공간 입실 인원 ({activeSpaceUsers?.length || 0}명)
+                        </h4>
+                        {selectedUsers.size > 0 && (
+                            <button 
+                                onClick={handleBulkSubmit}
+                                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-md active:scale-95"
+                            >
+                                <CheckSquare size={14} />
+                                선택 인원 참석 처리 ({selectedUsers.size}명)
+                            </button>
                         )}
                     </div>
-                )}
-            </div>
+                    
+                    {activeSpaceUsers && activeSpaceUsers.length > 0 ? (
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar list-none">
+                            {activeSpaceUsers.map(user => {
+                                const isJoined = alreadyJoinedUserIds?.has(user.id);
+                                const isSelected = selectedUsers.has(user.id);
+                                return (
+                                    <button
+                                        key={user.id}
+                                        onClick={() => {
+                                            if (!isJoined) toggleUserSelect(user.id);
+                                        }}
+                                        disabled={isJoined}
+                                        className={`flex items-center gap-2 p-2 rounded-xl transition-all text-left group border list-none ${
+                                            isJoined
+                                                ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed shadow-none'
+                                                : isSelected 
+                                                    ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500 shadow-sm' 
+                                                    : 'bg-white border-gray-100 hover:border-blue-300 shadow-sm'
+                                        }`}
+                                    >
+                                        <div className="relative shrink-0">
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold overflow-hidden">
+                                                {user.profile_image_url ? (
+                                                    <img src={user.profile_image_url} alt="profile" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    user.name?.charAt(0) || '?'
+                                                )}
+                                            </div>
+                                            {isSelected && !isJoined && (
+                                                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center border-2 border-white">
+                                                    <Check size={10} strokeWidth={4} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col flex-1 min-w-0">
+                                            <span className={`font-bold text-xs truncate flex items-center gap-1 ${isJoined ? 'text-gray-500 line-through' : isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
+                                                {user.name}
+                                                {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                            </span>
+                                            <span className="text-[9px] text-gray-500 truncate">{user.school}</span>
+                                        </div>
+                                        {isJoined && (
+                                            <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-md self-start ml-auto whitespace-nowrap shrink-0">
+                                                추가됨
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center py-6 bg-white/50 rounded-xl border border-gray-100 border-dashed">
+                            <p className="text-xs text-gray-400 font-bold">현재 입실 중인 학생이 없습니다.</p>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

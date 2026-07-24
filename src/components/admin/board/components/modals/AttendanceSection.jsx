@@ -13,7 +13,8 @@ const AttendanceSection = ({
     showEntranceList,
     setShowEntranceList,
     selectedDate,
-    setSelectedDate
+    setSelectedDate,
+    onUserClick
 }) => {
     const isOpenProgram = notice.is_recruiting === false;
 
@@ -85,8 +86,20 @@ const AttendanceSection = ({
                     {participantList.JOIN?.length > 0 ? (
                         participantList.JOIN.map(user => (
                             <div key={user.id} className="grid grid-cols-4 md:grid-cols-5 py-3.5 px-4 items-center hover:bg-gray-50/50 transition text-sm">
-                                <div className="col-span-1 font-bold text-gray-800 truncate pr-2 flex items-center gap-1.5">
-                                    {user.name}
+                                <div className="col-span-1 font-bold text-gray-800 pr-2 flex items-center gap-1.5 flex-wrap">
+                                    <button 
+                                        type="button"
+                                        onClick={() => onUserClick && onUserClick(user)}
+                                        className="hover:text-blue-600 hover:underline cursor-pointer text-left transition font-bold"
+                                        title="회원 정보 카드 보기"
+                                    >
+                                        {user.name?.replace('(guest)', '').trim()}
+                                    </button>
+                                    {user.name?.includes('(guest)') && (
+                                        <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 rounded-md text-[9px] font-bold shrink-0">
+                                            게스트
+                                        </span>
+                                    )}
                                     {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                 </div>
                                 <div className="col-span-2 md:col-span-2 flex flex-col justify-center">
@@ -159,10 +172,20 @@ const AttendanceSection = ({
                         <div className="space-y-1">
                             {participantList.WAITLIST?.map((u, i) => (
                                 <div key={i} className="flex items-center justify-between gap-2">
-                                    <span className="text-[10px] text-gray-600 font-bold truncate flex items-center gap-1">
-                                        {u.name}
+                                    <button 
+                                        type="button"
+                                        onClick={() => onUserClick && onUserClick(u)}
+                                        className="text-[10px] text-gray-600 hover:text-blue-600 hover:underline font-bold truncate flex items-center gap-1 text-left"
+                                        title="회원 정보 카드 보기"
+                                    >
+                                        {u.name?.replace('(guest)', '').trim()}
+                                        {u.name?.includes('(guest)') && (
+                                            <span className="px-1 py-0.2 bg-purple-50 text-purple-500 border border-purple-100 rounded text-[8px] font-bold shrink-0">
+                                                게스트
+                                            </span>
+                                        )}
                                         {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
-                                    </span>
+                                    </button>
                                     <button 
                                         onClick={() => onDeleteParticipant(u.id, u.name)}
                                         className="p-1 text-gray-400 hover:text-red-500 transition-colors"
@@ -184,7 +207,14 @@ const AttendanceSection = ({
                             {participantList.JOIN.filter(u => !u.is_attended).length > 0 
                                 ? participantList.JOIN.filter(u => !u.is_attended).map((u, idx, arr) => (
                                     <span key={u.id} className="flex items-center">
-                                        {u.name}
+                                        <button
+                                            type="button"
+                                            onClick={() => onUserClick && onUserClick(u)}
+                                            className="hover:text-blue-600 hover:underline cursor-pointer"
+                                            title="회원 정보 카드 보기"
+                                        >
+                                            {u.name?.replace('(guest)', '').trim()}
+                                        </button>
                                         {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-0.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                         {idx < arr.length - 1 ? ', ' : ''}
                                     </span>

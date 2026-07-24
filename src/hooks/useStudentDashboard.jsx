@@ -54,7 +54,7 @@ export const useStudentDashboard = () => {
     const { locationGroups, locations, allUsers, activeUserCountByGroup, fetchRealtimeStatusData } = useRealtimePresence();
 
     // Hooks
-    const { user, setUser, totalHours, visitCount, programCount, fetchStats, updateProfile, loading: profileLoadingState } = useProfile(null);
+    const { user, setUser, totalHours, visitCount, programCount, fetchStats, updateProfile, withdrawMembership, loading: profileLoadingState } = useProfile(null);
     const { notices, responses, responseDetails, fetchNotices, handleResponse } = useNotices(user?.id);
     const { messages, unreadCount, markAsRead } = useMessaging(user?.id);
     const { guestPosts, uploading: uploadingGuest, handleCreatePost, handleUpdatePost, fetchComments: fetchGuestCommentsData, handlePostComment: handleGuestCommentSubmit, handleDeletePost: handleDeleteGuestPost, handleDeleteComment: handleDeleteGuestComment } = useGuestbook(user?.id);
@@ -175,6 +175,32 @@ export const useStudentDashboard = () => {
         if (!user || user.id !== parsedUser.id) {
             setUser(parsedUser);
         }
+
+        // Fetch staff configuration to determine initial landing tab for staff
+        supabase
+            .from('notices')
+            .select('content')
+            .eq('category', 'SYSTEM')
+            .eq('title', 'STAFF_PRESENCE_CONFIG')
+            .maybeSingle()
+            .then(({ data }) => {
+                if (data && data.content) {
+                    try {
+                        const parsed = JSON.parse(data.content);
+                        if (parsed && typeof parsed === 'object') {
+                            if (parsedUser.is_master) {
+                                setActiveTab(TAB_NAMES.HOME);
+                            } else if (parsed["하이픈"]?.includes(parsedUser.id)) {
+                                setActiveTab(TAB_NAMES.HAIFN);
+                            } else if (parsed["이높플레이스"]?.includes(parsedUser.id)) {
+                                setActiveTab(TAB_NAMES.CENTER);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse staff config for landing tab', e);
+                    }
+                }
+            });
 
         // Refresh User Data (to ensure is_leader is up-to-date)
         userApi.fetchUser(parsedUser.id).then(latestUser => {
@@ -568,7 +594,7 @@ export const useStudentDashboard = () => {
         badgeCategories, dynamicBadges, badgesLoading, specialStats,
         adminSchedules, calendarCategories, dashboardConfig, tabConfig,
         notifications, unreadNotificationCount,
-        updateProfile, profileLoadingState,
+        updateProfile, withdrawMembership, profileLoadingState,
         
         // Guestbook Hooks
         guestPosts, uploadingGuest, handleCreatePost, handleUpdatePost, handleDeleteGuestPost,

@@ -9,6 +9,8 @@ import AttendanceSection from './AttendanceSection';
 import WalkInSection from './WalkInSection';
 import PollResultsSection from './PollResultsSection';
 import ChallengeStatusSection from './ChallengeStatusSection';
+import UserEditModal from '../../../users/modals/UserEditModal';
+import { supabase } from '../../../../../supabaseClient';
 
 const getKoreanDayOfWeek = (dateStr) => {
     if (!dateStr) return '';
@@ -49,6 +51,26 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
         availableDates
     } = useParticipantManagement(notice, onRefresh);
     const [activeView, setActiveView] = useState(notice.is_challenge ? 'challenge' : 'attendance');
+    const [selectedUserForModal, setSelectedUserForModal] = useState(null);
+
+    const handleUserClick = async (user) => {
+        if (!user || !user.id) return;
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', user.id)
+                .maybeSingle();
+            if (data) {
+                setSelectedUserForModal(data);
+            } else {
+                setSelectedUserForModal(user);
+            }
+        } catch (err) {
+            console.error('Failed to fetch full user detail:', err);
+            setSelectedUserForModal(user);
+        }
+    };
 
     useEffect(() => {
         if (notice) {
@@ -212,6 +234,7 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
                                     notice={notice}
                                     participantList={participantList}
                                     onRefresh={() => fetchParticipants(notice)}
+                                    onUserClick={handleUserClick}
                                 />
                             ) : (
                                 <AttendanceSection 
@@ -225,12 +248,24 @@ const ParticipantModal = ({ notice, onClose, onRefresh }) => {
                                     setShowEntranceList={setShowEntranceList}
                                     selectedDate={selectedDate}
                                     setSelectedDate={setSelectedDate}
+                                    onUserClick={handleUserClick}
                                 />
                             )
                         )
                     )}
                 </div>
             </div>
+
+            {selectedUserForModal && (
+                <UserEditModal
+                    editingUser={selectedUserForModal}
+                    setEditingUser={setSelectedUserForModal}
+                    fetchData={() => {
+                        if (notice) fetchParticipants(notice);
+                        if (onRefresh) onRefresh();
+                    }}
+                />
+            )}
         </div>
     );
 };

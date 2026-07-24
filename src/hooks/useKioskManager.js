@@ -39,15 +39,29 @@ const sendRealtimeNotification = async (user, type, location, metadata = {}) => 
     // 0. Check if it is Haifn branch to prevent LINE usage on ENOUGH_PLACE
     let isHaifnBranch = false;
     try {
-        if (location?.group_id) {
+        let groupId = location?.group_id;
+        if (!groupId && location?.id) {
+            const { data: loc } = await supabase
+                .from('locations')
+                .select('group_id')
+                .eq('id', location.id)
+                .maybeSingle();
+            groupId = loc?.group_id;
+        }
+        if (groupId) {
             const { data: grp } = await supabase
                 .from('location_groups')
                 .select('name')
-                .eq('id', location.group_id)
+                .eq('id', groupId)
                 .maybeSingle();
             if (grp && (grp.name.includes('하이픈') || grp.name.includes('HAIFN') || grp.name.includes('강동'))) {
                 isHaifnBranch = true;
             }
+        }
+        const locName = String(location?.name || '');
+        const locId = String(location?.id || '');
+        if (locName.includes('하이픈') || locName.includes('HAIFN') || locName.includes('강동') || locId.includes('하이픈') || locId.includes('HAIFN') || locId.includes('2F')) {
+            isHaifnBranch = true;
         }
     } catch (err) {
         console.error("Failed to check branch for notification:", err);
@@ -103,12 +117,11 @@ const sendRealtimeNotification = async (user, type, location, metadata = {}) => 
         }
     }
 
-    // 2. Send LINE Message via Google Apps Script Webhook (Only for Haifn branch!)
-    if (lineToken && lineGroupId && gsWebhookUrl && isHaifnBranch) {
+    // 2. Send LINE Message via Google Apps Script Webhook (Only for CHECKIN at Haifn branch!)
+    if (type === 'CHECKIN' && lineToken && lineGroupId && gsWebhookUrl && isHaifnBranch) {
         try {
             await fetch(gsWebhookUrl, {
                 method: 'POST',
-                mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify({
                     action: 'LINE_NOTIFY',
@@ -350,18 +363,20 @@ export const useKioskManager = (navigate) => {
 
                 if (todayLogsCount === 0) isFirstToday = true;
 
-                // 3. Smart Check-in (RSVP Integration)
-                const now = new Date();
-                const programCheckStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-                const programCheckEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
-
-                const { data: todayPrograms } = await supabase
+                // 3. Smart Check-in (Automatic Program Attendance Integration)
+                const kstToday = getKSTDateString(new Date()); // 'YYYY-MM-DD'
+                const { data: allNoticesToday } = await supabase
                     .from('notices')
                     .select('id, title, program_date')
-                    .gte('program_date', programCheckStart)
-                    .lte('program_date', programCheckEnd);
+                    .eq('category', 'PROGRAM');
 
-                if (todayPrograms && todayPrograms.length > 0) {
+                const todayPrograms = (allNoticesToday || []).filter(p => {
+                    if (!p.program_date) return false;
+                    const datePart = p.program_date.slice(0, 10);
+                    return datePart === kstToday;
+                });
+
+                if (todayPrograms.length > 0) {
                     const programIds = todayPrograms.map(p => p.id);
                     const { data: myRsvps } = await supabase
                         .from('notice_responses')
@@ -371,11 +386,13 @@ export const useKioskManager = (navigate) => {
                         .eq('status', 'JOIN');
 
                     if (myRsvps && myRsvps.length > 0) {
-                        activeProgram = todayPrograms.find(p => p.id === myRsvps[0].notice_id);
+                        const matchedNoticeIds = myRsvps.map(r => r.notice_id);
+                        activeProgram = todayPrograms.find(p => p.id === matchedNoticeIds[0]);
+
                         await supabase
                             .from('notice_responses')
                             .update({ is_attended: true })
-                            .eq('notice_id', activeProgram.id)
+                            .in('notice_id', matchedNoticeIds)
                             .eq('user_id', user.id);
                     }
                 }
@@ -1032,6 +1049,9 @@ export const useKioskManager = (navigate) => {
     };
 
     const resetState = () => {
+        if (status === 'SHOW_SURVEY' && pendingKioskUser && selectedLocation) {
+            sendRealtimeNotification(pendingKioskUser, 'CHECKIN', selectedLocation, { survey: '' });
+        }
         setPincode('');
         setStatus('IDLE');
         setMatchingUsers([]);

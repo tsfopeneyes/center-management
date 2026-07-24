@@ -32,10 +32,10 @@ const NoticeCard = ({
     let titleClass = "font-bold text-[#191f28] cursor-pointer group-hover:text-[#1b64da] transition-colors line-clamp-2 leading-snug tracking-tight ";
 
     if (viewMode === 'large') {
-        cardClass += "p-5 md:p-6 lg:p-8 rounded-[1.5rem] md:rounded-[2rem] flex-col";
-        contentClass += "gap-4 md:gap-6 mb-4 md:mb-6";
-        thumbClass += "w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-2xl";
-        titleClass += "text-base md:text-lg lg:text-xl mb-1";
+        cardClass += "p-4 md:p-6 rounded-[1.5rem] flex-col";
+        contentClass += "gap-4 mb-4 md:mb-6";
+        thumbClass += "w-16 h-16 md:w-20 md:h-20 rounded-2xl shrink-0";
+        titleClass += "text-base md:text-lg mb-1";
     } else if (viewMode === 'small') {
         cardClass += "p-4 rounded-2xl flex-col";
         contentClass += "gap-3 mb-3";
@@ -143,7 +143,7 @@ const NoticeCard = ({
                     </h3>
                     
                     {mode === CATEGORIES.PROGRAM ? (
-                        <div className="mt-1.5 space-y-0.5 flex flex-col text-[#4e5968] text-xs md:text-sm font-medium">
+                        <div className="mt-1.5 space-y-0.5 flex flex-col text-[#4e5968] text-[10px] sm:text-xs md:text-sm font-medium">
                             {notice.is_recruiting === false ? (
                                 <>
                                     <div className="flex items-center gap-1.5 text-[#4e5968]">
@@ -203,13 +203,13 @@ const NoticeCard = ({
             </div>
 
             {/* Actions & Stats */}
-            <div className={viewMode === 'list' ? "flex items-center gap-4 shrink-0" : "mt-auto space-y-2 md:space-y-3"}>
+            <div className="mt-auto space-y-2 md:space-y-3">
                 {(mode === CATEGORIES.PROGRAM || notice.is_poll) && (
                     <div className={`p-2.5 rounded-[16px] flex justify-between items-center transition-all border ${
                         isActive 
                             ? 'bg-[#f9fafb] border-[#f2f4f6]' 
                             : 'bg-[#f9fafb]/60 border-[#f2f4f6]/60 opacity-70'
-                    } ${viewMode === 'list' ? 'shrink-0 min-w-[130px] md:min-w-[150px]' : ''}`}>
+                    } `}>
                         <div className={`flex gap-3 font-semibold items-center text-[#4e5968] ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
                             {notice.is_poll ? (
                                 <span>
@@ -237,25 +237,25 @@ const NoticeCard = ({
                     </div>
                 )}
 
-                <div className={`flex items-center justify-between lg:gap-2 ${viewMode === 'list' ? 'gap-1' : 'pt-2 md:pt-3 border-t border-[#f2f4f6]'}`}>
+                <div className={`flex items-center justify-between lg:gap-2 pt-2 md:pt-3 border-t border-[#f2f4f6]`}>
                     <div className="flex items-center gap-1 shrink-0">
                         {mode === CATEGORIES.PROGRAM && (
                             <>
                                 {isActive ? (
-                                    <button onClick={() => onStatusChange(notice.id, 'COMPLETED')} className="p-1.5 md:p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="완료 처리">
-                                        <CheckCircle2 size={viewMode === 'list' ? 18 : viewMode === 'smaller' ? 14 : 16} />
+                                    <button onClick={() => onStatusChange(notice.id, 'COMPLETED')} className="p-1 sm:p-1.5 md:p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="완료 처리">
+                                        <CheckCircle2 size={viewMode === 'large' ? 16 : 14} />
                                     </button>
                                 ) : (
-                                    <button onClick={() => onStatusChange(notice.id, 'ACTIVE')} className="p-1.5 md:p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-all" title="되돌리기">
-                                        <RefreshCw size={viewMode === 'list' ? 18 : viewMode === 'smaller' ? 14 : 16} />
+                                    <button onClick={() => onStatusChange(notice.id, 'ACTIVE')} className="p-1 sm:p-1.5 md:p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-all" title="되돌리기">
+                                        <RefreshCw size={viewMode === 'large' ? 16 : 14} />
                                     </button>
                                 )}
                             </>
                         )}
-                        <button onClick={() => onViewDetails(notice)} className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="미리보기">
-                            <Eye size={viewMode === 'list' ? 18 : viewMode === 'smaller' ? 14 : 16} />
+                        <button onClick={() => onViewDetails(notice)} className="p-1 sm:p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="미리보기">
+                            <Eye size={viewMode === 'large' ? 16 : 14} />
                         </button>
-                        <button onClick={() => onEdit(notice)} className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="수정">
+                        <button onClick={() => onEdit(notice)} className="p-1 sm:p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="수정">
                             <Edit2 size={viewMode === 'list' ? 18 : viewMode === 'smaller' ? 14 : 14} />
                         </button>
                         <button onClick={() => onDelete(notice.id)} className="p-1.5 md:p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="삭제">

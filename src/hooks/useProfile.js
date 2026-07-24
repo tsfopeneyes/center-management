@@ -166,6 +166,61 @@ export const useProfile = (initialUser) => {
         }
     };
 
+    const withdrawMembership = async (targetUser) => {
+        const u = targetUser || user;
+        if (!u || !u.id) {
+            return { success: false, error: '유저 정보를 찾을 수 없습니다.' };
+        }
+        setLoading(true);
+        try {
+            // Clean up personal non-historical data
+            await supabase.from('calling_forest_progress').delete().eq('student_id', u.id);
+            await supabase.from('user_challenges').delete().eq('user_id', u.id);
+
+            // Anonymize user row while retaining name as '이름 (탈퇴 회원)'
+            const rawName = (u.name || '').replace(/\(탈퇴 회원\)$/, '').trim();
+            const anonymizedName = `${rawName} (탈퇴 회원)`;
+
+            const anonymizedData = {
+                name: anonymizedName,
+                phone: null,
+                phone_back4: null,
+                password: null,
+                guardian_name: null,
+                guardian_phone: null,
+                guardian_relation: null,
+                profile_image_url: null,
+                fcm_token: null,
+                status: 'withdrawn',
+                bio: null,
+                preferences: {
+                    ...(u.preferences || {}),
+                    withdrawn_at: new Date().toISOString()
+                }
+            };
+
+            const { error: updateErr } = await supabase
+                .from('users')
+                .update(anonymizedData)
+                .eq('id', u.id);
+
+            if (updateErr) throw updateErr;
+
+            // Clear authentication session & local storage
+            await supabase.auth.signOut();
+            localStorage.removeItem('user');
+            localStorage.removeItem('admin_user');
+
+            setUser(null);
+            return { success: true };
+        } catch (err) {
+            console.error('Error in withdrawMembership:', err);
+            return { success: false, error: err.message || '회원 탈퇴 처리 중 오류가 발생했습니다.' };
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return {
         user,
         setUser,
@@ -174,6 +229,7 @@ export const useProfile = (initialUser) => {
         programCount,
         loading,
         fetchStats,
-        updateProfile
+        updateProfile,
+        withdrawMembership
     };
 };

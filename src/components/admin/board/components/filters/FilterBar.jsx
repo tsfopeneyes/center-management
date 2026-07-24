@@ -17,7 +17,7 @@ const FilterBar = ({
     return (
         <div className="px-4 py-3 md:px-6 md:py-4 lg:px-8 lg:py-5 flex flex-col gap-3 animate-fade-in-up">
             <div className="flex flex-col gap-3">
-                <div className="flex flex-row items-center gap-2 overflow-x-auto no-scrollbar pb-1 w-full justify-start">
+                <div className="flex flex-wrap items-center gap-2 pb-1 w-full justify-start">
                     <SearchInputs 
                         mode={mode} 
                         filters={filters} 
