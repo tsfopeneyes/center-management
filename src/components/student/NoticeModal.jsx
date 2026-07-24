@@ -1363,6 +1363,9 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                 <button
                                     onClick={async (e) => {
                                         e.stopPropagation();
+                                        if (!window.confirm('팀 구성을 다시 랜덤으로 배치하시겠습니까?\n\n기존 조 구성이 변경되며 접속해 있는 참가자들에게도 즉시 반영됩니다.')) {
+                                            return;
+                                        }
                                         try {
                                             const newSeed = Math.random().toString(36).substring(2, 8);
                                             const currentGp = notice.guest_properties || {};
