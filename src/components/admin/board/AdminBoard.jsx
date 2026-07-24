@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { noticesApi } from '../../../api/noticesApi';
+import { supabase } from '../../../supabaseClient';
 
 // Hooks
 import useViewPreferences from './hooks/useViewPreferences';
@@ -67,8 +68,8 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
     const fetchNotices = useCallback(async () => {
         try {
             setLoading(true);
-            const data = await noticesApi.fetchAll();
-            setNotices(data);
+            const dataRes = await noticesApi.fetchAll();
+            setNotices(dataRes);
         } catch (error) {
             console.error('Error fetching notices:', error);
             alert('데이터를 불러오는데 실패했습니다.');
@@ -79,6 +80,21 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
 
     useEffect(() => {
         fetchNotices();
+
+        // Supabase Realtime Subscription for instant cross-device updates
+        const channel = supabase
+            .channel('admin_notices_realtime')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notices' }, (payload) => {
+                if (payload.new) {
+                    setNotices(prev => prev.map(n => n.id === payload.new.id ? { ...n, ...payload.new } : n));
+                    setViewNotice(prev => (prev && prev.id === payload.new.id) ? { ...prev, ...payload.new } : prev);
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [fetchNotices]);
 
     const handleFormSave = useCallback((noticeData) => {
