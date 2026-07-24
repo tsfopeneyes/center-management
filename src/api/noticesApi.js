@@ -140,8 +140,18 @@ export const noticesApi = {
 
     async update(id, updates) {
         const payload = { ...updates };
-        delete payload.send_push; // Prevent schema error
-        
+        delete payload.send_push;
+        delete payload.joinCount;
+        delete payload.waitlistCount;
+        delete payload.responses;
+        delete payload.responseDetails;
+        delete payload.comments;
+        delete payload.author;
+        delete payload.is_joined;
+        delete payload.has_applied;
+        delete payload.attendedCount;
+        delete payload.attendanceRate;
+
         const { error } = await supabase
             .from('notices')
             .update(payload)

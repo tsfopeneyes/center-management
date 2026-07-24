@@ -1315,16 +1315,32 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             </h3>
                                                         <button
                                 onClick={async () => {
-                                    const newSeed = Math.random().toString(36).substring(2, 8);
-                                    const updatedNotice = {
-                                        ...notice,
-                                        guest_properties: {
-                                            ...(notice.guest_properties || {}),
+                                    try {
+                                        const newSeed = Math.random().toString(36).substring(2, 8);
+                                        const currentGp = notice.guest_properties || {};
+                                        const updatedGp = {
+                                            ...currentGp,
                                             team_shuffle_seed: newSeed
+                                        };
+
+                                        const { error } = await supabase
+                                            .from('notices')
+                                            .update({ guest_properties: updatedGp })
+                                            .eq('id', notice.id);
+
+                                        if (error) throw error;
+
+                                        const updatedNotice = {
+                                            ...notice,
+                                            guest_properties: updatedGp
+                                        };
+
+                                        if (onUpdate) {
+                                            await onUpdate(updatedNotice);
                                         }
-                                    };
-                                    if (onUpdate) {
-                                        await onUpdate(updatedNotice);
+                                    } catch (err) {
+                                        console.error('팀 섞기 오류:', err);
+                                        alert('팀 섞기 중 오류가 발생했습니다: ' + (err.message || err));
                                     }
                                 }}
                                 className="mr-2 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
