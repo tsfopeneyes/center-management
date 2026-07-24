@@ -1405,7 +1405,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                             지정한 시점이 지난 후, 해당 프로그램을 신청했던 참가자들에게 노출될 맞춤 버튼 이름과 클릭 시 표시될 팝업 내용/링크를 작성할 수 있습니다.
                         </p>
 
-                        <div className="bg-white p-3.5 rounded-xl border border-slate-200/60 space-y-1.5">
+                        <div className="bg-white p-3.5 rounded-xl border border-slate-200/60 space-y-3">
                             <label className="text-[11px] font-bold text-slate-600 block">버튼 활성화 시점 선택</label>
                             <div className="flex flex-wrap gap-4 text-xs font-bold text-slate-700">
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -1431,6 +1431,30 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                     <span>프로그램 종료/마감 시간 기준</span>
                                 </label>
                             </div>
+
+                            {/* 활성화 시간 사전 설정 (시작 시간 기준 선택 시) */}
+                            {(formData.post_program_button_trigger || 'start_time') === 'start_time' && (
+                                <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-700 animate-fade-in">
+                                    <span className="text-slate-500 font-semibold shrink-0">활성화 시기:</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <select
+                                            value={formData.post_program_button_offset_minutes ?? 0}
+                                            onChange={e => updateField('post_program_button_offset_minutes', Number(e.target.value))}
+                                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-blue-600 focus:outline-none focus:border-blue-500 cursor-pointer shadow-2xs"
+                                        >
+                                            <option value={0}>정각 (시작 시간 정각)</option>
+                                            <option value={5}>5분 전</option>
+                                            <option value={10}>10분 전</option>
+                                            <option value={15}>15분 전</option>
+                                            <option value={20}>20분 전</option>
+                                            <option value={30}>30분 전</option>
+                                            <option value={45}>45분 전</option>
+                                            <option value={60}>1시간 전</option>
+                                        </select>
+                                        <span className="text-slate-600 font-medium">부터 버튼이 학생들에게 노출됩니다</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-3">

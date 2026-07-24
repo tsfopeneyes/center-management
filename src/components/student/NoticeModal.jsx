@@ -310,7 +310,6 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         }
 
         const now = new Date();
-        const started = now >= startDateTime;
 
         let durationMinutes = 60;
         const durationStr = String(notice.program_duration || '').trim();
@@ -332,6 +331,19 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
 
         const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
         const ended = isManuallyEnded || (now >= endDateTime);
+
+        // 버튼 활성화 시점 계산 (시작 시점 기준 - N분 전, 또는 종료 시점 기준)
+        const triggerBasis = notice.guest_properties?.post_program_button_trigger ?? notice.post_program_button_trigger ?? 'start_time';
+        const offsetMinutes = Number(notice.guest_properties?.post_program_button_offset_minutes ?? notice.post_program_button_offset_minutes ?? 0);
+
+        let activationTime = startDateTime;
+        if (triggerBasis === 'start_time') {
+            activationTime = new Date(startDateTime.getTime() - offsetMinutes * 60 * 1000);
+        } else if (triggerBasis === 'end_time') {
+            activationTime = endDateTime;
+        }
+
+        const started = now >= activationTime;
 
         const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
         const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;

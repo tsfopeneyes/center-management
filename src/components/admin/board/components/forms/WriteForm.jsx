@@ -213,6 +213,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                     cached_hosts: configuredHosts.length > 0 ? configuredHosts : (gp.cached_hosts || []),
                     enable_post_program_button: formData.enable_post_program_button || false,
                     post_program_button_trigger: formData.post_program_button_trigger || 'start_time',
+                    post_program_button_offset_minutes: Number(formData.post_program_button_offset_minutes || 0),
                     post_program_button_name: formData.post_program_button_name || '',
                     post_program_button_content: formData.post_program_button_content || '',
                     post_program_button_link: formData.post_program_button_link || '',

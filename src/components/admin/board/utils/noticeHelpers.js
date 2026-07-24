@@ -136,6 +136,7 @@ export const prepareNoticeForEdit = (notice) => {
         guest_properties: notice.guest_properties || { allow_guest: true, require_school: true, require_phone: true },
         enable_post_program_button: notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button ?? false,
         post_program_button_trigger: notice.guest_properties?.post_program_button_trigger ?? notice.post_program_button_trigger ?? 'start_time',
+        post_program_button_offset_minutes: Number(notice.guest_properties?.post_program_button_offset_minutes ?? notice.post_program_button_offset_minutes ?? 0),
         post_program_button_name: notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name ?? '',
         post_program_button_content: notice.guest_properties?.post_program_button_content ?? notice.post_program_button_content ?? '',
         post_program_button_link: notice.guest_properties?.post_program_button_link ?? notice.post_program_button_link ?? '',

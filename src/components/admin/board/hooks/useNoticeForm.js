@@ -38,6 +38,7 @@ const INITIAL_NOTICE_STATE = {
     guest_properties: { allow_guest: true, require_school: true, require_phone: true },
     enable_post_program_button: false,
     post_program_button_trigger: 'start_time',
+    post_program_button_offset_minutes: 0,
     post_program_button_name: '',
     post_program_button_content: '',
     post_program_button_link: '',
