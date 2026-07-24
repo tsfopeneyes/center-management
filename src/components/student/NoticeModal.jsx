@@ -1332,21 +1332,14 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                         className="bg-white w-full max-w-lg rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 shadow-2xl space-y-4 animate-scale-up border border-tossGrey100 max-h-[85vh] flex flex-col"
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-tossGrey100 shrink-0 gap-2.5">
-                            <div className="flex items-center justify-between w-full sm:w-auto">
-                                <h3 className="font-extrabold text-tossGrey900 text-sm sm:text-base flex items-center gap-2">
-                                    <Users className="text-blue-600 shrink-0" size={18} />
-                                    <span className="truncate">전체 팀 배치 현황 (총 {(notice.guest_properties?.group_count ?? notice.group_count) || 4}개 팀)</span>
-                                </h3>
-                                <button 
-                                    onClick={() => setShowAdminTeamsModal(false)}
-                                    className="p-1 text-tossGrey400 hover:text-tossGrey700 rounded-full transition-colors cursor-pointer sm:hidden"
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-tossGrey100 shrink-0 gap-2">
+                            <h3 className="font-extrabold text-tossGrey900 text-sm sm:text-base flex items-center gap-1.5 min-w-0">
+                                <Users className="text-blue-600 shrink-0" size={18} />
+                                <span className="truncate">팀 배치 현황 ({(notice.guest_properties?.group_count ?? notice.group_count) || 4}팀)</span>
+                            </h3>
 
-                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <div className="flex items-center gap-1.5 shrink-0">
                                 <button
                                     onClick={async (e) => {
                                         e.stopPropagation();
@@ -1386,21 +1379,22 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                             alert('팀 섞기 중 오류가 발생했습니다: ' + (err.message || err));
                                         }
                                     }}
-                                    className="w-full sm:w-auto text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs shrink-0"
                                 >
-                                    <RefreshCw size={14} />
-                                    <span>팀 다시 섞기 🎲</span>
+                                    <RefreshCw size={13} />
+                                    <span>팀 랜덤 배치 🎲</span>
                                 </button>
                                 <button 
                                     onClick={() => setShowAdminTeamsModal(false)}
-                                    className="p-1 text-tossGrey400 hover:text-tossGrey700 rounded-full transition-colors cursor-pointer hidden sm:block"
+                                    className="p-1 text-tossGrey400 hover:text-tossGrey700 rounded-full transition-colors cursor-pointer shrink-0"
                                 >
-                                    <X size={20} />
+                                    <X size={18} />
                                 </button>
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-hide py-2">
+                        {/* Body - 2 Column Student Member Grid */}
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-hide py-1">
                             {(() => {
                                 const groupCount = (notice.guest_properties?.group_count ?? notice.group_count) || 4;
                                 const teamsList = Array.from({ length: groupCount }, (_, i) => ({
@@ -1413,23 +1407,24 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                     teamsList[teamIdx].members.push(member);
                                 });
                                 return teamsList.map(t => (
-                                    <div key={t.teamNum} className="bg-blue-50/40 border border-blue-100 rounded-2xl p-4 space-y-2">
+                                    <div key={t.teamNum} className="bg-blue-50/40 border border-blue-100 rounded-2xl p-4 space-y-2.5">
                                         <div className="text-blue-700 font-extrabold text-xs flex justify-between items-center">
                                             <span>{t.teamNum}팀 ({t.members.length}명)</span>
                                         </div>
-                                        <div className="flex flex-wrap gap-1.5">
+                                        <div className="grid grid-cols-2 gap-2">
                                             {t.members.length > 0 ? (
                                                 t.members.map(m => (
-                                                    <span 
+                                                    <div 
                                                         key={m.id} 
-                                                        className="px-2.5 py-1.5 bg-white border border-blue-100 rounded-lg text-xs font-bold text-slate-700 shadow-sm"
-                                                        title={m.school}
+                                                        className="bg-white border border-blue-100/80 rounded-xl p-2.5 flex flex-col justify-center min-w-0 shadow-2xs"
+                                                        title={`${m.name} (${m.school || '소속없음'})`}
                                                     >
-                                                        {m.name} <span className="text-[10px] text-slate-400 font-normal">({m.school || '소속없음'})</span>
-                                                    </span>
+                                                        <span className="text-xs font-bold text-slate-800 truncate">{m.name}</span>
+                                                        <span className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{m.school || '소속없음'}</span>
+                                                    </div>
                                                 ))
                                             ) : (
-                                                <span className="text-[11px] text-slate-400 font-medium italic">배치된 인원 없음</span>
+                                                <span className="text-xs text-slate-400 font-medium col-span-2 py-1">팀원이 없습니다</span>
                                             )}
                                         </div>
                                     </div>
