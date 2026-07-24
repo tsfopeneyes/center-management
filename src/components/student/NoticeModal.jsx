@@ -1276,38 +1276,72 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                             {(notice.guest_properties?.post_program_button_content ?? notice.post_program_button_content) || '오늘 함께할 팀원은 누구일까요? 연결의 기쁨을 누려보세요'}
                         </div>
 
-                        {/* 조 배치 안내 카드 */}
+                        {/* 1. 팀 배치 파스 / 티켓 카드 (토스 프리미엄 카드 스타일) */}
                         {(notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment) && (
-                            <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-4 space-y-2.5 animate-fade-in">
-                                <div className="flex items-center gap-2 text-blue-700 font-extrabold text-xs">
-                                    <Users size={16} />
-                                    <span>나의 팀 배치 정보</span>
+                            <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 rounded-2xl p-5 text-white shadow-xl shadow-blue-500/20 space-y-3 transform transition hover:scale-[1.01]">
+                                <div className="absolute -right-6 -bottom-6 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
+                                <div className="absolute -left-6 -top-6 w-24 h-24 bg-blue-400/20 rounded-full blur-lg pointer-events-none" />
+
+                                <div className="flex justify-between items-center relative z-10">
+                                    <div className="flex items-center gap-1.5 bg-white/15 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold tracking-tight text-blue-100 border border-white/20">
+                                        <Sparkles size={12} className="text-yellow-300" />
+                                        <span>MY TEAM PASS</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-blue-200/90 tracking-wider">SCI MATCH</span>
                                 </div>
-                                <div className="py-3 px-4 bg-white rounded-xl border border-blue-100 shadow-sm text-center">
-                                    {(() => {
-                                        const groupCount = (notice.guest_properties?.group_count ?? notice.group_count) || 4;
-                                        const myIndex = groupParticipants.findIndex(p => p.id === user?.id);
-                                        const groupNum = myIndex !== -1 ? (myIndex % groupCount) + 1 : 1;
-                                        return (
-                                            <span className="text-2xl font-black text-blue-600 block py-1">
-                                                {groupNum}팀
-                                            </span>
-                                        );
-                                    })()}
+
+                                <div className="flex items-baseline justify-between pt-1 relative z-10">
+                                    <div>
+                                        <p className="text-xs text-blue-100/90 font-medium">나의 팀 배치 정보</p>
+                                        {(() => {
+                                            const groupCount = (notice.guest_properties?.group_count ?? notice.group_count) || 4;
+                                            const myIndex = groupParticipants.findIndex(p => p.id === user?.id);
+                                            const groupNum = myIndex !== -1 ? (myIndex % groupCount) + 1 : 1;
+                                            return (
+                                                <div className="flex items-baseline gap-1.5 mt-0.5">
+                                                    <span className="text-3xl font-black text-white tracking-tight">{groupNum}팀</span>
+                                                    <span className="text-xs text-blue-200 font-semibold">배치 완료</span>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+
+                                    <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 flex items-center justify-center text-white shadow-inner">
+                                        <Users size={22} />
+                                    </div>
                                 </div>
+
+                                <p className="text-[11px] text-blue-100/80 font-medium pt-1 border-t border-white/15 relative z-10">
+                                    팀원들과 반갑게 인사를 나누고 소통해 보세요 🎉
+                                </p>
                             </div>
                         )}
 
-                        {/* 랜덤 아이스브레이킹 질문 카드 */}
+                        {/* 2. 랜덤 아이스브레이킹 질문 카드 (토스 뽑기 카드 스타일) */}
                         {(notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && ((notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0) && (
-                            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 space-y-2.5 animate-fade-in">
-                                <div className="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
-                                    <Dices size={16} className="text-amber-600" />
-                                    <span>나눔 질문</span>
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white shadow-xl space-y-3 relative overflow-hidden transform transition hover:scale-[1.01]">
+                                <div className="absolute -right-8 -top-8 w-24 h-24 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
+
+                                <div className="flex justify-between items-center relative z-10">
+                                    <div className="flex items-center gap-1.5 bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-full text-[11px] font-bold border border-amber-500/30">
+                                        <Dices size={13} className="text-amber-400 animate-spin-slow" />
+                                        <span>오늘의 나눔 질문</span>
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCurrentQuestionIndex(prev => prev + 1);
+                                        }}
+                                        className="text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 px-2.5 py-1 rounded-full transition flex items-center gap-1 cursor-pointer active:scale-95 border border-amber-400/20"
+                                    >
+                                        <RefreshCw size={11} />
+                                        <span>질문 새로 뽑기 🎲</span>
+                                    </button>
                                 </div>
-                                <div className="p-3.5 bg-white rounded-xl border border-amber-100/80 shadow-sm text-center">
-                                    <p className="text-sm font-extrabold text-amber-900 leading-relaxed py-1">
-                                        {(notice.guest_properties?.random_questions ?? notice.random_questions)[currentQuestionIndex % (notice.guest_properties?.random_questions ?? notice.random_questions).length]}
+
+                                <div className="py-2.5 px-3.5 bg-slate-800/80 rounded-xl border border-slate-700/80 relative z-10">
+                                    <p className="text-sm font-extrabold text-amber-100 leading-relaxed text-center py-1">
+                                        💬 &ldquo;{(notice.guest_properties?.random_questions ?? notice.random_questions)[currentQuestionIndex % (notice.guest_properties?.random_questions ?? notice.random_questions).length]}&rdquo;
                                     </p>
                                 </div>
                             </div>
