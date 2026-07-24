@@ -1336,7 +1336,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                                         };
 
                                         if (onUpdate) {
-                                            await onUpdate(updatedNotice);
+                                            await onUpdate(updatedNotice, true);
                                         }
                                     } catch (err) {
                                         console.error('팀 섞기 오류:', err);

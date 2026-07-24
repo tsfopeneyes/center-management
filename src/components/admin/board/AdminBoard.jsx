@@ -266,7 +266,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                     user={JSON.parse(localStorage.getItem('admin_user')) || {}}
                     responses={{}}
                     onResponse={() => {}}
-                    onUpdate={async (updated) => {
+                    onUpdate={async (updated, isAlreadySaved = false) => {
                         try {
                             let finalUpdate = { ...updated };
                             if (updated.category === 'PROGRAM' && updated.program_status === 'COMPLETED') {
@@ -274,10 +274,15 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu }) => {
                                     finalUpdate.program_status = 'ACTIVE';
                                 }
                             }
-                            await noticesApi.update(finalUpdate.id, finalUpdate);
+                            if (!isAlreadySaved) {
+                                await noticesApi.update(finalUpdate.id, finalUpdate);
+                            }
                             setViewNotice(finalUpdate);
                             fetchNotices();
-                        } catch (err) { alert('수정 실패'); }
+                        } catch (err) {
+                            console.error('onUpdate error:', err);
+                            alert('수정 실패: ' + (err.message || err));
+                        }
                     }}
                     onDelete={handleDeleteNotice}
                     onViewParticipants={handleOpenParticipants}

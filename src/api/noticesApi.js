@@ -140,17 +140,17 @@ export const noticesApi = {
 
     async update(id, updates) {
         const payload = { ...updates };
-        delete payload.send_push;
-        delete payload.joinCount;
-        delete payload.waitlistCount;
-        delete payload.responses;
-        delete payload.responseDetails;
-        delete payload.comments;
-        delete payload.author;
-        delete payload.is_joined;
-        delete payload.has_applied;
-        delete payload.attendedCount;
-        delete payload.attendanceRate;
+        
+        // Remove non-table / joined / computed keys that cause Supabase schema errors
+        const nonTableKeys = [
+            'id', 'created_at', 'send_push', 'joinCount', 'waitlistCount', 
+            'responses', 'responseDetails', 'comments', 'author', 'is_joined', 
+            'has_applied', 'attendedCount', 'attendanceRate', 'users', 
+            'notice_responses', 'challenge_missions', 'challenge_mission_statuses',
+            'program_feedback', 'poll_responses', 'my_vote', 'is_attended', 'is_staff', 'user_id'
+        ];
+
+        nonTableKeys.forEach(k => delete payload[k]);
 
         const { error } = await supabase
             .from('notices')
