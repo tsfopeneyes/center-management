@@ -1301,59 +1301,79 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
             {/* Admin Teams Management Modal */}
             {showAdminTeamsModal && (
                 <div 
-                    className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 animate-fade-in"
+                    className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-5 animate-fade-in"
                     onClick={() => setShowAdminTeamsModal(false)}
                 >
                     <div 
-                        className="bg-white w-full max-w-lg rounded-[2rem] p-6 shadow-2xl space-y-4 animate-scale-up border border-tossGrey100 max-h-[85vh] flex flex-col"
+                        className="bg-white w-full max-w-lg rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 shadow-2xl space-y-4 animate-scale-up border border-tossGrey100 max-h-[85vh] flex flex-col"
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="flex justify-between items-center pb-3 border-b border-tossGrey100 shrink-0">
-                            <h3 className="font-extrabold text-tossGrey900 text-base flex items-center gap-2">
-                                <Users className="text-blue-600" size={18} />
-                                <span>전체 팀 배치 현황 (총 {(notice.guest_properties?.group_count ?? notice.group_count) || 4}개 팀)</span>
-                            </h3>
-                                                        <button
-                                onClick={async () => {
-                                    try {
-                                        const newSeed = Math.random().toString(36).substring(2, 8);
-                                        const currentGp = notice.guest_properties || {};
-                                        const updatedGp = {
-                                            ...currentGp,
-                                            team_shuffle_seed: newSeed
-                                        };
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-tossGrey100 shrink-0 gap-2.5">
+                            <div className="flex items-center justify-between w-full sm:w-auto">
+                                <h3 className="font-extrabold text-tossGrey900 text-sm sm:text-base flex items-center gap-2">
+                                    <Users className="text-blue-600 shrink-0" size={18} />
+                                    <span className="truncate">전체 팀 배치 현황 (총 {(notice.guest_properties?.group_count ?? notice.group_count) || 4}개 팀)</span>
+                                </h3>
+                                <button 
+                                    onClick={() => setShowAdminTeamsModal(false)}
+                                    className="p-1 text-tossGrey400 hover:text-tossGrey700 rounded-full transition-colors cursor-pointer sm:hidden"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
 
-                                        const { error } = await supabase
-                                            .from('notices')
-                                            .update({ guest_properties: updatedGp })
-                                            .eq('id', notice.id);
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={async (e) => {
+                                        e.stopPropagation();
+                                        try {
+                                            const newSeed = Math.random().toString(36).substring(2, 8);
+                                            const currentGp = notice.guest_properties || {};
+                                            const updatedGp = {
+                                                ...currentGp,
+                                                team_shuffle_seed: newSeed
+                                            };
 
-                                        if (error) throw error;
+                                            const { error } = await supabase
+                                                .from('notices')
+                                                .update({ guest_properties: updatedGp })
+                                                .eq('id', notice.id);
 
-                                        const updatedNotice = {
-                                            ...notice,
-                                            guest_properties: updatedGp
-                                        };
+                                            if (error) throw error;
 
-                                        if (onUpdate) {
-                                            await onUpdate(updatedNotice, true);
+                                            if (!notice.guest_properties) notice.guest_properties = {};
+                                            notice.guest_properties.team_shuffle_seed = newSeed;
+
+                                            setGroupParticipants(prev => {
+                                                const sorted = [...prev].sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
+                                                return seededShuffle(sorted, newSeed);
+                                            });
+
+                                            const updatedNotice = {
+                                                ...notice,
+                                                guest_properties: updatedGp
+                                            };
+
+                                            if (onUpdate) {
+                                                await onUpdate(updatedNotice, true);
+                                            }
+                                        } catch (err) {
+                                            console.error('팀 섞기 오류:', err);
+                                            alert('팀 섞기 중 오류가 발생했습니다: ' + (err.message || err));
                                         }
-                                    } catch (err) {
-                                        console.error('팀 섞기 오류:', err);
-                                        alert('팀 섞기 중 오류가 발생했습니다: ' + (err.message || err));
-                                    }
-                                }}
-                                className="mr-2 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                            >
-                                <RefreshCw size={12} />
-                                <span>팀 다시 섞기 🎲</span>
-                            </button>
-<button 
-                                onClick={() => setShowAdminTeamsModal(false)}
-                                className="p-1 text-tossGrey400 hover:text-tossGrey700 rounded-full transition-colors cursor-pointer"
-                            >
-                                <X size={20} />
-                            </button>
+                                    }}
+                                    className="w-full sm:w-auto text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                                >
+                                    <RefreshCw size={14} />
+                                    <span>팀 다시 섞기 🎲</span>
+                                </button>
+                                <button 
+                                    onClick={() => setShowAdminTeamsModal(false)}
+                                    className="p-1 text-tossGrey400 hover:text-tossGrey700 rounded-full transition-colors cursor-pointer hidden sm:block"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-hide py-2">
