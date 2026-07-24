@@ -570,15 +570,17 @@ const StudentDashboard = () => {
                         setNewComment={setNewComment}
                         onPostComment={handlePostComment}
                         onDeleteComment={handleDeleteComment}
-                        onUpdate={async (updatedNotice) => {
+                        onUpdate={async (updatedNotice, isAlreadySaved = false) => {
                             try {
-                                await noticesApi.update(updatedNotice.id, updatedNotice);
-                                alert('성공적으로 수정되었습니다.');
+                                if (!isAlreadySaved) {
+                                    await noticesApi.update(updatedNotice.id, updatedNotice);
+                                    alert('성공적으로 수정되었습니다.');
+                                }
                                 fetchNotices();
-                                setSelectedNotice({ ...selectedNotice, ...updatedNotice });
+                                setSelectedNotice(prev => prev ? { ...prev, ...updatedNotice } : null);
                             } catch (e) {
-                                console.error(e);
-                                alert('수정 중 오류가 발생했습니다.');
+                                console.error('StudentDashboard onUpdate error:', e);
+                                alert('수정 중 오류가 발생했습니다: ' + (e.message || e));
                             }
                         }}
                         onDelete={async (noticeId) => {
