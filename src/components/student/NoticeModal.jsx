@@ -227,7 +227,15 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
         notice.program_end_date
     );
 
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = Boolean(
+        fromAdmin ||
+        user?.role === 'admin' ||
+        user?.role === 'ADMIN' ||
+        user?.role === 'master' ||
+        user?.role === 'MASTER' ||
+        user?.is_admin ||
+        Boolean(localStorage.getItem('admin_user'))
+    );
 
     const {
         joinCount, waitlistCount,
