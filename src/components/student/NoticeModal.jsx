@@ -1330,7 +1330,7 @@ const NoticeModal = ({ notice, context, onClose, user, fromAdmin = false, respon
                 </div>
             )}
 
-            {/* Admin Teams Management Modal */}
+            {/* Admin Teams Management Modal (Unified Desktop & Mobile UI) */}
             {showAdminTeamsModal && (
                 <div 
                     className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-5 animate-fade-in"
