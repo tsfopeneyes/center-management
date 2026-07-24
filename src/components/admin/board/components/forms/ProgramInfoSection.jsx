@@ -1450,6 +1450,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                             <option value={30}>30분 전</option>
                                             <option value={45}>45분 전</option>
                                             <option value={60}>1시간 전</option>
+                                            <option value={120}>2시간 전</option>
                                         </select>
                                         <span className="text-slate-600 font-medium">부터 버튼이 학생들에게 노출됩니다</span>
                                     </div>
