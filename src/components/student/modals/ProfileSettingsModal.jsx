@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Image as ImageIcon, ZoomIn, RotateCw, BookOpen } from 'lucide-react';
 import Cropper from 'react-easy-crop';
@@ -21,6 +21,7 @@ const ProfileSettingsModal = ({
     const [profilePreview, setProfilePreview] = useState(null);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
     const [school, setSchool] = useState(user?.school || '');
     const [church, setChurch] = useState(user?.church || '');
     const [isSchoolChurch, setIsSchoolChurch] = useState(user?.preferences?.is_school_church ?? false);
@@ -34,10 +35,23 @@ const ProfileSettingsModal = ({
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => () => {
+        if (photoURL) URL.revokeObjectURL(photoURL);
+    }, [photoURL]);
+
+    useEffect(() => () => {
+        if (profilePreview) URL.revokeObjectURL(profilePreview);
+    }, [profilePreview]);
 
     const handleProfileImageSelect = (e) => {
         const file = e.target.files[0];
         if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('이미지 파일만 선택할 수 있습니다.');
+                return;
+            }
             setPhotoURL(URL.createObjectURL(file));
             setShowCropModal(true);
             setZoom(1);
@@ -72,8 +86,11 @@ const ProfileSettingsModal = ({
     };
 
     const handleSaveProfile = async () => {
+        if (isSaving || profileLoadingState) return;
+        setIsSaving(true);
+        try {
         const updates = {};
-        if (newPassword) {
+        if (isChangingPassword && newPassword) {
             if (newPassword.length < 6) {
                 alert('비밀번호는 6자리 이상이어야 합니다.');
                 return;
@@ -106,6 +123,9 @@ const ProfileSettingsModal = ({
         } else {
             alert('프로필 저장 실패: ' + result.error);
         }
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -120,8 +140,8 @@ const ProfileSettingsModal = ({
                         <X size={24} className="text-gray-600" />
                     </button>
                     <h3 className="font-bold text-lg">프로필 설정</h3>
-                    <button onClick={handleSaveProfile} disabled={profileLoadingState} className="text-blue-600 font-bold px-2 disabled:text-gray-300">
-                        {profileLoadingState ? '...' : '저장'}
+                    <button onClick={handleSaveProfile} disabled={profileLoadingState || isSaving} className="text-blue-600 font-bold px-2 disabled:text-gray-300">
+                        {profileLoadingState || isSaving ? '저장 중' : '저장'}
                     </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-8">
@@ -208,14 +228,33 @@ const ProfileSettingsModal = ({
 
                     <div className="space-y-4 pb-6">
                         <h4 className="font-bold text-gray-800 border-b pb-2">비밀번호 변경</h4>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">새 비밀번호 (6자리 이상)</label>
-                            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="변경할 비밀번호를 입력하세요" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">새 비밀번호 확인</label>
-                            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="비밀번호를 다시 입력하세요" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base" />
-                        </div>
+                        {!isChangingPassword ? (
+                            <button
+                                type="button"
+                                onClick={() => setIsChangingPassword(true)}
+                                className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-100"
+                            >
+                                비밀번호 변경하기
+                            </button>
+                        ) : (
+                            <>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">새 비밀번호 (6자리 이상)</label>
+                                    <input name="profile-new-password" autoComplete="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="변경할 비밀번호를 입력하세요" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">새 비밀번호 확인</label>
+                                    <input name="profile-confirm-password" autoComplete="new-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="비밀번호를 다시 입력하세요" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base" />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsChangingPassword(false); setNewPassword(''); setConfirmPassword(''); }}
+                                    className="w-full py-1 text-xs font-bold text-gray-400"
+                                >
+                                    비밀번호 변경 취소
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     <div className="space-y-3 pt-6 border-t border-gray-100 pb-8">

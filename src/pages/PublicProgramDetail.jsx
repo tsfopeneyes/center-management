@@ -22,7 +22,7 @@ import RecruitmentBadge from '../components/student/components/RecruitmentBadge'
 import { readNoticeWithPreview } from '../api/programReadApi';
 import SignUpForm from '../components/auth/SignUpForm';
 import { programSessionsApi } from '../api/programSessionsApi';
-import { usesDailySessionRsvp, getDailySessionRegistrationBlockReason, formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, isRecurringProgram } from '../utils/dailyProgramSessions';
+import { usesDailySessionRsvp, getDailySessionRegistrationBlockReason, formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, isRecurringProgram, shouldShowApplicationCount } from '../utils/dailyProgramSessions';
 import BirthDateInput from '../components/common/BirthDateInput';
 
 const isInternalAccount = isAdminOrStaff;
@@ -105,6 +105,7 @@ const PublicProgramDetail = () => {
     const [loggedInUser, setLoggedInUser] = useState(null);
     const [isRegistered, setIsRegistered] = useState(false);
     const [applicationStatus, setApplicationStatus] = useState('JOIN');
+    const [currentApplicantCount, setCurrentApplicantCount] = useState(0);
     const [showParticipantModal, setShowParticipantModal] = useState(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -114,6 +115,12 @@ const PublicProgramDetail = () => {
     const isInternalViewer = isInternalAccount(loggedInUser);
     const programRegistrationBlockReason = getProgramRegistrationBlockReason(notice, recruitmentNow);
     const isProgramRegistrationOpen = !programRegistrationBlockReason;
+
+    useEffect(() => {
+        if (!isInternalViewer || !notice?.id) return;
+        localStorage.removeItem('pendingProgramJoin');
+        navigate(`/admin?noticeId=${notice.id}`, { replace: true });
+    }, [isInternalViewer, notice?.id, navigate]);
 
     const readProgramWithToday = async () => {
         const data = await readNoticeWithPreview(id);
@@ -602,6 +609,17 @@ const PublicProgramDetail = () => {
     const fetchNotice = async () => {
         try {
             const data = await readProgramWithToday();
+            if (data?.is_recruiting && !usesDailySessionRsvp(data) && shouldShowApplicationCount(data)) {
+                const { count, error: countError } = await supabase
+                    .from('notice_responses')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('notice_id', data.id)
+                    .eq('status', 'JOIN');
+                if (countError) throw countError;
+                setCurrentApplicantCount(count || 0);
+            } else {
+                setCurrentApplicantCount(0);
+            }
             setNotice(data || false);
         } catch (err) {
             console.error(err);
@@ -630,6 +648,7 @@ const PublicProgramDetail = () => {
         const channel = supabase.channel(`public-program-${id}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notices', filter: `id=eq.${id}` }, refresh)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_program_sessions', filter: `notice_id=eq.${id}` }, refresh)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses', filter: `notice_id=eq.${id}` }, refresh)
             .subscribe();
         window.addEventListener('focus', refresh);
         return () => { window.removeEventListener('focus', refresh); supabase.removeChannel(channel); };
@@ -814,6 +833,13 @@ const PublicProgramDetail = () => {
     const openSessions = usesDailySessionRsvp(notice)
         ? (notice.open_sessions?.length ? notice.open_sessions : (notice.today_session ? [notice.today_session] : [])) : [];
     const activeSession = openSessions.find(session => session.id === selectedSessionId) || openSessions[0] || null;
+    const displayedCapacity = usesDailySessionRsvp(notice) ? activeSession?.capacity : notice.max_capacity;
+    const displayedApplicantCount = usesDailySessionRsvp(notice) ? activeSession?.join_count || 0 : currentApplicantCount;
+    const capacityText = `${displayedCapacity > 0 ? `${displayedCapacity}명` : '제한 없음'}${shouldShowApplicationCount(notice) ? ` · 현재 ${displayedApplicantCount}명 신청` : ''}`;
+    const todaySessionFields = getDailySessionValues(notice, activeSession);
+    const todaySessionRows = Array.from({ length: Math.ceil(todaySessionFields.length / 2) }, (_, index) => todaySessionFields.slice(index * 2, index * 2 + 2));
+    const getSessionFieldWeight = field => Math.max(12, Math.min(30, Array.from(field?.value || '').length + (Array.from(field?.label || '').length * 0.25)));
+    const getSessionFieldMinWidth = field => Math.min(210, Math.max(164, (Array.from(field?.label || '').length * 10) + 48));
     const formattedSchedule = usesDailySessionRsvp(notice) ? formatDailySessionSchedule(activeSession) || '신청 회차 준비 중' : notice.is_challenge && notice.challenge_format === 'ONLINE'
         ? formatOnlineChallengePeriod()
         : formatProgramSchedule(
@@ -857,6 +883,7 @@ const PublicProgramDetail = () => {
                 
                 {notice.category === 'PROGRAM' && (
                     <div className="bg-[#f8fafc] rounded-2xl p-5 space-y-4 mb-6">
+                        {usesDailySessionRsvp(notice) && openSessions.length > 1 && <div className="grid grid-cols-2 gap-2.5 border-b border-gray-200 pb-4">{openSessions.map(session => <button key={session.id} type="button" onClick={() => setSelectedSessionId(session.id)} className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${activeSession?.id === session.id ? 'border-blue-600 bg-blue-600 text-white shadow-blue-200' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'}`}>{formatDailySessionSchedule(session)}</button>)}</div>}
                         <div className="flex text-sm leading-relaxed">
                             <span className="w-16 text-gray-500 font-semibold shrink-0">일정</span>
                             <span className="text-blue-600 font-extrabold">{formattedSchedule}</span>
@@ -867,13 +894,23 @@ const PublicProgramDetail = () => {
                         </div>}
                         <div className="flex text-sm leading-relaxed">
                             <span className="w-16 text-gray-500 font-semibold shrink-0">인원</span>
-                            <span className="text-gray-900 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                            <span className="text-gray-900 font-extrabold">{capacityText}</span>
                         </div>
                     </div>
                 )}
 
+                {usesDailySessionRsvp(notice) && hostUsers.length > 0 && <section className="mb-7">
+                    <div className="mb-3 flex items-center gap-2"><div className="h-[14px] w-[3px] rounded-full bg-blue-500"/><h3 className="text-[15px] font-extrabold leading-none text-gray-900">프로그램 호스트</h3></div>
+                    <div className="grid grid-cols-1 gap-3">{hostUsers.map(host => <div key={host.id} className="flex w-full items-center gap-3.5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-blue-600 shadow-sm">{host.profile_image_url ? <img src={host.profile_image_url} alt="" className="h-full w-full object-cover"/> : <User size={21}/>}</div><div className="min-w-0"><p className="truncate text-base font-black text-slate-900">{host.name}</p><p className="mt-1 line-clamp-2 text-sm font-semibold leading-relaxed text-slate-600">{host.one_liner || host.school || '이번 회차를 함께 진행해요.'}</p></div></div>)}</div>
+                </section>}
+
+                {usesDailySessionRsvp(notice) && todaySessionFields.length > 0 && <section className="mb-8">
+                    <div className="mb-4 flex items-center gap-2"><div className="h-[14px] w-[3px] rounded-full bg-blue-500"/><h3 className="text-[15px] font-extrabold leading-none text-gray-900">오늘의 내용</h3></div>
+                    <div className="space-y-3 border-b border-gray-100 pb-6">{todaySessionRows.map((row, rowIndex) => <div key={rowIndex} className="flex w-full flex-wrap gap-3">{row.map(field => <div key={field.id} className="min-w-0 rounded-2xl border border-[#f1ece3] bg-[#faf8f2] px-4 py-4 shadow-sm" style={{flexBasis:0,flexGrow:row.length===1?1:getSessionFieldWeight(field),minWidth:row.length===1?'100%':`${getSessionFieldMinWidth(field)}px`}}><p className="whitespace-nowrap text-[13px] font-extrabold leading-none text-[#e83b2f]">{field.label}</p><p className="mt-4 whitespace-pre-wrap break-words text-center text-[17px] font-extrabold leading-snug tracking-[-0.025em] text-gray-900">{field.value}</p></div>)}</div>)}</div>
+                </section>}
+
                 {/* Sticky Section Tabs: Only show when both Introduction and Host sections are active */}
-                {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
+                {notice.category === 'PROGRAM' && !usesDailySessionRsvp(notice) && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                     <div className="flex border-b border-gray-100 sticky top-14 bg-white/95 backdrop-blur z-20 mb-6">
                         <button
                             onClick={() => scrollToSection('intro')}
@@ -915,14 +952,14 @@ const PublicProgramDetail = () => {
                 {/* Body Content */}
                 {notice.category === 'PROGRAM' && (
                     <div 
-                        ref={notice.program_type === 'CENTER' && hostUsers.length > 0 ? introRef : null} 
+                        ref={!usesDailySessionRsvp(notice) && notice.program_type === 'CENTER' && hostUsers.length > 0 ? introRef : null} 
                         className={`flex items-center gap-2 scroll-mt-28 ${
-                            notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
+                            !usesDailySessionRsvp(notice) && notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
                         }`}
                     >
                         <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
                         <h3 className="font-extrabold text-[15px] leading-none text-gray-900">
-                            프로그램 소개
+                            {usesDailySessionRsvp(notice) ? '소개' : '프로그램 소개'}
                         </h3>
                     </div>
                 )}
@@ -1042,7 +1079,7 @@ const PublicProgramDetail = () => {
                     );
                 })()}
 
-                {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
+                {notice.category === 'PROGRAM' && !usesDailySessionRsvp(notice) && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                     <div ref={hostRef} className="mb-8 scroll-mt-28 flex flex-col gap-3">
                         {/* Hosts with one-liners: rendered individually */}
                         {hostUsers.filter(h => h.one_liner && h.one_liner.trim() !== '').map(host => (
@@ -1136,12 +1173,7 @@ const PublicProgramDetail = () => {
                 )}
             </div>
 
-            {usesDailySessionRsvp(notice) && <div className="mx-5 mb-6 rounded-2xl bg-blue-50 p-4 text-sm">
-                {openSessions.length > 1 && <div className="mb-4 grid grid-cols-2 gap-2.5">{openSessions.map(session => <button key={session.id} type="button" onClick={() => setSelectedSessionId(session.id)} className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${activeSession?.id === session.id ? 'border-blue-600 bg-blue-600 text-white shadow-blue-200' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'}`}>{formatDailySessionSchedule(session)}</button>)}</div>}
-                <p className="font-bold">신청 회차 · {formatDailySessionSchedule(activeSession) || '준비 중'}</p>
-                {getDailySessionValues(notice, activeSession).map(field => <p key={field.id} className="mt-2">{field.label}: {field.value}</p>)}
-                {programRegistrationBlockReason && <p className="mt-2 text-slate-600">{programRegistrationBlockReason}</p>}
-            </div>}
+            {usesDailySessionRsvp(notice) && programRegistrationBlockReason && <div className="mx-5 mb-6 rounded-2xl bg-blue-50 p-4 text-sm font-semibold text-slate-600">{programRegistrationBlockReason}</div>}
             {/* Bottom Floating Action Bar */}
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 z-50 safe-area-bottom">
                 {(notice.is_recruiting === false || isProgramRegistrationOpen || canLeaveFeedback || isInternalViewer) ? (

@@ -13,7 +13,7 @@ const supabase = createClient(
 
 const { data, error } = await supabase
   .from('survey_links')
-  .select('id,event,center_code,enabled,frequency,version:survey_versions!survey_links_version_id_form_id_fkey(id,definition)')
+  .select('id,event,center_code,enabled,frequency,is_default,version:survey_versions!survey_links_version_id_form_id_fkey(id,definition)')
   .in('event', ['CHECKIN', 'CHECKOUT'])
   .eq('enabled', true)
   .order('center_code')
@@ -30,11 +30,18 @@ const assignments = (data || []).map(link => ({
   center: link.center_code,
   event: link.event,
   frequency: link.frequency,
+  mode: link.is_default ? 'DEFAULT' : 'PRIMARY',
   title: link.version?.definition?.title || null,
   questionCount: link.version?.definition?.questions?.length || 0,
   valid: !validateDefinition(link.version?.definition),
 }));
 if (assignments.some(item => !item.valid)) throw new Error('An active visit survey has an invalid definition.');
+for (const center of new Set(assignments.map(item => item.center))) for (const event of ['CHECKIN', 'CHECKOUT']) {
+  const target = assignments.filter(item => item.center === center && item.event === event);
+  if (target.filter(item => item.mode === 'PRIMARY').length > 1 || target.filter(item => item.mode === 'DEFAULT').length > 1) {
+    throw new Error(`Conflicting visit survey slots: ${center} ${event}`);
+  }
+}
 
 const legacyFallbacks = (legacySurveys || []).flatMap(survey => {
   const configuredCenters = survey.config?.exposure?.enabled === false ? [] : (survey.config?.exposure?.centers || []);

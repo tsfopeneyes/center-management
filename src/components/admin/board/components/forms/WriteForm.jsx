@@ -294,6 +294,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 const configuredHosts = (formData.hosts || []).filter(h => h && h.host_id);
                 noticeData.guest_properties = {
                     ...gp,
+                    show_application_count: formData.show_application_count !== false,
                     schedule_mode: formData.is_challenge ? 'SINGLE' : (formData.schedule_mode || 'SINGLE'),
                     application_scope: formData.is_recruiting && !formData.is_challenge
                         ? (formData.application_scope || 'PROGRAM') : 'NONE',

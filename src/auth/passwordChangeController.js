@@ -11,10 +11,24 @@ export function createPasswordChangeController({auth,change,resolveSession,exclu
     return async({profileId,newPassword},{signal}={})=>exclusive(async()=>{
         if(!uuid(profileId)||typeof newPassword!=='string'||newPassword.length<6||newPassword.length>128||!newPassword.trim())
             throw new AuthOperationError('invalid_request');
-        const before=await auth.getSession();
-        const current=before?.data?.session;
+        let before=await auth.getSession();
+        let current=before?.data?.session;
+        if((before?.error||!token(current?.access_token))&&typeof auth.refreshSession==='function'){
+            before=await auth.refreshSession();
+            current=before?.data?.session;
+        }
         if(before?.error||!token(current?.access_token))throw new AuthOperationError('invalid_login');
-        const result=await change({action:'change-self',protocol:1,profileId,newPassword},{signal,accessToken:current.access_token});
+        let result;
+        try{
+            result=await change({action:'change-self',protocol:1,profileId,newPassword},{signal,accessToken:current.access_token});
+        }catch(error){
+            if(error?.code!=='invalid_login'&&error?.message!=='invalid_login')throw error;
+            if(typeof auth.refreshSession!=='function')throw error;
+            const refreshed=await auth.refreshSession();
+            current=refreshed?.data?.session;
+            if(refreshed?.error||!token(current?.access_token))throw new AuthOperationError('invalid_login');
+            result=await change({action:'change-self',protocol:1,profileId,newPassword},{signal,accessToken:current.access_token});
+        }
         if(result?.protocol!==1||result.status!=='session_replaced'||result.profileId!==profileId||!uuid(result.authUserId)||
             !token(result.session?.access_token)||!token(result.session?.refresh_token)||!Number.isFinite(result.session?.expires_at)||
             result.session.expires_at*1000<=now()+30000)throw new AuthOperationError('account_changed');

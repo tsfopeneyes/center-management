@@ -136,6 +136,11 @@ export const prepareNoticeForEdit = (notice) => {
         recruitment_start_at: toKstInput(getRecruitmentStart(notice)),
         _legacy_recruitment: !getRecruitmentStart(notice),
         max_capacity: notice.max_capacity ?? 0,
+        // Preserve the old UI: session-based programs exposed the live count,
+        // while ordinary application programs did not.
+        show_application_count: notice.guest_properties?.show_application_count
+            ?? (notice.guest_properties?.application_scope === 'SESSION'
+                || notice.guest_properties?.open_participation_mode === 'SESSION_RSVP'),
         program_date: localProgramDate,
         program_time: pTime,
         program_duration: duration || notice.program_duration || '',

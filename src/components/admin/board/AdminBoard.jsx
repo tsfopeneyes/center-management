@@ -256,7 +256,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
         }
         const { data, error } = await supabase
             .from('comments')
-            .select('*, users(name, profile_image_url), notice_comment_reactions(user_id, emoji, users(id, name, school, profile_image_url))')
+            .select('*, users!comments_user_id_fkey(name, profile_image_url), notice_comment_reactions(user_id, emoji, users!notice_comment_reactions_user_id_fkey(id, name, school, profile_image_url))')
             .eq('notice_id', noticeId)
             .order('created_at', { ascending: true });
         if (error) throw error;
@@ -299,8 +299,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
         try {
             const { error } = await supabase.from('comments')
                 .delete()
-                .eq('id', commentId)
-                .eq('user_id', adminUser.id);
+                .eq('id', commentId);
             if (error) throw error;
             await fetchViewComments(viewNotice?.id);
         } catch (error) {

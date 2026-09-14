@@ -53,41 +53,35 @@ export default async function getCroppedImg(
         rotation
     )
 
-    // set canvas size to match the bounding box
-    canvas.width = bBoxWidth
-    canvas.height = bBoxHeight
+    // Bound the intermediate surface so high-resolution phone photos cannot
+    // exhaust mobile browser memory while rotating and cropping.
+    const workScale = Math.min(1, 1600 / Math.max(bBoxWidth, bBoxHeight))
+    canvas.width = Math.max(1, Math.round(bBoxWidth * workScale))
+    canvas.height = Math.max(1, Math.round(bBoxHeight * workScale))
 
     // translate canvas context to a central location to allow rotating and flipping around the center
-    ctx.translate(bBoxWidth / 2, bBoxHeight / 2)
+    ctx.translate(canvas.width / 2, canvas.height / 2)
     ctx.rotate(rotRad)
     ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1)
-    ctx.translate(-image.width / 2, -image.height / 2)
+    ctx.drawImage(image, -image.width * workScale / 2, -image.height * workScale / 2,
+        image.width * workScale, image.height * workScale)
 
-    // draw rotated image
-    ctx.drawImage(image, 0, 0)
-
-    // croppedAreaPixels values are bounding-box relative
-    // extract the cropped image using these values
-    const data = ctx.getImageData(
-        pixelCrop.x,
-        pixelCrop.y,
-        pixelCrop.width,
-        pixelCrop.height
-    )
-
-    // set canvas width to final desired crop size - this will clear existing context
-    canvas.width = pixelCrop.width
-    canvas.height = pixelCrop.height
-
-    // paste generated rotate image at the top left corner
-    ctx.putImageData(data, 0, 0)
-
-    // As Base64 string
-    // return canvas.toDataURL('image/jpeg');
+    // Crop directly into a small output canvas. getImageData previously made
+    // another large pixel copy and caused mobile tabs to be terminated.
+    const output = document.createElement('canvas')
+    const outputScale = Math.min(1, 1024 / Math.max(pixelCrop.width, pixelCrop.height))
+    output.width = Math.max(1, Math.round(pixelCrop.width * outputScale))
+    output.height = Math.max(1, Math.round(pixelCrop.height * outputScale))
+    const outputContext = output.getContext('2d')
+    if (!outputContext) return null
+    outputContext.drawImage(canvas,
+        pixelCrop.x * workScale, pixelCrop.y * workScale,
+        pixelCrop.width * workScale, pixelCrop.height * workScale,
+        0, 0, output.width, output.height)
 
     // As Blob
     return new Promise((resolve, reject) => {
-        canvas.toBlob((file) => {
+        output.toBlob((file) => {
             if (file) {
                 file.name = 'cropped.jpeg'; // Default name
                 resolve(file)
@@ -105,15 +99,19 @@ export async function compressImage(file, maxWidth = 1200, quality = 0.8) {
     if (!file || !file.type.startsWith('image/')) return file;
 
     const imageSrc = URL.createObjectURL(file);
-    const image = await createImage(imageSrc);
-    URL.revokeObjectURL(imageSrc);
+    let image;
+    try {
+        image = await createImage(imageSrc);
+    } finally {
+        URL.revokeObjectURL(imageSrc);
+    }
 
     let { width, height } = image;
 
-    // Resize if larger than maxWidth
-    if (width > maxWidth) {
-        height = Math.round((height * maxWidth) / width);
-        width = maxWidth;
+    const resizeScale = Math.min(1, maxWidth / Math.max(width, height));
+    if (resizeScale < 1) {
+        width = Math.round(width * resizeScale);
+        height = Math.round(height * resizeScale);
     }
 
     const canvas = document.createElement('canvas');
@@ -122,8 +120,12 @@ export async function compressImage(file, maxWidth = 1200, quality = 0.8) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(image, 0, 0, width, height);
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('이미지를 변환하지 못했습니다.'));
+                return;
+            }
             const optimizedFile = new File([blob], file.name, {
                 type: 'image/jpeg',
                 lastModified: Date.now(),

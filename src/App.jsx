@@ -15,6 +15,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
 const Kiosk = lazy(() => import('./pages/Kiosk'))
 const PublicProgramDetail = lazy(() => import('./pages/PublicProgramDetail'))
+const PublicSurveyPage = lazy(() => import('./pages/PublicSurveyPage'))
 const GuestMobileWelcome = lazy(() => import('./pages/GuestMobileWelcome'))
 const StandaloneLiveChat = lazy(() => import('./pages/StandaloneLiveChat'))
 const RandomLiveChatBoard = lazy(() => import('./pages/RandomLiveChatBoard'))
@@ -79,6 +80,7 @@ function App() {
                         <Route path="/guest" element={<GuestMobileWelcome />} />
                         <Route path="/welcome" element={<GuestMobileWelcome />} />
                         <Route path="/p/:id" element={<PublicProgramDetail />} />
+                        <Route path="/survey/:token" element={<PublicSurveyPage />} />
                         <Route path="/community/:id" element={<CommunityChannelPage />} />
                         <Route path="student" element={<StudentDashboard />} />
                         <Route element={<Layout />}>

@@ -29,6 +29,7 @@ const INITIAL_NOTICE_STATE = {
     recruitment_deadline: '',
     recruitment_start_at: '',
     max_capacity: '',
+    show_application_count: true,
     program_date: '',
     program_time: '12:00',
     program_duration: '',

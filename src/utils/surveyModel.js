@@ -19,6 +19,22 @@ export function programSurveyEndAt(program) {
 }
 export const newQuestion = () => ({ id: uuid(), title: '', type: 'short', required: true, options: [], metric: null });
 export const optionsOf = q => (Array.isArray(q.options) ? q.options : String(q.options || '').split(',')).map(o => typeof o === 'string' ? o : o.label).filter(Boolean);
+export const recommendationDetails = (question, option) => {
+    const index = optionsOf(question).indexOf(option);
+    return index < 0 ? null : question.optionDetails?.[index] || null;
+};
+export function recommendationsFor(definition, answers = {}) {
+    const recommendations = [];
+    for (const question of definition.questions || []) {
+        if (!question.recommendationsEnabled || !['choice', 'multiple'].includes(question.type)) continue;
+        for (const option of [].concat(answers[question.id] || []).filter(Boolean)) {
+            const detail = recommendationDetails(question, option);
+            if (!detail?.title && !detail?.text) continue;
+            recommendations.push({ id: `${question.id}:${option}`, option, emoji: detail.emoji || '✨', title: detail.title || option, text: detail.text || '' });
+        }
+    }
+    return recommendations;
+}
 export function validateDefinition(definition) {
     if (!definition.title?.trim()) return '설문 제목을 입력해 주세요.';
     if (!definition.questions?.length) return '질문을 하나 이상 추가해 주세요.';
@@ -44,7 +60,8 @@ export function validateAnswers(definition, answers) {
         if (q.type === 'star' && (!Number.isInteger(value) || value < 1 || value > 5)) return `${q.title}: 별점은 1~5점입니다.`;
         if (q.type === 'choice' && !optionsOf(q).includes(value)) return `${q.title}: 선택지를 확인해 주세요.`;
         if (q.type === 'multiple' && (!Array.isArray(value) || new Set(value).size !== value.length || value.some(v => !optionsOf(q).includes(v)))) return `${q.title}: 선택지를 확인해 주세요.`;
-        if (['short', 'text'].includes(q.type) && (typeof value !== 'string' || value.length > 5000)) return `${q.title}: 5,000자 이내로 작성해 주세요.`;
+        const maxLength = Math.min(5000, Math.max(1, Number(q.maxLength) || 5000));
+        if (['short', 'text'].includes(q.type) && (typeof value !== 'string' || value.length > maxLength)) return `${q.title}: ${maxLength.toLocaleString()}자 이내로 작성해 주세요.`;
     }
     if (Object.keys(answers).some(id => !definition.questions.some(q => q.id === id))) return '설문에 없는 답변이 포함되어 있습니다.';
     return null;
@@ -74,7 +91,8 @@ export function comparePrograms(entries) {
 export function legacyDefinition(config = {}, title = '') {
     if (config.questions?.length) return { title, description: config.description || '', questions: config.questions.map((q, i) => ({ ...q, id: `legacy-${i}-${q.id || ''}`, options: optionsOf(q), required: !!q.required })) };
     const text = ['QUESTION_QA', 'FEEDBACK_QA', 'CHAT_SHOUTOUT'].includes(config.mode);
-    const questions = [{ id: 'legacy-main', title: (text ? config.qaQuestion : config.question) || title, type: text ? 'text' : 'multiple', required: true, options: optionsOf(config) }];
+    const legacyOptions = Array.isArray(config.options) ? config.options : [];
+    const questions = [{ id: 'legacy-main', title: (text ? config.qaQuestion : config.question) || title, type: text ? 'text' : 'multiple', required: true, options: optionsOf(config), recommendationsEnabled: config.recommendationsEnabled !== false, optionDetails: legacyOptions.map(option => ({ emoji: option?.emoji || '✨', title: option?.recommendTitle || '', text: option?.recommendText || '' })) }];
     if (config.additionalComment?.enabled) questions.push({ id: 'legacy-comment', type: 'text', title: config.additionalComment.label || '추가 의견', required: !!config.additionalComment.required });
     return { title: title || questions[0].title, description: config.description || '', questions };
 }

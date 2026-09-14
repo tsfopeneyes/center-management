@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { User } from 'lucide-react';
 
 const UserAvatar = ({ user, size = "w-8 h-8", textSize = "text-xs" }) => {
     const [imgError, setImgError] = useState(false);
+
+    useEffect(() => {
+        setImgError(false);
+    }, [user?.profile_image_url]);
 
     if (user?.profile_image_url && !imgError) {
         return (

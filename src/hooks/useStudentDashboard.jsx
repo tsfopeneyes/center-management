@@ -37,6 +37,7 @@ import { useMessaging } from '../hooks/useMessaging';
 import { useNotices } from '../hooks/useNotices';
 import { getRecruitment } from '../utils/programRecruitment';
 import { usesDailySessionRsvp } from '../utils/dailyProgramSessions';
+import { sortStudentPrograms } from '../utils/studentProgramSort';
 import { useProfile } from '../hooks/useProfile';
 import { badgesApi } from '../api/badgesApi';
 import { userApi } from '../api/userApi';
@@ -345,6 +346,24 @@ export const useStudentDashboard = () => {
         }
     }, [notices]);
 
+    const fetchNoticeComments = async (noticeId) => {
+        const richResult = await supabase
+            .from('comments')
+            .select('*, users!comments_user_id_fkey(name, profile_image_url), notice_comment_reactions(user_id, emoji, users!notice_comment_reactions_user_id_fkey(id, name, school, profile_image_url))')
+            .eq('notice_id', noticeId)
+            .order('created_at', { ascending: true });
+        if (!richResult.error) return richResult.data || [];
+
+        console.warn('댓글 반응 정보를 함께 불러오지 못해 기본 댓글 조회로 전환합니다.', richResult.error);
+        const fallbackResult = await supabase
+            .from('comments')
+            .select('*, users!comments_user_id_fkey(name, profile_image_url)')
+            .eq('notice_id', noticeId)
+            .order('created_at', { ascending: true });
+        if (fallbackResult.error) throw fallbackResult.error;
+        return (fallbackResult.data || []).map(comment => ({ ...comment, notice_comment_reactions: [] }));
+    };
+
     const handlePostComment = async (e) => {
         e.preventDefault();
         if (!newComment.trim()) return;
@@ -356,32 +375,24 @@ export const useStudentDashboard = () => {
             }]);
             if (error) throw error;
             setNewComment('');
-            // Fetch updated comments
-            const { data } = await supabase
-                .from('comments')
-                .select('*, users(name, profile_image_url), notice_comment_reactions(user_id, emoji, users(id, name, school, profile_image_url))')
-                .eq('notice_id', selectedNotice.id)
-                .order('created_at', { ascending: true });
-            setComments(data || []);
-        } catch (err) { alert('댓글 작성 실패'); }
+            setComments(await fetchNoticeComments(selectedNotice.id));
+        } catch (err) {
+            console.error('댓글 작성 또는 새로고침 실패:', err);
+            alert(`댓글 작성 실패: ${err.message || '잠시 후 다시 시도해주세요.'}`);
+        }
     };
 
     const handleDeleteComment = async (commentId) => {
         if (!confirm('댓글을 삭제하시겠습니까?')) return;
         try {
-            const { error } = await supabase
+            let deleteQuery = supabase
                 .from('comments')
                 .delete()
-                .eq('id', commentId)
-                .eq('user_id', user?.id);
+                .eq('id', commentId);
+            if (!isAdminOrStaff(user)) deleteQuery = deleteQuery.eq('user_id', user?.id);
+            const { error } = await deleteQuery;
             if (error) throw error;
-            // Fetch updated comments
-            const { data } = await supabase
-                .from('comments')
-                .select('*, users(name, profile_image_url), notice_comment_reactions(user_id, emoji, users(id, name, school, profile_image_url))')
-                .eq('notice_id', selectedNotice.id)
-                .order('created_at', { ascending: true });
-            setComments(data || []);
+            setComments(await fetchNoticeComments(selectedNotice.id));
         } catch (err) {
             console.error(err);
             alert('댓글 삭제 실패');
@@ -392,13 +403,11 @@ export const useStudentDashboard = () => {
         setSelectedNotice(notice);
         setNoticeContext(context);
         try {
-            const { data } = await supabase
-                .from('comments')
-                .select('*, users(name, profile_image_url), notice_comment_reactions(user_id, emoji, users(id, name, school, profile_image_url))')
-                .eq('notice_id', notice.id)
-                .order('created_at', { ascending: true });
-            setComments(data || []);
-        } catch (err) { console.error(err); }
+            setComments(await fetchNoticeComments(notice.id));
+        } catch (err) {
+            console.error('댓글을 불러오지 못했습니다:', err);
+            setComments([]);
+        }
     };
 
     // Keep an open detail in sync when an administrator finishes a scheduled
@@ -485,7 +494,7 @@ export const useStudentDashboard = () => {
         return isVisibleForStudentRegion(n);
     });
 
-    const filteredPrograms = allPrograms.filter(n => {
+    const filteredPrograms = sortStudentPrograms(allPrograms.filter(n => {
         if (n.program_status === 'CANCELLED') return false;
         // Safe calendar previews must also appear in the program tab before
         // recruitment opens, without requiring unpublished detail fields.
@@ -501,12 +510,12 @@ export const useStudentDashboard = () => {
         const isTodayOrFuture = pDate ? pDate >= todayStart : true;
 
         return isScheduledToday || isTodayOrFuture;
-    });
+    }));
 
     const homeNotices = filteredNotices.slice(0, 3);
 
     // 홈 탭의 '내가 신청한 프로그램': 오늘 진행/종료된 프로그램 및 미래 신청 프로그램 포함 (오늘 종료된 프로그램도 홈 탭에서 피드백 작성 가능)
-    const homePrograms = allPrograms.filter(n => {
+    const homePrograms = sortStudentPrograms(allPrograms.filter(n => {
         if (n.program_status === 'CANCELLED') return false;
 
         const todayStart = startOfDay(new Date());
@@ -523,7 +532,7 @@ export const useStudentDashboard = () => {
 
         if (isNoticeEnded(n) && !isScheduledToday) return false;
         return isScheduledToday || isTodayOrFuture;
-    }).slice(0, 10);
+    })).slice(0, 10);
 
 
     const handleProfileImageSelect = (e) => {

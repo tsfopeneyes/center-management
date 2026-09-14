@@ -14,6 +14,10 @@ const firebaseConfig = {
 
 let app;
 let messaging;
+const pushDeviceRegistryEnabled = true;
+let tokenRequest = null;
+let tokenRequestUserId = null;
+const recentPushTokens = new Map();
 
 export const parseStoredPushTokens = (value) => {
     if (!value) return [];
@@ -54,6 +58,7 @@ const getDeviceMetadata = () => {
 };
 
 const registerPushDevice = async (provider, credential) => {
+    if (!pushDeviceRegistryEnabled) return null;
     const { data, error } = await supabase.functions.invoke('push-devices', { body: {
         action: 'register', deviceId: getPushDeviceId(), provider, credential, ...getDeviceMetadata(),
     }});
@@ -62,6 +67,7 @@ const registerPushDevice = async (provider, credential) => {
 };
 
 const subscribeStandardWebPush = async (registration) => {
+    if (!pushDeviceRegistryEnabled) return null;
     const publicKey = import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY;
     if (!publicKey || !registration?.pushManager) return null;
     let existing = await registration.pushManager.getSubscription();
@@ -89,7 +95,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-export const requestFirebaseToken = async (userId) => {
+const requestFirebaseTokenOnce = async (userId) => {
     if (!messaging || typeof window === 'undefined' || !('Notification' in window)) return null;
     try {
         const currentPermission = window.Notification?.permission;
@@ -128,11 +134,13 @@ export const requestFirebaseToken = async (userId) => {
         
         if (token) {
             console.log("FCM Token retrieved.");
-            try {
-                await registerPushDevice('FCM', { token });
-                return token;
-            } catch (registryError) {
-                console.warn('Device registry unavailable; using legacy push storage.', registryError);
+            if (pushDeviceRegistryEnabled) {
+                try {
+                    await registerPushDevice('FCM', { token });
+                    return token;
+                } catch (registryError) {
+                    console.warn('Device registry unavailable; using legacy push storage.', registryError);
+                }
             }
             const { data: profile, error: readError } = await supabase.from('users').select('fcm_token').eq('id', userId).maybeSingle();
             if (readError) throw readError;
@@ -157,9 +165,11 @@ export const requestFirebaseToken = async (userId) => {
 export const removeFirebaseToken = async (userId) => {
     if (!userId) return false;
     try {
-        await supabase.functions.invoke('push-devices', { body: {
-            action: 'unregister', deviceId: getPushDeviceId(),
-        }}).catch(() => null);
+        if (pushDeviceRegistryEnabled) {
+            await supabase.functions.invoke('push-devices', { body: {
+                action: 'unregister', deviceId: getPushDeviceId(),
+            }}).catch(() => null);
+        }
         let currentToken = null;
         if (messaging && typeof window !== 'undefined' && window.Notification?.permission === 'granted' && 'serviceWorker' in navigator) {
             const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260904-delivery-receipts');
@@ -221,6 +231,23 @@ export const promptAndEnableNotification = async (userId) => {
 export const listenForForegroundMessages = (handler) => {
     if (!messaging || typeof handler !== 'function') return () => {};
     return onMessage(messaging, handler);
+};
+
+export const requestFirebaseToken = async (userId) => {
+    if (!userId) return null;
+    const recent = recentPushTokens.get(userId);
+    if (recent && recent.expiresAt > Date.now()) return recent.token;
+    if (tokenRequest && tokenRequestUserId === userId) return tokenRequest;
+
+    tokenRequestUserId = userId;
+    tokenRequest = requestFirebaseTokenOnce(userId).then(token => {
+        if (token) recentPushTokens.set(userId, { token, expiresAt: Date.now() + 15 * 60 * 1000 });
+        return token;
+    }).finally(() => {
+        tokenRequest = null;
+        tokenRequestUserId = null;
+    });
+    return tokenRequest;
 };
 
 export const reportPushReceipt = async (receiptToken, event = 'DISPLAYED') => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Copy, Eye, EyeOff, Hash, Link2, MessageCircle, Pencil, Plus, Search, Send, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Copy, Eye, EyeOff, Hash, Link2, MessageCircle, MessageSquare, Pencil, Plus, Search, Send, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { communityChannelsApi } from '../../../api/communityChannelsApi';
 import { challengeCommunityApi } from '../../../api/challengeCommunityApi';
 import { commentReactionsApi } from '../../../api/commentReactionsApi';
@@ -8,9 +8,19 @@ import NoticeReactions from '../../student/NoticeReactions';
 import UserAvatar from '../../common/UserAvatar';
 import useCommentReactionLongPress from '../../../hooks/useCommentReactionLongPress';
 import { isAdminOrStaff } from '../../../utils/userUtils';
+import AdminPageHeader from '../common/AdminPageHeader';
 
 const countOf = value => value?.[0]?.count || 0;
 const sourceLabel = channel => channel.source_notice?.title || null;
+const CHANNEL_STATUSES = [
+    { value: 'SCHEDULED', label: '운영 예정', activeClass: 'border-amber-200 bg-amber-50 text-amber-700' },
+    { value: 'ACTIVE', label: '운영 중', activeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+    { value: 'CLOSED', label: '종료', activeClass: 'border-slate-300 bg-slate-100 text-slate-700' },
+];
+const statusInfo = status => status === 'READ_ONLY'
+    ? { label: '종료', activeClass: 'border-slate-300 bg-slate-100 text-slate-700' }
+    : CHANNEL_STATUSES.find(item => item.value === status) || { label: status, activeClass: 'border-slate-200 bg-slate-100 text-slate-600' };
+const normalizedStatus = status => status === 'READ_ONLY' ? 'CLOSED' : status;
 const MISSION_COLORS = [
     'bg-blue-50 text-blue-600', 'bg-violet-50 text-violet-600', 'bg-emerald-50 text-emerald-700',
     'bg-amber-50 text-amber-700', 'bg-rose-50 text-rose-600', 'bg-cyan-50 text-cyan-700',
@@ -77,7 +87,7 @@ export default function AdminCommunity() {
 
     const filteredChannels = useMemo(() => {
         const needle = query.trim().toLowerCase();
-        return channels.filter(channel => !needle || `${channel.name} ${sourceLabel(channel) || ''}`.toLowerCase().includes(needle));
+        return channels.filter(channel => channel.status !== 'ARCHIVED' && (!needle || `${channel.name} ${sourceLabel(channel) || ''}`.toLowerCase().includes(needle)));
     }, [channels, query]);
     const filteredPosts = useMemo(() => {
         const needle = query.trim().toLowerCase();
@@ -142,6 +152,31 @@ export default function AdminCommunity() {
             await loadChannels();
             await openChannel(refreshed);
         } catch (error) { alert(error.message || '프로그램 연결을 변경하지 못했습니다.'); }
+        finally { setSaving(false); }
+    };
+
+    const changeChannelStatus = async status => {
+        if (!activeChannel || activeChannel.status === status || saving) return;
+        setSaving(true);
+        try {
+            const updated = await communityChannelsApi.updateChannelStatus(activeChannel.id, status);
+            setActiveChannel(current => ({ ...current, ...updated }));
+            setChannels(current => current.map(channel => channel.id === activeChannel.id ? { ...channel, ...updated } : channel));
+        } catch (error) { alert(error.message || '커뮤니티 상태를 변경하지 못했습니다.'); }
+        finally { setSaving(false); }
+    };
+
+    const deleteChannel = async () => {
+        if (!activeChannel || saving || !confirm(`‘${activeChannel.name}’ 커뮤니티를 삭제할까요?\n게시글과 댓글은 안전하게 보관되며 목록에서는 사라집니다.`)) return;
+        setSaving(true);
+        try {
+            await communityChannelsApi.archiveChannel(activeChannel.id);
+            setChannels(current => current.filter(channel => channel.id !== activeChannel.id));
+            setActiveChannel(null);
+            setPosts([]);
+            setMembers([]);
+            setQuery('');
+        } catch (error) { alert(error.message || '커뮤니티를 삭제하지 못했습니다.'); }
         finally { setSaving(false); }
     };
 
@@ -212,22 +247,34 @@ export default function AdminCommunity() {
             .slice(0, 8)
         : [];
 
-    return <div className="space-y-6 p-5 animate-fade-in-up md:p-8">
+    return <div className="space-y-4 animate-fade-in-up md:space-y-6">
+        <AdminPageHeader
+            title="커뮤니티 관리"
+            subtitle={activeChannel ? `${activeChannel.name} 커뮤니티의 운영 상태와 참여자를 관리합니다.` : '함께 모여 이야기 나누는 커뮤니티를 관리합니다.'}
+            icon={<MessageSquare />}
+            actions={activeChannel
+                ? <button onClick={() => { setActiveChannel(null); setPosts([]); setMembers([]); setQuery(''); }} className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-600 shadow-sm transition-all hover:border-blue-100 hover:text-blue-600 md:w-auto"><ArrowLeft size={17}/>목록으로</button>
+                : <button onClick={() => setShowCreate(true)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-xl shadow-blue-200 transition-all hover:bg-blue-700 md:w-auto"><Plus size={17}/>새 커뮤니티</button>}
+        />
         {!activeChannel ? <>
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div><h1 className="text-2xl font-black text-slate-900">커뮤니티 관리</h1><p className="mt-1 text-sm font-semibold text-slate-400">함께 모여서 이야기 나누는 커뮤니티를 관리합니다.</p></div>
-                <button onClick={() => setShowCreate(true)} className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-blue-700"><Plus size={17}/>새 커뮤니티</button>
-            </div>
-            <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white">
+            <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm md:rounded-3xl">
                 <div className="border-b border-slate-100 p-4"><label className="relative block"><Search size={17} className="absolute left-3 top-3 text-slate-400"/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="커뮤니티 이름 또는 연결 프로그램 검색" className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-blue-500"/></label></div>
-                {loading ? <p className="p-12 text-center text-slate-400">불러오는 중...</p> : filteredChannels.length === 0 ? <p className="p-12 text-center text-slate-400">커뮤니티가 없습니다.</p> : <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">{filteredChannels.map(channel => <button key={channel.id} type="button" onClick={() => openChannel(channel)} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 text-left transition hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-sm"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm"><Hash size={19}/></span><div className="min-w-0 flex-1"><h2 className="truncate font-black text-slate-900">{channel.name}</h2><p className="mt-1 text-xs font-bold text-slate-400">{channel.source_notice_id ? '연결 커뮤니티' : '독립 커뮤니티'}</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${channel.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}>{channel.status === 'ACTIVE' ? '운영 중' : channel.status}</span></div>{channel.description && <p className="mt-3 line-clamp-2 text-xs font-medium leading-5 text-slate-500">{channel.description}</p>}{sourceLabel(channel) && <span className="mt-4 inline-flex max-w-full items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-[11px] font-black text-blue-600"><Link2 size={12}/><span className="truncate">{sourceLabel(channel)}</span></span>}<div className="mt-4 flex gap-4 border-t border-slate-200/70 pt-3 text-[11px] font-bold text-slate-400"><span className="flex items-center gap-1"><MessageCircle size={13}/>{countOf(channel.community_channel_posts)}개 글</span><span className="flex items-center gap-1"><Users size={13}/>{channel.participant_count || 0}명</span></div></button>)}</div>}
+                {loading ? <p className="p-12 text-center text-slate-400">불러오는 중...</p> : filteredChannels.length === 0 ? <p className="p-12 text-center text-slate-400">커뮤니티가 없습니다.</p> : <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">{filteredChannels.map(channel => <button key={channel.id} type="button" onClick={() => openChannel(channel)} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 text-left transition hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-sm"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm"><Hash size={19}/></span><div className="min-w-0 flex-1"><h2 className="truncate font-black text-slate-900">{channel.name}</h2><p className="mt-1 text-xs font-bold text-slate-400">{channel.source_notice_id ? '연결 커뮤니티' : '독립 커뮤니티'}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusInfo(channel.status).activeClass}`}>{statusInfo(channel.status).label}</span></div>{channel.description && <p className="mt-3 line-clamp-2 text-xs font-medium leading-5 text-slate-500">{channel.description}</p>}{sourceLabel(channel) && <span className="mt-4 inline-flex max-w-full items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-[11px] font-black text-blue-600"><Link2 size={12}/><span className="truncate">{sourceLabel(channel)}</span></span>}<div className="mt-4 flex gap-4 border-t border-slate-200/70 pt-3 text-[11px] font-bold text-slate-400"><span className="flex items-center gap-1"><MessageCircle size={13}/>{countOf(channel.community_channel_posts)}개 글</span><span className="flex items-center gap-1"><Users size={13}/>{channel.participant_count || 0}명</span></div></button>)}</div>}
             </section>
         </> : <>
-            <div className="flex items-center gap-3"><button onClick={() => { setActiveChannel(null); setPosts([]); setMembers([]); setQuery(''); }} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50"><ArrowLeft size={18}/></button><p className="text-sm font-bold text-slate-500">커뮤니티 목록</p></div>
-            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-slate-900">{activeChannel.name}</h1>{sourceLabel(activeChannel) && <span className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-600"><Link2 size={12}/>{sourceLabel(activeChannel)}</span>}</div><p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-500">{activeChannel.description || '커뮤니티 설명이 아직 없습니다.'}</p></div><div className="flex shrink-0 gap-2"><button onClick={() => { setNewName(activeChannel.name); setNewDescription(activeChannel.description || ''); setShowEdit(true); }} className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-black text-slate-600"><Pencil size={14}/>정보 수정</button><button onClick={() => copyInvite(activeChannel)} className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-600"><Copy size={14}/>초대 링크</button></div></div>
-                <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 lg:grid-cols-2">
-                    <div>
+            <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+                <div className="p-5 md:p-6">
+                    <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black tracking-tight text-slate-900">{activeChannel.name}</h1>{sourceLabel(activeChannel) && <span className="inline-flex max-w-full items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-600"><Link2 size={12}/><span className="truncate">{sourceLabel(activeChannel)}</span></span>}</div>
+                            <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-500">{activeChannel.description || '커뮤니티 설명이 아직 없습니다.'}</p>
+                            <div className="mt-4 flex flex-wrap items-center gap-2"><span className="mr-1 text-xs font-black text-slate-400">운영 상태</span>{CHANNEL_STATUSES.map(status => <button key={status.value} type="button" onClick={() => changeChannelStatus(status.value)} disabled={saving} aria-pressed={normalizedStatus(activeChannel.status) === status.value} className={`rounded-xl border px-3 py-2 text-xs font-black transition disabled:opacity-50 ${normalizedStatus(activeChannel.status) === status.value ? `${status.activeClass} shadow-sm` : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}>{status.label}</button>)}</div>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2 md:justify-end"><button onClick={() => { setNewName(activeChannel.name); setNewDescription(activeChannel.description || ''); setShowEdit(true); }} className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-50"><Pencil size={14}/>정보 수정</button><button type="button" onClick={deleteChannel} disabled={saving} className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-xs font-black text-red-500 hover:bg-red-50 disabled:opacity-50"><Trash2 size={14}/>삭제</button><button onClick={() => copyInvite(activeChannel)} className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-600 hover:bg-blue-100"><Copy size={14}/>초대 링크</button></div>
+                    </div>
+                </div>
+                <div className="grid border-t border-slate-100 px-5 py-6 md:px-6 lg:grid-cols-2 lg:gap-0">
+                    <div className="pb-6 lg:pr-7 lg:pb-0">
                         <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-sm font-black text-slate-800"><Users size={16} className="text-blue-600"/>참여자 {members.length}명</h2></div>
                         <div className="relative mt-3">
                             <Search size={15} className="pointer-events-none absolute left-3 top-3 text-slate-400"/>
@@ -239,9 +286,9 @@ export default function AdminCommunity() {
                                 })}
                             </div>}
                         </div>
-                        <div className="mt-3 flex max-h-32 flex-wrap gap-2 overflow-y-auto">{members.length === 0 ? <span className="text-xs font-medium text-slate-400">아직 참여자가 없습니다.</span> : members.map(member => <span key={member.user_id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">{member.user?.name || '이름 없음'}{member.user?.school && <span className="font-medium text-slate-400">· {member.user.school}</span>}{member.source === 'DIRECT' && <button onClick={() => removeMember(member)} className="ml-1 text-slate-400 hover:text-red-500" aria-label="멤버 제외"><X size={12}/></button>}</span>)}</div>
+                        <div className="mt-3 flex min-h-8 max-h-32 flex-wrap gap-2 overflow-y-auto">{members.length === 0 ? <span className="text-xs font-medium text-slate-400">아직 참여자가 없습니다.</span> : members.map(member => <span key={member.user_id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">{member.user?.name || '이름 없음'}{member.user?.school && <span className="font-medium text-slate-400">· {member.user.school}</span>}{member.source === 'DIRECT' && <button onClick={() => removeMember(member)} className="ml-1 text-slate-400 hover:text-red-500" aria-label="멤버 제외"><X size={12}/></button>}</span>)}</div>
                     </div>
-                    <div>
+                    <div className="border-t border-slate-100 pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0">
                         <h2 className="flex items-center gap-2 text-sm font-black text-slate-800"><Link2 size={16} className="text-blue-600"/>프로그램 연결</h2>
                         <div className="relative mt-3">
                             <Search size={15} className="pointer-events-none absolute left-3 top-3 text-slate-400"/>
@@ -255,17 +302,17 @@ export default function AdminCommunity() {
                 </div>
             </section>
             <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white">
-                <div className="border-b border-slate-100 p-4"><label className="relative block"><Search size={17} className="absolute left-3 top-3 text-slate-400"/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="작성자 또는 게시글 내용 검색" className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-blue-500"/></label></div>
-                {postsLoading ? <p className="p-12 text-center text-slate-400">게시글을 불러오는 중...</p> : filteredPosts.length === 0 ? <p className="p-12 text-center text-slate-400">게시글이 없습니다.</p> : <div className="space-y-4 bg-slate-50/70 p-4">{filteredPosts.map(post => {
+                <div className="border-b border-slate-100 p-4 md:p-5"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="flex items-center gap-2 text-sm font-black text-slate-800"><MessageCircle size={16} className="text-blue-600"/>커뮤니티 게시글</h2><span className="text-xs font-bold text-slate-400">{posts.length}개</span></div><label className="relative block"><Search size={17} className="absolute left-3 top-3 text-slate-400"/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="작성자 또는 게시글 내용 검색" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white"/></label></div>
+                {postsLoading ? <p className="p-12 text-center text-slate-400">게시글을 불러오는 중...</p> : filteredPosts.length === 0 ? <p className="p-12 text-center text-slate-400">게시글이 없습니다.</p> : <div className="divide-y divide-slate-100 px-4 md:px-5">{filteredPosts.map(post => {
                     const mission = post.submission?.online_challenge_missions;
-                    return <article key={post.id} className={`mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-4 shadow-sm ${post.is_hidden ? 'opacity-60' : ''}`}>
+                    return <article key={post.id} className={`w-full py-5 md:py-6 ${post.is_hidden ? 'opacity-60' : ''}`}>
                         <div className="flex items-start gap-3"><UserAvatar user={post.author} size="w-9 h-9"/><div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-900">{post.author?.name}</p><p className="text-[10px] text-slate-400">{new Date(post.created_at).toLocaleString('ko-KR')}</p></div><button onClick={() => toggleHidden(post)} className="rounded-xl border border-slate-200 p-2 text-slate-500" title={post.is_hidden ? '숨김 해제' : '게시글 숨기기'}>{post.is_hidden ? <Eye size={17}/> : <EyeOff size={17}/>}</button></div>
                         {mission && <span className={`mt-3 inline-block rounded-full px-2.5 py-1 text-[10px] font-black ${missionColor(mission)}`}>{mission.title}</span>}
                         <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">{post.content}</p>
                         {post.media?.[0]?.media_url && <img src={post.media[0].media_url} alt="커뮤니티 첨부" className="mt-3 max-h-[460px] w-full rounded-2xl object-cover"/>}
                         <div className="mt-3"><NoticeReactions reactions={post.community_channel_reactions || []} currentUserId={adminUser?.id} onToggleReaction={emoji => toggleReaction(post.id, emoji)}/></div>
                         <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
-                            {(post.community_channel_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(comment => <div key={comment.id} {...bindLongPress(comment.id)} className="flex select-none gap-3 py-1"><UserAvatar user={comment.author} size="w-8 h-8"/><div className="min-w-0 flex-1"><div className="flex items-baseline gap-2"><p className="text-xs font-black text-slate-900">{comment.author?.name}</p><span className="text-[10px] text-slate-400">{new Date(comment.created_at).toLocaleDateString('ko-KR')}</span></div><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-slate-700">{comment.content}</p><div className="mt-1 origin-left scale-90"><NoticeReactions reactions={comment.community_channel_comment_reactions || []} currentUserId={adminUser?.id} onToggleReaction={emoji => toggleCommentReaction(post.id, comment.id, emoji)} hideAddButtonOnMobile pickerOpenToken={commentPickerRequest.commentId === comment.id ? commentPickerRequest.token : 0}/></div></div></div>)}
+                            {(post.community_channel_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(comment => <div key={comment.id} {...bindLongPress(comment.id)} className="flex select-none gap-3 py-1"><UserAvatar user={comment.author} size="w-8 h-8"/><div className="min-w-0 flex-1"><div className="flex items-baseline gap-2"><p className="text-xs font-black text-slate-900">{comment.author?.name}</p><span className="text-[10px] text-slate-400">{new Date(comment.created_at).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</span></div><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-slate-700">{comment.content}</p><div className="mt-1 origin-left scale-90"><NoticeReactions reactions={comment.community_channel_comment_reactions || []} currentUserId={adminUser?.id} onToggleReaction={emoji => toggleCommentReaction(post.id, comment.id, emoji)} hideAddButtonOnMobile pickerOpenToken={commentPickerRequest.commentId === comment.id ? commentPickerRequest.token : 0}/></div></div></div>)}
                             {adminUser?.id && <div className="flex items-center gap-2"><MessageCircle size={16} className="text-slate-400"/><input value={commentInputs[post.id] || ''} onChange={event => setCommentInputs(current => ({ ...current, [post.id]: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') submitComment(post.id); }} placeholder="댓글 남기기" className="flex-1 rounded-xl bg-slate-50 px-3 py-2 text-xs outline-none"/><button onClick={() => submitComment(post.id)} className="p-2 text-blue-600"><Send size={16}/></button></div>}
                         </div>
                     </article>;

@@ -5,6 +5,7 @@ import { Wallet, Store, ShieldAlert, History, ChevronRight, CheckCircle2, FileSp
 import HaifnHistoryModal from './modals/HaifnHistoryModal';
 import PurchaseReceiptModal from './modals/PurchaseReceiptModal';
 import { createPortal } from 'react-dom';
+import { confirmApp } from '../../utils/appDialog';
 
 const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMode = false, tutorialStep = '' }) => {
     const [showHistory, setShowHistory] = useState(false);
@@ -62,7 +63,11 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
             ? `'${item.name}' 교환을 신청하시겠습니까?\n(관리자 승인 후 차감됩니다)`
             : `'${item.name}' 항목을 교환하시겠습니까?\n(${item.amount}H 차감)`;
 
-        if (!window.confirm(msg)) return;
+        const confirmed = await confirmApp(msg, {
+            title: item.requires_approval ? '교환을 신청할까요?' : '아이템을 교환할까요?',
+            confirmText: item.requires_approval ? '신청하기' : '교환하기',
+        });
+        if (!confirmed) return;
 
         setIsProcessing(true);
         try {

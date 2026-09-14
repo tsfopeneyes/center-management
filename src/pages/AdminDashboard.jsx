@@ -9,7 +9,7 @@ import { processAnalyticsData, processUserAnalytics, processProgramAnalytics } f
 import { aggregateVisitSessions } from '../utils/visitUtils';
 import { feedbackApi } from '../api/feedbackApi';
 import { requestSupabaseRest } from '../utils/supabaseRest';
-import { calculateCurrentLocations, sortVisitLogsChronologically } from '../utils/liveOccupancyUtils';
+import { calculateCurrentLocations, mergeRealtimeVisitLog, sortVisitLogsChronologically } from '../utils/liveOccupancyUtils';
 import { getTodayVisitState, recordVisitEvent } from '../utils/visitLifecycle';
 import { hasExpiredWebAccessTimestamp, removeWebAccessTimestamp } from '../utils/webAccessUtils';
 import { isAdminOrStaff } from '../utils/userUtils';
@@ -43,6 +43,13 @@ import { subscribeToPush } from '../utils/pushUtils';
 import { useFCM } from '../hooks/useFCM';
 import { useAuth } from '../auth/AuthProvider';
 
+const mergeRealtimeRow = (rows, payload) => {
+    const id = payload?.new?.id || payload?.old?.id;
+    if (!id) return rows;
+    const remaining = rows.filter(row => row.id !== id);
+    return payload.eventType === 'DELETE' || !payload.new ? remaining : [payload.new, ...remaining];
+};
+
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const auth = useAuth();
@@ -54,7 +61,7 @@ const AdminDashboard = () => {
         const noticeId = new URLSearchParams(window.location.search).get('noticeId');
         return noticeId ? 'PROGRAMS' : 'STATUS';
     }); // STATUS, BOARD, GALLERY, USERS, STATISTICS, LOGS, SETTINGS
-    const [programNoticeToOpen, setProgramNoticeToOpen] = useState(null);
+    const [programNoticeToOpen, setProgramNoticeToOpen] = useState(() => new URLSearchParams(window.location.search).get('noticeId'));
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSidebarPinned, setIsSidebarPinned] = useState(true);
     const [loading, setLoading] = useState(true);
@@ -83,6 +90,9 @@ const AdminDashboard = () => {
     const [toasts, setToasts] = useState([]);
     const usersRef = React.useRef([]);
     const locationsRef = React.useRef([]);
+    const noticesRef = React.useRef([]);
+    const liveStatusLogsRef = React.useRef([]);
+    const seenCheckinsRef = React.useRef(new Set());
     const currentAdminRef = React.useRef(null);
 
     useEffect(() => {
@@ -92,6 +102,10 @@ const AdminDashboard = () => {
     useEffect(() => {
         locationsRef.current = locations;
     }, [locations]);
+
+    useEffect(() => {
+        noticesRef.current = notices;
+    }, [notices]);
 
     useEffect(() => {
         currentAdminRef.current = currentAdmin;
@@ -271,6 +285,7 @@ const AdminDashboard = () => {
 
             // Stats Calculation - Limit initial log fetch dynamically for speed
             const logs = sortVisitLogsChronologically(rawLogs || []);
+            liveStatusLogsRef.current = logs;
 
             const userCurrentLocation = calculateCurrentLocations(logs);
 
@@ -341,6 +356,7 @@ const AdminDashboard = () => {
 
     const applyLiveStatusLogs = useCallback((rawLiveLogs = []) => {
         const liveLogs = sortVisitLogsChronologically(rawLiveLogs);
+        liveStatusLogsRef.current = liveLogs;
         const userCurrentLocation = calculateCurrentLocations(liveLogs);
         const adminIds = new Set(usersRef.current.filter(isAdminOrStaff).map(user => user.id));
         const nextZoneStats = {};
@@ -382,17 +398,65 @@ const AdminDashboard = () => {
     const refreshLiveStatus = useCallback(async () => {
         if (activeMenu !== 'STATUS' || document.visibilityState === 'hidden') return;
         const todayKst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from('logs')
             .select('id,user_id,location_id,type,created_at,metadata,duration')
             .gte('created_at', `${todayKst}T00:00:00+09:00`)
             .order('created_at', { ascending: true });
+        // Production installations created before the compact status view do
+        // not have the optional metadata/duration columns. Keep live status
+        // available with the stable visit-log columns instead of failing the
+        // whole status refresh with Postgres 42703.
+        if (error?.code === '42703') {
+            ({ data, error } = await supabase
+                .from('logs')
+                .select('id,user_id,location_id,type,created_at')
+                .gte('created_at', `${todayKst}T00:00:00+09:00`)
+                .order('created_at', { ascending: true }));
+        }
         if (error) {
             console.error('Failed to load compact live status:', error);
             return;
         }
         applyLiveStatusLogs(data || []);
     }, [activeMenu, applyLiveStatusLogs]);
+
+    const notifyRealtimeCheckin = useCallback((log) => {
+        if (log?.type !== 'CHECKIN' || !log.id || localStorage.getItem('admin_alert_enabled') === 'false') return;
+        if (seenCheckinsRef.current.has(log.id)) return;
+        seenCheckinsRef.current.add(log.id);
+        if (seenCheckinsRef.current.size > 300) {
+            seenCheckinsRef.current = new Set([...seenCheckinsRef.current].slice(-150));
+        }
+
+        const adminId = currentAdminRef.current?.id;
+        const systemNotices = noticesRef.current.filter(notice => notice.category === 'SYSTEM');
+        const configNotice = systemNotices.find(notice => notice.title === 'STAFF_PRESENCE_CONFIG');
+        const statusNotice = systemNotices.find(notice => notice.title === 'STAFF_PRESENCE_STATUS');
+        let staffConfig = { '하이픈': [], '이높플레이스': [] };
+        let presenceStatus = {};
+        try { if (configNotice?.content) staffConfig = JSON.parse(configNotice.content) || staffConfig; } catch {}
+        try { if (statusNotice?.content) presenceStatus = JSON.parse(statusNotice.content) || {}; } catch {}
+        if (!adminId || presenceStatus[adminId] !== true) return;
+
+        const location = locationsRef.current.find(item => item.id === log.location_id);
+        const user = usersRef.current.find(item => item.id === log.user_id);
+        if (!location || !user) return;
+        const isHaifn = location.name?.includes('하이픈');
+        const isInop = location.name?.includes('이높플레이스');
+        if ((isHaifn && !(staffConfig['하이픈'] || []).includes(adminId))
+            || (isInop && !(staffConfig['이높플레이스'] || []).includes(adminId))) return;
+
+        const branchName = isHaifn ? '하이픈' : (isInop ? '이높플레이스' : '센터');
+        const message = `${user.name} 학생이 ${branchName}에 체크인했어요!`;
+        playChime();
+        if (Notification.permission === 'granted') {
+            new Notification('체크인 알림', { body: message, icon: '/favicon.ico' });
+        }
+        const toastId = `${log.id}-${Date.now()}`;
+        setToasts(previous => [...previous, { id: toastId, message, name: user.name, school: user.school }]);
+        window.setTimeout(() => setToasts(previous => previous.filter(toast => toast.id !== toastId)), 5000);
+    }, [playChime]);
 
     useEffect(() => {
         if (!adminAuthReady) return undefined;
@@ -416,15 +480,9 @@ const AdminDashboard = () => {
         }
         fetchData();
 
-        // Realtime Subscription with Debounce (for UI updates)
+        // Realtime changes are merged into local state. A single event must
+        // never fan out into a full dashboard hydration for every open admin.
         let debounceTimer;
-        const debouncedFullFetch = () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                fetchData();
-            }, 1000);
-        };
-
         const debouncedLiveRefresh = () => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
@@ -446,123 +504,25 @@ const AdminDashboard = () => {
 
         const subscription = supabase
             .channel('public:updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, activeMenu === 'STATUS' ? debouncedLiveRefresh : debouncedFullFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, debouncedFullFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'checkin_surveys' }, debouncedFullFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_notes' }, debouncedFullFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, payload => {
+                const merged = mergeRealtimeVisitLog(liveStatusLogsRef.current, payload);
+                if (merged) applyLiveStatusLogs(merged);
+                else if (activeMenu === 'STATUS') debouncedLiveRefresh();
+                if (payload.eventType === 'INSERT') notifyRealtimeCheckin(payload.new);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
+                setUsers(previous => mergeRealtimeRow(previous, payload));
+                if (payload.new?.id === currentAdminRef.current?.id) setCurrentAdmin(current => ({ ...current, ...payload.new }));
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, payload => setNotices(previous => mergeRealtimeRow(previous, payload)))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, payload => setResponses(previous => mergeRealtimeRow(previous, payload)))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'checkin_surveys' }, payload => setCheckinSurveys(previous => mergeRealtimeRow(previous, payload)))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_notes' }, payload => setVisitNotes(previous => mergeRealtimeRow(previous, payload)))
             .subscribe(status => {
                 // A browser can miss events while its tab or network is suspended.
                 // Reconcile from the database as soon as the channel reconnects.
                 if (status === 'SUBSCRIBED') refreshOccupancy();
             });
-
-        // 100% Reliable Polling Fallback for Check-in Alerts
-        const lastCheckedTimeRef = { current: new Date().toISOString() };
-        
-        const pollCheckins = async () => {
-            const isAlertOn = localStorage.getItem('admin_alert_enabled') !== 'false';
-            if (!isAlertOn) return;
-            
-            try {
-                const adminId = currentAdminRef.current?.id;
-                if (!adminId) return;
-
-                // 1. Fetch STAFF_PRESENCE_CONFIG and STATUS
-                const { data: configs } = await supabase
-                    .from('notices')
-                    .select('title, content')
-                    .eq('category', 'SYSTEM')
-                    .in('title', ['STAFF_PRESENCE_CONFIG', 'STAFF_PRESENCE_STATUS']);
-
-                let staffConfig = { "하이픈": [], "이높플레이스": [] };
-                let presenceStatus = {};
-
-                if (configs && configs.length > 0) {
-                    const configNotice = configs.find(c => c.title === 'STAFF_PRESENCE_CONFIG');
-                    const statusNotice = configs.find(c => c.title === 'STAFF_PRESENCE_STATUS');
-
-                    if (configNotice?.content) {
-                        try {
-                            const parsed = JSON.parse(configNotice.content);
-                            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                                staffConfig = parsed;
-                            } else if (Array.isArray(parsed)) {
-                                staffConfig = { "하이픈": parsed, "이높플레이스": parsed };
-                            }
-                        } catch (e) {}
-                    }
-                    if (statusNotice?.content) {
-                        try {
-                            presenceStatus = JSON.parse(statusNotice.content) || {};
-                        } catch (e) {}
-                    }
-                }
-
-                // 2. Check if admin is currently marked as working ("근무 중")
-                const isWorking = presenceStatus[adminId] === true;
-                if (!isWorking) return; // Skip alerts if not working
-
-                // 3. Determine admin's assigned branches
-                const isAdminAtHaifn = (staffConfig["하이픈"] || []).includes(adminId);
-                const isAdminAtInop = (staffConfig["이높플레이스"] || []).includes(adminId);
-
-                // 4. Fetch new check-in logs
-                const { data: newLogs } = await supabase
-                    .from('logs')
-                    .select('id, user_id, type, location_id, created_at')
-                    .eq('type', 'CHECKIN')
-                    .gt('created_at', lastCheckedTimeRef.current)
-                    .order('created_at', { ascending: true });
-                
-                if (newLogs && newLogs.length > 0) {
-                    lastCheckedTimeRef.current = newLogs[newLogs.length - 1].created_at;
-                    
-                    newLogs.forEach(log => {
-                        // Find checked-in location
-                        const loc = locationsRef.current.find(l => l.id === log.location_id);
-                        if (!loc) return;
-
-                        const isLocHaifn = loc.name?.includes('하이픈');
-                        const isLocInop = loc.name?.includes('이높플레이스');
-
-                        // Filter by branch match
-                        let shouldAlert = false;
-                        if (isLocHaifn && isAdminAtHaifn) shouldAlert = true;
-                        else if (isLocInop && isAdminAtInop) shouldAlert = true;
-                        else if (!isLocHaifn && !isLocInop) shouldAlert = true; // Alert all if location doesn't match standard branches
-                        
-                        if (!shouldAlert) return; // Skip alert for this logged-in admin
-
-                        const u = usersRef.current.find(user => user.id === log.user_id);
-                        if (u) {
-                            const branchName = isLocHaifn ? '하이픈' : (isLocInop ? '이높플레이스' : '센터');
-                            const message = `${u.name} 학생이 ${branchName}에 체크인했어요!`;
-                            playChime();
-                            
-                            if (Notification.permission === 'granted') {
-                                new Notification('체크인 알림', {
-                                    body: message,
-                                    icon: '/favicon.ico'
-                                });
-                            }
-                            
-                            const toastId = Date.now() + Math.random();
-                            setToasts(prev => [...prev, { id: toastId, message, name: u.name, school: u.school }]);
-                            
-                            setTimeout(() => {
-                                setToasts(prev => prev.filter(t => t.id !== toastId));
-                            }, 5000);
-                        }
-                    });
-                    
-                    refreshLiveStatus().catch(error => console.error('Failed to refresh live status:', error));
-                }
-            } catch (err) {
-                console.error("Failed to poll checkins:", err);
-            }
-        };
-
-        const pollInterval = setInterval(pollCheckins, 4000); // Poll every 4 seconds for fast response
 
         // Realtime is normally immediate, but some mobile browsers suspend a
         // WebSocket after the admin screen has been open for a while. Refresh
@@ -581,14 +541,13 @@ const AdminDashboard = () => {
 
         return () => {
             clearTimeout(debounceTimer);
-            clearInterval(pollInterval);
             clearInterval(occupancyRefreshInterval);
             document.removeEventListener('visibilitychange', refreshWhenVisible);
             window.removeEventListener('focus', refreshWhenFocused);
             window.removeEventListener('online', refreshWhenOnline);
             supabase.removeChannel(subscription);
         };
-    }, [activeMenu, navigate, fetchData, playChime, adminAuthReady, refreshLiveStatus]);
+    }, [activeMenu, adminAuthReady, applyLiveStatusLogs, fetchData, navigate, notifyRealtimeCheckin, refreshLiveStatus]);
 
     const handleForceCheckout = useCallback(async (userId) => {
         if (!confirm('해당 이용자를 강제 퇴실 처리하시겠습니까?')) return;

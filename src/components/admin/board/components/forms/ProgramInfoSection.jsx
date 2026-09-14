@@ -762,6 +762,26 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                 <p className="text-[11px] text-slate-400 font-medium mt-1.5 ml-1 block leading-normal">0을 입력하면 신청 인원 제한이 해제됩니다.</p>
                             </div>
 
+                            <div
+                                className={`lg:col-span-2 flex items-start gap-3 p-3.5 border rounded-2xl cursor-pointer select-none transition-all duration-200 ${
+                                    formData.show_application_count !== false
+                                        ? 'bg-blue-50/40 border-blue-500/20 text-blue-600'
+                                        : 'bg-slate-50 border-slate-200/60 text-slate-500 hover:bg-slate-100/50'
+                                }`}
+                                onClick={() => updateField('show_application_count', formData.show_application_count === false)}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={formData.show_application_count !== false}
+                                    onChange={() => {}}
+                                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5 shrink-0"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-slate-800">현재 신청 인원 공개</span>
+                                    <span className="text-[10px] text-slate-400 font-semibold mt-0.5">신청 화면의 정원 옆에 현재 신청 완료 인원을 표시합니다.</span>
+                                </div>
+                            </div>
+
                             {!(formData.schedule_mode === 'RECURRING' && formData.application_scope === 'SESSION') && (
                                 <RecruitmentPeriodFields formData={formData} updateField={updateField} />
                             )}

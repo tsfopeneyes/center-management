@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { validateAnswers, validateDefinition, comparePrograms, legacyDefinition, programSurveyEndAt } from '../src/utils/surveyModel.js';
+import { validateAnswers, validateDefinition, comparePrograms, legacyDefinition, programSurveyEndAt, recommendationsFor } from '../src/utils/surveyModel.js';
 import { feedbackRating, legacyFeedbackDisplay } from '../src/utils/programFeedbackModel.js';
-import { countLegacySurveyResponses } from '../src/utils/legacySurveyAnalytics.js';
+import { countLegacySurveyResponses, legacySurveyResponsesForSurvey } from '../src/utils/legacySurveyAnalytics.js';
 
 const definition = { title: '공통 만족도', questions: [
     { id: 'rating', title: '얼마나 만족하나요?', type: 'star', metric: 'satisfaction', required: true },
@@ -16,6 +16,8 @@ assert.ok(validateAnswers(definition, { rating: 4, reason: ['없는 선택지'] 
 assert.ok(validateAnswers(definition, { rating: 4, reason: ['대화','대화'] }));
 assert.ok(validateAnswers(definition, { rating: 4, unknown: 'injected' }));
 assert.equal(validateAnswers(definition, { rating: 4, reason: [] }), null);
+const recommendedDefinition = { title: '추천', questions: [{ id: 'pick', title: '선택', type: 'multiple', options: ['휴식', '대화'], recommendationsEnabled: true, optionDetails: [{ emoji: '🍵', title: '티타임', text: '잠시 쉬어가세요.' }, {}] }] };
+assert.deepEqual(recommendationsFor(recommendedDefinition, { pick: ['휴식', '대화'] }), [{ id: 'pick:휴식', option: '휴식', emoji: '🍵', title: '티타임', text: '잠시 쉬어가세요.' }]);
 assert.equal(legacyDefinition({ mode:'FEEDBACK_QA',qaQuestion:'소감' },'기존').questions[0].type,'text');
 assert.equal(programSurveyEndAt({program_date:'2026-09-10T01:00:00Z',program_duration:'1시간 30분'}),Date.parse('2026-09-10T02:30:00Z'));
 assert.equal(feedbackRating({q3_satisfaction:5,q8_additional_comments:'{"q1":"좋아요"}',notices:{guest_properties:{custom_feedback_config:{questions:[{id:'q1',type:'text',title:'소감'}]}}}}),null);
@@ -38,7 +40,7 @@ const legacyCounts = countLegacySurveyResponses({
     surveys: [
         { id: 'legacy-in', survey_type: 'CHECKIN', is_legacy: true },
         { id: 'legacy-out', survey_type: 'CHECKOUT', is_legacy: true },
-        { id: 'custom-in', survey_type: 'CHECKIN', is_legacy: false }
+        { id: 'custom-in', title: '센터에 어떤 것들이 있으면 좋을까요?', survey_type: 'CHECKIN', is_legacy: false, config: { question: '센터에 어떤 것들이 있으면 좋을까요?' } }
     ],
     users: [{ id: 'member', name: '회원' }, { id: 'admin', name: 'admin' }],
     responses: [
@@ -47,6 +49,7 @@ const legacyCounts = countLegacySurveyResponses({
         { id: 3, user_id: 'member', survey_id: 'custom-in', survey_type: 'CHECKIN', created_at: '2026-09-01T03:00:00Z' },
         { id: 4, user_id: 'member', survey_id: null, survey_type: 'CHECKOUT', created_at: '2026-09-01T04:00:00Z' },
         { id: 5, user_id: 'admin', survey_id: null, survey_type: 'CHECKIN', created_at: '2026-09-02T01:00:00Z' }
+        ,{ id: 6, user_id: 'member', survey_id: null, survey_type: 'CHECKIN', survey_snapshot: { question: '센터에서 어떤 것들이 있으면 좋을까요?' }, created_at: '2026-09-02T03:00:00Z' }
     ],
     visitNotes: [
         { user_id: 'member', visit_date: '2026-09-01', purpose: '교제' },
@@ -55,7 +58,21 @@ const legacyCounts = countLegacySurveyResponses({
     ],
     notices: [{ category: 'SYSTEM', title: 'CHECKOUT_SURVEY_CONFIG', content: JSON.stringify({ options: [{ label: '교제' }] }) }]
 });
-assert.deepEqual(legacyCounts, { 'legacy-in': 1, 'legacy-out': 2, 'custom-in': 1 });
+assert.deepEqual(legacyCounts, { 'legacy-in': 1, 'legacy-out': 2, 'custom-in': 2 });
+const restoredCheckoutRows = legacySurveyResponsesForSurvey({
+    survey: { id: 'legacy-out', survey_type: 'CHECKOUT', is_legacy: true },
+    responses: [
+        { id: 4, user_id: 'member', survey_id: null, survey_type: 'CHECKOUT', created_at: '2026-09-01T04:00:00Z' },
+    ],
+    visitNotes: [
+        { user_id: 'member', visit_date: '2026-09-01', purpose: '교제' },
+        { user_id: 'member', visit_date: '2026-09-02', purpose: '교제' },
+    ],
+    users: [{ id: 'member', name: '회원' }],
+    notices: [{ category: 'SYSTEM', title: 'CHECKOUT_SURVEY_CONFIG', content: JSON.stringify({ options: [{ label: '교제' }] }) }],
+});
+assert.equal(restoredCheckoutRows.length, legacyCounts['legacy-out']);
+assert.equal(restoredCheckoutRows.filter(row => row.restored_from_visit_note).length, 1);
 
 const db = new PGlite();
 await db.exec(`
@@ -75,6 +92,10 @@ await db.exec(`
  CREATE TABLE program_feedback(id bigint PRIMARY KEY,notice_id bigint,user_id uuid,raw text); INSERT INTO program_feedback(id,raw) VALUES(1,'프로그램 원본');
 `);
 await db.exec(await readFile(new URL('../supabase/manual/proposals/20260910_unified_surveys.sql',import.meta.url),'utf8'));
+// Later production migrations classify forms before public delivery channels
+// are introduced. Keep this focused schema test independent of notice fields.
+await db.exec(`ALTER TABLE survey_forms ADD COLUMN kind text NOT NULL DEFAULT 'SURVEY';`);
+await db.exec(await readFile(new URL('../supabase/migrations/20260914060000_add_public_survey_channels.sql',import.meta.url),'utf8'));
 assert.equal((await db.query('SELECT raw FROM checkin_surveys')).rows[0].raw,'입퇴실 원본');
 assert.equal((await db.query('SELECT raw FROM program_feedback')).rows[0].raw,'프로그램 원본');
 let checks = 0;
@@ -94,6 +115,7 @@ await rejects(`UPDATE survey_versions SET definition=$1 WHERE id=$2`,[JSON.strin
 await query(`INSERT INTO survey_links(id,form_id,version_id,event,notice_id) VALUES($1,$2,$3,'PROGRAM',$4)`,[id(40),id(30),id(31),id(10)]);
 await query(`INSERT INTO survey_links(id,form_id,version_id,event,notice_id) VALUES($1,$2,$3,'PROGRAM',$4)`,[id(41),id(30),id(31),id(11)]);
 await query(`INSERT INTO survey_links(id,form_id,version_id,event,center_code,frequency) VALUES($1,$2,$3,'CHECKIN','HAIFN','EVERY_VISIT'),($4,$2,$3,'CHECKOUT','HAIFN','ONCE')`,[id(42),id(30),id(31),id(43)]);
+await query(`INSERT INTO survey_links(id,form_id,version_id,event,public_token,frequency) VALUES($1,$2,$3,'PUBLIC',$4,'ONCE')`,[id(44),id(30),id(31),id(60)]);
 await rejects(`UPDATE survey_links SET notice_id=$1 WHERE id=$2`,[id(11),id(40)]);
 await db.exec(`SET test.staff='false'; SET test.uid='${id(1)}';`);
 await rejects(`INSERT INTO survey_forms(title) VALUES('권한 없음')`);
@@ -105,6 +127,8 @@ await query(`INSERT INTO survey_entries(id,link_id,user_id,answers) VALUES($1,$2
 await query(`UPDATE survey_entries SET answers='{"rating":3}' WHERE id=$1`,[id(50)]);
 await rejects(`INSERT INTO survey_entries(link_id,user_id,answers) VALUES($1,$2,'{"rating":5}')`,[id(40),id(1)]);
 await query(`INSERT INTO survey_entries(id,link_id,user_id,answers) VALUES($1,$2,$3,'{"rating":4}')`,[id(51),id(42),id(1)]);
+await query(`INSERT INTO survey_entries(id,link_id,user_id,answers) VALUES($1,$2,$3,'{"rating":5}')`,[id(53),id(44),id(1)]);
+await rejects(`INSERT INTO survey_entries(link_id,user_id,answers) VALUES($1,$2,'{"rating":4}')`,[id(44),id(1)]);
 await rejects(`UPDATE survey_entries SET answers='{"rating":2}' WHERE id=$1`,[id(51)]);
 await rejects(`UPDATE survey_entries SET aggregation_excluded=true WHERE id=$1`,[id(51)]);
 await db.exec(`RESET ROLE;`);

@@ -124,6 +124,37 @@ export const communityChannelsApi = {
         return data;
     },
 
+    async updateChannelStatus(channelId, status) {
+        const { data, error } = await supabase.from('community_channels').update({
+            status, updated_at: new Date().toISOString(),
+        }).eq('id', channelId).select('id,status').single();
+        if (error) throw error;
+        return data;
+    },
+
+    async archiveChannel(channelId) {
+        const { data: channel, error: channelError } = await supabase.from('community_channels')
+            .select('source_notice_id').eq('id', channelId).single();
+        if (channelError) throw channelError;
+
+        if (channel.source_notice_id) {
+            const { data: notice, error: noticeReadError } = await supabase.from('notices')
+                .select('guest_properties').eq('id', channel.source_notice_id).single();
+            if (noticeReadError) throw noticeReadError;
+            const { error: noticeError } = await supabase.from('notices').update({
+                community_enabled: false,
+                guest_properties: { ...(notice.guest_properties || {}), community_channel_id: '' },
+            }).eq('id', channel.source_notice_id);
+            if (noticeError) throw noticeError;
+        }
+
+        const { data, error } = await supabase.from('community_channels').update({
+            status: 'ARCHIVED', source_notice_id: null, channel_type: 'PRIVATE', updated_at: new Date().toISOString(),
+        }).eq('id', channelId).select('id,status').single();
+        if (error) throw error;
+        return data;
+    },
+
     async fetchLinkableChallenges() {
         const { data, error } = await supabase.from('notices')
             .select('id,title,community_enabled,challenge_format,program_start_date,program_end_date')

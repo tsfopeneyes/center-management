@@ -57,6 +57,8 @@ assert.match(checkout.message, /CHECK-OUT/);
 
 const coffee = await resolveNotificationEvent({ eventType: 'COFFEE_CHAT_APPLICATION', coffeeChatId: 'coffee-1' }, { readOne });
 assert.deepEqual(coffee.centerCodes, ['ENOUGH_PLACE']);
+assert.match(coffee.message, /쌤에게 대화를 신청했어요!/);
+assert.doesNotMatch(coffee.message, /쌍에게/);
 
 await assert.rejects(
   resolveNotificationEvent({ eventType: 'VISIT_CHECKIN', logId: 'missing' }, { readOne }),

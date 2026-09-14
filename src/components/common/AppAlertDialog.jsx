@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 // their validation code while users receive one consistent in-app dialog.
 const AppAlertDialog = () => {
     const [messages, setMessages] = useState([]);
+    const [confirmation, setConfirmation] = useState(null);
 
     useEffect(() => {
         const nativeAlert = window.alert;
@@ -15,16 +16,50 @@ const AppAlertDialog = () => {
             setMessages((current) => [...current, { id: `${Date.now()}-${Math.random()}`, title, text, highlight }]);
         };
         const handleAppAlert = (event) => showAppAlert(event.detail);
+        const handleAppConfirm = (event) => {
+            const detail = event.detail || {};
+            if (typeof detail.resolve !== 'function') return;
+            setConfirmation({
+                title: String(detail.title || '확인해 주세요'),
+                text: String(detail.message || detail.text || '계속 진행할까요?'),
+                confirmText: String(detail.confirmText || '확인'),
+                cancelText: String(detail.cancelText || '취소'),
+                tone: detail.tone === 'danger' ? 'danger' : 'primary',
+                resolve: detail.resolve,
+            });
+        };
 
         window.alert = showAppAlert;
         window.addEventListener('app-alert', handleAppAlert);
+        window.addEventListener('app-confirm', handleAppConfirm);
         return () => {
             if (window.alert === showAppAlert) window.alert = nativeAlert;
             window.removeEventListener('app-alert', handleAppAlert);
+            window.removeEventListener('app-confirm', handleAppConfirm);
         };
     }, []);
 
     const activeMessage = messages[0];
+    const finishConfirmation = (result) => {
+        if (!confirmation) return;
+        confirmation.resolve(result);
+        setConfirmation(null);
+    };
+
+    if (confirmation) return (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" role="presentation">
+            <div className="w-full max-w-sm rounded-3xl border border-tossGrey100 bg-white p-6 text-center shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="app-confirm-title" aria-describedby="app-confirm-description">
+                <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full text-2xl ${confirmation.tone === 'danger' ? 'bg-red-50' : 'bg-tossBlue/10'}`}>💬</div>
+                <h2 id="app-confirm-title" className="mt-4 break-keep text-lg font-black text-tossGrey900">{confirmation.title}</h2>
+                <p id="app-confirm-description" className="mt-2 whitespace-pre-line break-keep text-sm font-semibold leading-relaxed text-tossGrey600">{confirmation.text}</p>
+                <div className="mt-5 grid grid-cols-2 gap-2.5">
+                    <button type="button" onClick={() => finishConfirmation(false)} className="rounded-xl bg-tossGrey100 py-3 text-sm font-bold text-tossGrey700">{confirmation.cancelText}</button>
+                    <button type="button" onClick={() => finishConfirmation(true)} autoFocus className={`rounded-xl py-3 text-sm font-bold text-white ${confirmation.tone === 'danger' ? 'bg-red-500' : 'bg-tossBlue'}`}>{confirmation.confirmText}</button>
+                </div>
+            </div>
+        </div>
+    );
+
     if (!activeMessage) return null;
 
     const close = () => setMessages((current) => current.slice(1));

@@ -166,7 +166,7 @@ const resolveCoffeeChatApplication = async (payload, readOne) => {
   return {
     category: EVENT_CATEGORIES.COFFEE_CHAT_APPLICATION,
     centerCodes,
-    message: `[COFFEE CHAT]\n☕ ${cleanText(student.name, '학생', 100)}님이 ${cleanText(staff.name, '스탭', 100)} 쌍에게 대화를 신청했어요!\n📌 주제: ${topics || '미입력'}${note ? `\n💬 전하고 싶은 말:\n"${note}"` : ''}`,
+    message: `[COFFEE CHAT]\n☕ ${cleanText(student.name, '학생', 100)}님이 ${cleanText(staff.name, '스탭', 100)} 쌤에게 대화를 신청했어요!\n📌 주제: ${topics || '미입력'}${note ? `\n💬 전하고 싶은 말:\n"${note}"` : ''}`,
     eventKey: `COFFEE_CHAT_APPLICATION:${chat.id}`,
     source: { table: 'coffee_chats', id: String(chat.id) },
   };

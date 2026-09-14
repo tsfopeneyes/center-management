@@ -3,7 +3,7 @@ import { fetchAllPages } from '../utils/fetchAllPages';
 import { validateAnswers, validateDefinition, legacyDefinition } from '../utils/surveyModel';
 import { legacyFeedbackDisplay } from '../utils/programFeedbackModel';
 import { requestSupabaseRest } from '../utils/supabaseRest';
-import { countLegacySurveyResponses } from '../utils/legacySurveyAnalytics';
+import { countLegacySurveyResponses, legacySurveyResponsesForSurvey } from '../utils/legacySurveyAnalytics';
 
 const checked = result => { if (result.error) throw result.error; return result.data; };
 // PGRST200 means an embedded relationship is malformed, not that the survey
@@ -44,6 +44,19 @@ export const surveyHubApi = {
     },
     async updateLink(id, values) { return checked(await supabase.from('survey_links').update(values).eq('id', id).select().single()); },
     async connect(values) { return checked(await supabase.from('survey_links').insert(values).select().single()); },
+    async publicLink(token) {
+        const result = await supabase.from('survey_links').select(linkSelect).eq('event', 'PUBLIC').eq('public_token', token).eq('enabled', true).maybeSingle();
+        if (missingSurveySchema(result.error) || result.error?.code === '42703') return undefined;
+        return checked(result);
+    },
+    async createPublicLink(form) {
+        if (form.kind === 'TEMPLATE') throw new Error('템플릿은 공유할 수 없습니다. 템플릿으로 새 설문을 만들어 주세요.');
+        const existing = checked(await supabase.from('survey_links').select(linkSelect).eq('form_id', form.id).eq('event', 'PUBLIC').order('created_at', { ascending: false }).limit(1).maybeSingle());
+        const version = [...(form.survey_versions || [])].sort((a,b) => b.created_at.localeCompare(a.created_at))[0];
+        if (!version) throw new Error('공유할 질문이 없습니다.');
+        if (existing) return this.updateLink(existing.id, { enabled: true, version_id: version.id, frequency: 'ONCE', opens_at: null, closes_at: null });
+        return this.connect({ form_id: form.id, version_id: version.id, event: 'PUBLIC', public_token: crypto.randomUUID(), frequency: 'ONCE', priority: 100, is_default: false });
+    },
     async saveProgramSurvey(noticeId, formId, templateId, definition) {
         const validation = validateDefinition(definition); if (validation) throw new Error(validation);
         const rpc = await supabase.rpc('save_program_survey', { p_notice_id: noticeId, p_form_id: formId || null, p_template_id: templateId || null, p_definition: definition });
@@ -72,7 +85,7 @@ export const surveyHubApi = {
         return { form_id: targetFormId, version_id: version.id, link_id: link.id };
     },
     async archive(id, archived) { checked(await supabase.from('survey_forms').update({ archived }).eq('id', id)); },
-    async entries(formId) {
+    async entries(formId, legacyContext = null) {
         const entries = await fetchAllPages(() => { let query = supabase.from('survey_entries').select('*,users(name,school)').order('created_at', { ascending: false }).order('id'); return formId ? query.eq('form_id', formId) : query; });
         if (!formId) return entries;
         const formMeta = checked(await supabase.from('survey_forms').select('kind').eq('id', formId).single());
@@ -81,10 +94,16 @@ export const surveyHubApi = {
         let historical = [];
         if (source?.table === 'surveys') {
             const survey = checked(await supabase.from('surveys').select('*').eq('id',source.id).single());
-            historical = await fetchAllPages(() => {
-                let query = supabase.from('checkin_surveys').select('*,users(name,school)').order('created_at',{ascending:false}).order('id');
-                return survey.is_legacy ? query.or(`survey_id.eq.${survey.id},and(survey_id.is.null,survey_type.eq.${survey.survey_type})`) : query.eq('survey_id',survey.id);
-            });
+            if (legacyContext) {
+                const selected = legacySurveyResponsesForSurvey({ survey, ...legacyContext });
+                const userMap = new Map((legacyContext.users || []).map(user => [user.id, user]));
+                historical = selected.map(row => ({ ...row, users: userMap.get(row.user_id) || null }));
+            } else {
+                historical = await fetchAllPages(() => {
+                    let query = supabase.from('checkin_surveys').select('*,users(name,school)').order('created_at',{ascending:false}).order('id');
+                    return survey.is_legacy ? query.or(`survey_id.eq.${survey.id},and(survey_id.is.null,survey_type.eq.${survey.survey_type})`) : query.eq('survey_id',survey.id);
+                });
+            }
             historical = historical.map(row => {
                 const config = row.survey_snapshot || survey.config;
                 const snapshot = legacyDefinition(config,survey.title);
@@ -100,7 +119,7 @@ export const surveyHubApi = {
         const combined = [...entries, ...historical];
         if (formMeta.kind === 'TEMPLATE') {
             const programForms = checked(await supabase.from('survey_forms').select('id').eq('kind', 'PROGRAM').eq('source_template_id', formId));
-            const programEntries = await Promise.all(programForms.map(programForm => this.entries(programForm.id)));
+            const programEntries = await Promise.all(programForms.map(programForm => this.entries(programForm.id, legacyContext)));
             combined.push(...programEntries.flat());
         }
         return combined.sort((a,b)=>b.created_at.localeCompare(a.created_at));
@@ -131,7 +150,7 @@ export const surveyHubApi = {
     async submit(link, userId, answers, { locationId = null, visitId = null } = {}) {
         const validation = validateAnswers(link.version.definition, answers); if (validation) throw new Error(validation);
         if (!userId) throw new Error('응답자를 확인할 수 없습니다. 다시 로그인해 주세요.');
-        if (link.event !== 'PROGRAM') visitId = await receipt(userId, link.event, visitId, locationId);
+        if (!['PROGRAM','PUBLIC'].includes(link.event)) visitId = await receipt(userId, link.event, visitId, locationId);
         const payload = { link_id: link.id, version_id: link.version.id, user_id: userId, answers, location_id: locationId, visit_id: visitId == null ? null : String(visitId) };
         if (link.event === 'PROGRAM') {
             const previous = checked(await supabase.from('survey_entries').select('id').eq('link_id', link.id).eq('user_id', userId).eq('response_key','ONCE').maybeSingle());

@@ -17,6 +17,13 @@ export const usesDailySessionRsvp = (notice) => (
     )
 );
 
+// Session-based programs exposed this count before the setting existed. Keep
+// that legacy behaviour while requiring an explicit opt-in for older programs.
+export const shouldShowApplicationCount = notice => (
+    notice?.guest_properties?.show_application_count
+    ?? usesDailySessionRsvp(notice)
+);
+
 export const isRecurringProgram = notice => (
     notice?.guest_properties?.schedule_mode === SCHEDULE_MODE_RECURRING
     || Boolean(notice?.program_start_date && notice?.program_end_date && notice?.program_days?.length)

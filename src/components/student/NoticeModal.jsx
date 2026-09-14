@@ -15,7 +15,7 @@ import { extractUrls, extractProgramInfo } from '../../utils/textUtils';
 import useNoticeModal from './hooks/useNoticeModal';
 import { compressImage } from '../../utils/imageUtils';
 import confetti from 'canvas-confetti';
-import { formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, usesDailySessionRsvp, isRecurringProgram } from '../../utils/dailyProgramSessions';
+import { formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, usesDailySessionRsvp, isRecurringProgram, shouldShowApplicationCount } from '../../utils/dailyProgramSessions';
 import { isAdminOrStaff } from '../../utils/userUtils';
 
 // Components
@@ -336,6 +336,10 @@ const NoticeModalContent = ({
         const valueLength = Array.from(field?.value || '').length;
         return Math.max(12, Math.min(30, valueLength + (labelLength * 0.25)));
     };
+    const getSessionFieldMinWidth = (field) => {
+        const labelLength = Array.from(field?.label || '').length;
+        return Math.min(210, Math.max(164, (labelLength * 10) + 48));
+    };
     const formatOnlineChallengePeriod = () => {
         const formatDay = value => {
             if (!value) return '';
@@ -389,6 +393,9 @@ const NoticeModalContent = ({
         pollTotalVotes, pollTimeLeft, isPollExpired,
         handleOptionClick, handleSubmitVote,
     } = useNoticeModal({ notice, user, context, responses, tutorialMode });
+    const displayedCapacity = isDailySessionProgram ? activeSession?.capacity : notice.max_capacity;
+    const displayedApplicantCount = isDailySessionProgram ? activeSession?.join_count || 0 : joinCount;
+    const capacityText = `${displayedCapacity > 0 ? `${displayedCapacity}명` : '제한 없음'}${shouldShowApplicationCount(notice) ? ` · 현재 ${displayedApplicantCount}명 신청` : ''}`;
 
     const isTutorialSocial = tutorialMode && ['noticeRead', 'noticeComment', 'noticeCommentResult'].includes(tutorialStep);
     const isTutorialOpenDetail = tutorialMode && tutorialStep === 'openDetail';
@@ -740,9 +747,7 @@ const NoticeModalContent = ({
                                     <div className="flex text-sm leading-relaxed">
                                         <span className="w-16 text-tossGrey500 font-semibold shrink-0">인원</span>
                                         <span className="text-tossGrey900 font-extrabold">
-                                            {(isDailySessionProgram ? activeSession?.capacity : notice.max_capacity) > 0
-                                                ? `${isDailySessionProgram ? activeSession.capacity : notice.max_capacity}명${isDailySessionProgram ? ` · 현재 ${activeSession?.join_count || 0}명 신청` : ''}`
-                                                : '제한 없음'}
+                                            {capacityText}
                                         </span>
                                     </div>
                                 </div>
@@ -754,15 +759,15 @@ const NoticeModalContent = ({
                                         <div className="h-[14px] w-[3px] rounded-full bg-tossBlue" />
                                         <h3 className="text-[15px] font-extrabold leading-none text-tossGrey900">프로그램 호스트</h3>
                                     </div>
-                                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                                    <div className="grid grid-cols-1 gap-3">
                                         {hostUsers.map(host => (
-                                            <div key={host.id} className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5">
-                                                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-blue-600 shadow-sm">
-                                                    {host.profile_image_url ? <img src={host.profile_image_url} alt="" className="h-full w-full object-cover" /> : <User size={19}/>}
+                                            <div key={host.id} className="flex w-full items-center gap-3.5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                                                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-blue-600 shadow-sm">
+                                                    {host.profile_image_url ? <img src={host.profile_image_url} alt="" className="h-full w-full object-cover" /> : <User size={21}/>}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="truncate text-sm font-black text-slate-900">{host.name}</p>
-                                                    <p className="mt-0.5 line-clamp-2 text-[11px] font-medium leading-relaxed text-slate-500">{host.one_liner || host.school || '이번 회차를 함께 진행해요.'}</p>
+                                                    <p className="truncate text-base font-black text-slate-900">{host.name}</p>
+                                                    <p className="mt-1 line-clamp-2 text-sm font-semibold leading-relaxed text-slate-600">{host.one_liner || host.school || '이번 회차를 함께 진행해요.'}</p>
                                                 </div>
                                             </div>
                                         ))}
@@ -778,17 +783,18 @@ const NoticeModalContent = ({
                                     </div>
                                     <div className="space-y-3 border-b border-tossGrey100 pb-6">
                                         {todaySessionRows.map((row, rowIndex) => (
-                                            <div key={rowIndex} className="flex w-full gap-3">
+                                            <div key={rowIndex} className="flex w-full flex-wrap gap-3">
                                                 {row.map(field => (
                                                     <div
                                                         key={field.id}
                                                         className="min-w-0 rounded-toss-xl border border-[#f1ece3] bg-[#faf8f2] px-4 py-4 shadow-sm"
                                                         style={{
                                                             flexBasis: 0,
-                                                            flexGrow: row.length === 1 ? 1 : getSessionFieldWeight(field)
+                                                            flexGrow: row.length === 1 ? 1 : getSessionFieldWeight(field),
+                                                            minWidth: row.length === 1 ? '100%' : `${getSessionFieldMinWidth(field)}px`
                                                         }}
                                                     >
-                                                        <p className="truncate text-[13px] font-extrabold leading-none text-[#e83b2f]">
+                                                        <p className="whitespace-nowrap text-[13px] font-extrabold leading-none text-[#e83b2f]">
                                                             {field.label}
                                                         </p>
                                                         <p
@@ -1388,9 +1394,9 @@ const NoticeModalContent = ({
                                  <div className="flex items-baseline justify-between">
                                      <div className="flex items-center gap-2">
                                          <span className="font-bold text-tossGrey900">{c.users?.name}</span>
-                                         <span className="text-[10px] text-tossGrey400">{new Date(c.created_at).toLocaleDateString()}</span>
+                                         <span className="text-[10px] text-tossGrey400">{new Date(c.created_at).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                                      </div>
-                                     {c.user_id === user.id && !c.tutorial && (
+                                     {(isAdmin || c.user_id === user.id) && !c.tutorial && (
                                          <button onClick={() => onDeleteComment(c.id)} className="p-1 text-tossGrey400 hover:text-tossError transition-colors">
                                              <Trash2 size={14} />
                                          </button>

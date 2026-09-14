@@ -74,11 +74,17 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
     );
     const communityInviteId = location.state?.communityId || searchParams.get('communityInvite');
     const isCommunityLoginFlow = Boolean(communityInviteId);
-    const isMainEntry = location.pathname === '/' && !isProgramLoginFlow && !isCommunityLoginFlow;
+    const surveyLoginId = searchParams.get('surveyLogin');
+    const isSurveyLoginFlow = Boolean(surveyLoginId);
+    const isMainEntry = location.pathname === '/' && !isProgramLoginFlow && !isCommunityLoginFlow && !isSurveyLoginFlow;
     const programLoginId = location.state?.programId
         || searchParams.get('programLogin')
         || localStorage.getItem('pendingProgramJoin');
     const returnAfterLogin = () => {
+        if (isSurveyLoginFlow && surveyLoginId) {
+            navigate(`/survey/${encodeURIComponent(surveyLoginId)}`, { replace: true });
+            return true;
+        }
         if (isCommunityLoginFlow && communityInviteId) {
             navigate(`/community/${encodeURIComponent(communityInviteId)}`, {
                 replace: true,
@@ -663,7 +669,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             } catch (e) {}
         }
 
-        if (isCommunityLoginFlow) {
+        if (isCommunityLoginFlow || isSurveyLoginFlow) {
             setShowLoginModal(true);
             return;
         }

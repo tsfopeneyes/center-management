@@ -147,13 +147,28 @@ export const useProfile = (initialUser) => {
         setLoading(true);
         try {
             if (isAccountAuthEnabled()) {
-                const client=getAccountAuthClient(),sessionResult=await supabase.auth.getSession();
-                const accessToken=sessionResult?.data?.session?.access_token;
-                if(sessionResult?.error||!accessToken)throw new Error('로그인 상태를 확인하지 못했습니다.');
+                const client=getAccountAuthClient();
+                const getAccessToken=async(refresh=false)=>{
+                    const sessionResult=refresh
+                        ? await supabase.auth.refreshSession()
+                        : await supabase.auth.getSession();
+                    const accessToken=sessionResult?.data?.session?.access_token;
+                    if(sessionResult?.error||!accessToken)throw new Error('로그인 상태가 만료되었습니다. 다시 로그인한 뒤 시도해주세요.');
+                    return accessToken;
+                };
+                let accessToken=await getAccessToken();
+                const withSessionRetry=async operation=>{
+                    try{return await operation(accessToken);}
+                    catch(error){
+                        if(error?.code!=='invalid_login'&&error?.message!=='invalid_login')throw error;
+                        accessToken=await getAccessToken(true);
+                        return operation(accessToken);
+                    }
+                };
                 let imageUrl=user?.profile_image_url||null;
                 if(profileImage){
                     const compressedFile=await compressImage(profileImage);
-                    imageUrl=await client.upload({profileId:user.id,kind:'profile',file:compressedFile},{accessToken});
+                    imageUrl=await withSessionRetry(token=>client.upload({profileId:user.id,kind:'profile',file:compressedFile},{accessToken:token}));
                 }
                 const patch={};
                 for(const field of ['school','church','bio'])if(Object.hasOwn(updates,field))patch[field]=updates[field];
@@ -161,7 +176,7 @@ export const useProfile = (initialUser) => {
                 if(imageUrl!==user?.profile_image_url)patch.profileImageUrl=imageUrl;
                 let saved={};
                 if(Object.keys(patch).length){
-                    const result=await client.profile({action:'update',protocol:1,profileId:user.id,updates:patch},{accessToken});saved=result.profile||{};
+                    const result=await withSessionRetry(token=>client.profile({action:'update',protocol:1,profileId:user.id,updates:patch},{accessToken:token}));saved=result.profile||{};
                 }
                 const finalUpdates={...updates,...saved,...(imageUrl!==user?.profile_image_url?{profile_image_url:imageUrl}:{})};
                 delete finalUpdates.password;
@@ -218,7 +233,8 @@ export const useProfile = (initialUser) => {
             return { success: true, user: updatedUser };
         } catch (err) {
             console.error('Error updating profile:', err);
-            return { success: false, error: err.message || '프로필 업데이트 중 오류가 발생했습니다.' };
+            const loginExpired=err?.code==='invalid_login'||err?.message==='invalid_login';
+            return { success: false, error: loginExpired ? '로그인 상태가 만료되었습니다. 다시 로그인한 뒤 시도해주세요.' : (err.message || '프로필 업데이트 중 오류가 발생했습니다.') };
         } finally {
             setLoading(false);
         }

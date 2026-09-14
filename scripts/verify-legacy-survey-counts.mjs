@@ -12,8 +12,8 @@ const supabase = createClient(
 );
 
 const [surveyResult, responseResult, noteResult, userResult, noticeResult] = await Promise.all([
-  supabase.from('surveys').select('id,title,survey_type,is_legacy'),
-  supabase.from('checkin_surveys').select('survey_id,survey_type,aggregation_excluded,user_id,created_at'),
+  supabase.from('surveys').select('id,title,survey_type,is_legacy,config'),
+  supabase.from('checkin_surveys').select('id,survey_id,survey_type,survey_snapshot,aggregation_excluded,user_id,created_at'),
   supabase.from('visit_notes').select('user_id,visit_date,purpose'),
   supabase.from('users').select('*'),
   supabase.from('notices').select('category,title,content').eq('category', 'SYSTEM'),
