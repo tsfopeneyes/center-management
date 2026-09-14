@@ -23,6 +23,8 @@ try{
         CREATE TABLE auth.users(id uuid PRIMARY KEY,is_anonymous boolean,banned_until timestamptz);
         CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,not_after timestamptz);`);
     for(const file of ['auth-session-foundation','auth-login-foundation','auth-credential-foundation','auth-roles-foundation'])await db.exec(readFileSync(new URL('../supabase/manual/proposals/'+file+'.sql',import.meta.url),'utf8'));
+    await db.exec(`ALTER TABLE account_security.account_roles DROP CONSTRAINT account_roles_role_check;
+        ALTER TABLE account_security.account_roles ADD CONSTRAINT account_roles_role_check CHECK(role IN ('member','admin','master'));`);
     await query("INSERT INTO public.users(id,name,role) VALUES($1,'actual admin','user'),($2,'admin','admin')",[p,q]);
     await query('INSERT INTO auth.users VALUES($1,false,NULL),($2,false,NULL)',[a,b]);
     await query('INSERT INTO auth.sessions VALUES($1,$2,NULL),($3,$4,NULL)',[sa,a,sb,b]);
@@ -35,12 +37,15 @@ try{
     await deny('b','credentials.reset',p,'forbidden',{role:'admin',name:'admin',is_master:true});
     assert.equal((await invoke('a','credentials.reset',q)).actorProfileId,p);
     assert.equal((await invoke('a','members.manage',q)).targetProfileId,q);
+    await deny('a','roles.manage',q);
+    await owner(()=>query("UPDATE account_security.account_roles SET role='master' WHERE profile_id=$1",[p]));
+    assert.equal((await invoke('a','roles.manage',q)).targetProfileId,q);
     await deny('a','unrecognized.action',q);
     await deny('unknown','members.manage',q,'invalid_login');
     await assert.rejects(query("UPDATE account_security.account_roles SET role='admin'"),/permission denied/);
     await owner(()=>query("UPDATE account_security.account_roles SET enabled=false WHERE profile_id=$1",[p]));
     await deny('a','members.manage',q);
-    await owner(()=>query("UPDATE account_security.account_roles SET enabled=true,role='staff' WHERE profile_id=$1",[p]));
+    await owner(()=>query("UPDATE account_security.account_roles SET enabled=true,role='member' WHERE profile_id=$1",[p]));
     await deny('a','members.manage',q);
     await owner(()=>query("UPDATE account_security.account_roles SET role='admin' WHERE profile_id=$1",[p]));
     await owner(()=>query("UPDATE account_security.accounts SET credential_version=2 WHERE profile_id=$1",[p]));

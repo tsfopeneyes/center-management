@@ -27,12 +27,12 @@ export function createLoginService({store, gateway, verifyToken, keyFor, legacyB
             if(!result.allowed)throw new LoginError('try_later',429);candidates=result.candidates;prepared=true;
         }else if(!input.profileId&&store.prepareByLookup){
             const result=await store.prepareByLookup(await keyFor('name',input.name),input.phone?await keyFor('phone',input.phone):null,
-                clientLimitKey,subjectKey);
+                clientLimitKey,subjectKey,input.name);
             if(!result.allowed)throw new LoginError('try_later',429);candidates=result.candidates;
         }else{
             if(!await store.consumeLimit(clientLimitKey,20)||!await store.consumeLimit(subjectKey,10))throw new LoginError('try_later',429);
             candidates=input.action==='reconfirm'||input.profileId?await store.findByProfile(input.profileId):
-                await store.findByLookup(await keyFor('name',input.name),input.phone?await keyFor('phone',input.phone):null);
+                await store.findByLookup(await keyFor('name',input.name),input.phone?await keyFor('phone',input.phone):null,input.name);
         }
         // Do not try multiple members' passwords or return a roster. The UI can
         // offer optional registered-phone input to everyone for disambiguation.

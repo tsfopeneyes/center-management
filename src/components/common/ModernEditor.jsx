@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -92,7 +92,9 @@ const LineHeight = Extension.create({
     },
 });
 
-const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세요...' }) => {
+const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세요...', onImageUpload = null }) => {
+    const imageInputRef = useRef(null);
+    const [uploadingImage, setUploadingImage] = useState(false);
     const [isCodeView, setIsCodeView] = React.useState(false);
     const [recentColors, setRecentColors] = React.useState(['#f04438', '#3182f6', '#10b981', '#ff9c00', '#8b5cf6']);
     const debounceTimerRef = React.useRef(null);
@@ -164,9 +166,30 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
     }
 
     const addImage = () => {
+        if (onImageUpload) {
+            imageInputRef.current?.click();
+            return;
+        }
         const url = window.prompt('이미지 URL을 입력하세요');
         if (url) {
             editor.chain().focus().setImage({ src: url }).run();
+        }
+    };
+
+    const uploadImageFile = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file || !onImageUpload || uploadingImage) return;
+        setUploadingImage(true);
+        try {
+            const url = await onImageUpload(file);
+            if (!url) throw new Error('업로드된 이미지 주소를 받지 못했습니다.');
+            editor.chain().focus().setImage({ src: url }).run();
+        } catch (error) {
+            console.error('Failed to upload editor image:', error);
+            alert(`본문 이미지를 업로드하지 못했습니다.\n${error?.message || '잠시 후 다시 시도해 주세요.'}`);
+        } finally {
+            setUploadingImage(false);
         }
     };
 
@@ -188,6 +211,7 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
 
     return (
         <div className="w-full border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm ring-1 ring-gray-950/5">
+            {onImageUpload && <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={uploadImageFile} />}
             {/* Main Toolbar */}
             <div className="flex flex-wrap items-center gap-1.5 p-2 border-b border-gray-50 bg-gray-50/50 sticky top-0 z-10 backdrop-blur-sm">
                 <div className="flex items-center gap-1 border-r border-gray-200 pr-1 mr-1 shrink-0">
@@ -293,7 +317,7 @@ const ModernEditor = ({ content, onChange, placeholder = '내용을 입력하세
 
                 <div className="flex items-center gap-1 shrink-0">
                     <MenuButton onClick={setLink} isActive={editor.isActive('link')} disabled={isCodeView} title="링크"><LinkIcon size={18} /></MenuButton>
-                    <MenuButton onClick={addImage} disabled={isCodeView} title="이미지"><ImageIcon size={18} /></MenuButton>
+                    <MenuButton onClick={addImage} disabled={isCodeView || uploadingImage} title={uploadingImage ? '이미지 업로드 중' : '이미지 업로드'}><ImageIcon size={18} /></MenuButton>
                 </div>
 
                 <div className="ml-auto shrink-0 pl-1">

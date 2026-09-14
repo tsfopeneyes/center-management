@@ -3,6 +3,7 @@ import { supabase } from '../../../../supabaseClient';
 import { hashPassword } from '../../../../utils/hashUtils';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../../auth/accountAuthRuntime';
 import { listPendingGuestLinks } from '../../../../api/userMergeApi';
+import { isAdminOrStaff } from '../../../../utils/userUtils';
 
 const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
     // 1. Search & Filter State
@@ -64,9 +65,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 matchesText(user.role) ||
                 (age && age === cleanSearch) || matchesAge;
 
-            const isStaffAccount = user.user_group === 'STAFF'
-                || user.user_group === '관리자'
-                || ['admin', 'staff'].includes(String(user.role || '').toLowerCase());
+            const isStaffAccount = isAdminOrStaff(user);
             const isGuestOrTemp = !isStaffAccount && (
                 user.user_group === '게스트'
                 || user.user_group === '미가입'
@@ -87,9 +86,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             const isExcludedLeader = excludeLeaders && user.is_leader === true;
             const isNonSchoolChurchFilter = showOnlyNonSchoolChurch && user.preferences?.is_school_church === true;
             const isNew3MFilterMismatch = showOnlyNew3Months && !isNew3M;
-            const isInternalAdmin = user.name === 'admin';
-
-            return !isInternalAdmin && matchesSearch && matchesGroup && !isExcludedLeader && !isNonSchoolChurchFilter && !isNew3MFilterMismatch;
+            return matchesSearch && matchesGroup && !isExcludedLeader && !isNonSchoolChurchFilter && !isNew3MFilterMismatch;
         }).sort((a, b) => {
             const isAPending = a.status === 'pending';
             const isBPending = b.status === 'pending';
@@ -248,28 +245,6 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
         }
     };
 
-    const handleToggleAdminRole = async (user) => {
-        if (user.user_group !== 'STAFF') { alert('STAFF 그룹만 관리자 권한을 가질 수 있습니다.'); return; }
-        const newRole = user.role === 'admin' ? 'user' : 'admin';
-        const action = newRole === 'admin' ? '부여' : '해제';
-        if (!confirm(`${user.name}님에게 관리자 권한을 ${action}하시겠습니까?`)) return;
-        try {
-            if (isAccountAuthEnabled()) {
-                await getAccountAuthClient().members.setRole({profileId:user.id,admin:newRole==='admin'});
-                alert(`관리자 권한이 ${action}되었습니다.`);
-                fetchData();
-                return;
-            }
-            const { error } = await supabase.from('users').update({ role: newRole }).eq('id', user.id);
-            if (error) throw error;
-            alert(`관리자 권한이 ${action}되었습니다.`);
-            fetchData();
-        } catch (err) { 
-            console.error('권한 변경 에러:', err);
-            alert(`권한 변경 실패: ${err.message}`); 
-        }
-    };
-
     const handleApproveUser = async (user) => {
         if (!confirm(`'${user.name}' 회원을 정식 회원으로 승인하시겠습니까?`)) return;
         try {
@@ -342,7 +317,6 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
         handleBulkUpdateGroup,
         handleDeleteUser,
         handleResetPassword,
-        handleToggleAdminRole,
         handleApproveUser
     };
 };

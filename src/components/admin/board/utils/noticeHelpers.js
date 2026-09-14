@@ -1,6 +1,7 @@
 import { extractProgramInfo } from '../../../../utils/textUtils';
 import { formatToLocalISO } from '../../../../utils/dateUtils';
 import { toKstInput, getRecruitmentStart } from '../../../../utils/programRecruitment';
+import { getDailySessionFields } from '../../../../utils/dailyProgramSessions';
 
 export const splitDateTime = (dateTimeStr) => {
     if (!dateTimeStr) return { date: '', time: '12:00' };
@@ -127,6 +128,9 @@ export const prepareNoticeForEdit = (notice) => {
                         : ''
                 }]
                 : []),
+        _had_now_push_plan: Array.isArray(notice.guest_properties?.recruitment_push_plans)
+            && notice.guest_properties.recruitment_push_plans.some(plan => plan.timing === 'NOW'),
+        _saved_recruitment_push_resend_nonce: notice.guest_properties?.recruitment_push_resend_nonce || '',
         category: notice.category,
         recruitment_deadline: toKstInput(notice.recruitment_deadline),
         recruitment_start_at: toKstInput(getRecruitmentStart(notice)),
@@ -148,6 +152,10 @@ export const prepareNoticeForEdit = (notice) => {
         program_start_date: notice.program_start_date ? formatToLocalISO(notice.program_start_date).split('T')[0] : '',
         program_end_date: notice.program_end_date ? formatToLocalISO(notice.program_end_date).split('T')[0] : '',
         program_days: notice.program_days || [],
+        schedule_mode: notice.guest_properties?.schedule_mode
+            || (notice.program_start_date && notice.program_end_date && notice.program_days?.length ? 'RECURRING' : 'SINGLE'),
+        application_scope: notice.guest_properties?.application_scope
+            || (notice.guest_properties?.open_participation_mode === 'SESSION_RSVP' ? 'SESSION' : 'PROGRAM'),
         enable_hosts: Boolean(Array.isArray(notice.hosts) && notice.hosts.some(h => h && h.host_id)),
         host_id: notice.host_id || '',
         host_ids: notice.host_ids || (notice.host_id ? [notice.host_id] : []),
@@ -166,14 +174,14 @@ export const prepareNoticeForEdit = (notice) => {
         challenge_success_message: notice.challenge_success_message || '',
         challenge_show_haifn_btn: notice.challenge_show_haifn_btn ?? false,
         community_enabled: notice.community_enabled ?? false,
-        community_mission_mode: notice.community_mission_mode || 'NONE',
-        community_image_required: notice.community_image_required ?? false,
-        community_after_end: notice.community_after_end || 'READ_ONLY',
+        community_channel_id: notice.guest_properties?.community_channel_id || '',
         guest_properties: {
             ...(notice.guest_properties || { allow_guest: true }),
             require_school: true,
             require_phone: true,
         },
+        open_participation_mode: notice.guest_properties?.open_participation_mode || 'NONE',
+        daily_session_fields: getDailySessionFields(notice),
         enable_post_program_button: notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button ?? false,
         post_program_button_trigger: notice.guest_properties?.post_program_button_trigger ?? notice.post_program_button_trigger ?? 'start_time',
         post_program_button_offset_minutes: Number(notice.guest_properties?.post_program_button_offset_minutes ?? notice.post_program_button_offset_minutes ?? 0),
@@ -185,15 +193,6 @@ export const prepareNoticeForEdit = (notice) => {
         enable_random_questions: notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions ?? false,
         random_questions: notice.guest_properties?.random_questions ?? notice.random_questions ?? [],
         enable_feedback: notice.guest_properties?.enable_feedback ?? notice.enable_feedback ?? false,
-        custom_feedback_config: notice.guest_properties?.custom_feedback_config ?? notice.custom_feedback_config ?? {
-            questions: [
-                { id: 'q1', type: 'choice', title: '프로그램 참여 이유', options: ['친구 추천', '기존 센터 경험', '프로그램 흥미', '기타'], required: true },
-                { id: 'q2', type: 'text', title: '새로 배우거나 경험한 점', placeholder: '어떤 것을 느끼고 경험하셨나요?', required: true },
-                { id: 'q3', type: 'star', title: '프로그램 전체 만족도', required: true },
-                { id: 'q4', type: 'text', title: '가장 좋았던 순간', placeholder: '가장 인상 깊었던 순간을 적어주세요.', required: true },
-                { id: 'q5', type: 'text', title: '아쉬웠던 점 및 개선 의견', placeholder: '아쉬웠던 점이 있다면 편하게 적어주세요.', required: true },
-                { id: 'q6', type: 'star', title: '다음 프로그램 재참여 의사', required: true }
-            ]
-        }
+        custom_feedback_config: notice.guest_properties?.custom_feedback_config ?? notice.custom_feedback_config ?? { questions: [] }
     };
 };

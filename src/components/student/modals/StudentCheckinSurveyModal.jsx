@@ -6,6 +6,7 @@ import { sendCheckinNotification } from '../../../utils/integrationUtils';
 import { resolveSchoolRegion } from '../../../utils/schoolRegionUtils';
 import useModalClose from '../../../hooks/useModalClose';
 import { loadAssignedSurvey } from '../../../utils/surveyAssignments';
+import SurveyRunner from '../../surveys/SurveyRunner';
 
 const DEFAULT_SURVEY_OPTIONS = [
     { id: '1', emoji: '🍽️', label: '당 충전하며 쉬고 싶어요', recommendTitle: '2F SQUARE, 3F ROUND 빈백존', recommendText: '2층 냉장고에서 간식 먹고, 3층 빈백에서 뒹굴뒹굴' },
@@ -17,7 +18,6 @@ const DEFAULT_SURVEY_OPTIONS = [
 ];
 
 const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
-    useModalClose(isOpen, () => onClose(false));
     const [mode, setMode] = useState('SURVEY'); // 'SURVEY' | 'QUESTION_QA' | 'CHAT_SHOUTOUT' | 'HYBRID'
     const [questionText, setQuestionText] = useState('오늘 센터에서 무엇을 하고 싶나요?');
     const [descriptionText, setDescriptionText] = useState('');
@@ -26,6 +26,8 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
     const [chatPromptText, setChatPromptText] = useState('센터에 있는 친구들에게 반가운 한마디 인사를 남겨보세요!');
     const [chatPlaceholderText, setChatPlaceholderText] = useState('예: 3층 빈백존 입성! 보드게임 할 사람 덤벼라~');
     const [surveyId, setSurveyId] = useState(null);
+    const [modernLink, setModernLink] = useState(null);
+    const [surveyLoading, setSurveyLoading] = useState(true);
     const [recommendationsEnabled, setRecommendationsEnabled] = useState(true);
     const [additionalComment, setAdditionalComment] = useState({ enabled: false, label: '', placeholder: '', required: false, maxLength: 300 });
 
@@ -36,9 +38,37 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
 
     const [step, setStep] = useState('SELECT'); // 'SELECT' | 'RESULT'
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const onCloseRef = React.useRef(onClose);
+
+    React.useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+
+    const dispatchPendingCheckinNotification = React.useCallback(async (details = {}) => {
+        try {
+            const parsed = JSON.parse(sessionStorage.getItem('pending_checkin_notif') || '{}');
+            if (!parsed.logId) return false;
+            await sendCheckinNotification({ logId: parsed.logId, ...details });
+            sessionStorage.removeItem('pending_checkin_notif');
+            return true;
+        } catch (error) {
+            // Keep the pending event so another close/submit attempt can retry
+            // without creating a second check-in record.
+            console.error('Failed to send pending checkin notification:', error);
+            return false;
+        }
+    }, []);
+
+    const handleCloseWithoutSubmitting = React.useCallback(async () => {
+        await dispatchPendingCheckinNotification({ purposes: [] });
+        onCloseRef.current(false);
+    }, [dispatchPendingCheckinNotification]);
+
+    useModalClose(isOpen, handleCloseWithoutSubmitting);
 
     React.useEffect(() => {
         if (!isOpen) return;
+        setModernLink(null); setSurveyLoading(true);
         setStep('SELECT');
         setSelectedLabels([]);
         setUserAnswerText('');
@@ -46,8 +76,10 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
         const fetchConfig = async () => {
             try {
                 const assigned = await loadAssignedSurvey({ surveyType: 'CHECKIN', locationName, userId: user?.id });
+                setModernLink(assigned?.config?._surveyLink || null);
                 if (!assigned) {
-                    onClose(false);
+                    await dispatchPendingCheckinNotification({ purposes: [] });
+                    onCloseRef.current(false);
                     return;
                 }
                 if (assigned?.config) {
@@ -68,42 +100,27 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
                 }
             } catch (e) {
                 console.error('Failed to fetch checkin survey config:', e);
+                await dispatchPendingCheckinNotification({ purposes: [] });
+                onCloseRef.current(false);
             }
         };
-        fetchConfig();
-    }, [isOpen, locationName, user?.id]);
+        fetchConfig().finally(() => setSurveyLoading(false));
+    }, [dispatchPendingCheckinNotification, isOpen, locationName, user?.id]);
 
     if (!isOpen) return null;
+    if (surveyLoading) return <div role="status" className="fixed inset-0 z-[1100] bg-black/50 flex items-center justify-center"><div className="rounded-2xl bg-white p-6">설문을 불러오는 중…</div></div>;
+    if (modernLink) return <SurveyRunner manageHistory={false} link={modernLink} userId={user?.id} onClose={handleCloseWithoutSubmitting} onComplete={async (_, summary) => {
+        await dispatchPendingCheckinNotification({ purposes: summary, surveyQuestion: modernLink.version.definition.title, surveyAnswers: summary });
+        sessionStorage.removeItem('pending_checkin_survey'); sessionStorage.removeItem('require_checkin_survey');
+        onCloseRef.current(true);
+    }} />;
 
     const toggleOption = (label) => {
         if (selectedLabels.includes(label)) {
-            if (selectedLabels.length > 1) {
-                setSelectedLabels(selectedLabels.filter(l => l !== label));
-            }
+            setSelectedLabels(selectedLabels.filter(l => l !== label));
         } else {
             setSelectedLabels([...selectedLabels, label]);
         }
-    };
-
-    const handleCloseWithoutSubmitting = () => {
-        try {
-            const pendingNotif = sessionStorage.getItem('pending_checkin_notif');
-            if (pendingNotif) {
-                const parsed = JSON.parse(pendingNotif);
-                sendCheckinNotification({
-                    userId: parsed.userId || user?.id,
-                    userName: parsed.userName || user?.name,
-                    schoolName: parsed.schoolName || user?.school,
-                    locationName: parsed.locationName || locationName || '하이픈',
-                    isGuest: parsed.isGuest || false,
-                    purposes: []
-                }).catch(e => console.error('Failed fallback checkin notification:', e));
-                sessionStorage.removeItem('pending_checkin_notif');
-            }
-        } catch (e) {
-            console.error('Failed handling fallback checkin notification on close:', e);
-        }
-        onClose(false);
     };
 
     const handleConfirmSelection = async () => {
@@ -189,18 +206,12 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
                 notifPurposes.push(`[오늘의 질문 답변] ${userAnswerText.trim()}`);
             }
 
-            sendCheckinNotification({
-                userId: user.id,
-                userName: user.name,
-                schoolName: user.school,
-                locationName: locationName || '하이픈',
-                isGuest: false,
+            await dispatchPendingCheckinNotification({
                 purposes: notifPurposes,
                 surveyQuestion: mode === 'QUESTION_QA' ? qaQuestionText : questionText,
                 surveyAnswers: mode === 'QUESTION_QA' ? [userAnswerText.trim()] : selectedLabels
-            }).catch(e => console.error('Failed to send checkin notification:', e));
+            });
 
-            sessionStorage.removeItem('pending_checkin_notif');
             sessionStorage.removeItem('pending_checkin_survey');
             sessionStorage.removeItem('require_checkin_survey');
             

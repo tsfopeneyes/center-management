@@ -1,27 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Trash2, X, Save, School, ShieldAlert, KeyRound, Shield, MessageSquare, Star } from 'lucide-react';
+import { RefreshCw, Trash2, X, Save, School, KeyRound, MessageSquare, Star } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
 import { feedbackApi } from '../../../../api/feedbackApi';
 import { extractProgramInfo } from '../../../../utils/textUtils';
 import UserAvatar from '../../../common/UserAvatar';
 import { aggregateVisitSessions } from '../../../../utils/visitUtils';
-import { normalizeSchoolName } from '../../../../utils/userUtils';
+import { isAdminOrStaff, normalizeSchoolName } from '../../../../utils/userUtils';
 import useModalClose from '../../../../hooks/useModalClose';
 
-const isAdministrator = (user) => (
-    user?.is_master || user?.role === 'admin' || user?.user_group === '관리자'
-);
+const isAdministrator = isAdminOrStaff;
 
 const UserEditModal = ({
     editingUser, setEditingUser,
-    handleDeleteUser, handleResetPassword, handleToggleAdminRole, handleApproveUser,
+    handleDeleteUser, handleResetPassword, handleApproveUser,
     userStats, fetchData, setIsMergeModalOpen, setViewerImage, locations
 }) => {
     useModalClose(!!editingUser, () => setEditingUser(null));
     const [editFormData, setEditFormData] = useState({
         name: '', school: '', church: '', phone: '', user_group: '재학생', memo: '',
         status: 'approved', guardian_name: '', guardian_phone: '', guardian_relation: '',
-        is_leader: false, is_master: false, terms_agreed: false, is_school_church: false
+        is_leader: false, terms_agreed: false, is_school_church: false
     });
     
     const [activeTab, setActiveTab] = useState('INFO');
@@ -243,7 +241,6 @@ const UserEditModal = ({
                 guardian_phone: editingUser.guardian_phone || '',
                 guardian_relation: editingUser.guardian_relation || '',
                 is_leader: editingUser.is_leader || false,
-                is_master: editingUser.is_master || false,
                 terms_agreed: editingUser.preferences?.terms_agreed || false,
                 is_school_church: editingUser.preferences?.is_school_church || false
             });
@@ -261,14 +258,13 @@ const UserEditModal = ({
                 user_group: editFormData.user_group,
                 memo: editFormData.memo,
                 is_leader: editFormData.is_leader,
-                is_master: editFormData.is_master,
                 preferences: { ...(editingUser.preferences || {}), terms_agreed: editFormData.terms_agreed, is_school_church: editFormData.is_school_church }
             }).eq('id', editingUser.id);
             if (error) throw error;
             alert('회원 정보가 수정되었습니다.');
             setEditingUser(null);
             fetchData();
-        } catch (err) { alert('수정 실패'); }
+        } catch (err) { alert(`수정 실패: ${err?.message || '권한과 입력 내용을 확인해주세요.'}`); }
     };
 
     if (!editingUser) return null;
@@ -395,21 +391,6 @@ const UserEditModal = ({
                                 </div>
                             )}
 
-                            {editFormData.user_group === 'STAFF' && (adminUser?.is_master || adminUser?.name === 'Rok') && (
-                                <div className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-100 rounded-xl">
-                                    <input
-                                        type="checkbox"
-                                        id="is_master"
-                                        checked={editFormData.is_master}
-                                        onChange={(e) => setEditFormData({ ...editFormData, is_master: e.target.checked })}
-                                        className="w-4 h-4 text-red-500 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
-                                    />
-                                    <label htmlFor="is_master" className="text-xs font-bold text-gray-700 cursor-pointer flex items-center gap-1">
-                                        <ShieldAlert size={14} className="text-red-500" />
-                                        마스터 권한
-                                    </label>
-                                </div>
-                            )}
                         </div>
 
                         {editFormData.guardian_name && (
@@ -524,14 +505,6 @@ const UserEditModal = ({
                                 className="w-full py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-bold hover:bg-amber-100 transition flex items-center justify-center gap-2 shadow-sm mb-3"
                             >
                                 <RefreshCw size={18} /> 계정 연결 확인 안내
-                            </button>
-                        )}
-                        {editingUser.user_group === 'STAFF' && (adminUser?.is_master || adminUser?.name === 'Rok') && (
-                            <button
-                                onClick={() => handleToggleAdminRole(editingUser)}
-                                className={`w-full py-3 border rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-sm mb-3 ${editingUser.role === 'admin' ? 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
-                            >
-                                <Shield size={18} /> {editingUser.role === 'admin' ? '관리자 권한 해제' : '관리자 권한 부여'}
                             </button>
                         )}
                         <button onClick={handleSaveUser} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl mt-3">

@@ -50,15 +50,36 @@ const EventEditModal = ({
     const isRental = selectedEvent?.id?.startsWith('RNT-') || selectedEvent?.category_id === 'RENTAL';
     const isReadOnly = isProgram || isRental;
 
+    const closeModalThen = (action) => {
+        let completed = false;
+        let fallbackTimer;
+
+        const complete = () => {
+            if (completed) return;
+            completed = true;
+            window.removeEventListener('popstate', complete);
+            window.clearTimeout(fallbackTimer);
+            action();
+        };
+
+        // useModalClose removes the modal's synthetic history entry on unmount.
+        // Wait for that traversal before changing the admin menu so its history
+        // entry cannot be overwritten by the modal cleanup.
+        window.addEventListener('popstate', complete, { once: true });
+        setShowModal(false);
+        fallbackTimer = window.setTimeout(complete, 250);
+    };
+
     const openProgramManagement = () => {
         const noticeId = selectedEvent?.originalId || selectedEvent?.raw?.id;
         if (!noticeId) {
             alert('연결된 프로그램 정보를 찾지 못했습니다.');
             return;
         }
-        setShowModal(false);
-        if (onOpenProgram) onOpenProgram(noticeId);
-        else setActiveMenu('PROGRAMS');
+        closeModalThen(() => {
+            if (onOpenProgram) onOpenProgram(noticeId);
+            else setActiveMenu('PROGRAMS');
+        });
     };
 
     // Initialize/Sync local main categories for location picker
@@ -342,10 +363,7 @@ const EventEditModal = ({
                         {isRental && setActiveMenu && (
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setActiveMenu('RENTAL_MGMT');
-                                    setShowModal(false);
-                                }}
+                                onClick={() => closeModalThen(() => setActiveMenu('RENTAL_MGMT'))}
                                 className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black shadow-lg shadow-purple-200 text-xs tracking-wider transition-all"
                             >
                                 대관 관리 바로가기

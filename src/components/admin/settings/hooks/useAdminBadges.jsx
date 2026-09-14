@@ -4,6 +4,8 @@ import { supabase } from '../../../../supabaseClient';
 import { compressImage } from '../../../../utils/imageUtils';
 import { isAccountAuthEnabled } from '../../../../auth/accountAuthRuntime';
 import { cachedAccountProfileId, uploadAccountImage } from '../../../../auth/accountMedia';
+import { isAdminOrStaff } from '../../../../utils/userUtils';
+import { userApi } from '../../../../api/userApi';
 
 export const useAdminBadges = () => {
     const [categories, setCategories] = useState([]);
@@ -36,14 +38,13 @@ export const useAdminBadges = () => {
                 badgesApi.fetchCategories(),
                 badgesApi.fetchBadges(),
                 supabase.from('users')
-                    .select('id, name, school, user_group, role')
-                    .neq('role', 'admin')
-                    .neq('user_group', 'STAFF')
+                    .select('id,name,school,user_group')
                     .order('name')
             ]);
             setCategories(catData);
             setChallenges(chData);
-            setStudentUsers(uData || []);
+            const usersWithRoles = await userApi.attachAccountRoles(uData || []);
+            setStudentUsers(usersWithRoles.filter(user => !isAdminOrStaff(user)));
             if (catData.length > 0 && !expandedCategory) {
                 setExpandedCategory(catData[0].id);
             }

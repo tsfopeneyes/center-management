@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Check, X, Sparkles, HeartHandshake } from 'lucide-react';
 import { requestSupabaseRest } from '../../../utils/supabaseRest';
 import useModalClose from '../../../hooks/useModalClose';
 import { loadAssignedSurvey } from '../../../utils/surveyAssignments';
+import SurveyRunner from '../../surveys/SurveyRunner';
 
 const DEFAULT_CHECKOUT_OPTIONS = [
     { id: '1', emoji: '😊', label: '교제 및 휴식', recommendTitle: '휴식 세션 완료', recommendText: '편안한 휴식이 되었기를 바랍니다!' },
@@ -13,7 +14,6 @@ const DEFAULT_CHECKOUT_OPTIONS = [
 ];
 
 const StudentCheckoutSurveyModal = ({ isOpen, onClose, onSurveySaved, onSurveySkipped, user, locationName }) => {
-    useModalClose(isOpen, onClose);
     const [mode, setMode] = useState('SURVEY'); // 'SURVEY' | 'FEEDBACK_QA' | 'CHAT_SHOUTOUT' | 'HYBRID'
     const [questionText, setQuestionText] = useState('오늘 센터에서의 시간은 어떠셨나요?');
     const [qaQuestionText, setQaQuestionText] = useState('오늘 센터 이용 소감이나 하고 싶은 말을 남겨주세요!');
@@ -21,6 +21,8 @@ const StudentCheckoutSurveyModal = ({ isOpen, onClose, onSurveySaved, onSurveySk
     const [chatPromptText, setChatPromptText] = useState('퇴실하면서 친구들에게 작별 인사를 남겨보세요!');
     const [chatPlaceholderText, setChatPlaceholderText] = useState('예: 먼저 가볼게! 다들 재미있게 놀아~');
     const [surveyId, setSurveyId] = useState(null);
+    const [modernLink, setModernLink] = useState(null);
+    const [surveyLoading, setSurveyLoading] = useState(true);
     const [additionalComment, setAdditionalComment] = useState({ enabled: false, label: '', placeholder: '', required: false, maxLength: 300 });
 
     const [optionsList, setOptionsList] = useState(DEFAULT_CHECKOUT_OPTIONS);
@@ -30,18 +32,42 @@ const StudentCheckoutSurveyModal = ({ isOpen, onClose, onSurveySaved, onSurveySk
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const submissionLockRef = useRef(false);
+    const onCloseRef = useRef(onClose);
+    const onSurveySavedRef = useRef(onSurveySaved);
+    const onSurveySkippedRef = useRef(onSurveySkipped);
+    onCloseRef.current = onClose;
+    onSurveySavedRef.current = onSurveySaved;
+    onSurveySkippedRef.current = onSurveySkipped;
+
+    const handleSkipCheckoutSurvey = useCallback(async () => {
+        if (submissionLockRef.current) return;
+        submissionLockRef.current = true;
+        setIsSubmitting(true);
+        try {
+            await onSurveySkippedRef.current?.();
+        } finally {
+            setIsSubmitting(false);
+            submissionLockRef.current = false;
+            onCloseRef.current?.();
+        }
+    }, []);
+
+    // Device back/Escape is also a survey skip. The checkout event already
+    // exists, so it must still produce the basic checkout notification.
+    useModalClose(isOpen, handleSkipCheckoutSurvey);
 
     useEffect(() => {
         if (!isOpen) return;
+        setModernLink(null); setSurveyLoading(true);
         setSelectedLabels([]);
         setUserAnswerText('');
         setChatShoutoutText('');
         const fetchConfig = async () => {
             try {
                 const assigned = await loadAssignedSurvey({ surveyType: 'CHECKOUT', locationName, userId: user?.id || user?.userId });
+                setModernLink(assigned?.config?._surveyLink || null);
                 if (!assigned) {
-                    await onSurveySkipped?.();
-                    onClose();
+                    await handleSkipCheckoutSurvey();
                     return;
                 }
                 if (assigned?.config) {
@@ -60,18 +86,22 @@ const StudentCheckoutSurveyModal = ({ isOpen, onClose, onSurveySaved, onSurveySk
                 }
             } catch (e) {
                 console.error('Failed to fetch checkout survey config:', e);
+                await handleSkipCheckoutSurvey();
             }
         };
-        fetchConfig();
-    }, [isOpen, locationName, user?.id, user?.userId]);
+        fetchConfig().finally(() => setSurveyLoading(false));
+    }, [handleSkipCheckoutSurvey, isOpen, locationName, user?.id, user?.userId]);
 
     if (!isOpen) return null;
+    if (surveyLoading) return <div role="status" className="fixed inset-0 z-[1100] bg-black/50 flex items-center justify-center"><div className="rounded-2xl bg-white p-6">설문을 불러오는 중…</div></div>;
+    if (modernLink) return <SurveyRunner manageHistory={false} link={modernLink} userId={user?.id || user?.userId} onClose={handleSkipCheckoutSurvey} onComplete={async (_, summary) => {
+        await onSurveySavedRef.current?.({ feedbackText: summary.join('\n'), surveyQuestion: modernLink.version.definition.title, surveyAnswers: summary, surveySubmitted: true });
+        onCloseRef.current?.();
+    }} />;
 
     const toggleOption = (label) => {
         if (selectedLabels.includes(label)) {
-            if (selectedLabels.length > 1) {
-                setSelectedLabels(selectedLabels.filter(l => l !== label));
-            }
+            setSelectedLabels(selectedLabels.filter(l => l !== label));
         } else {
             setSelectedLabels([...selectedLabels, label]);
         }
@@ -154,7 +184,7 @@ const StudentCheckoutSurveyModal = ({ isOpen, onClose, onSurveySaved, onSurveySk
                 });
             }
 
-            await onSurveySaved?.({
+            await onSurveySavedRef.current?.({
                 feedbackText: surveySummaryText,
                 surveyQuestion: mode === 'FEEDBACK_QA' ? qaQuestionText : questionText,
                 surveyAnswers: textAns && mode === 'FEEDBACK_QA' ? [textAns] : finalSelections
@@ -163,24 +193,11 @@ const StudentCheckoutSurveyModal = ({ isOpen, onClose, onSurveySaved, onSurveySk
             console.error('Checkout survey save error:', err);
             // The visitor has already checked out. If the optional survey fails,
             // complete the flow with the basic checkout notification instead.
-            await onSurveySkipped?.();
+            await onSurveySkippedRef.current?.();
         } finally {
             setIsSubmitting(false);
             submissionLockRef.current = false;
-            onClose();
-        }
-    };
-
-    const handleSkipCheckoutSurvey = async () => {
-        if (submissionLockRef.current) return;
-        submissionLockRef.current = true;
-        setIsSubmitting(true);
-        try {
-            await onSurveySkipped?.();
-        } finally {
-            setIsSubmitting(false);
-            submissionLockRef.current = false;
-            onClose();
+            onCloseRef.current?.();
         }
     };
 

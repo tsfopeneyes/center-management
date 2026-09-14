@@ -8,6 +8,9 @@ import { compressImage } from '../../../../../utils/imageUtils';
 import { fromKstInput, getMissingProgramDetails } from '../../../../../utils/programRecruitment';
 import { isAccountAuthEnabled } from '../../../../../auth/accountAuthRuntime';
 import { cachedAccountProfileId, uploadAccountImage } from '../../../../../auth/accountMedia';
+import { MAX_DAILY_SESSION_FIELDS } from '../../../../../utils/dailyProgramSessions';
+import { challengeMissionsApi } from '../../../../../api/challengeMissionsApi';
+import { surveyHubApi } from '../../../../../api/surveyHubApi';
 
 // Hooks
 import useNoticeForm from '../../hooks/useNoticeForm';
@@ -67,6 +70,16 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
         }
     }, [editNoticeId, existingNotice, setFormData, setExistingImages]);
 
+    useEffect(() => {
+        if (!editNoticeId || formData.community_channel_id) return;
+        let active = true;
+        supabase.from('community_channels').select('id').eq('source_notice_id', editNoticeId).maybeSingle()
+            .then(({ data }) => {
+                if (active && data?.id) updateField('community_channel_id', data.id);
+            });
+        return () => { active = false; };
+    }, [editNoticeId, formData.community_channel_id, updateField]);
+
     const handleSaveNotice = async (e) => {
         e.preventDefault();
 
@@ -75,8 +88,43 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
             alert(validation.message);
             return;
         }
-        if (mode === CATEGORIES.PROGRAM && (formData.recruitment_push_plans || []).some(plan => plan.timing === 'NOW')
-            && !formData.guest_properties?.recruitment_push_immediate_dispatched_at
+        if (mode === CATEGORIES.PROGRAM && formData.is_recruiting && !formData.is_challenge && formData.schedule_mode === 'RECURRING' && formData.application_scope === 'SESSION') {
+            const dailyFields = Array.isArray(formData.daily_session_fields) ? formData.daily_session_fields : [];
+            const labels = dailyFields.map(field => String(field?.label || '').trim());
+            if (labels.some(label => !label)) {
+                alert('오늘 회차 항목의 이름을 모두 입력해주세요.');
+                return;
+            }
+            if (new Set(labels).size !== labels.length) {
+                alert('오늘 회차 항목 이름은 서로 다르게 입력해주세요.');
+                return;
+            }
+        }
+        if (mode === CATEGORIES.PROGRAM && formData.is_challenge) {
+            const missions = Array.isArray(formData.challenge_missions) ? formData.challenge_missions : [];
+            if (formData.challenge_format === 'ONLINE' && !formData.community_enabled && missions.length > 0) {
+                alert('온라인 미션을 운영하려면 챌린지 커뮤니티를 사용해주세요.');
+                return;
+            }
+            if ((formData.challenge_format !== 'ONLINE' || formData.community_enabled) && missions.length === 0) {
+                alert('챌린지 미션을 하나 이상 추가해주세요.');
+                return;
+            }
+            if (missions.some(mission => !String(mission.title || '').trim())) {
+                alert('모든 미션의 이름을 입력해주세요.');
+                return;
+            }
+            if (formData.challenge_format === 'ONLINE' && missions.some(mission => mission.schedule_type === 'FIXED_DATE' && !mission.fixed_date)) {
+                alert('날짜 지정 미션의 수행 날짜를 선택해주세요.');
+                return;
+            }
+        }
+        const hasNowPushPlan = mode === CATEGORIES.PROGRAM
+            && (formData.recruitment_push_plans || []).some(plan => plan.timing === 'NOW');
+        const explicitPushResend = Boolean(formData.guest_properties?.recruitment_push_resend_nonce)
+            && formData.guest_properties.recruitment_push_resend_nonce !== formData._saved_recruitment_push_resend_nonce;
+        const newlyAddedNowPush = hasNowPushPlan && !formData._had_now_push_plan;
+        if (hasNowPushPlan && (!editNoticeId || newlyAddedNowPush || explicitPushResend)
             && !window.confirm('프로그램을 저장한 직후 선택한 대상에게 푸시를 발송합니다. 지금 진행할까요?')) {
             return;
         }
@@ -176,13 +224,14 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 content: finalContent,
                 category: mode,
                 is_sticky: formData.is_sticky,
-                send_push: mode === CATEGORIES.PROGRAM
-                    ? (formData.recruitment_push_plans || []).some(plan => plan.timing === 'NOW')
-                    : formData.send_push === true,
+                // Program delivery is owned by the database job queue.
+                send_push: mode === CATEGORIES.PROGRAM ? false : formData.send_push === true,
                 images: uploadedUrls,
                 image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : null,
                 is_recruiting: formData.is_recruiting,
-                recruitment_deadline: (formData.is_recruiting && formData.recruitment_deadline) 
+                // 기존 모집 일시는 DB에서 삭제가 금지되어 있다. 회차별 신청으로
+                // 전환해 화면에서 사용하지 않더라도 저장된 값은 그대로 보존한다.
+                recruitment_deadline: formData.recruitment_deadline
                     ? fromKstInput(formData.recruitment_deadline)
                     : null,
                 target_regions: formData.target_regions,
@@ -207,7 +256,9 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                     }
                 }
                 noticeData.program_date = finalProgramDate;
-                noticeData.recruitment_start_at = formData.is_recruiting ? fromKstInput(formData.recruitment_start_at) : null;
+                noticeData.recruitment_start_at = formData.recruitment_start_at
+                    ? fromKstInput(formData.recruitment_start_at)
+                    : null;
                 noticeData.recruitment_details_ready = getMissingProgramDetails(formData).length === 0;
                 noticeData.program_duration = (formData.is_challenge && !challengeHasTime)
                     ? ''
@@ -235,18 +286,28 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.is_review_required = formData.is_review_required || false;
                                 noticeData.is_private = formData.is_private || false;
                 noticeData.is_challenge = formData.is_challenge || false;
-                noticeData.challenge_missions = formData.challenge_missions || [];
                 noticeData.challenge_success_message = formData.challenge_success_message || '';
                 noticeData.challenge_show_haifn_btn = formData.challenge_show_haifn_btn || false;
                 noticeData.challenge_format = formData.is_challenge ? (formData.challenge_format || 'OFFLINE') : 'OFFLINE';
                 noticeData.community_enabled = formData.is_challenge && formData.challenge_format === 'ONLINE' && formData.community_enabled === true;
-                noticeData.community_mission_mode = noticeData.community_enabled ? (formData.community_mission_mode || 'NONE') : 'NONE';
-                noticeData.community_image_required = noticeData.community_enabled && formData.community_image_required === true;
-                noticeData.community_after_end = formData.community_after_end || 'READ_ONLY';
                 const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
                 const configuredHosts = (formData.hosts || []).filter(h => h && h.host_id);
                 noticeData.guest_properties = {
                     ...gp,
+                    schedule_mode: formData.is_challenge ? 'SINGLE' : (formData.schedule_mode || 'SINGLE'),
+                    application_scope: formData.is_recruiting && !formData.is_challenge
+                        ? (formData.application_scope || 'PROGRAM') : 'NONE',
+                    // New writes keep open programs application-free. The legacy
+                    // value remains readable on old records during migration.
+                    open_participation_mode: 'NONE',
+                    daily_session_fields: (Array.isArray(formData.daily_session_fields) ? formData.daily_session_fields : [])
+                        .slice(0, MAX_DAILY_SESSION_FIELDS)
+                        .map((field, index) => ({
+                            id: String(field?.id || `field-${index + 1}`),
+                            label: String(field?.label || '').trim(),
+                            required: field?.required !== false,
+                        }))
+                        .filter(field => field.label),
                     recruitment_push_enabled: Array.isArray(formData.recruitment_push_plans) && formData.recruitment_push_plans.length > 0,
                     recruitment_push_plans: (formData.recruitment_push_plans || []).map(plan => ({
                         ...plan,
@@ -270,6 +331,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                         })),
                     cached_hosts: configuredHosts.length > 0 ? configuredHosts : (gp.cached_hosts || []),
                     challenge_has_time: challengeHasTime,
+                    community_channel_id: noticeData.community_enabled ? (formData.community_channel_id || '') : '',
                     enable_post_program_button: formData.enable_post_program_button || false,
                     post_program_button_trigger: formData.post_program_button_trigger || 'start_time',
                     post_program_button_offset_minutes: Number(formData.post_program_button_offset_minutes || 0),
@@ -281,33 +343,57 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                     enable_random_questions: formData.enable_random_questions || false,
                     random_questions: formData.random_questions || [],
                     enable_feedback: formData.enable_feedback || false,
-                    custom_feedback_config: formData.custom_feedback_config || { questions: [] }
+                    custom_feedback_config: gp.custom_feedback_config || { questions: [] }
                 };
                 const startDate = formData.program_start_date || formData.program_date;
                 const endDate = formData.program_end_date;
                 const days = formData.program_days || [];
 
-                const isPeriodRequired = !formData.is_recruiting || formData.is_challenge;
+                const isPeriodRequired = formData.is_challenge || formData.schedule_mode === 'RECURRING';
                 noticeData.program_start_date = (isPeriodRequired && startDate)
                     ? new Date(startDate).toISOString().split('T')[0]
                     : null;
                 noticeData.program_end_date = (isPeriodRequired && endDate)
                     ? new Date(endDate).toISOString().split('T')[0]
                     : null;
-                noticeData.program_days = !formData.is_recruiting ? days : [];
+                noticeData.program_days = formData.schedule_mode === 'RECURRING' ? days : [];
 
                 if (!editNoticeId && !noticeData.program_status) {
                     noticeData.program_status = 'ACTIVE';
                 }
             }
 
-            if (editNoticeId) {
-                await noticesApi.update(editNoticeId, noticeData);
-            } else {
-                await noticesApi.create(noticeData);
+            const savedNotice = editNoticeId
+                ? await noticesApi.update(editNoticeId, noticeData)
+                : await noticesApi.create(noticeData);
+            if (isProgram && formData.enable_feedback && formData._program_survey_definition) {
+                const original = formData._program_survey_original_definition;
+                const changed = !formData._program_survey_form_id
+                    || JSON.stringify(original) !== JSON.stringify(formData._program_survey_definition)
+                    || formData._program_survey_template_id !== formData._program_survey_original_template_id;
+                if (changed) {
+                    const savedSurvey = await surveyHubApi.saveProgramSurvey(
+                        savedNotice.id,
+                        formData._program_survey_form_id,
+                        formData._program_survey_template_id,
+                        formData._program_survey_definition
+                    );
+                    noticeData.guest_properties = {
+                        ...(noticeData.guest_properties || {}),
+                        enable_feedback: true,
+                        survey_version_id: savedSurvey.version_id,
+                    };
+                }
+            }
+            if (isProgram && formData.is_challenge) {
+                await challengeMissionsApi.syncMissions(
+                    savedNotice.id,
+                    formData.challenge_format || 'OFFLINE',
+                    formData.challenge_missions || []
+                );
             }
 
-            onSave(noticeData);
+            onSave({ ...noticeData, id: savedNotice.id, challenge_missions: formData.challenge_missions || [] });
 
         } catch (error) {
             console.error('Save error:', error);

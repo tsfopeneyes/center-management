@@ -5,6 +5,7 @@ import { feedbackApi } from '../../../api/feedbackApi';
 import { haifnApi } from '../../../api/haifnApi';
 import { supabase } from '../../../supabaseClient';
 import useModalClose from '../../../hooks/useModalClose';
+import ProgramSurveyGate from '../../surveys/ProgramSurveyGate';
 
 const ProgramFeedbackModal = ({ program, existingFeedback, onClose, onSuccess }) => {
     useModalClose(!!program, onClose);
@@ -457,4 +458,4 @@ const ProgramFeedbackModal = ({ program, existingFeedback, onClose, onSuccess })
     );
 };
 
-export default ProgramFeedbackModal;
+export default function ProgramFeedback(props) { return <ProgramSurveyGate {...props} legacy={<ProgramFeedbackModal {...props} />} />; }

@@ -196,6 +196,30 @@ export const formatKoreanTimeRange = (startDateStr, durationStr) => {
     return start.text;
 };
 
+export const formatCompactShareSchedule = (schedule) => {
+    if (!schedule) return schedule;
+    const compactTime = (hour, minute) => `${Number(hour)}${Number(minute) ? `:${String(minute).padStart(2, '0')}` : ''}`;
+    const suffix = (period) => period === '오전' ? 'am' : 'pm';
+    const rangePattern = /(오전|오후)\s*(\d{1,2})시(?:\s*(\d{1,2})분)?\s*~\s*(?:(오전|오후)\s*)?(\d{1,2})시(?:\s*(\d{1,2})분)?/;
+    const rangeMatch = String(schedule).match(rangePattern);
+
+    if (rangeMatch) {
+        const [, startPeriod, startHour, startMinute, explicitEndPeriod, endHour, endMinute] = rangeMatch;
+        const endPeriod = explicitEndPeriod || startPeriod;
+        const start = compactTime(startHour, startMinute);
+        const end = compactTime(endHour, endMinute);
+        const compactRange = startPeriod === endPeriod
+            ? `${start}-${end}${suffix(endPeriod)}`
+            : `${start}${suffix(startPeriod)}-${end}${suffix(endPeriod)}`;
+        return String(schedule).replace(rangePattern, compactRange);
+    }
+
+    return String(schedule).replace(
+        /(오전|오후)\s*(\d{1,2})시(?:\s*(\d{1,2})분)?/,
+        (_, period, hour, minute) => `${compactTime(hour, minute)}${suffix(period)}`
+    );
+};
+
 export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true, programDays = [], programStartDate = null, programEndDate = null) => {
     if (isRecruiting === false || (programStartDate && programEndDate)) {
         const start = programStartDate || dateStr;
@@ -215,7 +239,9 @@ export const formatProgramSchedule = (dateStr, durationStr, isRecruiting = true,
                 const eDayOfWeek = daysOfWeek[e.getDay()];
                 
                 const timePart = formatKoreanTimeRange(dateStr || programStartDate, durationStr);
-                return `${sMonth}/${sDay}(${sDayOfWeek}) ~ ${eMonth}/${eDay}(${eDayOfWeek}) ${timePart}`;
+                const labels = ['일', '월', '화', '수', '목', '금', '토'];
+                const recurring = programDays?.length ? ` · 매주 ${[...programDays].sort((a, b) => a - b).map(day => labels[day]).join('·')}요일` : '';
+                return `${sMonth}/${sDay} ~ ${eMonth}/${eDay}${recurring} ${timePart}`;
             }
         }
 

@@ -34,8 +34,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         handleBulkUpdateGroup,
         handleDeleteUser,
         handleResetPassword,
-        handleApproveUser,
-        handleToggleAdminRole
+        handleApproveUser
     } = hookData;
 
     return (
@@ -69,7 +68,6 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 setEditingUser={setEditingUser}
                 handleDeleteUser={handleDeleteUser}
                 handleResetPassword={handleResetPassword}
-                handleToggleAdminRole={handleToggleAdminRole}
                 handleApproveUser={handleApproveUser}
                 userStats={editingUser ? getUserStats(editingUser.id) : null}
                 fetchData={fetchData}

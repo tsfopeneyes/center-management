@@ -5,8 +5,9 @@ import { isAdminOrStaff } from '../../../utils/userUtils';
 import useModalClose from '../../../hooks/useModalClose';
 import AdminPageHeader from '../common/AdminPageHeader';
 import SurveyEditor from './SurveyEditor';
+import SurveyHub from './SurveyHub';
 import { resolveSurveyCenterCode, SURVEY_CENTERS } from '../../../utils/surveyAssignments';
-import { deleteSurveyWithResponses, setSurveyResponseAggregationExcluded } from '../../../api/surveyResponsesApi';
+import { setSurveyResponseAggregationExcluded } from '../../../api/surveyResponsesApi';
 
 const DEFAULTS = {
     CHECKIN: {
@@ -339,7 +340,7 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
     const openEditor = (survey) => {
         const assignedCenters = assignments.filter(item => item.survey_id === survey.id && item.enabled).map(item => item.center_code);
         const config = survey.config || DEFAULTS[survey.survey_type];
-        setSelected({ ...survey, config: {
+        setSelected({ ...survey, _originalSurveyType: survey.survey_type, config: {
             ...config,
             exposure: config.exposure || {
                 enabled: true,
@@ -352,7 +353,7 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
         setTab('edit');
     };
 
-    const createSurvey = (type) => {
+    const createSurvey = (type = 'CHECKIN') => {
         setSelected({ id: null, title: `새 ${TYPE_LABEL[type]} 설문`, survey_type: type, config: DEFAULTS[type], status: 'DRAFT' });
         setTab('edit');
     };
@@ -379,6 +380,11 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
                     ? await supabase.from('surveys').update(payload).eq('id', selected.id)
                     : await supabase.from('surveys').insert([payload]).select().single();
                 if (result.error) throw result.error;
+                if (selected.id && selected._originalSurveyType && selected._originalSurveyType !== selected.survey_type) {
+                    const { error: assignmentError } = await supabase.from('survey_assignments')
+                        .delete().eq('survey_id', selected.id);
+                    if (assignmentError) throw assignmentError;
+                }
                 if (payload.status === 'ACTIVE') await saveLegacyNotice(selected, { ...config, _surveyId: result.data?.id || selected.id });
             }
             await fetchData?.();
@@ -412,23 +418,14 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
         if (!survey?.id || survey.synthetic || survey.is_legacy || saving) return;
         setSaving(true);
         try {
-            const { count, error: countError } = await supabase.from('checkin_surveys')
-                .select('id', { count: 'exact', head: true })
-                .eq('survey_id', survey.id);
-            if (countError) throw countError;
-            const responseWarning = count
-                ? `\n\n이 설문의 응답 ${count}건도 함께 영구 삭제됩니다.`
-                : '\n\n저장된 응답은 없습니다.';
-            if (!window.confirm(`'${getSurveyTitle(survey)}' 설문을 삭제할까요?${responseWarning}\n삭제 후에는 복구할 수 없습니다.`)) return;
-            await deleteSurveyWithResponses(supabase, survey.id);
-            await loadSurveys();
-            await fetchData?.();
-            window.alert(count ? `설문과 응답 ${count}건을 삭제했습니다.` : '설문을 삭제했습니다.');
-        } catch (error) {
-            window.alert(`설문 삭제 실패: ${error.message}`);
-        } finally {
-            setSaving(false);
-        }
+            const config = { ...survey.config, exposure: { ...survey.config?.exposure, enabled: false, centers: [] } };
+            const { error } = await supabase.from('surveys').update({ status: 'ARCHIVED', config }).eq('id', survey.id);
+            if (error) throw error;
+            const assignments = await supabase.from('survey_assignments').update({ enabled: false }).eq('survey_id', survey.id);
+            if (assignments.error) throw assignments.error;
+            await loadSurveys(); await fetchData?.();
+        } catch (error) { window.alert('설문 보관 실패: ' + error.message); }
+        finally { setSaving(false); }
     };
 
     const resultSurvey = selected || surveys[0];
@@ -518,7 +515,7 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
                         <label className="relative flex-1 max-w-md"><Search className="absolute left-3 top-3 text-gray-400" size={18} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="설문 검색" className="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-3 py-2.5 text-sm outline-none focus:border-blue-500" /></label>
                         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold"><option value="ALL">전체</option><option value="CHECKIN">입실</option><option value="CHECKOUT">퇴실</option></select>
                     </div>
-                    <div className="flex gap-2"><button onClick={() => createSurvey('CHECKIN')} disabled={!tableReady} className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold flex items-center gap-2 shadow-sm hover:bg-blue-700 disabled:opacity-40"><Plus size={16} />입실 설문</button><button onClick={() => createSurvey('CHECKOUT')} disabled={!tableReady} className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold flex items-center gap-2 shadow-sm hover:bg-emerald-700 disabled:opacity-40"><Plus size={16} />퇴실 설문</button></div>
+                    <button onClick={() => createSurvey()} disabled={!tableReady} className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold flex items-center gap-2 shadow-sm hover:bg-blue-700 disabled:opacity-40"><Plus size={16} />새 설문</button>
                 </div>
                 <div className="rounded-[24px] border border-[#f2f4f6] bg-white overflow-hidden shadow-sm">
                     <div className="hidden md:grid grid-cols-[minmax(260px,1fr)_80px_80px_260px_220px] gap-3 px-5 py-3 bg-gray-50 text-xs font-bold text-gray-500"><span>설문</span><span>구분</span><span>응답</span><span>적용 공간</span><span>관리</span></div>
@@ -530,12 +527,12 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
                             const connected = isSurveyConnected(survey, center.code);
                             return <button key={center.code} type="button" disabled={survey.synthetic || saving || !assignmentsReady} onClick={event => { event.stopPropagation(); toggleAssignment(survey, center.code); }} className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors disabled:opacity-40 ${connected ? (survey.survey_type === 'CHECKIN' ? 'border-blue-600 bg-blue-600 text-white' : 'border-emerald-600 bg-emerald-600 text-white') : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>{center.label} {TYPE_LABEL[survey.survey_type]}</button>;
                         })}</div>
-                        <div className="flex gap-2"><div className="flex"><button onClick={event => { event.stopPropagation(); moveSurvey(survey,-1); }} disabled={survey.synthetic || saving} title="위로" className="rounded-l-xl border border-gray-200 bg-white p-2 disabled:opacity-30"><ArrowUp size={14}/></button><button onClick={event => { event.stopPropagation(); moveSurvey(survey,1); }} disabled={survey.synthetic || saving} title="아래로" className="rounded-r-xl border-y border-r border-gray-200 bg-white p-2 disabled:opacity-30"><ArrowDown size={14}/></button></div><button onClick={event => { event.stopPropagation(); openEditor(survey); }} className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-bold hover:bg-gray-50">편집</button><button onClick={event => { event.stopPropagation(); duplicateSurvey(survey); }} disabled={!tableReady} title="복제" className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40"><Copy size={15} /></button><button onClick={event => { event.stopPropagation(); deleteSurvey(survey); }} disabled={survey.synthetic || survey.is_legacy || saving} title={survey.synthetic || survey.is_legacy ? '기본 설문은 삭제할 수 없습니다' : '설문 삭제'} className="p-2 rounded-xl border border-red-100 bg-white text-red-500 hover:bg-red-50 disabled:text-gray-300 disabled:border-gray-200 disabled:opacity-40"><Trash2 size={15} /></button>{survey.status !== 'ACTIVE' && !survey.synthetic && <button onClick={event => { event.stopPropagation(); activateSurvey(survey); }} disabled={saving} className="px-3 py-2 rounded-xl bg-gray-900 text-white text-xs font-bold">사용 가능</button>}</div>
+                        <div className="flex gap-2"><div className="flex"><button onClick={event => { event.stopPropagation(); moveSurvey(survey,-1); }} disabled={survey.synthetic || saving} title="위로" className="rounded-l-xl border border-gray-200 bg-white p-2 disabled:opacity-30"><ArrowUp size={14}/></button><button onClick={event => { event.stopPropagation(); moveSurvey(survey,1); }} disabled={survey.synthetic || saving} title="아래로" className="rounded-r-xl border-y border-r border-gray-200 bg-white p-2 disabled:opacity-30"><ArrowDown size={14}/></button></div><button onClick={event => { event.stopPropagation(); openEditor(survey); }} className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-bold hover:bg-gray-50">편집</button><button onClick={event => { event.stopPropagation(); duplicateSurvey(survey); }} disabled={!tableReady} title="복제" className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40"><Copy size={15} /></button><button onClick={event => { event.stopPropagation(); deleteSurvey(survey); }} disabled={survey.synthetic || survey.is_legacy || saving} title={survey.synthetic || survey.is_legacy ? '기본 설문은 보관할 수 없습니다' : '설문 보관 (응답 유지)'} className="p-2 rounded-xl border border-red-100 bg-white text-red-500 hover:bg-red-50 disabled:text-gray-300 disabled:border-gray-200 disabled:opacity-40"><Trash2 size={15} /></button>{survey.status !== 'ACTIVE' && !survey.synthetic && <button onClick={event => { event.stopPropagation(); activateSurvey(survey); }} disabled={saving} className="px-3 py-2 rounded-xl bg-gray-900 text-white text-xs font-bold">사용 가능</button>}</div>
                     </div>)}
                 </div>
             </>}
 
-            {tab === 'edit' && selected && <SurveyEditor type={selected.survey_type} initialConfig={selected.config} onSave={saveSurvey} onCancel={() => setTab('list')} isSaving={saving} />}
+            {tab === 'edit' && selected && <SurveyEditor type={selected.survey_type} initialConfig={selected.config} canChangeType={!selected.synthetic && !selected.is_legacy} onTypeChange={type => setSelected(current => ({ ...current, survey_type: type }))} onSave={saveSurvey} onCancel={() => setTab('list')} isSaving={saving} />}
 
             {tab === 'results' && <div className="space-y-5">
                 <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm flex flex-col md:flex-row gap-3 justify-between md:items-center"><div className="flex items-center gap-3"><button onClick={() => { setTab('list'); setSelected(null); }} className="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50" title="설문 목록으로"><ArrowLeft size={18} /></button><div><p className="text-xs font-bold text-blue-600">{TYPE_LABEL[resultSurvey?.survey_type]} 설문 결과</p><h2 className="text-xl font-bold text-gray-900 mt-0.5">{getSurveyTitle(resultSurvey)}</h2></div></div><div className="flex flex-wrap items-center gap-2"><div className="flex items-center gap-2 text-sm font-bold text-gray-600"><Users size={17} />집계 {resultRows.length}건{excludedResultCount > 0 && <span className="text-gray-400">· 제외 {excludedResultCount}건</span>}</div><button type="button" onClick={() => setShowExcludedResponses(current => !current)} className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${showExcludedResponses ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>{showExcludedResponses ? '집계 응답 보기' : `제외된 응답 보기 (${excludedResultCount})`}</button></div></div>
@@ -553,4 +550,7 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
     );
 };
 
-export default AdminSurveys;
+export default function SurveyManagement(props) {
+    const [legacy, setLegacy] = useState(false);
+    return legacy ? <><button className="mb-4 rounded-xl border bg-white px-4 py-2 font-bold" onClick={() => setLegacy(false)}>← 통합 설문 관리</button><AdminSurveys {...props} /></> : <SurveyHub {...props} onLegacy={() => setLegacy(true)} />;
+}

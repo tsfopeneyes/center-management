@@ -4,6 +4,7 @@ import { Send, MessageCircle, ArrowLeft, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import LinkPreview from '../common/LinkPreview';
 import { extractUrls } from '../../utils/linkUtils';
+import { userApi } from '../../api/userApi';
 
 const StudentChat = ({ currentUser, onRefreshUnread, onSubViewToggle }) => {
     // State
@@ -72,13 +73,8 @@ const StudentChat = ({ currentUser, onRefreshUnread, onSubViewToggle }) => {
     };
     const fetchStaff = async () => {
         try {
-            const { data, error } = await supabase
-                .from('users')
-                .select('id, name, user_group')
-                .eq('user_group', 'STAFF')
-                .neq('name', 'admin');
-            if (error) throw error;
-            setStaffList(data || []);
+            const data = await userApi.fetchStaff();
+            setStaffList(data);
         } catch (err) {
             console.error('Error fetching staff:', err);
         }

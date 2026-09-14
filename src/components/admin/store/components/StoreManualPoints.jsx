@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import { Search, UserPlus, History, Award, CheckCircle2, X, Trash2 } from 'lucide-react';
+import { isAdminOrStaff } from '../../../../utils/userUtils';
+import { userApi } from '../../../../api/userApi';
 
 const AMOUNTS = [1, 3, 5, 10, 15, 20, 30];
 
@@ -50,11 +52,12 @@ const StoreManualPoints = ({ users: propUsers }) => {
             // Fetch active students
             const { data: userData } = await supabase
                 .from('users')
-                .select('id, name, school, user_group, phone_back4')
+                .select('id,name,school,user_group,phone_back4')
                 .neq('user_group', '게스트')
                 .neq('user_group', '미가입')
                 .order('name');
-            setUsers(userData || []);
+            const usersWithRoles = await userApi.attachAccountRoles(userData || []);
+            setUsers(usersWithRoles.filter(user => !isAdminOrStaff(user)));
 
             // Fetch recent transactions (manual & automatic)
             const { data: historyData } = await supabase
@@ -73,7 +76,7 @@ const StoreManualPoints = ({ users: propUsers }) => {
     useEffect(() => {
         if (propUsers && propUsers.length > 0) {
             const filtered = propUsers.filter(u => 
-                u.name !== 'admin' && 
+                !isAdminOrStaff(u) &&
                 u.user_group !== '게스트' && 
                 u.user_group !== '미가입' &&
                 u.preferences?.is_temporary !== true

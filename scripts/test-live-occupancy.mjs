@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { calculateCurrentLocations } from '../src/utils/liveOccupancyUtils.js';
+import { calculateCurrentLocations, countActiveUsersByGroup, mergeRealtimeVisitLog } from '../src/utils/liveOccupancyUtils.js';
 
 const canonicalEnoughPlaceId = 'ENOUGH_PLACE';
 const visitDate = '2026-09-02';
@@ -46,6 +46,23 @@ assert.equal(
     null,
     'Checkout must clear the active occupancy.'
 );
+
+const mergedCheckout = mergeRealtimeVisitLog([checkin], { eventType: 'INSERT', new: checkout, old: {} });
+assert.equal(
+    calculateCurrentLocations(mergedCheckout, activeNow)['student-1'],
+    null,
+    'A realtime checkout must update the local snapshot without a full refetch.'
+);
+
+const groups = [{ id: 'gangseo' }, { id: 'gangdong' }];
+const groupCounts = countActiveUsersByGroup({
+    currentLocations: calculateCurrentLocations([checkin, move], activeNow),
+    users: [{ id: 'student-1' }, { id: 'student-2', account_role: 'staff' }],
+    locations: [{ id: canonicalEnoughPlaceId, group_id: 'gangseo' }],
+    groups,
+    isStaff: user => user.account_role === 'staff',
+});
+assert.deepEqual(groupCounts, { gangseo: 1, gangdong: 0, unassigned: 0 }, 'Staff must remain excluded from live occupancy totals.');
 
 assert.equal(
     calculateCurrentLocations([checkin], new Date('2026-09-03T01:00:00.000Z'))['student-1'],

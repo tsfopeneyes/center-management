@@ -2,10 +2,32 @@ import React from 'react';
 import {RefreshCw,CheckCircle2,Eye,Edit2,Trash2} from 'lucide-react';
 import {CATEGORIES} from '../../utils/constants';
 import NoticeEngagementStats from './NoticeEngagementStats';
+import { usesDailySessionRsvp, isRecurringProgram } from '../../../../../utils/dailyProgramSessions';
 
-export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isActive,onViewDetails,onOpenParticipants,onOpenFeedback,onStatusChange,onEdit,onDelete}) {
+export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isActive,onViewDetails,onOpenParticipants,onOpenCommunity,onOpenFeedback,onOpenTodaySession,onStatusChange,onEdit,onDelete}) {
     const hasFeedback=(noticeStats[notice.id]?.feedbackCount || 0)>0;
+    const usesTodaySession = usesDailySessionRsvp(notice);
+    const managesOpenAttendance = notice.is_recruiting === false && isRecurringProgram(notice);
+    const recruitingSessionCount = Array.isArray(notice.open_sessions)
+        ? notice.open_sessions.filter(session => session.status === 'OPEN').length
+        : (notice.today_session?.status === 'OPEN' ? 1 : 0);
+    const nearestSession = usesTodaySession
+        ? (notice.open_sessions?.[0] || notice.today_session || null)
+        : null;
+    const displayedStats = nearestSession
+        ? { JOIN: nearestSession.join_count || 0, WAITLIST: nearestSession.waitlist_count || 0 }
+        : noticeStats[notice.id];
+    const todaySessionLabel = `회차 관리 · ${recruitingSessionCount}개 모집 중`;
     const participantButtonClass = 'text-[9px] md:text-[10px] px-3 py-1.5 rounded-xl font-semibold transition-all bg-[#e8f3ff] text-[#1b64da] hover:bg-[#d0e6ff] hover:scale-[1.02] active:scale-[0.98]';
+    const hasCommunity = notice.is_challenge && notice.challenge_format === 'ONLINE' && notice.community_enabled;
+    const communityButton = hasCommunity ? (
+        <button
+            onClick={(event) => { event.stopPropagation(); onOpenCommunity(notice); }}
+            className="flex items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-[9px] font-semibold text-emerald-700 transition-all hover:bg-emerald-100 active:scale-95 md:text-[10px]"
+        >
+            커뮤니티
+        </button>
+    ) : null;
     return (
             <div className="mt-auto space-y-2 md:space-y-3">
                 {(mode === CATEGORIES.PROGRAM || notice.is_poll) && (
@@ -17,7 +39,7 @@ export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isAc
                         <div className={`flex gap-3 font-semibold items-center text-[#4e5968] ${viewMode === 'smaller' ? 'text-[9px]' : 'text-[10px] md:text-[11px]'}`}>
                             {notice.is_poll && notice.is_recruiting ? (
                                 <>
-                                    <span>신청 <span className={isActive ? "text-[#1b64da] font-bold" : "text-[#8b95a1] font-bold"}>{noticeStats[notice.id]?.JOIN || 0}</span></span>
+                                    <span>신청 <span className={isActive ? "text-[#1b64da] font-bold" : "text-[#8b95a1] font-bold"}>{displayedStats?.JOIN || 0}</span></span>
                                     <span>투표 <span className={isActive ? "text-[#7c3aed] font-bold" : "text-[#8b95a1] font-bold"}>{noticeStats[notice.id]?.pollTotal || 0}</span></span>
                                 </>
                             ) : notice.is_poll ? (
@@ -26,8 +48,8 @@ export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isAc
                                 </span>
                             ) : notice.is_recruiting ? (
                                 <>
-                                    <span>신청 <span className={isActive ? "text-[#1b64da] font-bold" : "text-[#8b95a1] font-bold"}>{noticeStats[notice.id]?.JOIN || 0}</span></span>
-                                    {viewMode !== 'smaller' && <span className="text-[#8b95a1] font-medium">대기 <span className="text-[#ff6b00] font-bold">{noticeStats[notice.id]?.WAITLIST || 0}</span></span>}
+                                    <span>신청 <span className={isActive ? "text-[#1b64da] font-bold" : "text-[#8b95a1] font-bold"}>{displayedStats?.JOIN || 0}</span></span>
+                                    {viewMode !== 'smaller' && <span className="text-[#8b95a1] font-medium">대기 <span className="text-[#ff6b00] font-bold">{displayedStats?.WAITLIST || 0}</span></span>}
                                 </>
                             ) : (
                                 <span className={isActive ? "text-[#333d4b] font-semibold" : "text-[#8b95a1] font-semibold"}>오픈 프로그램</span>
@@ -42,6 +64,7 @@ export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isAc
                                 >
                                     명단
                                 </button>
+                                {communityButton}
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); onOpenParticipants(notice, 'poll'); }} 
                                     className="text-[9px] md:text-[10px] px-2.5 py-1 rounded-xl font-semibold transition-all bg-purple-100 text-purple-700 hover:bg-purple-200 active:scale-95"
@@ -59,12 +82,30 @@ export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isAc
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5">
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); onOpenParticipants(notice, notice.is_poll ? 'poll' : 'attendance'); }} 
-                                    className={participantButtonClass}
-                                >
-                                    {notice.is_poll ? '투표결과' : '명단'}
-                                </button>
+                                {(usesTodaySession || managesOpenAttendance) ? (
+                                    <>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onOpenParticipants(notice, 'attendance'); }}
+                                            className={participantButtonClass}
+                                        >
+                                            명단
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onOpenTodaySession(notice); }}
+                                            className="rounded-xl bg-blue-600 px-3 py-1.5 text-[10px] font-black text-white shadow-sm hover:bg-blue-700 active:scale-[0.98]"
+                                        >
+                                            {managesOpenAttendance ? (notice.today_session ? '운영 관리' : '오늘 운영 시작') : todaySessionLabel}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onOpenParticipants(notice, notice.is_poll ? 'poll' : 'attendance'); }}
+                                        className={participantButtonClass}
+                                    >
+                                        {notice.is_poll ? '투표결과' : '명단'}
+                                    </button>
+                                )}
+                                {communityButton}
                                 {hasFeedback && (
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onOpenFeedback(notice); }}

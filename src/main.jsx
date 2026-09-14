@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
+import { AuthProvider } from './auth/AuthProvider.jsx'
 
 const container = document.getElementById('root');
 
@@ -10,15 +11,15 @@ if (container) {
     try {
         if (typeof createRoot === 'function') {
             const root = createRoot(container);
-            root.render(<App />);
+            root.render(<AuthProvider><App /></AuthProvider>);
         } else if (ReactDOM.render) {
-            ReactDOM.render(<App />, container);
+            ReactDOM.render(<AuthProvider><App /></AuthProvider>, container);
         }
     } catch (e) {
         console.warn('createRoot failed, attempting legacy render:', e);
         try {
             if (ReactDOM.render) {
-                ReactDOM.render(<App />, container);
+                ReactDOM.render(<AuthProvider><App /></AuthProvider>, container);
             }
         } catch (err) {
             console.error('Legacy render failed:', err);

@@ -1,3 +1,5 @@
+import { isRecurringProgram } from './dailyProgramSessions';
+
 // Recruitment is a derived display state. Never write it to program_status:
 // that field controls attendance finalization and rewards.
 export const toKstInput = (value) => {
@@ -38,17 +40,20 @@ export const getMissingProgramDetails = (program) => {
 
 export const validateRecruitmentForm = (form, now = Date.now()) => {
     if (!form.is_recruiting) return null;
-    if (form._legacy_recruitment && !form.recruitment_start_at) return null;
+    const sessionScoped = form.schedule_mode === 'RECURRING' && form.application_scope === 'SESSION';
+    if (form._legacy_recruitment && !form.recruitment_start_at && !sessionScoped) return null;
     const start = fromKstInput(form.recruitment_start_at);
     const end = fromKstInput(form.recruitment_deadline);
-    if (!start || !end) return '모집 시작과 종료 일시를 모두 입력해주세요. (한국 시간)';
-    if (new Date(start) >= new Date(end)) return '모집 종료는 시작보다 뒤여야 합니다.';
-    const programStart = fromKstInput(form.program_date);
-    if (!form.is_challenge && programStart && new Date(end) > new Date(programStart)) return '모집 종료는 프로그램 시작 시각보다 늦을 수 없습니다.';
-    if (form.is_challenge && form.program_end_date && new Date(end) > new Date(`${form.program_end_date}T23:59:59.999+09:00`)) return '모집 종료는 챌린지 종료일보다 늦을 수 없습니다.';
+    if (!sessionScoped) {
+        if (!start || !end) return '모집 시작과 종료 일시를 모두 입력해주세요. (한국 시간)';
+        if (new Date(start) >= new Date(end)) return '모집 종료는 시작보다 뒤여야 합니다.';
+        const programStart = fromKstInput(form.program_date);
+        if (!form.is_challenge && programStart && new Date(end) > new Date(programStart)) return '모집 종료는 프로그램 시작 시각보다 늦을 수 없습니다.';
+        if (form.is_challenge && form.program_end_date && new Date(end) > new Date(`${form.program_end_date}T23:59:59.999+09:00`)) return '모집 종료는 챌린지 종료일보다 늦을 수 없습니다.';
+    }
     if (!Array.isArray(form.target_regions) || !form.target_regions.length) return '프로그램을 공개할 센터(지역)를 선택해주세요.';
     if (form.max_capacity !== '' && (!Number.isInteger(Number(form.max_capacity)) || Number(form.max_capacity) < 0)) return '정원은 0 이상의 정수로 입력해주세요.';
-    if (new Date(start).getTime() <= Number(now)) {
+    if (sessionScoped || new Date(start).getTime() <= Number(now)) {
         const missing = getMissingProgramDetails(form);
         if (missing.length) return `모집 시작 후에는 다음 정보를 입력해주세요: ${missing.join(', ')}`;
     }
@@ -59,6 +64,17 @@ export const getRecruitment = (program, now = Date.now()) => {
     if (!program || program.category !== 'PROGRAM' || program.is_recruiting !== true) {
         return { status: 'NONE', label: '', canViewDetails: true, canApply: false, message: '' };
     }
+    if (isRecurringProgram(program) && program?.guest_properties?.application_scope === 'SESSION') {
+        const session = program.today_session;
+        const open = session?.status === 'OPEN' && Number(now) < Date.parse(session.starts_at);
+        return {
+            status: open ? 'OPEN' : 'CLOSED',
+            label: open ? '회차 신청 중' : '신청 회차 없음',
+            canViewDetails: true,
+            canApply: open,
+            message: open ? '' : '현재 신청받는 회차가 없습니다.',
+        };
+    }
     const startValue = getRecruitmentStart(program);
     const start = startValue ? new Date(startValue).getTime() : null;
     const end = program.recruitment_deadline ? new Date(program.recruitment_deadline).getTime() : null;
@@ -66,7 +82,7 @@ export const getRecruitment = (program, now = Date.now()) => {
     const cancelled = program.program_status === 'CANCELLED';
     const completed = program.program_status === 'COMPLETED' || (program.guest_properties?.is_ended ?? program.is_ended) === true;
     // Challenges can accept participants during their multi-day run.
-    const programCutoff = program.is_challenge
+    const programCutoff = (program.is_challenge || isRecurringProgram(program))
         ? (program.program_end_date ? new Date(`${program.program_end_date.slice(0, 10)}T23:59:59.999+09:00`).getTime() + 1 : null)
         : (program.program_date ? new Date(program.program_date).getTime() : null);
     let status = 'OPEN';

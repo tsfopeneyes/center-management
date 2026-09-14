@@ -28,10 +28,10 @@ try {
     await query('INSERT INTO auth.users VALUES($1,false,NULL)',[a]);
     await query('INSERT INTO auth.sessions VALUES($1,$2,NULL)',[s,a]);
     await query("INSERT INTO account_security.accounts VALUES($1,$2,true,'active',1,false)",[p,a]);
-    await query("INSERT INTO account_security.account_roles VALUES($1,'staff',true)",[p]);
+    await query("INSERT INTO account_security.account_roles VALUES($1,'admin',true)",[p]);
     await query("INSERT INTO account_security.session_assurances VALUES($1,$2,$3,1,'trusted',now()+interval '1 hour')",[s,a,p]);
     await db.exec('SET ROLE account_profile_worker');
-    const own=await readService({accessToken:'test-token',profileId:p});assert.equal(own.profile.role,'staff');
+    const own=await readService({accessToken:'test-token',profileId:p});assert.equal(own.profile.role,'admin');
     assert.equal('password' in own.profile,false);assert.equal('auth_user_id' in own.profile,false);
     await owner(()=>query("UPDATE account_security.session_assurances SET valid_until=now()-interval '1 second' WHERE session_id=$1",[s]));
     assert.equal((await readService({accessToken:'test-token',profileId:p})).profile.id,p,

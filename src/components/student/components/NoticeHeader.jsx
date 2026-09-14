@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ArrowLeft, Edit2, Trash2, Share, X, Download, Copy } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { formatCompactShareSchedule } from '../../../utils/dateUtils';
 
 const NoticeHeader = ({
     onClose,
@@ -20,10 +21,11 @@ const NoticeHeader = ({
     const getShareLink = () => `${window.location.origin}/p/${noticeId}`;
     const getShareText = () => [
         shareTitle || 'SCI CENTER 프로그램',
-        shareSchedule ? `일정: ${shareSchedule}` : null,
-        `장소: ${shareLocation || '미정'}`,
-        '프로그램 내용을 확인하고 신청해 보세요!'
-    ].filter(Boolean).join('\n');
+        shareSchedule ? `📅 ${formatCompactShareSchedule(shareSchedule)}` : null,
+        `📍 ${shareLocation || '미정'}`,
+        '',
+        '우리가 연결되는 곳, 하이픈에서 만나요!'
+    ].filter(value => value !== null).join('\n');
 
     const shareNotice = async () => {
         const link = getShareLink();
@@ -34,9 +36,7 @@ const NoticeHeader = ({
 
         try {
             await navigator.share({
-                title: shareTitle || 'SCI CENTER 프로그램',
-                text: getShareText(),
-                url: link
+                text: `${getShareText()}\n${link}`
             });
         } catch (err) {
             if (err?.name !== 'AbortError') console.error('Failed to share notice:', err);

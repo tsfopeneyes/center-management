@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { resolveSchoolRegion } from '../../utils/schoolRegionUtils';
 import { recruitmentNotificationGroup } from '../../utils/recruitmentNotificationAudience';
+import { isAdminOrStaff } from '../../utils/userUtils';
 
 export const useDashboardNotifications = (user) => {
     const [notifications, setNotifications] = useState([]);
@@ -16,7 +17,7 @@ export const useDashboardNotifications = (user) => {
             const ownGroup = recruitmentNotificationGroup(currentUser, auth?.session?.user);
             if (ownGroup) groups.push(ownGroup);
         }
-        if (currentUser.role === 'admin' || currentUser.user_group === 'STAFF') groups.push('STAFF');
+        if (isAdminOrStaff(currentUser)) groups.push('STAFF');
 
         // Notifications can target a center region without exposing the full
         // recipient list. Resolve the student's school to its configured
@@ -60,7 +61,7 @@ export const useDashboardNotifications = (user) => {
                 .map((notif) => notif.notice_id)
                 .filter(Boolean))];
             let visibleNotifs = notifs || [];
-            if (noticeIds.length > 0 && currentUser.role !== 'admin' && currentUser.user_group !== 'STAFF') {
+            if (noticeIds.length > 0 && !isAdminOrStaff(currentUser)) {
                 const [{ data: sourceNotices, error: sourceNoticeError }, previews] = await Promise.all([
                     supabase.from('notices').select('id, target_regions').in('id', noticeIds),
                     supabase.from('program_calendar_previews').select('id, target_regions').in('id', noticeIds)

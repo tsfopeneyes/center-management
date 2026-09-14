@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HelpCircle, ChevronRight, X, Sparkles, Clock, CheckCircle } from 'lucide-react';
+import SurveyRunner from '../../components/surveys/SurveyRunner';
 
 const CheckinSurveyModal = ({
     isOpen,
@@ -14,6 +15,7 @@ const CheckinSurveyModal = ({
 }) => {
     const [selectedIds, setSelectedIds] = useState([]);
     const [countdown, setCountdown] = useState(10);
+    const [customText, setCustomText] = useState('');
 
     // Reset selection state when modal opens
     useEffect(() => {
@@ -43,7 +45,7 @@ const CheckinSurveyModal = ({
 
     if (!isOpen) return null;
 
-    const [customText, setCustomText] = useState('');
+    if (surveyConfig?._surveyLink) return <SurveyRunner link={surveyConfig._surveyLink} userId={user?.id} onClose={() => onComplete([])} onComplete={(_, summary) => onComplete(summary)} />;
 
     const activeMode = surveyConfig?.mode || 'SURVEY';
     const question = surveyConfig?.question || '오늘 하이픈에서 무엇을 하고 싶나요?';

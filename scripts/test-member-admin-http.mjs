@@ -13,12 +13,13 @@ const handler=createMemberAdminHandler({members,allowedOrigins:['https://app.exa
 const fetcher=async(url,options)=>handler(new Request(url,{...options,headers:{...options.headers,Origin:'https://app.example'}}));
 const transport=createMemberAdminTransport({endpoint:'https://api.example/members',publishableKey:'public',
     auth:{getSession:async()=>({data:{session:{access_token:'token'}}})},fetcher});
-await transport.setRole({profileId:ids[0],admin:true});
+await transport.setRole({profileId:ids[0],targetRole:'master',reason:'test_role_change'});
 await transport.withdraw({profileId:ids[1]});
 await transport.merge({requestId:ids[0],sourceProfileId:ids[1],targetProfileId:ids[2]});
 assert.deepEqual(await transport.listReviews(),{protocol:1,status:'ok',reviews:[]});
 assert.deepEqual(calls.map(item=>item[0]),['role','withdraw','merge','list']);
 for(const [,input] of calls)assert.equal(input.accessToken,'token');
+assert.equal(calls[0][1].targetRole,'master');
 assert.equal((await handler(new Request('https://api.example/members',{method:'POST',body:'{}'}))).status,401);
 assert.equal((await handler(new Request('https://api.example/members',{method:'POST',headers:{Authorization:'Bearer token'},
     body:JSON.stringify({protocol:1,action:'list-merge-reviews',extra:true})}))).status,400);

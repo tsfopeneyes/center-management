@@ -4,50 +4,31 @@ import { Award, CheckCircle, Clock, FileText, Check, X as XIcon } from 'lucide-r
 import { supabase } from '../../../../../supabaseClient';
 import { haifnApi } from '../../../../../api/haifnApi';
 
-const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClick }) => {
+const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClick, onOpenMissionPosts }) => {
     const [previewImage, setPreviewImage] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
     const challengers = participantList.JOIN || [];
     const missions = notice.challenge_missions || [];
+    const isOnline = notice.challenge_format === 'ONLINE';
 
     const handleMissionAction = async (studentId, missionId, approve) => {
         setActionLoading(true);
         try {
-            // 1. Get current response row
-            const { data: response, error: fetchErr } = await supabase
-                .from('notice_responses')
-                .select('challenge_mission_statuses')
-                .eq('notice_id', notice.id)
-                .eq('user_id', studentId)
-                .single();
-
-            if (fetchErr) throw fetchErr;
-
-            const currentStatuses = response.challenge_mission_statuses || {};
-            const missionStatus = currentStatuses[missionId] || {};
-
-            if (approve) {
-                // Approve submission
-                missionStatus.completed = true;
-                missionStatus.completed_at = new Date().toISOString();
-                currentStatuses[missionId] = missionStatus;
-            } else {
-                // Reject submission: clear image and status
-                delete currentStatuses[missionId];
-            }
-
-            // 2. Save back to notice_responses
             const { error: updateErr } = await supabase
-                .from('notice_responses')
-                .update({ challenge_mission_statuses: currentStatuses })
-                .eq('notice_id', notice.id)
-                .eq('user_id', studentId);
+                .from('offline_challenge_submissions')
+                .update(approve
+                    ? { status: 'COMPLETED', completed_at: new Date().toISOString(), reviewed_at: new Date().toISOString() }
+                    : { status: 'REJECTED', completed_at: null, reviewed_at: new Date().toISOString() })
+                .eq('challenge_id', notice.id).eq('mission_id', missionId).eq('participant_id', studentId);
 
             if (updateErr) throw updateErr;
 
             // 3. If approved, check if all missions are completed to grant haifn reward
             if (approve) {
-                const isAllCompleted = missions.every(m => currentStatuses[m.id]?.completed);
+                const student = challengers.find(item => item.id === studentId);
+                const completedIds = new Set((student?.challenge_submissions || []).filter(item => item.status === 'COMPLETED').map(item => item.mission_id));
+                completedIds.add(missionId);
+                const isAllCompleted = missions.every(mission => completedIds.has(mission.id));
                 if (isAllCompleted && notice.haifn_reward > 0) {
                     const admin = JSON.parse(localStorage.getItem('admin_user'));
                     const adminId = admin?.id || null;
@@ -101,9 +82,14 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {challengers.map((student) => {
-                                const statuses = student.challenge_mission_statuses || {};
-                                const completedCount = missions.filter(m => statuses[m.id]?.completed).length;
-                                const isAllCompleted = completedCount === missions.length && missions.length > 0;
+                                const allSubmissions = student.challenge_submissions || [];
+                                const submissions = allSubmissions.filter(item => isOnline ? item.is_valid !== false : item.status === 'COMPLETED');
+                                const completedCount = isOnline ? submissions.length : missions.filter(mission => submissions.some(item => item.mission_id === mission.id)).length;
+                                const requiredCount = isOnline ? missions.reduce((sum, mission) => {
+                                    if (mission.schedule_type === 'DAILY') return sum + Math.max(1, Math.round((new Date(`${notice.program_end_date}T00:00:00+09:00`) - new Date(`${notice.program_start_date}T00:00:00+09:00`)) / 86400000) + 1);
+                                    return sum + (mission.schedule_type === 'FLEXIBLE' ? Math.max(1, Number(mission.target_count) || 1) : 1);
+                                }, 0) : missions.length;
+                                const isAllCompleted = completedCount >= requiredCount && requiredCount > 0;
 
                                 return (
                                     <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
@@ -132,7 +118,7 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                                                         ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
                                                         : 'bg-blue-50 text-blue-600 border border-blue-100'
                                                 }`}>
-                                                    {completedCount} / {missions.length} 완료
+                                                    {completedCount} / {requiredCount} 완료
                                                 </span>
                                                 {isAllCompleted && (
                                                     <span className="text-[9px] text-emerald-500 font-black mt-1 uppercase tracking-wider">SUCCESS!</span>
@@ -142,20 +128,23 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                                         <td className="py-4 pl-6">
                                             <div className="flex flex-wrap gap-2.5">
                                                 {missions.map((mission) => {
-                                                    const mStatus = statuses[mission.id] || {};
-                                                    const isDone = mStatus.completed;
-                                                    const hasImage = !!mStatus.auth_image;
+                                                    const missionSubmissions = allSubmissions.filter(item => item.mission_id === mission.id && (isOnline ? item.is_valid !== false : true));
+                                                    const mStatus = missionSubmissions[0] || {};
+                                                    const isDone = isOnline ? missionSubmissions.length > 0 : mStatus.status === 'COMPLETED';
+                                                    const hasImage = !!mStatus.auth_image_url;
                                                     const hasText = !!mStatus.auth_text;
-                                                    const hasEvidence = hasImage || hasText;
+                                                    const hasEvidence = isOnline ? missionSubmissions.length > 0 : hasImage || hasText;
 
                                                     return (
                                                         <button
                                                             key={mission.id}
                                                             type="button"
                                                             onClick={() => {
-                                                                if (hasEvidence) {
+                                                                if (hasEvidence && isOnline) {
+                                                                    onOpenMissionPosts?.(student, mission);
+                                                                } else if (hasEvidence) {
                                                                     setPreviewImage({
-                                                                        url: mStatus.auth_image,
+                                                                        url: mStatus.auth_image_url,
                                                                         text: mStatus.auth_text,
                                                                         type: hasText ? 'text' : 'photo',
                                                                         title: `${student.name} - ${mission.title}`,
@@ -183,7 +172,7 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                                                                 <Clock size={12} className="text-gray-300" />
                                                             )}
                                                             <span>{mission.title}</span>
-                                                            {hasEvidence && !isDone && (
+                                                            {hasEvidence && !isDone && !isOnline && (
                                                                 <span className="text-[9px] bg-amber-200 text-amber-800 px-1 rounded ml-1 font-black">검토필요</span>
                                                             )}
                                                         </button>
@@ -296,7 +285,9 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
 ChallengeStatusSection.propTypes = {
     notice: PropTypes.object.isRequired,
     participantList: PropTypes.object.isRequired,
-    onRefresh: PropTypes.func
+    onRefresh: PropTypes.func,
+    onUserClick: PropTypes.func,
+    onOpenMissionPosts: PropTypes.func,
 };
 
 export default ChallengeStatusSection;

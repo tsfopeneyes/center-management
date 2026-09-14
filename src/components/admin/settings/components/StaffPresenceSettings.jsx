@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Users, Search, Check, Save, X } from 'lucide-react';
 import UserAvatar from '../../../common/UserAvatar';
+import { isAdminOrStaff } from '../../../../utils/userUtils';
 
 const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [], "이높플레이스": [] }, onSave, isSaving }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -14,14 +15,7 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
         }
     }, [selectedStaffConfig]);
 
-    // Filter staff candidates from all users:
-    // users who are admin role, STAFF/관리자 group, or name is 'admin'
-    const candidates = users.filter(u => 
-        u.role === 'admin' || 
-        u.user_group === 'STAFF' || 
-        u.user_group === '관리자' || 
-        u.name === 'admin'
-    );
+    const candidates = users.filter(isAdminOrStaff);
 
     // Filter by search term
     const filteredCandidates = candidates.filter(u => 

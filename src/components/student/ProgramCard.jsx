@@ -6,6 +6,7 @@ import { parseDurationToMinutes, formatKoreanTimeRange } from '../../utils/dateU
 import { getRecruitment, getRecruitmentStart, formatRecruitmentStart } from '../../utils/programRecruitment';
 import { useCurrentTime } from '../../hooks/useCurrentTime';
 import RecruitmentBadge from './components/RecruitmentBadge';
+import { usesDailySessionRsvp, isRecurringProgram, formatDailySessionSchedule } from '../../utils/dailyProgramSessions';
 
 const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel }) => {
     const now = useCurrentTime();
@@ -15,6 +16,7 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
     const description = program.short_description;
     const isScheduled = recruitment.status === 'SCHEDULED';
     const scheduledLabel = isScheduled ? formatRecruitmentStart(getRecruitmentStart(program), '모집 예정') : '';
+    const isDailySessionProgram = usesDailySessionRsvp(program);
 
     // Check for "Closing Soon" (within 24 hours of recruitment_deadline)
     const isClosingSoon = (() => {
@@ -46,6 +48,36 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
         return `${month}/${day}(${dayOfWeek}) ${ampm} ${hours}시${minuteStr}`;
     };
 
+    const formatDateOnly = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(`${String(dateString).slice(0, 10)}T00:00:00+09:00`);
+        if (isNaN(date.getTime())) return '';
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        return `${date.getMonth() + 1}/${date.getDate()}(${days[date.getDay()]})`;
+    };
+
+    const formatCardSchedule = () => {
+        if (isDailySessionProgram && program.open_sessions?.length) {
+            return program.open_sessions
+                .map(session => formatDailySessionSchedule(session))
+                .filter(Boolean)
+                .join(' · ');
+        }
+        if (!program.is_challenge && isRecurringProgram(program)) {
+            const start = formatDateOnly(program.program_start_date);
+            const end = formatDateOnly(program.program_end_date);
+            return `${start} ~ ${end} · 매주 ${formatProgramDays(program.program_days)}`;
+        }
+        if (!program.is_challenge) return formatDate(program.program_date);
+        const start = formatDateOnly(program.program_start_date || program.program_date);
+        const end = formatDateOnly(program.program_end_date);
+        if (start && end && start !== end) return `${start} ~ ${end}`;
+        if (program.challenge_format !== 'ONLINE' && program.program_date) {
+            return formatDate(program.program_date);
+        }
+        return start || end || '일정 미정';
+    };
+
     const formatProgramDays = (daysArray) => {
         if (!daysArray || daysArray.length === 0) return '요일 미지정';
         const labels = ['일', '월', '화', '수', '목', '금', '토'];
@@ -55,14 +87,17 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
 
 
 
-    const isPast = program.program_date && new Date(program.program_date) < startOfDay(new Date());
+    const pastReference = program.is_challenge
+        ? (program.program_end_date || program.program_start_date || program.program_date)
+        : (isRecurringProgram(program) ? program.program_end_date : program.program_date);
+    const isPast = pastReference && new Date(pastReference) < startOfDay(new Date());
 
     return (
         <div
             data-tour={tourTarget}
             data-tour-label={tourLabel}
             onClick={isScheduled ? undefined : () => onClick(program)}
-            className={`group h-full bg-white overflow-hidden shadow-toss-standard transition-all duration-300 flex flex-col border-none ${isScheduled ? 'cursor-default' : 'hover:shadow-toss-elevated active:scale-[0.98] cursor-pointer'} ${compact ? 'rounded-toss-lg' : 'rounded-toss-xl'}`}
+            className={`group h-full bg-white overflow-hidden shadow-toss-standard transition-all duration-300 flex flex-col border border-tossGrey100 ${isScheduled ? 'cursor-default' : 'hover:shadow-toss-elevated active:scale-[0.98] cursor-pointer'} ${compact ? 'rounded-toss-lg' : 'rounded-toss-xl'}`}
         >
             {/* Thumbnail Section */}
             <div className={thumb ? `relative aspect-square overflow-hidden bg-tossGrey50 border-b border-tossGrey100/50 ${compact ? 'rounded-t-toss-lg' : 'rounded-t-toss-xl'}` : `${compact ? 'px-4 pt-4' : 'px-6 pt-6'}`}>
@@ -97,7 +132,6 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                 <h3 className={`font-bold text-tossGrey900 line-clamp-2 ${compact ? 'text-sm leading-snug ' + (description ? 'mb-1' : 'mb-3') : 'text-xl leading-tight ' + (description ? 'mb-2' : 'mb-4')}`}>
                     {program.title}
                 </h3>
-                
                 {description && (
                     <p className={`text-tossGrey600 font-medium break-keep whitespace-normal ${compact ? 'text-[11px] mb-3 leading-snug' : 'text-[15px] mb-6 leading-relaxed'}`}>
                         {description}
@@ -111,15 +145,14 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                                 <Calendar size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
                                 <span className={`font-bold text-tossBlue ${compact ? 'text-[11px]' : 'text-sm'}`}>
                                     {(() => {
-                                        const start = program.program_start_date || program.program_date;
-                                        const end = program.program_end_date;
+                                        const start = isDailySessionProgram ? program.today_session?.starts_at : (program.program_start_date || program.program_date);
+                                        const end = isDailySessionProgram ? null : program.program_end_date;
                                         
                                         if (start && end && start !== end) {
                                             const s = new Date(start);
                                             const e = new Date(end);
                                             if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
-                                                const days = ['일', '월', '화', '수', '목', '금', '토'];
-                                                return `${s.getMonth() + 1}/${s.getDate()}(${days[s.getDay()]}) ~ ${e.getMonth() + 1}/${e.getDate()}(${days[e.getDay()]})`;
+                                                return `${s.getMonth() + 1}/${s.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()} · 매주 ${formatProgramDays(program.program_days)}`;
                                             }
                                         }
                                         
@@ -127,25 +160,30 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                                             const d = new Date(start);
                                             if (!isNaN(d.getTime())) {
                                                 const days = ['일', '월', '화', '수', '목', '금', '토'];
-                                                return `${d.getMonth() + 1}/${d.getDate()}(${days[d.getDay()]})`;
+                                                const dateLabel = `${d.getMonth() + 1}/${d.getDate()}(${days[d.getDay()]})`;
+                                                return isDailySessionProgram
+                                                    ? `${dateLabel} ${formatKoreanTimeRange(start, program.program_duration)}`
+                                                    : dateLabel;
                                             }
                                         }
                                         return `매주 ${formatProgramDays(program.program_days)}`;
                                     })()}
                                 </span>
                             </div>
-                            <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
-                                <Clock size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
-                                <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>
-                                    {formatKoreanTimeRange(program.program_date || program.program_start_date, program.program_duration)}
-                                </span>
-                            </div>
+                            {!isDailySessionProgram && !(program.is_challenge && program.challenge_format === 'ONLINE') && (
+                                <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
+                                    <Clock size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
+                                    <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>
+                                        {formatKoreanTimeRange(program.program_date || program.program_start_date, program.program_duration)}
+                                    </span>
+                                </div>
+                            )}
                         </>
                     ) : (
                         <>
                             <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2' : 'gap-3'}`}>
                                 <Calendar size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
-                                <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{formatDate(program.program_date)}</span>
+                                <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{formatCardSchedule()}</span>
                             </div>
                             {recruitment.canViewDetails && program.program_duration && !compact && (
                                 <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
@@ -161,17 +199,21 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                             <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>{program.program_location}</span>
                         </div>
                     )}
-                    {program.is_recruiting && (recruitment.canViewDetails || program.max_capacity != null) && (
+                    {(program.is_recruiting && (recruitment.canViewDetails || program.max_capacity != null) || program.today_session?.status === 'OPEN') && (
                         <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
                             <Users size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
                             <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>
-                                정원: <span className="text-tossBlue font-bold">{program.max_capacity > 0 ? `${program.max_capacity}명` : '제한 없음'}</span>
+                                정원: <span className="text-tossBlue font-bold">{(program.today_session?.capacity ?? program.max_capacity) > 0 ? `${program.today_session?.capacity ?? program.max_capacity}명` : '제한 없음'}</span>
                             </span>
                         </div>
                     )}
                 </div>
 
-                {!program.is_recruiting ? (
+                {isDailySessionProgram ? (
+                    <button className={`w-full font-black transition-colors border border-transparent ${compact ? 'py-2 rounded-toss-md text-xs mt-auto' : 'py-3.5 rounded-toss-xl text-sm mt-auto'} ${program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey600' : program.responseStatus === 'WAITLIST' ? 'bg-amber-100 text-amber-700' : 'bg-tossBlue text-white'}`}>
+                        {program.responseStatus === 'JOIN' ? '신청 완료' : program.responseStatus === 'WAITLIST' ? '대기 중' : '신청하기'}
+                    </button>
+                ) : !program.is_recruiting ? (
                     <button className={`w-full font-bold transition-colors border border-transparent ${compact ? 'py-2 rounded-toss-md text-xs mt-auto' : 'py-3.5 rounded-toss-xl text-sm mt-auto'} bg-tossSuccess/10 text-tossSuccess pointer-events-none`}>
                         신청 없이 참여할 수 있어요!
                     </button>
@@ -185,7 +227,7 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                             window.dispatchEvent(new CustomEvent('app-alert', {
                                 detail: {
                                     title: program.title || '프로그램',
-                                    message: `일시: ${formatDate(program.program_date)}\n장소: ${program.program_location || '장소 미정'}\n정원: ${capacity}`,
+                                    message: `일시: ${formatCardSchedule()}\n장소: ${program.program_location || '장소 미정'}\n정원: ${capacity}`,
                                     highlight: scheduledLabel
                                 }
                             }));

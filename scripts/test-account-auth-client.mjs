@@ -7,8 +7,8 @@ const client=createAccountAuthClient({baseUrl:'https://project.supabase.co/funct
     locks:{request:async(name,options,work)=>{assert.equal(name,'center-account-auth');return work();}},
     fetcher:async(url)=>{requests.push(url);return new Response(JSON.stringify({protocol:1,decision:'reauth'}),{status:401});}
 });
-assert.deepEqual(Object.keys(client),['createSessionCoordinator','login','password','adminReset','profile','registration','candidates','upload','members']);
-assert.deepEqual(Object.keys(client.members),['setRole','merge','listReviews']);
+assert.deepEqual(Object.keys(client),['session','createSessionCoordinator','login','password','adminReset','profile','registration','candidates','upload','members']);
+assert.deepEqual(Object.keys(client.members),['setRole','withdraw','merge','listReviews']);
 const coordinator=client.createSessionCoordinator(null);assert.equal(typeof coordinator.check,'function');
 const local=createAccountAuthClient({baseUrl:'/account-auth-local',origin:'http://localhost:5173',supabaseUrl:'https://project.supabase.co',
     publishableKey:'public',auth,locks:{request:async(name,options,work)=>work()},fetcher:async()=>new Response('{}',{status:500})});

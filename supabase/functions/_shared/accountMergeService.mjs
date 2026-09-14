@@ -2,10 +2,15 @@ import {LoginError,isProfileId} from './loginSecurity.mjs';
 
 const columns=Object.freeze([
     ['logs','user_id'],['haifn_transactions','user_id'],['notice_responses','user_id'],['user_badges','user_id'],
-    ['program_feedback','user_id'],['guest_posts','user_id'],['guestbook_posts','user_id'],['guest_post_reactions','user_id'],
-    ['notice_poll_responses','user_id'],['notice_reactions','user_id'],['community_posts','user_id'],
-    ['community_comments','user_id'],['community_likes','user_id'],['user_challenges','user_id'],['visit_notes','user_id'],
-    ['checkin_surveys','user_id'],['comments','user_id'],['guest_comments','user_id'],['notice_likes','user_id'],
+    ['program_feedback','user_id'],['notice_poll_responses','user_id'],['notice_reactions','user_id'],
+    ['community_channel_members','user_id'],['community_channel_posts','author_id'],
+    ['community_channel_comments','user_id'],['community_channel_reactions','user_id'],
+    ['community_channel_comment_reactions','user_id'],
+    ['legacy_azit_posts','user_id'],['legacy_azit_comments','user_id'],['legacy_azit_post_reactions','user_id'],
+    ['legacy_community_feed_posts','author_id'],['legacy_community_feed_comments','author_id'],
+    ['legacy_community_feed_likes','user_id'],['legacy_community_feed_comment_reactions','user_id'],
+    ['user_challenges','user_id'],['visit_notes','user_id'],
+    ['checkin_surveys','user_id'],['survey_entries','user_id'],['comments','user_id'],['notice_likes','user_id'],
     ['rental_bookings','user_id'],['store_orders','user_id'],['user_notification_reads','user_id'],['center_daily_chats','user_id'],
     ['admin_templates','user_id'],['app_notifications','user_id'],['app_notifications','sender_id'],
     ['messages','sender_id'],['messages','receiver_id'],['coffee_chats','student_id'],
@@ -28,7 +33,7 @@ export function createAccountMergeService({pool,authorize,readiness=async()=>fal
             const prior=(await client.query('SELECT * FROM account_security.account_merge_receipts WHERE request_id=$1',[requestId])).rows[0];
             if(prior){if(prior.source_profile_id!==sourceProfileId||prior.target_profile_id!==targetProfileId||prior.actor_profile_id!==actor.actorProfileId)
                 throw new LoginError('account_changed',409);await client.query('COMMIT');committed=true;return {protocol:1,status:'merged'};}
-            const liveActor=(await client.query("SELECT 1 FROM account_security.account_roles WHERE profile_id=$1 AND enabled AND role='admin'",[actor.actorProfileId])).rows.length;
+            const liveActor=(await client.query("SELECT 1 FROM account_security.account_roles WHERE profile_id=$1 AND enabled AND role IN ('admin','master')",[actor.actorProfileId])).rows.length;
             if(liveActor!==1)throw new LoginError('forbidden',403);
             await client.query("SELECT set_config('app.merge_source_id',$1,true)",[sourceProfileId]);
             await client.query("SELECT set_config('app.merge_target_id',$1,true)",[targetProfileId]);
@@ -65,7 +70,7 @@ export function createAccountMergeService({pool,authorize,readiness=async()=>fal
                     await client.query('SAVEPOINT merge_row');
                     try{await client.query(`UPDATE public.${ident(table)} SET ${ident(column)}=$1 WHERE ctid=$2::tid`,[targetProfileId,row.tid]);
                         await client.query('RELEASE SAVEPOINT merge_row');}
-                    catch(error){await client.query('ROLLBACK TO SAVEPOINT merge_row');if(error?.code!=='23505')throw error;
+                    catch(error){await client.query('ROLLBACK TO SAVEPOINT merge_row');if(error?.code!=='23505'||table==='survey_entries')throw error;
                         await client.query(`DELETE FROM public.${ident(table)} WHERE ctid=$1::tid`,[row.tid]);await client.query('RELEASE SAVEPOINT merge_row');}
                 }
             }

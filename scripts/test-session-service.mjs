@@ -99,7 +99,10 @@ try {
     await sql("UPDATE account_security.accounts SET must_change_password=false, credential_version=2"); await decision(401, 'reauth');
     await sql('UPDATE account_security.accounts SET credential_version=1');
     await sql("UPDATE account_security.session_assurances SET status='revoked'"); await decision(401, 'reauth');
-    await sql("UPDATE account_security.session_assurances SET status='trusted', valid_until=now()-interval '1 second'"); await decision(401, 'reauth');
+    // Assurance expiry must not turn a still-live, refreshable provider session
+    // into a daily password prompt. Revocation and credential changes above
+    // remain authoritative; valid_until only bounded the original issuance.
+    await sql("UPDATE account_security.session_assurances SET status='trusted', valid_until=now()-interval '1 second'"); await decision(200, 'retain');
     await sql("UPDATE account_security.session_assurances SET valid_until=now()+interval '1 hour'");
     // Provider revocation/banning is authoritative through /auth/v1/user.
     authStatus=401;await decision(401,'reauth');authStatus=200;

@@ -2,42 +2,36 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import confetti from 'canvas-confetti';
-import { Home, Calendar, BookOpen, Award, Store, MessageSquareHeart, Menu, X, Settings, ShieldCheck, LogOut, Bell, Share2, QrCode, Clock3 } from 'lucide-react';
+import { Home, Calendar, BookOpen, Award, Store, Menu, X, Settings, ShieldCheck, LogOut, Bell, Share2, QrCode, Clock3 } from 'lucide-react';
 import { TAB_NAMES } from '../constants/appConstants';
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
 import { formatProgramSchedule } from '../utils/dateUtils';
 import { getRecruitmentStart } from '../utils/programRecruitment';
 import { extractProgramInfo } from '../utils/textUtils';
+import { isAdminOrStaff } from '../utils/userUtils';
 
 // Tabs
 import StudentHomeTab from '../components/student/StudentHomeTab';
 import StudentBadgesTab from '../components/student/StudentBadgesTab';
 import StudentCenterTab from '../components/student/StudentCenterTab';
 import StudentNoticesTab from '../components/student/StudentNoticesTab';
-import StudentGuestbookTab from '../components/student/StudentGuestbookTab';
 import StudentCalendarTab from '../components/student/StudentCalendarTab';
-import CommunityTab from '../components/community/CommunityTab';
 import StudentChat from '../components/student/StudentChat';
 import StudentHaifnTab from '../components/student/StudentHaifnTab';
-import StudentAzitTab from '../components/student/StudentAzitTab';
 import { userApi } from '../api/userApi';
 import { noticesApi } from '../api/noticesApi';
 import UserAvatar from '../components/common/UserAvatar';
 import StudentImpersonateBar from '../components/student/modals/StudentImpersonateBar';
-import InterestSessionDialog from '../components/student/modals/InterestSessionDialog';
 import StudentGuidedTour from '../components/student/StudentGuidedTour';
 
 // Extracted Modals
 import NoticeModal from '../components/student/NoticeModal';
 import { BadgeModal } from '../components/student/BadgeComponents';
 import ProfileSettingsModal from '../components/student/modals/ProfileSettingsModal';
-import GuestbookWriteModal from '../components/student/modals/GuestbookWriteModal';
-import GuestbookDetailModal from '../components/student/modals/GuestbookDetailModal';
 import NotificationsModal from '../components/student/modals/NotificationsModal';
 import ProgramHistoryModal from '../components/student/modals/ProgramHistoryModal';
 import SignUpForm from '../components/auth/SignUpForm';
 import QRModal from '../components/student/modals/QRModal';
-import VerificationWriteModal from '../components/student/modals/VerificationWriteModal';
 import { useFCM } from '../hooks/useFCM';
 import ParticipantModal from '../components/admin/board/components/modals/ParticipantModal';
 import CoffeeChatModal from '../components/student/modals/CoffeeChatModal';
@@ -47,7 +41,6 @@ import { supabase } from '../supabaseClient';
 import { requestSupabaseFunction } from '../utils/supabaseRest';
 import { buildTutorialNotice, buildTutorialPrograms, isTutorialNotice, isTutorialProgram } from '../components/student/studentTutorialData';
 import { getTodayVisitState } from '../utils/visitLifecycle';
-import { recruitmentInterestsApi } from '../api/recruitmentInterestsApi';
 import PushPermissionPrompt from '../components/student/modals/PushPermissionPrompt';
 
 const createInitialTutorialSession = () => ({
@@ -110,8 +103,6 @@ const StudentDashboard = () => {
     const {
         loading, user, activeTab, setActiveTab,
         showProfileSettings, setShowProfileSettings,
-        showGuestWrite, setShowGuestWrite,
-        selectedGuestPost, setSelectedGuestPost,
         showProgramHistory, setShowProgramHistory,
         showEnlargedQr, setShowEnlargedQr,
         showNotificationsModal, setShowNotificationsModal,
@@ -124,30 +115,12 @@ const StudentDashboard = () => {
         totalHours, visitCount, programCount, attendedProgramsList,
         badgeCategories, dynamicBadges, specialStats,
         adminSchedules, calendarCategories, dashboardConfig, tabConfig,
-        notifications, unreadNotificationCount, updateProfile, profileLoadingState,
-        guestPosts, uploadingGuest, handleCreatePost, fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestPost, handleDeleteGuestComment
+        notifications, unreadNotificationCount, updateProfile, profileLoadingState
     } = hookData;
 
-    const [showVerificationWrite, setShowVerificationWrite] = useState(false);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [registrationSuccess, setRegistrationSuccess] = useState(null);
-    const [showAccountReconnect, setShowAccountReconnect] = useState(false);
     const [recruitmentSavedPreview, setRecruitmentSavedPreview] = useState(null);
-
-    useEffect(() => {
-        const isGuestAccount = user?.user_group === '게스트' || String(user?.role || '').toLowerCase() === 'guest';
-        if (!user?.id || hookData.impersonatedUser || isGuestAccount) {
-            setShowAccountReconnect(false);
-            return;
-        }
-        let active = true;
-        recruitmentInterestsApi.status(null).then(status => {
-            if (!active || status.userId) return;
-            setShowAccountReconnect(true);
-        }).catch(() => {});
-        return () => { active = false; };
-    }, [user?.id, user?.user_group, user?.role, hookData.impersonatedUser]);
-    const [editVerificationPost, setEditVerificationPost] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [showMenuDrawer, setShowMenuDrawer] = useState(false);
     const [hideMainHeader, setHideMainHeader] = useState(false);
@@ -162,11 +135,7 @@ const StudentDashboard = () => {
     const [showCheckinSurveyModal, setShowCheckinSurveyModal] = useState(false);
     const [checkinLocationName, setCheckinLocationName] = useState('');
     const [visitStatus, setVisitStatus] = useState(null);
-    const isAdminUser = user?.role?.toLowerCase() === 'admin' ||
-        user?.role?.toLowerCase() === 'staff' ||
-        user?.user_group?.toLowerCase() === 'admin' ||
-        user?.user_group?.toLowerCase() === 'staff' ||
-        user?.user_group === '관리자';
+    const isAdminUser = isAdminOrStaff(user);
 
     useEffect(() => {
         if (!STUDENT_ONBOARDING_TUTORIAL_ENABLED) {
@@ -427,7 +396,7 @@ const StudentDashboard = () => {
 
     const fetchCoffeeChatStats = async () => {
         if (!user?.id) return;
-        const isStaff = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'staff' || user?.user_group?.toLowerCase() === 'staff' || user?.user_group === '관리자';
+        const isStaff = isAdminOrStaff(user);
         try {
             if (isStaff) {
                 // Pending Count
@@ -755,14 +724,13 @@ const StudentDashboard = () => {
     const activeVisibleTabs = (tabConfig || []).filter(t => t.isVisible);
     const TAB_SEQUENCE = activeVisibleTabs.length > 0 
         ? activeVisibleTabs.map(t => t.id)
-        : [TAB_NAMES.HOME, TAB_NAMES.BADGES, TAB_NAMES.PROGRAMS, TAB_NAMES.CALENDAR, TAB_NAMES.AZIT, TAB_NAMES.HAIFN];
+        : [TAB_NAMES.HOME, TAB_NAMES.BADGES, TAB_NAMES.PROGRAMS, TAB_NAMES.CALENDAR, TAB_NAMES.HAIFN];
 
     const tabIconMap = {
         [TAB_NAMES.HOME]: { icon: Home, defaultLabel: '홈' },
         [TAB_NAMES.BADGES]: { icon: Award, defaultLabel: '뱃지' },
         [TAB_NAMES.PROGRAMS]: { icon: BookOpen, defaultLabel: '센터', activeColor: 'text-blue-600' },
         [TAB_NAMES.CALENDAR]: { icon: Calendar, defaultLabel: '캘린더' },
-        [TAB_NAMES.AZIT]: { icon: MessageSquareHeart, defaultLabel: '커뮤니티' },
         [TAB_NAMES.HAIFN]: { icon: Store, defaultLabel: '하이픈' }
     };
     const visibleTabs = (tabConfig || [])
@@ -793,7 +761,6 @@ const StudentDashboard = () => {
         { id: TAB_NAMES.BADGES, icon: Award, label: '뱃지' },
         { id: TAB_NAMES.PROGRAMS, icon: BookOpen, label: '센터', activeColor: 'text-blue-600' },
         { id: TAB_NAMES.CALENDAR, icon: Calendar, label: '캘린더' },
-        { id: TAB_NAMES.AZIT, icon: MessageSquareHeart, label: '커뮤니티' },
         { id: TAB_NAMES.HAIFN, icon: Store, label: '하이픈' }
     ];
 
@@ -1446,36 +1413,11 @@ const StudentDashboard = () => {
         window.scrollTo(0, 0);
     }, [activeTab]);
 
-    const openGuestPostDetail = async (post) => {
-        hookData.setSelectedGuestPost(post);
-        const data = await hookData.fetchGuestCommentsData(post.id);
-        hookData.setGuestComments(data);
-    };
-
-    const handleDeletePostWrapper = async (postId) => {
-        if (!window.confirm("정말로 삭제하시겠습니까? 지급된 하이픈도 반환됩니다.")) return;
-        const success = await hookData.handleDeleteGuestPost(postId);
-        if (success) {
-            hookData.setSelectedGuestPost(null);
-            userApi.fetchUser(user.id).then(u => {
-                if (u) hookData.setUser(prev => ({ ...prev, ...u }));
-            });
-            setRefreshTrigger(prev => prev + 1);
-        }
-    };
-
     if (loading || !user) {
-        return (
-            <div className="w-full md:max-w-lg mx-auto min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-gray-600 font-bold text-sm tracking-tight animate-pulse">대시보드 정보를 불러오는 중입니다...</p>
-                </div>
-            </div>
-        );
+        return <div className="w-full md:max-w-lg mx-auto min-h-screen bg-gray-50" aria-hidden="true" />;
     }
 
-    const effectiveRegion = user?.role === 'admin'
+    const effectiveRegion = isAdminOrStaff(user)
         ? (hookData.selectedRegion === 'GANGDONG' ? '강동' : hookData.selectedRegion === 'GANGSEO' ? '강서' : null)
         : studentRegion;
     const displayedVisitStatus = showOnboardingTutorial && tutorialSession.checkinMode
@@ -1573,14 +1515,6 @@ const StudentDashboard = () => {
                     </div>
                 )}
             </AnimatePresence>
-            {showAccountReconnect && (
-                <InterestSessionDialog
-                    noticeId={null}
-                    api={recruitmentInterestsApi}
-                    onClose={() => setShowAccountReconnect(false)}
-                    onContinue={() => setShowAccountReconnect(false)}
-                />
-            )}
             <AnimatePresence>
                 {checkinToastMsg && !showCheckinSurveyModal && (
                     <motion.div
@@ -1655,25 +1589,6 @@ const StudentDashboard = () => {
                 onReset={() => hookData.setImpersonatedUser(null)}
             />
             
-            {/* Verification Write Modal */}
-            {showVerificationWrite && (
-                <VerificationWriteModal
-                    setShowVerificationWrite={setShowVerificationWrite}
-                    handleCreatePost={hookData.handleCreatePost}
-                    handleUpdatePost={hookData.handleUpdatePost}
-                    uploadingGuest={hookData.uploadingGuest}
-                    editPost={editVerificationPost}
-                    onSuccess={() => {
-                        setEditVerificationPost(null);
-                        setShowVerificationWrite(false);
-                        userApi.fetchUser(user.id).then(u => {
-                            if (u) hookData.setUser(prev => ({ ...prev, ...u }));
-                        });
-                        setRefreshTrigger(prev => prev + 1);
-                    }}
-                />
-            )}
-
             {/* Modals & Overlays */}
             <AnimatePresence>
                 {selectedNotice && (
@@ -1846,33 +1761,6 @@ const StudentDashboard = () => {
                             />
                         </motion.div>
                     </div>
-                )}
-
-                {showGuestWrite && (
-                    <GuestbookWriteModal 
-                        setShowGuestWrite={setShowGuestWrite}
-                        handleCreatePost={handleCreatePost}
-                        uploadingGuest={uploadingGuest}
-                    />
-                )}
-
-                {selectedGuestPost && (
-                    <GuestbookDetailModal 
-                        selectedGuestPost={hookData.selectedGuestPost}
-                        guestComments={hookData.guestComments || []}
-                        fetchGuestCommentsData={hookData.fetchGuestCommentsData}
-                        user={user}
-                        onDeleteGuestPost={handleDeletePostWrapper}
-                        onDeleteGuestComment={hookData.handleDeleteGuestComment}
-                        handleGuestCommentSubmit={hookData.handleGuestCommentSubmit}
-                        setGuestComments={hookData.setGuestComments} 
-                        setSelectedGuestPost={hookData.setSelectedGuestPost}
-                        onEditPost={(post) => {
-                            hookData.setSelectedGuestPost(null);
-                            setEditVerificationPost(post);
-                            setShowVerificationWrite(true);
-                        }}
-                    />
                 )}
 
                 {showEnlargedQr && (
@@ -2316,7 +2204,7 @@ const StudentDashboard = () => {
                                     <span>설정</span>
                                 </button>
 
-                                {user?.role === 'admin' && (
+                                {isAdminOrStaff(user) && (
                                     <button
                                         onClick={() => {
                                             navigate('/admin');
@@ -2451,14 +2339,6 @@ const StudentDashboard = () => {
                 <StudentChat currentUser={user} onRefreshUnread={() => { }} onSubViewToggle={setHideMainHeader} />
             )}
 
-            {activeTab === TAB_NAMES.GUESTBOOK && (
-                <StudentGuestbookTab
-                    guestPosts={guestPosts}
-                    openGuestPostDetail={openGuestPostDetail}
-                    setShowGuestWrite={setShowGuestWrite}
-                />
-            )}
-
             {activeTab === TAB_NAMES.CALENDAR && (
                 <StudentCalendarTab
                     adminSchedules={adminSchedules}
@@ -2471,14 +2351,6 @@ const StudentDashboard = () => {
                     tutorialPrograms={selectedTutorialProgram && tutorialResponses[selectedTutorialProgram.id] ? [selectedTutorialProgram] : []}
                     onTutorialEventOpen={() => setTutorialSession((current) => ({ ...current, step: 'calendarDetail' }))}
                 />
-            )}
-
-            {activeTab === TAB_NAMES.COMMUNITY && (
-                <CommunityTab user={user} />
-            )}
-
-            {activeTab === TAB_NAMES.AZIT && (
-                <StudentAzitTab user={user} />
             )}
 
             {activeTab === TAB_NAMES.HAIFN && (

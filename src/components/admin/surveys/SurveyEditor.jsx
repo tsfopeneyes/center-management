@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Check, ListChecks, MessageSquareText, Plus, Save, Sparkles, Trash2, MapPin, Repeat2 } from 'lucide-react';
+import { Check, ListChecks, MessageSquareText, Plus, Save, Sparkles, Trash2, Repeat2 } from 'lucide-react';
 
 const isTextMode = (type, mode) => mode === (type === 'CHECKIN' ? 'QUESTION_QA' : 'FEEDBACK_QA');
 
-const SurveyEditor = ({ type, initialConfig, onSave, onCancel, isSaving }) => {
+const SurveyEditor = ({ type, initialConfig, canChangeType = false, onTypeChange, onSave, onCancel, isSaving }) => {
     const [answerType, setAnswerType] = useState('CHOICE');
     const [question, setQuestion] = useState('');
     const [description, setDescription] = useState('');
@@ -12,7 +12,6 @@ const SurveyEditor = ({ type, initialConfig, onSave, onCancel, isSaving }) => {
     const [recommendationsEnabled, setRecommendationsEnabled] = useState(false);
     const [additionalComment, setAdditionalComment] = useState({ enabled: false, label: '추가 의견이 있다면 적어주세요', placeholder: '선택한 이유나 의견을 자유롭게 알려주세요.', required: false, maxLength: 300 });
     const [frequency, setFrequency] = useState('EVERY_VISIT');
-    const [centers, setCenters] = useState(['HAIFN']);
     const [isDefault, setIsDefault] = useState(false);
 
     useEffect(() => {
@@ -27,7 +26,6 @@ const SurveyEditor = ({ type, initialConfig, onSave, onCancel, isSaving }) => {
         setRecommendationsEnabled(type === 'CHECKIN' && initialConfig?.recommendationsEnabled !== false);
         setAdditionalComment({ enabled: false, label: '추가 의견이 있다면 적어주세요', placeholder: '선택한 이유나 의견을 자유롭게 알려주세요.', required: false, maxLength: 300, ...(initialConfig?.additionalComment || {}) });
         setFrequency(initialConfig?.exposure?.frequency || 'EVERY_VISIT');
-        setCenters(initialConfig?.exposure?.centers?.length ? initialConfig.exposure.centers : ['HAIFN']);
         setIsDefault(initialConfig?.exposure?.isDefault === true);
     }, [initialConfig, type]);
 
@@ -86,7 +84,7 @@ const SurveyEditor = ({ type, initialConfig, onSave, onCancel, isSaving }) => {
             exposure: {
                 enabled: true,
                 frequency,
-                centers,
+                centers: initialConfig?.exposure?.centers || [],
                 isDefault,
                 priority: initialConfig?.exposure?.priority ?? 999
             },
@@ -104,6 +102,15 @@ const SurveyEditor = ({ type, initialConfig, onSave, onCancel, isSaving }) => {
                     <p className="text-sm text-gray-500 mt-1">질문이 설문 목록과 결과 화면의 제목으로 사용됩니다.</p>
                 </div>
                 <button type="button" onClick={onCancel} className="self-start px-3 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50">취소</button>
+            </div>
+
+            <div>
+                <label className="block text-sm font-bold text-gray-800 mb-2">설문 진행 시점</label>
+                <select value={type} disabled={!canChangeType} onChange={event => onTypeChange?.(event.target.value)} className="w-full rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 text-sm font-bold text-gray-900 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:text-gray-500">
+                    <option value="CHECKIN">입실할 때</option>
+                    <option value="CHECKOUT">퇴실할 때</option>
+                </select>
+                {!canChangeType && <p className="mt-1.5 text-xs font-medium text-gray-400">기본 시스템 설문의 진행 시점은 변경할 수 없습니다.</p>}
             </div>
 
             <div>
@@ -185,11 +192,8 @@ const SurveyEditor = ({ type, initialConfig, onSave, onCancel, isSaving }) => {
             </div>}
 
             <div className="space-y-5 border-t border-gray-100 pt-6">
-                <div><p className="flex items-center gap-2 text-sm font-bold text-gray-900"><Repeat2 size={17} className="text-blue-600" />노출 설정</p><p className="mt-1 text-xs text-gray-500">목록에는 결과만 간단히 표시하고 세부 조건은 여기에서 관리합니다.</p></div>
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div><p className="mb-2 text-xs font-bold text-gray-600">응답 주기</p><div className="grid grid-cols-2 gap-2">{[['ONCE','이용자당 1회'],['EVERY_VISIT','방문마다']].map(([value,label]) => <button key={value} type="button" onClick={() => setFrequency(value)} className={`rounded-xl border px-3 py-3 text-sm font-bold ${frequency === value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>{label}</button>)}</div></div>
-                    <div><p className="mb-2 flex items-center gap-1 text-xs font-bold text-gray-600"><MapPin size={14} />노출 공간</p><div className="grid grid-cols-2 gap-2">{[['HAIFN','하이픈'],['ENOUGH_PLACE','이높플레이스']].map(([value,label]) => { const selected=centers.includes(value); return <button key={value} type="button" onClick={() => setCenters(current => selected ? (current.length > 1 ? current.filter(item => item !== value) : current) : [...current,value])} className={`rounded-xl border px-3 py-3 text-sm font-bold ${selected ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>{label}</button>; })}</div></div>
-                </div>
+                <div><p className="flex items-center gap-2 text-sm font-bold text-gray-900"><Repeat2 size={17} className="text-blue-600" />응답 설정</p><p className="mt-1 text-xs text-gray-500">노출 공간은 설문 목록에서 바로 선택합니다.</p></div>
+                <div><p className="mb-2 text-xs font-bold text-gray-600">응답 주기</p><div className="grid max-w-xl grid-cols-2 gap-2">{[['ONCE','이용자당 1회'],['EVERY_VISIT','방문마다']].map(([value,label]) => <button key={value} type="button" onClick={() => setFrequency(value)} className={`rounded-xl border px-3 py-3 text-sm font-bold ${frequency === value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>{label}</button>)}</div></div>
                 <label className="flex cursor-pointer items-center justify-between rounded-2xl bg-gray-50 p-4"><span><strong className="block text-sm text-gray-900">기본 설문</strong><span className="mt-1 block text-xs text-gray-500">응답 가능한 다른 설문이 없을 때 마지막으로 표시합니다.</span></span><input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-blue-600" /></label>
             </div>
 

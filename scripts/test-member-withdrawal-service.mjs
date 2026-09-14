@@ -7,8 +7,8 @@ const queries=[];
 const client={
     async query(text,values=[]){
         queries.push({text:String(text).replace(/\s+/g,' ').trim(),values});
-        if(String(text).includes('account_security.account_roles')&&String(text).includes("role='admin'"))return {rows:[{ok:1}]};
-        if(String(text).includes('FROM public.users u'))return {rows:[{id:target,user_group:'청소년',account_profile_id:target}]};
+        if(String(text).includes('account_security.account_roles')&&String(text).includes("role IN ('admin','master')"))return {rows:[{ok:1}]};
+        if(String(text).includes('FROM public.users u'))return {rows:[{id:target,account_profile_id:target,account_role:'member',role_enabled:true}]};
         if(String(text).includes('UPDATE public.users SET'))return {rows:[{id:target}]};
         return {rows:[]};
     },

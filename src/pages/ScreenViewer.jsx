@@ -1,21 +1,22 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { DEFAULT_SCREEN_CONFIG, loadScreenConfig, SCREEN_CONFIG_TITLE } from '../utils/screenConfig';
+import { DEFAULT_SCREEN_CONFIG, getActiveScreenConfig, loadScreenConfig, SCREEN_CONFIG_TITLE } from '../utils/screenConfig';
 
 const CACHE_KEY = 'screen_display_config_v1';
 
 export default function ScreenViewer() {
     const [config, setConfig] = useState(() => {
-        try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || DEFAULT_SCREEN_CONFIG; }
-        catch { return DEFAULT_SCREEN_CONFIG; }
+        try { return getActiveScreenConfig(JSON.parse(localStorage.getItem(CACHE_KEY)) || DEFAULT_SCREEN_CONFIG); }
+        catch { return getActiveScreenConfig(DEFAULT_SCREEN_CONFIG); }
     });
     const [index, setIndex] = useState(0);
 
     const refresh = useCallback(async () => {
         try {
-            const next = await loadScreenConfig();
+            const stored = await loadScreenConfig();
+            const next = getActiveScreenConfig(stored);
             setConfig(next);
-            localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+            localStorage.setItem(CACHE_KEY, JSON.stringify(stored));
         } catch (error) {
             console.warn('전자칠판 설정을 불러오지 못했습니다.', error);
         }
@@ -23,13 +24,23 @@ export default function ScreenViewer() {
 
     useEffect(() => {
         refresh();
+        let hasSubscribed = false;
         const channel = supabase.channel('screen-display-config')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notices', filter: `title=eq.${SCREEN_CONFIG_TITLE}` }, refresh)
-            .subscribe();
-        const timer = setInterval(refresh, 30000);
-        const reconnect = () => refresh();
+            .subscribe(status => {
+                if (status !== 'SUBSCRIBED') return;
+                if (hasSubscribed) refresh();
+                hasSubscribed = true;
+            });
+        const timer = setInterval(() => {
+            if (document.visibilityState === 'visible') refresh();
+        }, 60000);
+        const reconnect = () => {
+            if (document.visibilityState === 'visible') refresh();
+        };
         window.addEventListener('online', reconnect);
-        return () => { clearInterval(timer); window.removeEventListener('online', reconnect); supabase.removeChannel(channel); };
+        document.addEventListener('visibilitychange', reconnect);
+        return () => { clearInterval(timer); window.removeEventListener('online', reconnect); document.removeEventListener('visibilitychange', reconnect); supabase.removeChannel(channel); };
     }, [refresh]);
 
     useEffect(() => { setIndex(current => config.images.length ? current % config.images.length : 0); }, [config.images.length]);

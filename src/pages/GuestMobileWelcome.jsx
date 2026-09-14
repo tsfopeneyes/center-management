@@ -6,12 +6,9 @@ import confetti from 'canvas-confetti';
 import { supabase } from '../supabaseClient';
 import { verifiedProfileLogin } from '../utils/verifiedProfileLogin';
 import { requestSupabaseFunction } from '../utils/supabaseRest';
-import { findMatchingGuestAccount, normalizeSchoolName } from '../utils/userUtils';
+import { findMatchingGuestAccount, isAdminOrStaff, normalizeSchoolName } from '../utils/userUtils';
 import { hashPassword } from '../utils/hashUtils';
-import SignUpForm from '../components/auth/SignUpForm';
-import StudentCheckoutSurveyModal from '../components/student/modals/StudentCheckoutSurveyModal';
 import { sendCheckinNotification, sendCheckoutNotification } from '../utils/integrationUtils';
-import { areExternalNotificationsMuted, dispatchVisitSlackAlert } from '../utils/serverIntegration';
 import { requestSupabaseRest } from '../utils/supabaseRest';
 import { getTodayVisitState, recordVisitEvent } from '../utils/visitLifecycle';
 import { isKioskQrAccessError, requiresRotatingQrAccess } from '../utils/kioskQr';
@@ -20,7 +17,14 @@ import { buildGuestPrivacyPreferences, parseGuestBirthDate } from '../utils/gues
 import { getAccountAuthClient, isAccountAuthEnabled } from '../auth/accountAuthRuntime';
 import { createAccountLoginAdapter } from '../auth/accountLoginAdapter';
 import { loadAssignedSurvey } from '../utils/surveyAssignments';
-import DatePicker from '../components/common/DatePicker';
+import { surveyHubApi } from '../api/surveyHubApi';
+import { answerSummary } from '../utils/surveyModel';
+import { userApi } from '../api/userApi';
+import { useAuth } from '../auth/AuthProvider';
+import SignUpForm from '../components/auth/SignUpForm';
+import StudentCheckoutSurveyModal from '../components/student/modals/StudentCheckoutSurveyModal';
+import SurveyRunner from '../components/surveys/SurveyRunner';
+import BirthDateInput from '../components/common/BirthDateInput';
 
 let secureLoginAdapter;
 const getSecureLoginAdapter=()=>secureLoginAdapter??=createAccountLoginAdapter({client:getAccountAuthClient(),auth:supabase.auth});
@@ -31,6 +35,10 @@ const VISIT_REASON_OPTIONS = [
     { id: '3', emoji: '📱', label: 'SNS / 포스터 / 홍보물' },
     { id: '4', emoji: '🚶', label: '지나가다가 궁금해서' }
 ];
+
+// Give the optional checkout survey a short window, but never carry a visit
+// alert into an unrelated future web session.
+const CHECKOUT_NOTIFICATION_GRACE_MS = 60 * 1000;
 
 const getLocationDisplayName = (locationName = '') => {
     const normalized = String(locationName);
@@ -51,6 +59,7 @@ const getObjectParticle = (word = '') => {
 };
 
 const GuestMobileWelcome = ({ isQRCheckin = true }) => {
+    const auth = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const searchParams = new URLSearchParams(location.search);
@@ -63,6 +72,28 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
     const isProgramLoginFlow = Boolean(
         location.state?.fromProgram || searchParams.get('programLogin')
     );
+    const communityInviteId = location.state?.communityId || searchParams.get('communityInvite');
+    const isCommunityLoginFlow = Boolean(communityInviteId);
+    const isMainEntry = location.pathname === '/' && !isProgramLoginFlow && !isCommunityLoginFlow;
+    const programLoginId = location.state?.programId
+        || searchParams.get('programLogin')
+        || localStorage.getItem('pendingProgramJoin');
+    const returnAfterLogin = () => {
+        if (isCommunityLoginFlow && communityInviteId) {
+            navigate(`/community/${encodeURIComponent(communityInviteId)}`, {
+                replace: true,
+                state: { fromCommunityLogin: true }
+            });
+            return true;
+        }
+        if (!isProgramLoginFlow || !programLoginId) return false;
+        localStorage.removeItem('pendingProgramJoin');
+        navigate(`/p/${encodeURIComponent(programLoginId)}`, {
+            replace: true,
+            state: { fromProgramLogin: true }
+        });
+        return true;
+    };
 
     const [step, setStep] = useState('HOME'); // 'HOME' | 'FORM' | 'SUCCESS' | 'ACTIVE_CHECKIN' | 'CHECKOUT_SUCCESS'
     const [name, setName] = useState('');
@@ -82,6 +113,31 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
     const [activeSession, setActiveSession] = useState(null);
     const [checkoutSurveySession, setCheckoutSurveySession] = useState(null);
     const checkoutCompletionInFlightRef = useRef(new Set());
+
+    // A quick reload may continue the original grace period. Old pending items
+    // are discarded instead of producing a checkout alert on a later visit.
+    useEffect(() => {
+        let pending;
+        try {
+            pending = JSON.parse(localStorage.getItem('pending_checkout_notification') || '{}');
+        } catch {
+            localStorage.removeItem('pending_checkout_notification');
+            return;
+        }
+        if (!pending?.logId) return;
+        const createdAtMs = new Date(pending.createdAt).getTime();
+        const remainingMs = createdAtMs + CHECKOUT_NOTIFICATION_GRACE_MS - Date.now();
+        if (!Number.isFinite(createdAtMs) || remainingMs <= 0) {
+            localStorage.removeItem('pending_checkout_notification');
+            return;
+        }
+        const timeoutId = window.setTimeout(() => {
+            sendCheckoutNotification({ logId: pending.logId })
+                .then(() => localStorage.removeItem('pending_checkout_notification'))
+                .catch(error => console.error('Pending checkout notification grace-period delivery failed:', error));
+        }, remainingMs);
+        return () => window.clearTimeout(timeoutId);
+    }, []);
     const qrEntryInFlightRef = useRef(new Set());
     const [completedCheckoutLocationName, setCompletedCheckoutLocationName] = useState('');
     const [qrAccess, setQrAccess] = useState(() => ({
@@ -182,7 +238,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             await supabase.from('users').update({ preferences: updatedPrefs }).eq('id', currentUser.id);
             const updatedUser = { ...currentUser, preferences: updatedPrefs };
 
-            if (currentUser.user_group === '관리자' || currentUser.role === 'admin') {
+            if (isAdminOrStaff(currentUser)) {
                 localStorage.setItem('admin_user', JSON.stringify(updatedUser));
             } else {
                 localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -211,11 +267,17 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
         { id: '6', emoji: '🤷', label: '아직 잘 모르겠어요', sub: '센터에 들어와서 천천히 정하기' }
     ];
 
-    const [selectedPurposes, setSelectedPurposes] = useState([DEFAULT_CHECKIN_OPTIONS[0].label]);
+    // Start empty so the first configured choice is never submitted silently.
+    // This legacy purpose question remains optional.
+    const [selectedPurposes, setSelectedPurposes] = useState([]);
     const [activeUserForSurvey, setActiveUserForSurvey] = useState(null);
     const [surveyQuestion, setSurveyQuestion] = useState('오늘 센터에서 무엇을 하고 싶나요?');
+    const surveyQuestionRef = useRef('오늘 센터에서 무엇을 하고 싶나요?');
     const [surveyDescription, setSurveyDescription] = useState('');
     const [activeSurveyId, setActiveSurveyId] = useState(null);
+    const [modernSurveyLink, setModernSurveyLink] = useState(null);
+    const [guestSurveyAvailable, setGuestSurveyAvailable] = useState(null);
+    const modernGuestVisitRef = useRef(null);
     const [dynamicSurveyOptions, setDynamicSurveyOptions] = useState(DEFAULT_CHECKIN_OPTIONS);
     const [isRedirecting, setIsRedirecting] = useState(false);
 
@@ -226,14 +288,19 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                     surveyType: 'CHECKIN',
                     locationName: qrAccess.location?.name || locParam
                 });
+                setModernSurveyLink(assigned?.config?._surveyLink || null);
+                setGuestSurveyAvailable(Boolean(assigned));
                 if (assigned?.config) {
                     const parsed = assigned.config;
                     setActiveSurveyId(assigned.id || null);
-                    if (parsed.question) setSurveyQuestion(parsed.question);
+                    if (parsed.question) {
+                        surveyQuestionRef.current = parsed.question;
+                        setSurveyQuestion(parsed.question);
+                    }
                     setSurveyDescription(parsed.description || '');
                     if (parsed.options && parsed.options.length > 0) {
                         setDynamicSurveyOptions(parsed.options);
-                        setSelectedPurposes([parsed.options[0].label]);
+                        setSelectedPurposes([]);
                     }
                 }
             } catch (e) {
@@ -292,8 +359,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
         throw lastError;
     };
 
-    const isAdminAccount = (user) =>
-        user?.user_group === '관리자' || user?.role === 'admin' || user?.is_master === true;
+    const isAdminAccount = isAdminOrStaff;
 
     const openPasswordReset = () => {
         setResetBirth('');
@@ -449,10 +515,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             }
 
             sessionStorage.setItem('pending_checkin_notif', JSON.stringify({
-                userName: currentUser.name,
-                schoolName: currentUser.school,
-                locationName: locObj.name,
-                isGuest: false
+                logId: (checkinResult.event || checkinResult.state?.lastEvent)?.id || null,
             }));
 
             const insertedLog = checkinResult.event || checkinResult.state?.lastEvent;
@@ -483,10 +546,43 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             } catch (vErr) {}
 
             const hasCompletedCheckinSurvey = Array.isArray(completedSurveyPurposes) && completedSurveyPurposes.length > 0;
+            let requiresCheckinSurvey = false;
             if (hasCompletedCheckinSurvey) {
+                try {
+                    await sendCheckinNotification({
+                        logId: insertedLog?.id || null,
+                        purposes: completedSurveyPurposes,
+                        surveyQuestion: surveyQuestionRef.current,
+                        surveyAnswers: completedSurveyPurposes,
+                    });
+                    sessionStorage.removeItem('pending_checkin_notif');
+                } catch (notificationError) {
+                    // The visit is already recorded. Keep the pending ID so a
+                    // later dashboard attempt can safely retry the same event.
+                    console.error('QR checkin notification failed:', notificationError);
+                }
                 sessionStorage.removeItem('require_checkin_survey');
             } else {
-                sessionStorage.setItem('require_checkin_survey', 'true');
+                const assignedSurvey = await loadAssignedSurvey({
+                    surveyType: 'CHECKIN',
+                    locationName: locObj.name,
+                    userId: currentUser.id,
+                }).catch((surveyError) => {
+                    console.error('QR checkin survey assignment failed:', surveyError);
+                    return null;
+                });
+                requiresCheckinSurvey = Boolean(assignedSurvey);
+                if (requiresCheckinSurvey) {
+                    sessionStorage.setItem('require_checkin_survey', 'true');
+                } else {
+                    try {
+                        await sendCheckinNotification({ logId: insertedLog?.id || null, purposes: [] });
+                        sessionStorage.removeItem('pending_checkin_notif');
+                    } catch (notificationError) {
+                        console.error('QR checkin notification failed:', notificationError);
+                    }
+                    sessionStorage.removeItem('require_checkin_survey');
+                }
             }
             if (insertedLog?.created_at) {
                 sessionStorage.setItem('active_checkin_time', insertedLog.created_at);
@@ -496,7 +592,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             navigate('/student', {
                 replace: true,
                 state: {
-                    requireCheckinSurvey: !hasCompletedCheckinSurvey,
+                    requireCheckinSurvey: requiresCheckinSurvey,
                     checkinTime: insertedLog?.created_at,
                     locationName: locObj.name
                 }
@@ -515,16 +611,25 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
     // On mount effect
     useEffect(() => {
         if (requiresRotatingQr && qrAccess.status !== 'VALID') return;
+        if (isMainEntry && ['initializing', 'restoring', 'refreshing'].includes(auth.status)) return;
         const querySearch = location.search || '';
 
-        const savedUser = localStorage.getItem('user');
+        // The landing page is public. Never route away from it merely because
+        // an old profile remains in localStorage; only a provider session that
+        // has completed server verification may trigger automatic entry.
+        const hasVerifiedAuth = auth.status === 'authenticated'
+            && Boolean(auth.profile?.id);
+        const savedUser = hasVerifiedAuth
+            ? JSON.stringify(auth.profile)
+            : (!isMainEntry ? localStorage.getItem('user') : null);
         if (savedUser) {
             try {
                 const parsedUser = JSON.parse(savedUser);
                 if (parsedUser?.id) {
-                    const isAdmin = parsedUser.user_group === '관리자' || parsedUser.role === 'admin';
+                    const isAdmin = isAdminOrStaff(parsedUser);
                     if (isAdmin) {
-                        navigate('/admin' + querySearch, { replace: true });
+                        if (returnAfterLogin()) return;
+                        if (isMainEntry) navigate('/admin' + querySearch, { replace: true });
                         return;
                     }
 
@@ -534,6 +639,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                     } else {
                         // Normal Web App access: navigate straight to student dashboard
                         updateWebSessionPreferences(parsedUser);
+                        if (returnAfterLogin()) return;
                         navigate('/student' + querySearch, { replace: true });
                     }
                     return;
@@ -543,15 +649,23 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             }
         }
 
-        const savedAdmin = localStorage.getItem('admin_user');
+        const savedAdmin = isMainEntry && !hasVerifiedAuth
+            ? null
+            : localStorage.getItem('admin_user');
         if (savedAdmin) {
             try {
                 const parsedAdmin = JSON.parse(savedAdmin);
                 if (parsedAdmin?.id) {
-                    navigate('/admin' + querySearch, { replace: true });
+                    if (returnAfterLogin()) return;
+                    if (isMainEntry) navigate('/admin' + querySearch, { replace: true });
                     return;
                 }
             } catch (e) {}
+        }
+
+        if (isCommunityLoginFlow) {
+            setShowLoginModal(true);
+            return;
         }
 
         // Check for active guest checkin session if not logged in
@@ -585,7 +699,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 console.error('Failed to parse guest active session', e);
             }
         }
-    }, [isQRCheckin, locParam, navigate, ensureCheckinLogAndNavigate, getActiveVisitSession, qrAccess.status, requiresRotatingQr]);
+    }, [isQRCheckin, locParam, navigate, ensureCheckinLogAndNavigate, getActiveVisitSession, qrAccess.status, requiresRotatingQr, isMainEntry, auth.status, auth.profile]);
 
     // Trigger confetti on guest success
     useEffect(() => {
@@ -695,15 +809,18 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 return false;
             }
 
+            [matchedUser] = await userApi.attachAccountRoles([matchedUser]);
+
             setResetCandidate(null);
             setShowLoginModal(false);
 
             // Handle Admin Login
-            if (matchedUser.user_group === '관리자' || matchedUser.role === 'admin') {
+            if (isAdminOrStaff(matchedUser)) {
                 localStorage.setItem('admin_user', JSON.stringify(matchedUser));
                 localStorage.setItem('user', JSON.stringify(matchedUser));
                 updateWebSessionPreferences(matchedUser).catch(() => {});
-                navigate('/admin', { replace: true });
+                if (returnAfterLogin()) return true;
+                if (isMainEntry) navigate('/admin', { replace: true });
                 return true;
             }
 
@@ -714,6 +831,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 await ensureCheckinLogAndNavigate(matchedUser);
             } else {
                 updateWebSessionPreferences(matchedUser).catch(() => {});
+                if (returnAfterLogin()) return true;
                 navigate('/student', { replace: true });
             }
             return true;
@@ -894,6 +1012,18 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 } catch (cErr) {}
             }
 
+            // Record the visit before an optional modern survey, so one-time
+            // eligibility can be resolved using this visit's completion receipt.
+            if (modernSurveyLink && isQRCheckin) {
+                const visit = await recordMobileVisitEvent({ userId: guestUserId, locationId: haifnLoc.id, type: 'CHECKIN' });
+                if (!['CREATED','RECONCILED'].includes(visit.outcome)) throw new Error('이미 이용 중입니다. QR로 현재 이용 상태를 확인해 주세요.');
+                modernGuestVisitRef.current = (visit.event || visit.state?.lastEvent)?.id || null;
+                await markTodayProgramAttendance(guestUserId).catch(error => console.error('Guest attendance reconciliation failed:', error));
+                const assigned = await loadAssignedSurvey({ surveyType:'CHECKIN', locationName:haifnLoc.name, userId:guestUserId }).catch(error => { console.error('Optional guest survey lookup failed:', error); return null; });
+                setModernSurveyLink(assigned?.config?._surveyLink || null);
+                setGuestSurveyAvailable(Boolean(assigned));
+            }
+
             // Save pending guest info
             setGuestPendingInfo({
                 guestUserId,
@@ -903,10 +1033,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 haifnLoc
             });
 
-            // Pre-select first dynamic survey option
-            if (dynamicSurveyOptions && dynamicSurveyOptions.length > 0) {
-                setSelectedPurposes([dynamicSurveyOptions[0].label]);
-            }
+            setSelectedPurposes([]);
 
             const cameFromProgramApplication = String(existingGuest?.memo || '').includes('프로그램 비회원 신청');
 
@@ -934,18 +1061,19 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
     };
 
     // Complete Guest Check-in with Selected Survey Purposes
-    const performGuestSurveyComplete = async (surveyPurposes) => {
+    const performGuestSurveyComplete = async (surveyPurposes, modernAnswers = null) => {
         if (!guestPendingInfo) return;
         setLoading(true);
         try {
             const { guestUserId, cleanName, cleanSchool, finalVisitReason, haifnLoc } = guestPendingInfo;
             const todayKst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
-            const surveyPurposesStr = (surveyPurposes && surveyPurposes.length > 0)
+            let surveyPurposesStr = (surveyPurposes && surveyPurposes.length > 0)
                 ? surveyPurposes.join(', ')
-                : '당 충전하며 쉬고 싶어요';
+                : '';
 
             // 1. Insert CHECKIN log into logs table ONLY for QR checkin route
-            if (isQRCheckin) {
+            let checkinLogId = modernGuestVisitRef.current;
+            if (isQRCheckin && !checkinLogId) {
                 const checkinResult = await recordMobileVisitEvent({
                     userId: guestUserId,
                     locationId: haifnLoc.id,
@@ -954,12 +1082,20 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 if (!['CREATED', 'RECONCILED'].includes(checkinResult.outcome)) {
                     throw new Error('이미 오늘의 이용 기록이 있습니다. 같은 QR로 체크아웃을 진행해주세요.');
                 }
+                checkinLogId = (checkinResult.event || checkinResult.state?.lastEvent)?.id || null;
+                modernGuestVisitRef.current = checkinLogId;
 
                 try {
                     await markTodayProgramAttendance(guestUserId);
                 } catch (attendanceError) {
                     console.error('Guest QR program attendance update failed:', attendanceError);
                 }
+            }
+
+            if (modernSurveyLink && modernAnswers) {
+                const saved = await surveyHubApi.submit(modernSurveyLink, guestUserId, modernAnswers, { locationId: haifnLoc.id, visitId: checkinLogId });
+                surveyPurposes = answerSummary(saved.snapshot, saved.answers);
+                surveyPurposesStr = surveyPurposes.join(', ');
             }
 
             // 2. Save visit notes (remarks = referral path, purpose = checkin survey choice)
@@ -987,7 +1123,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                     }
 
                     // Save to checkin_surveys table
-                    await supabase.from('checkin_surveys').insert([{
+                    if (!modernSurveyLink && guestSurveyAvailable !== false && surveyPurposes?.length) await supabase.from('checkin_surveys').insert([{
                         user_id: guestUserId,
                         survey_type: 'CHECKIN',
                         selections: surveyPurposes,
@@ -1017,12 +1153,8 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
 
             // 3. Trigger Realtime LINE / Discord Notification with separate Referral Path & Check-in Purpose
             try {
-                sendCheckinNotification({
-                    userId: guestUserId,
-                    userName: cleanName,
-                    schoolName: cleanSchool,
-                    locationName: haifnLoc.name,
-                    isGuest: true,
+                await sendCheckinNotification({
+                    logId: checkinLogId,
                     referralPath: finalVisitReason,
                     purposes: surveyPurposes,
                     surveyQuestion,
@@ -1035,6 +1167,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             setStep('SUCCESS');
         } catch (err) {
             console.error('Guest Survey Complete Error:', err);
+            if (modernAnswers) throw err;
             alert('체크인 완료 중 오류가 발생했습니다: ' + (err.message || '다시 시도해주세요.'));
         } finally {
             setLoading(false);
@@ -1050,6 +1183,15 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             // a second CHECKOUT record, and always check out of the actual active location.
             const activeVisit = await getActiveVisitSession(activeSession.userId);
             if (!activeVisit) {
+                try {
+                    const pending = JSON.parse(localStorage.getItem('pending_checkout_notification') || '{}');
+                    if (pending?.logId) {
+                        await sendCheckoutNotification({ logId: pending.logId });
+                        localStorage.removeItem('pending_checkout_notification');
+                    }
+                } catch (notificationError) {
+                    console.error('Pending guest checkout notification failed:', notificationError);
+                }
                 setCompletedCheckoutLocationName(getLocationDisplayName(activeSession.locationName));
                 localStorage.removeItem('guest_active_session');
                 setShowCheckoutConfirm(false);
@@ -1073,85 +1215,17 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 return;
             }
 
-            let durationText = '';
-            if (checkoutSession.checkInTime) {
-                const checkinTime = new Date(checkoutSession.checkInTime).getTime();
-                const checkoutTime = new Date().getTime();
-                const durationMinutes = Math.max(1, Math.floor((checkoutTime - checkinTime) / (1000 * 60)));
-                const hours = Math.floor(durationMinutes / 60);
-                const mins = durationMinutes % 60;
-                const durationStr = hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`;
-                durationText = `\n🕑 ${durationStr} 이용`;
-            }
-
-            if (!notificationAlreadySent && !areExternalNotificationsMuted()) {
-                const locNameStr = checkoutSession.locationName || '공간';
-                const isMemberCheckout = checkoutSession.isMember === true;
-                const checkoutTitle = isMemberCheckout ? '[CHECK-OUT]' : '[GUEST CHECK-OUT]';
-                const alertMessage = `${checkoutTitle}\n💙 ${checkoutSession.name}님이 ${locNameStr}에서 퇴실했어요${durationText}`;
-
-                const checkoutLocationName = checkoutSession.locationName || '';
-                const isHaifnCheckout = (checkoutLocationName.includes('하이픈') || checkoutLocationName.includes('HAIFN') || checkoutLocationName.includes('강동')) &&
-                    !(checkoutLocationName.includes('이높') || checkoutLocationName.includes('ENOUGH_PLACE') || checkoutLocationName.includes('강서'));
-                if (isHaifnCheckout) {
-                    dispatchVisitSlackAlert({
-                        message: alertMessage,
-                        userId: checkoutSession.userId,
-                        eventType: 'CHECKOUT',
-                        locationName: checkoutLocationName,
-                    }).catch(error => console.error('Slack QR checkout notification error:', error));
+            if (!notificationAlreadySent) {
+                const checkoutEvent = checkoutResult.event || checkoutResult.state?.lastEvent;
+                if (!checkoutEvent?.id || checkoutEvent.type !== 'CHECKOUT') {
+                    throw new Error('저장된 퇴실 이벤트를 확인하지 못했습니다.');
                 }
-
-                try {
-                const settings = await requestSupabaseRest(
-                    'global_settings?select=*',
-                    {},
-                    1,
-                    4000
-                );
-                let lineToken = '', lineGroupId = '', gsWebhookUrl = '', discordWebhookUrl = '';
-                let lineNotificationsEnabled = localStorage.getItem('line_notifications_enabled') !== 'false';
-
-                if (settings) {
-                    settings.forEach(s => {
-                        if (s.key === 'line_channel_access_token') lineToken = s.value;
-                        if (s.key === 'line_group_id') lineGroupId = s.value;
-                        if (s.key === 'gs_webhook_url') gsWebhookUrl = s.value;
-                        if (s.key === 'discord_webhook_url') discordWebhookUrl = s.value;
-                        if (s.key === 'line_notifications_enabled') {
-                            lineNotificationsEnabled = s.value !== 'false';
-                            localStorage.setItem('line_notifications_enabled', String(lineNotificationsEnabled));
-                        }
-                    });
-                }
-
-                const locName = checkoutSession.locationName || '';
-                const isHaifnLoc = (locName.includes('하이픈') || locName.includes('HAIFN') || locName.includes('강동')) &&
-                    !(locName.includes('이높') || locName.includes('ENOUGH_PLACE') || locName.includes('강서'));
-
-                if (lineNotificationsEnabled && isHaifnLoc && lineToken && lineGroupId && gsWebhookUrl) {
-                    fetch(gsWebhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({
-                            action: 'LINE_NOTIFY',
-                            token: lineToken,
-                            to: lineGroupId,
-                            message: alertMessage
-                        })
-                    }).catch(e => console.error('LINE Notify error:', e));
-                }
-
-                if (discordWebhookUrl) {
-                    fetch(discordWebhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ content: alertMessage })
-                    }).catch(e => console.error('Discord Notify error:', e));
-                }
-                } catch (notifyErr) {
-                    console.error('Notification dispatch error:', notifyErr);
-                }
+                localStorage.setItem('pending_checkout_notification', JSON.stringify({
+                    logId: checkoutEvent.id,
+                    createdAt: checkoutEvent.created_at || new Date().toISOString(),
+                }));
+                await sendCheckoutNotification({ logId: checkoutEvent.id });
+                localStorage.removeItem('pending_checkout_notification');
             }
 
             setCompletedCheckoutLocationName(getLocationDisplayName(checkoutSession.locationName));
@@ -1192,7 +1266,6 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
         // Only a checkout event created/reconciled by this flow may produce an
         // alert. UI state alone is not evidence that a checkout happened.
         const session = checkoutSurveySession;
-        const userId = session?.userId || session?.id;
         const checkoutEventId = session?.checkoutEventId;
 
         // React state does not update synchronously, so two very fast taps can
@@ -1203,41 +1276,25 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
         if (completionKey) checkoutCompletionInFlightRef.current.add(completionKey);
 
         try {
-            if (userId && checkoutEventId) {
-                const [checkoutEvents, users] = await Promise.all([
-                    requestSupabaseRest(
-                        `logs?select=id,type,created_at,location_id&id=eq.${encodeURIComponent(checkoutEventId)}&user_id=eq.${encodeURIComponent(userId)}&type=eq.CHECKOUT&limit=1`
-                    ),
-                    requestSupabaseRest(
-                        `users?select=id,name,school&id=eq.${encodeURIComponent(userId)}&limit=1`
-                    ),
-                ]);
-
-                const checkoutEvent = checkoutEvents?.[0];
-                const canonicalUser = users?.[0];
-                if (!checkoutEvent || !canonicalUser?.name) {
-                    throw new Error('퇴실 이벤트 또는 이용자 정보를 확인하지 못했습니다.');
-                }
-
-                const notificationKey = `checkout_notification_sent:${checkoutEvent.id}`;
+            if (checkoutEventId) {
+                // The central server reloads and validates the checkout, user,
+                // location and route. Browser-side preflight reads only created
+                // another failure point before notification dispatch.
+                const notificationKey = `checkout_notification_sent:${checkoutEventId}`;
                 if (sessionStorage.getItem(notificationKey) !== 'true') {
                     // Set before awaiting network delivery. This closes the race
                     // where repeated callbacks all observed the old false value.
                     sessionStorage.setItem(notificationKey, 'true');
                     try {
                         await sendCheckoutNotification({
-                            userId: canonicalUser.id,
-                            userName: canonicalUser.name.replace('(guest)', '').trim(),
-                            schoolName: canonicalUser.school || '',
-                            locationName: session.locationName || '하이픈',
+                            logId: checkoutEventId,
                             // A skipped/abandoned survey is an empty response, not
                             // a fabricated "퇴실 완료" answer.
                             feedbackText: surveySubmitted ? feedbackText : '',
                             surveyQuestion: surveySubmitted ? surveyQuestion : '',
                             surveyAnswers: surveySubmitted ? surveyAnswers : [],
-                            isGuest: canonicalUser.user_group === '게스트' || canonicalUser.name?.includes('(guest)'),
-                            checkInTime: session.checkInTime || null,
                         });
+                        localStorage.removeItem('pending_checkout_notification');
                     } catch (error) {
                         sessionStorage.removeItem(notificationKey);
                         throw error;
@@ -1251,6 +1308,20 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             clearMemberCheckoutUi();
         }
     };
+
+    // If the visitor leaves the survey untouched, send the basic checkout
+    // notification after one minute. Completing or skipping the survey first
+    // uses the same idempotency key, so only one notification can be delivered.
+    useEffect(() => {
+        if (!checkoutSurveySession?.checkoutEventId) return undefined;
+        const checkoutCreatedAtMs = new Date(checkoutSurveySession.checkoutTime).getTime();
+        const elapsedMs = Number.isFinite(checkoutCreatedAtMs) ? Date.now() - checkoutCreatedAtMs : 0;
+        const remainingMs = Math.max(0, CHECKOUT_NOTIFICATION_GRACE_MS - elapsedMs);
+        const timeoutId = window.setTimeout(() => {
+            finishMemberCheckout({ surveySubmitted: false });
+        }, remainingMs);
+        return () => window.clearTimeout(timeoutId);
+    }, [checkoutSurveySession?.checkoutEventId, checkoutSurveySession?.checkoutTime]);
 
     const handleMemberCheckoutConfirm = async () => {
         if (!activeSession) return;
@@ -1280,6 +1351,10 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             if (!checkoutEvent?.id || checkoutEvent.type !== 'CHECKOUT') {
                 throw new Error('저장된 퇴실 이벤트를 확인하지 못했습니다.');
             }
+            localStorage.setItem('pending_checkout_notification', JSON.stringify({
+                logId: checkoutEvent.id,
+                createdAt: checkoutEvent.created_at || new Date().toISOString(),
+            }));
             setCheckoutSurveySession({
                 ...checkoutSession,
                 checkoutEventId: checkoutEvent.id,
@@ -1300,7 +1375,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             handleMemberCheckoutConfirm();
             return;
         }
-        handleGuestCheckoutSubmit();
+        handleMemberCheckoutConfirm();
     };
 
     if (requiresRotatingQr && qrAccess.status !== 'VALID') {
@@ -1332,6 +1407,13 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 <p className="text-gray-400 font-medium text-xs">잠시만 기다려 주세요 ✨</p>
             </div>
         );
+    }
+
+    // Do not paint the public/login landing page while a durable login is being
+    // restored. Apart from causing a visible flash, its login button can start
+    // a second auth flow that races the valid saved session.
+    if (isMainEntry && ['initializing', 'restoring', 'refreshing'].includes(auth.status)) {
+        return <div className="min-h-screen bg-[#F8F9FA]" aria-hidden="true" />;
     }
 
     return (
@@ -1537,7 +1619,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
 
                                 <div>
                                     <label className="block text-[12px] font-bold text-[#4E5968] mb-1 ml-1">생년월일</label>
-                                    <DatePicker label="생년월일" required max={new Date().toLocaleDateString('en-CA')} value={guestBirthDate} onChange={setGuestBirthDate} />
+                                    <BirthDateInput label="생년월일" required max={new Date().toLocaleDateString('en-CA')} value={guestBirthDate} onChange={setGuestBirthDate} />
                                 </div>
 
                                 {parseGuestBirthDate(guestBirthDate)?.isUnder14 && (
@@ -1623,7 +1705,9 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                     )}
 
                     {/* CHECKIN SURVEY SELECTION STEP */}
-                    {step === 'SURVEY' && (
+                    {step === 'SURVEY' && modernSurveyLink && guestPendingInfo && <SurveyRunner inline link={modernSurveyLink} userId={guestPendingInfo.guestUserId} onClose={() => performGuestSurveyComplete([])} onSubmit={(answers, summary) => performGuestSurveyComplete(summary, answers)} />}
+                    {step === 'SURVEY' && guestSurveyAvailable === false && <div className="rounded-2xl bg-white p-6 space-y-4"><p>입실을 완료해 주세요.</p><button className="rounded-xl bg-blue-600 text-white px-5 py-3" disabled={loading} onClick={() => performGuestSurveyComplete([])}>입실 완료</button></div>}
+                    {step === 'SURVEY' && guestSurveyAvailable !== false && !(modernSurveyLink && guestPendingInfo) && (
                         <motion.div
                             key="survey"
                             initial={{ opacity: 0, scale: 0.95 }}
@@ -1682,8 +1766,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
 
                             <button
                                 onClick={() => {
-                                    const fallbackLabel = dynamicSurveyOptions?.[0]?.label || '당 충전하며 쉬고 싶어요';
-                                    const finalPurposes = selectedPurposes.length > 0 ? selectedPurposes : [fallbackLabel];
+                                    const finalPurposes = selectedPurposes;
                                     if (guestPendingInfo) {
                                         performGuestSurveyComplete(finalPurposes);
                                     } else {

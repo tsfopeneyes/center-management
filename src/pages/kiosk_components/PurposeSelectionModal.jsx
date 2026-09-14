@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check, ChevronRight, Edit3, BookOpen, Coffee, Heart, Smile } from 'lucide-react';
 import { motion } from 'framer-motion';
+import SurveyRunner from '../../components/surveys/SurveyRunner';
 
 const PurposeSelectionModal = ({ isOpen, user, onComplete, surveyConfig }) => {
     const [selected, setSelected] = React.useState([]);
@@ -39,6 +40,7 @@ const PurposeSelectionModal = ({ isOpen, user, onComplete, surveyConfig }) => {
     };
 
     if (!isOpen) return null;
+    if (surveyConfig?._surveyLink) return <SurveyRunner link={surveyConfig._surveyLink} userId={user?.id} onClose={() => onComplete([])} onComplete={(_, summary) => onComplete(summary)} />;
 
     return (
         <div className="fixed inset-0 bg-slate-900/60 z-[150] flex items-center justify-center p-4 backdrop-blur-xl animate-fade-in">
@@ -86,12 +88,8 @@ const PurposeSelectionModal = ({ isOpen, user, onComplete, surveyConfig }) => {
                 </div>}
 
                 <button
-                    disabled={isTextSurvey ? !textAnswer.trim() : selected.length === 0}
                     onClick={() => onComplete(isTextSurvey ? [textAnswer.trim()] : selected)}
-                    className={`w-full py-6 rounded-3xl font-black text-xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 ${(isTextSurvey ? textAnswer.trim() : selected.length > 0)
-                        ? 'bg-slate-800 text-white hover:bg-slate-900 shadow-slate-200'
-                        : 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
-                        }`}
+                    className="w-full py-6 rounded-3xl bg-slate-800 text-white font-black text-xl transition-all shadow-xl shadow-slate-200 hover:bg-slate-900 active:scale-95 flex items-center justify-center gap-3"
                 >
                     체크아웃 완료 <ChevronRight size={24} />
                 </button>

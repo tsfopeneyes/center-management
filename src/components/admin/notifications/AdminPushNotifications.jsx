@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import AdminPageHeader from "../common/AdminPageHeader";
+import { isAdminOrStaff as isStaffUser } from "../../../utils/userUtils";
+import { userApi } from "../../../api/userApi";
 const TARGETS = [
   ["ALL", "전체"],
   ["REGION_GANGDONG", "하이픈"],
@@ -23,15 +25,6 @@ const LINKS = [
   ["NOTICE", "공지사항"],
   ["PROGRAM", "프로그램"],
 ];
-const isStaffUser = (user) => {
-  const role = String(user?.role || "").toLowerCase(),
-    group = String(user?.user_group || "").toLowerCase();
-  return (
-    ["admin", "staff"].includes(role) ||
-    group === "staff" ||
-    user?.user_group === "관리자"
-  );
-};
 const normalizeSearch = (value) =>
   String(value || "")
     .normalize("NFKC")
@@ -72,7 +65,7 @@ export default function AdminPushNotifications() {
       for (let from = 0; ; from += 1000) {
         const result = await supabase
           .from("users")
-          .select("id,name,school,role,user_group")
+          .select("id,name,school,user_group")
           .order("name")
           .range(from, from + 999);
         if (result.error) throw result.error;
@@ -94,7 +87,7 @@ export default function AdminPushNotifications() {
       ]);
       if (n.error) console.error(n.error);
       setNotices(n.data || []);
-      setUsers(u);
+      setUsers(await userApi.attachAccountRoles(u));
       setSchools(s.data || []);
       const h = await supabase.functions.invoke("send-push", {
         body: { action: "list-dispatches" },
@@ -107,22 +100,55 @@ export default function AdminPushNotifications() {
       if (!silent) setLoading(false);
     }
   }, []);
+  const refreshHistory = useCallback(async () => {
+    try {
+      const result = await supabase.functions.invoke("send-push", {
+        body: { action: "list-dispatches" },
+      });
+      if (result.error) console.error("Failed to refresh push history:", result.error);
+      else setHistory(result.data?.dispatches || []);
+    } catch (error) {
+      console.error("Failed to refresh push history:", error);
+    }
+  }, []);
   useEffect(() => {
     load();
   }, [load]);
   useEffect(() => {
+    let targetRefreshTimer;
+    let hasSubscribed = false;
     const refreshReceipts = () => {
+      if (document.visibilityState === "visible") refreshHistory();
+    };
+    const refreshEverything = () => {
       if (document.visibilityState === "visible") load({ silent: true });
     };
-    const intervalId = window.setInterval(refreshReceipts, 10000);
-    window.addEventListener("focus", refreshReceipts);
-    document.addEventListener("visibilitychange", refreshReceipts);
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshReceipts);
-      document.removeEventListener("visibilitychange", refreshReceipts);
+    const scheduleTargetRefresh = () => {
+      window.clearTimeout(targetRefreshTimer);
+      targetRefreshTimer = window.setTimeout(refreshEverything, 500);
     };
-  }, [load]);
+    const historyIntervalId = window.setInterval(refreshReceipts, 10000);
+    const targetIntervalId = window.setInterval(refreshEverything, 300000);
+    const targetChannel = supabase.channel("admin-push-targets")
+      .on("postgres_changes", { event: "*", schema: "public", table: "users" }, scheduleTargetRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notices" }, scheduleTargetRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "schools" }, scheduleTargetRefresh)
+      .subscribe(status => {
+        if (status !== "SUBSCRIBED") return;
+        if (hasSubscribed) scheduleTargetRefresh();
+        hasSubscribed = true;
+      });
+    window.addEventListener("focus", refreshEverything);
+    document.addEventListener("visibilitychange", refreshEverything);
+    return () => {
+      window.clearTimeout(targetRefreshTimer);
+      window.clearInterval(historyIntervalId);
+      window.clearInterval(targetIntervalId);
+      window.removeEventListener("focus", refreshEverything);
+      document.removeEventListener("visibilitychange", refreshEverything);
+      supabase.removeChannel(targetChannel);
+    };
+  }, [load, refreshHistory]);
   const linked = useMemo(
     () =>
       notices.filter((n) =>
@@ -139,7 +165,7 @@ export default function AdminPushNotifications() {
     if (!q) return [];
     return users.filter((u) => {
       const searchable = normalizeSearch(
-        `${u.name || ""} ${u.school || ""} ${u.role || ""} ${u.user_group || ""} ${isStaffUser(u) ? "스탭 스태프 staff 직원 선생님 관리자" : ""}`,
+        `${u.name || ""} ${u.school || ""} ${u.user_group || ""} ${isStaffUser(u) ? "스탭 스태프 staff 직원 선생님 관리자" : ""}`,
       );
       return searchable.includes(q);
     });
@@ -198,12 +224,12 @@ export default function AdminPushNotifications() {
     const notice = notices.find((n) => String(n.id) === String(form.noticeId));
     const url =
       form.linkType === "HOME"
-        ? "/"
+        ? "/student"
         : form.linkType === "NONE"
           ? ""
           : notice
-            ? `/?noticeId=${notice.id}`
-            : "/";
+            ? `/student?noticeId=${notice.id}`
+            : "/student";
     if (
       !confirm(
         `${targetLabel}에게 알림을 보낼까요?\n\n${form.title}\n${form.body}`,

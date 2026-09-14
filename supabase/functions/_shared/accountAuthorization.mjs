@@ -1,17 +1,19 @@
 import {assessSessionContinuity} from './sessionContinuity.mjs';
 import {LoginError,isProfileId} from './loginSecurity.mjs';
+import {isMasterAccountRole,isStaffAccountRole} from './staffRoles.mjs';
 
 const selfActions=new Set(['profile.read-self','profile.update-self','credentials.change-self','media.upload-self']);
-const adminActions=new Set(['members.manage','credentials.reset','settings.manage','ledger.manage','media.upload-admin']);
+const staffActions=new Set(['members.manage','credentials.reset','settings.manage','ledger.manage','media.upload-admin']);
+const masterActions=new Set(['roles.manage']);
 
 // SERVER ONLY: action is a constant selected by a route, not an arbitrary body
 // field. Snapshot uses a private read-only transaction; verifyToken validates
 // native Auth AND live sessions. No frontend name/role/metadata fallback.
 export function createAccountAuthorization({snapshot,verifyToken,now=Date.now}) {
     return async({accessToken,action,targetProfileId})=>{
-        if(!selfActions.has(action) && !adminActions.has(action))throw new LoginError('forbidden',403);
+        if(!selfActions.has(action) && !staffActions.has(action) && !masterActions.has(action))throw new LoginError('forbidden',403);
         if(selfActions.has(action)&&!isProfileId(targetProfileId))throw new LoginError('invalid_request',400);
-        if(adminActions.has(action)&&targetProfileId!=null&&!isProfileId(targetProfileId))throw new LoginError('invalid_request',400);
+        if((staffActions.has(action)||masterActions.has(action))&&targetProfileId!=null&&!isProfileId(targetProfileId))throw new LoginError('invalid_request',400);
         return snapshot(async(store)=>{
             const session=await assessSessionContinuity(accessToken,{verifyToken,
                 loadAccount:store.loadAccount,loadAssurance:store.loadAssurance,now});
@@ -20,7 +22,9 @@ export function createAccountAuthorization({snapshot,verifyToken,now=Date.now}) 
                 if(targetProfileId!==session.profileId)throw new LoginError('forbidden',403);
             } else {
                 const role=await store.loadRole(session.profileId);
-                if(role?.profileId!==session.profileId || role.enabled!==true || role.role!=='admin')throw new LoginError('forbidden',403);
+                const allowed=role?.profileId===session.profileId && role.enabled===true &&
+                    (masterActions.has(action)?isMasterAccountRole(role.role):isStaffAccountRole(role.role));
+                if(!allowed)throw new LoginError('forbidden',403);
             }
             return Object.freeze({actorProfileId:session.profileId,authUserId:session.authUserId,
                 sessionId:session.sessionId,action,targetProfileId});

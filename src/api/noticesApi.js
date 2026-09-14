@@ -3,6 +3,9 @@ import { haifnApi } from './haifnApi';
 import { getRegistrationBlockReason } from '../utils/programRecruitment';
 import { fetchAllPages } from '../utils/fetchAllPages';
 import { fetchProgramPreviews, mergeProgramPreviews, readNoticeWithPreview } from './programReadApi';
+import { programSessionsApi } from './programSessionsApi';
+import { usesDailySessionRsvp } from '../utils/dailyProgramSessions';
+import { challengeMissionsApi } from './challengeMissionsApi';
 
 export const noticesApi = {
     async loadForStudentRegistration(noticeId) {
@@ -22,14 +25,29 @@ export const noticesApi = {
         return this.upsertResponse(noticeId, userId, status);
     },
 
-    async fetchAll() {
-        const [rows, previews] = await Promise.all([fetchAllPages(() => supabase
-            .from('notices')
-            .select('*')
-            .order('is_sticky', { ascending: false })
-            .order('created_at', { ascending: false })
-            .order('id')), fetchProgramPreviews()]);
-        const data = mergeProgramPreviews(rows, previews);
+    async fetchAll({ category } = {}) {
+        const createNoticesQuery = () => {
+            let query = supabase
+                .from('notices')
+                .select('*')
+                .order('is_sticky', { ascending: false })
+                .order('created_at', { ascending: false })
+                .order('id');
+            if (category) query = query.eq('category', category);
+            return query;
+        };
+        const [rows, previews] = await Promise.all([
+            fetchAllPages(createNoticesQuery),
+            category === 'PROGRAM'
+                ? fetchProgramPreviews()
+                : (category ? Promise.resolve([]) : fetchProgramPreviews()),
+        ]);
+        let data = mergeProgramPreviews(rows, previews);
+        if (category) data = data.filter(item => item.category === category);
+        data = await challengeMissionsApi.fetchMissionsForChallenges(data);
+        const dailyIds = data.filter(usesDailySessionRsvp).map(item => item.id);
+        const todaySessions = await programSessionsApi.fetchToday(dailyIds);
+        data = data.map(item => usesDailySessionRsvp(item) ? { ...item, today_session: todaySessions[item.id] || null } : item);
 
         const now = new Date();
         now.setHours(0, 0, 0, 0);
@@ -63,7 +81,7 @@ export const noticesApi = {
     async fetchResponses(userId) {
         const { data, error } = await supabase
             .from('notice_responses')
-            .select('notice_id, status, is_attended, challenge_mission_statuses')
+            .select('notice_id, status, is_attended')
             .eq('user_id', userId);
         if (error) throw error;
         return data;
@@ -197,7 +215,9 @@ export const noticesApi = {
             const notificationTitle = titleText;
             const notificationBody = '지금 바로 앱에서 확인해보세요!';
             const appNotificationContent = `[${titleText}] 지금 바로 앱에서 확인해보세요!`;
-            const noticeUrl = noticeId ? `/?noticeId=${noticeId}` : '/';
+            // Go straight to the web-app view so staff/admin accounts do not
+            // get diverted to the admin dashboard by the root login router.
+            const noticeUrl = noticeId ? `/student?noticeId=${noticeId}` : '/student';
             const targetRegions = Array.isArray(noticeObj?.target_regions) ? noticeObj.target_regions.filter(Boolean) : [];
             // A single regional target is delivered only to that region in the
             // in-app bell list. No target (or both regions) means a notice for
@@ -246,12 +266,8 @@ export const noticesApi = {
         const payload = { ...updates };
         // Programs use the recruitment-start interest worker. A stale form or
         // older client must never turn a program save into an immediate blast.
-        const shouldSendPush = payload.send_push === true && (
-            payload.category !== 'PROGRAM' || (
-                payload.guest_properties?.recruitment_push_plans?.some(plan => plan.timing === 'NOW') &&
-                !payload.guest_properties?.recruitment_push_immediate_dispatched_at
-            )
-        );
+        // Program pushes are delivered exclusively by program_push_jobs.
+        const shouldSendPush = payload.send_push === true && payload.category !== 'PROGRAM';
         
         // Remove non-table / joined / computed keys that cause Supabase schema errors
         const nonTableKeys = [
@@ -287,6 +303,7 @@ export const noticesApi = {
             }
             await this.sendNoticePushNotification(noticeObj);
         }
+        return data[0];
     },
 
     async delete(id) {
@@ -301,9 +318,7 @@ export const noticesApi = {
         const payload = { ...notice };
         // Programs use the recruitment-start interest worker. A stale form or
         // older client must never turn a program save into an immediate blast.
-        const shouldSendPush = payload.send_push === true && (
-            payload.category !== 'PROGRAM' || payload.guest_properties?.recruitment_push_plans?.some(plan => plan.timing === 'NOW')
-        );
+        const shouldSendPush = payload.send_push === true && payload.category !== 'PROGRAM';
         delete payload.send_push; // Prevent schema error if column doesn't exist
         
         const { data, error } = await supabase

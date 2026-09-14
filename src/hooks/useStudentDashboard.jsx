@@ -11,6 +11,7 @@ import 'suneditor/dist/css/suneditor.min.css';
 import Cropper from 'react-easy-crop';
 import confetti from 'canvas-confetti';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../auth/accountAuthRuntime';
+import { isAdminOrStaff } from '../utils/userUtils';
 
 
 
@@ -35,7 +36,7 @@ import { hashPassword } from '../utils/hashUtils';
 import { useMessaging } from '../hooks/useMessaging';
 import { useNotices } from '../hooks/useNotices';
 import { getRecruitment } from '../utils/programRecruitment';
-import { useGuestbook } from '../hooks/useGuestbook';
+import { usesDailySessionRsvp } from '../utils/dailyProgramSessions';
 import { useProfile } from '../hooks/useProfile';
 import { badgesApi } from '../api/badgesApi';
 import { userApi } from '../api/userApi';
@@ -47,9 +48,11 @@ import { useRealtimePresence } from './dashboard/useRealtimePresence';
 import { useDashboardBadges } from './dashboard/useDashboardBadges';
 import { useDashboardCalendar } from './dashboard/useDashboardCalendar';
 import { resolveSchoolRegion } from '../utils/schoolRegionUtils';
+import { useAuth } from '../auth/AuthProvider';
 
 export const useStudentDashboard = () => {
     const navigate = useNavigate();
+    const auth = useAuth();
     const [activeTab, setActiveTab] = useState(TAB_NAMES.HOME);
     const [loading, setLoading] = useState(true);
     const [studentRegion, setStudentRegion] = useState(null);
@@ -66,7 +69,6 @@ export const useStudentDashboard = () => {
 
     const { notices, responses, responseDetails, fetchNotices, handleResponse } = useNotices(effectiveUser?.id);
     const { messages, unreadCount, markAsRead } = useMessaging(effectiveUser?.id);
-    const { guestPosts, uploading: uploadingGuest, handleCreatePost, handleUpdatePost, fetchComments: fetchGuestCommentsData, handlePostComment: handleGuestCommentSubmit, handleDeletePost: handleDeleteGuestPost, handleDeleteComment: handleDeleteGuestComment } = useGuestbook(effectiveUser?.id);
     const { notifications, unreadNotificationCount, showNotificationsModal, setShowNotificationsModal, fetchNotifications, markNotificationsAsRead } = useDashboardNotifications(effectiveUser);
 
     // UI-Specific State (Not in hooks)
@@ -75,11 +77,6 @@ export const useStudentDashboard = () => {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
 
-    const [showGuestWrite, setShowGuestWrite] = useState(false);
-    const [newGuestPost, setNewGuestPost] = useState({ content: '', images: [], previews: [] });
-    const [selectedGuestPost, setSelectedGuestPost] = useState(null);
-    const [guestComments, setGuestComments] = useState([]);
-    const [newGuestComment, setNewGuestComment] = useState('');
 
     const [showProfileSettings, setShowProfileSettings] = useState(false);
     const [profileImage, setProfileImage] = useState(null);
@@ -114,7 +111,6 @@ export const useStudentDashboard = () => {
         { id: 'badges', label: '뱃지', isVisible: true },
         { id: 'programs', label: '센터', isVisible: true },
         { id: 'calendar', label: '캘린더', isVisible: true },
-        { id: 'azit', label: '커뮤니티', isVisible: true },
         { id: 'haifn', label: '하이픈', isVisible: true }
     ]);
 
@@ -124,9 +120,7 @@ export const useStudentDashboard = () => {
         setActiveTab(tabName);
         setSelectedNotice(null);
         setNoticeContext(null);
-        setSelectedGuestPost(null);
         setShowProfileSettings(false);
-        setShowGuestWrite(false);
 
         // Celebration Logic
         if (tabName === TAB_NAMES.BADGES) {
@@ -170,21 +164,22 @@ export const useStudentDashboard = () => {
 
 
     useEffect(() => {
-        let storedUser = localStorage.getItem('user') || localStorage.getItem('admin_user');
-        if (!storedUser) {
-            alert('로그인이 필요합니다.');
+        if (auth.status === 'initializing') return;
+        if (auth.status === 'anonymous') {
             const params = new URLSearchParams(window.location.search);
             const noticeId = params.get('noticeId');
             const suffix = noticeId ? `?noticeId=${noticeId}` : '';
-            navigate('/' + suffix);
+            navigate('/' + suffix, { replace: true });
             return;
         }
 
-        if (!localStorage.getItem('user') && localStorage.getItem('admin_user')) {
-            localStorage.setItem('user', storedUser);
+        // During a temporary outage keep the last server-verified profile on
+        // screen. Protected writes remain enforced by the server/RLS.
+        const parsedUser = auth.profile;
+        if (!parsedUser?.id) {
+            setLoading(false);
+            return;
         }
-
-        const parsedUser = JSON.parse(storedUser);
 
         if (!user || user.id !== parsedUser.id) {
             setUser(parsedUser);
@@ -211,7 +206,9 @@ export const useStudentDashboard = () => {
                     console.error('Failed to sync admin_user in StudentDashboard effect:', e);
                 }
             }
-        });
+        }).catch(error => {
+            console.error('Failed to hydrate the signed-in profile:', error);
+        }).finally(() => setLoading(false));
 
         fetchStats(parsedUser.id).then(res => {
             if (res && res.attendedPrograms) {
@@ -225,14 +222,11 @@ export const useStudentDashboard = () => {
         fetchBadgeData();
         subscribeToPush(parsedUser.id);
         fetchSchedules();
-        fetchRealtimeStatusData();
         fetchNotifications(parsedUser);
 
         // Region fetching handled in dedicated useEffect below for effectiveUser
 
-        setLoading(false);
-
-    }, [navigate, fetchStats, fetchBadgeData, fetchNotifications, fetchSchedules]); // Removed dependencies that cause loops
+    }, [auth.status, auth.profile?.id, navigate, fetchStats, fetchBadgeData, fetchNotifications, fetchSchedules]);
 
     useEffect(() => {
         let cancelled = false;
@@ -303,7 +297,6 @@ export const useStudentDashboard = () => {
                             { id: 'badges', label: '뱃지', isVisible: true },
                             { id: 'programs', label: '센터', isVisible: true },
                             { id: 'calendar', label: '캘린더', isVisible: true },
-                            { id: 'azit', label: '커뮤니티', isVisible: true },
                             { id: 'haifn', label: '하이픈', isVisible: true }
                         ];
                         const merged = defaultTabs.map(def => {
@@ -366,7 +359,7 @@ export const useStudentDashboard = () => {
             // Fetch updated comments
             const { data } = await supabase
                 .from('comments')
-                .select('*, users(name, profile_image_url)')
+                .select('*, users(name, profile_image_url), notice_comment_reactions(user_id, emoji, users(id, name, school, profile_image_url))')
                 .eq('notice_id', selectedNotice.id)
                 .order('created_at', { ascending: true });
             setComments(data || []);
@@ -385,7 +378,7 @@ export const useStudentDashboard = () => {
             // Fetch updated comments
             const { data } = await supabase
                 .from('comments')
-                .select('*, users(name, profile_image_url)')
+                .select('*, users(name, profile_image_url), notice_comment_reactions(user_id, emoji, users(id, name, school, profile_image_url))')
                 .eq('notice_id', selectedNotice.id)
                 .order('created_at', { ascending: true });
             setComments(data || []);
@@ -401,7 +394,7 @@ export const useStudentDashboard = () => {
         try {
             const { data } = await supabase
                 .from('comments')
-                .select('*, users(name, profile_image_url)')
+                .select('*, users(name, profile_image_url), notice_comment_reactions(user_id, emoji, users(id, name, school, profile_image_url))')
                 .eq('notice_id', notice.id)
                 .order('created_at', { ascending: true });
             setComments(data || []);
@@ -416,63 +409,6 @@ export const useStudentDashboard = () => {
             return notices.find(item => item.id === previous.id) || previous;
         });
     }, [notices]);
-
-    const handleCreateGuestPost = async () => {
-        const success = await handleCreatePost(newGuestPost.content, newGuestPost.images);
-        if (success) {
-            setNewGuestPost({ content: '', images: [], previews: [] });
-            setShowGuestWrite(false);
-        }
-    };
-    const openGuestPostDetail = async (post) => {
-        setSelectedGuestPost(post);
-        const data = await fetchGuestCommentsData(post.id);
-        setGuestComments(data);
-    };
-
-    const handlePostGuestCommentData = async (e) => {
-        e.preventDefault();
-        const success = await handleGuestCommentSubmit(selectedGuestPost.id, newGuestComment);
-        if (success) {
-            setNewGuestComment('');
-            const data = await fetchGuestCommentsData(selectedGuestPost.id);
-            setGuestComments(data);
-        }
-    };
-
-    const onDeleteGuestPost = async (postId) => {
-        if (!confirm('방명록 글을 삭제하시겠습니까?')) return;
-        const success = await handleDeleteGuestPost(postId);
-        if (success) {
-            setSelectedGuestPost(null);
-            alert('삭제되었습니다.');
-        }
-    };
-
-    const onDeleteGuestComment = async (commentId) => {
-        if (!confirm('댓글을 삭제하시겠습니까?')) return;
-        const success = await handleDeleteGuestComment(selectedGuestPost.id, commentId);
-        if (success) {
-            const data = await fetchGuestCommentsData(selectedGuestPost.id);
-            setGuestComments(data);
-        }
-    };
-
-    const handleGuestFileSelect = (e) => {
-        const files = Array.from(e.target.files);
-        if (files.length > 0) {
-            const newPreviews = files.map(file => URL.createObjectURL(file));
-            setNewGuestPost(prev => ({
-                ...prev,
-                images: [...prev.images, ...files],
-                previews: [...prev.previews, ...newPreviews]
-            }));
-        }
-    };
-
-
-
-
 
     // Filter Notices
 
@@ -529,7 +465,7 @@ export const useStudentDashboard = () => {
         }
 
         // 관리자 미리보기에서는 선택한 지역을 기준으로 보여 준다.
-        if (!impersonatedUser && (user?.role === 'admin' || user?.user_group === '관리자')) {
+        if (!impersonatedUser && isAdminOrStaff(user)) {
             if (selectedRegion === 'GANGDONG') return targets.includes('강동');
             if (selectedRegion === 'GANGSEO') return targets.includes('강서');
             return true;
@@ -544,6 +480,7 @@ export const useStudentDashboard = () => {
 
     const allPrograms = notices.filter(n => {
         if (n.category !== CATEGORIES.PROGRAM) return false;
+        if (usesDailySessionRsvp(n) && n.today_session?.status !== 'OPEN') return false;
         if (n.is_private && !['JOIN', 'WAITLIST'].includes(responses[n.id])) return false;
         return isVisibleForStudentRegion(n);
     });
@@ -685,8 +622,6 @@ export const useStudentDashboard = () => {
         
         // Modals Traps
         showProfileSettings, setShowProfileSettings,
-        showGuestWrite, setShowGuestWrite,
-        selectedGuestPost, setSelectedGuestPost,
         showProgramHistory, setShowProgramHistory,
         showEnlargedQr, setShowEnlargedQr,
         showNotificationsModal, setShowNotificationsModal,
@@ -713,10 +648,6 @@ export const useStudentDashboard = () => {
         badgeCategories, dynamicBadges, badgesLoading, specialStats,
         adminSchedules, calendarCategories, dashboardConfig, tabConfig,
         notifications, unreadNotificationCount,
-        updateProfile, withdrawMembership, profileLoadingState,
-        
-        // Guestbook Hooks
-        guestPosts, uploadingGuest, handleCreatePost, handleUpdatePost, handleDeleteGuestPost,
-        fetchGuestCommentsData, handleGuestCommentSubmit, handleDeleteGuestComment
+        updateProfile, withdrawMembership, profileLoadingState
     };
 };

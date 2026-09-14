@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { SmilePlus, X, Search, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -97,13 +97,17 @@ const EMOJI_CATEGORIES = [
     }
 ];
 
-export default function NoticeReactions({ reactions = [], currentUserId, onToggleReaction }) {
+export default function NoticeReactions({ reactions = [], currentUserId, onToggleReaction, hideAddButtonOnMobile = false, pickerOpenToken = 0 }) {
     const [showModal, setShowModal] = useState(false);
     const [detailEmoji, setDetailEmoji] = useState(null); // For "Who Reacted" Modal
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('popular');
     const scrollContainerRef = useRef(null);
     const categoryRefs = useRef({});
+
+    useEffect(() => {
+        if (pickerOpenToken) setShowModal(true);
+    }, [pickerOpenToken]);
 
     // Long press refs
     const timerRef = useRef(null);
@@ -195,7 +199,14 @@ export default function NoticeReactions({ reactions = [], currentUserId, onToggl
     };
 
     return (
-        <div className="py-1 my-1" onClick={(e) => e.stopPropagation()}>
+        <div
+            className={`py-1 my-1 ${hideAddButtonOnMobile && safelyTypedReactions.length === 0 ? 'hidden md:block' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            onTouchCancel={(e) => e.stopPropagation()}
+        >
             <div className="flex flex-wrap items-center gap-1.5">
                 {/* Existing Reactions */}
                 {Object.entries(grouped).map(([emoji, data]) => {
@@ -242,7 +253,7 @@ export default function NoticeReactions({ reactions = [], currentUserId, onToggl
                 <button
                     type="button"
                     onClick={() => setShowModal(true)}
-                    className="flex items-center justify-center w-8 h-8 rounded-full bg-tossGrey50 hover:bg-tossGrey100 text-tossGrey500 border border-tossGrey200 hover:border-tossGrey300 transition-all active:scale-95 shrink-0"
+                    className={`${hideAddButtonOnMobile ? 'hidden md:flex' : 'flex'} items-center justify-center w-8 h-8 rounded-full bg-tossGrey50 hover:bg-tossGrey100 text-tossGrey500 border border-tossGrey200 hover:border-tossGrey300 transition-all active:scale-95 shrink-0`}
                     title="이모지 반응 추가"
                 >
                     <SmilePlus size={16} strokeWidth={2} />

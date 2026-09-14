@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import { userApi } from '../../../../api/userApi';
 import { normalizeSchoolName } from '../../../../utils/schoolUtils';
+import { isAdminOrStaff } from '../../../../utils/userUtils';
 
 export const useAdminSchool = ({ users, refreshDashboardData }) => {
     const [schools, setSchools] = useState([]);
@@ -180,7 +181,7 @@ export const useAdminSchool = ({ users, refreshDashboardData }) => {
     };
 
     const staffList = useMemo(() => {
-        return (users || []).filter(u => u.user_group === 'STAFF' || u.user_group === 'TEACHER');
+        return (users || []).filter(u => isAdminOrStaff(u) || u.user_group === 'TEACHER');
     }, [users]);
 
     const schoolGroups = useMemo(() => {

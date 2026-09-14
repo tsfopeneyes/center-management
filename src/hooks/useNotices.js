@@ -3,6 +3,9 @@ import { supabase } from '../supabaseClient';
 import { noticesApi } from '../api/noticesApi';
 import { RESPONSE_STATUS } from '../constants/appConstants';
 import { trackUserWebActivity } from '../utils/userActivityUtils';
+import { programSessionsApi } from '../api/programSessionsApi';
+import { usesDailySessionRsvp } from '../utils/dailyProgramSessions';
+import { sendProgramApplicationNotification } from '../utils/integrationUtils';
 
 export const useNotices = (userId) => {
     const [notices, setNotices] = useState([]);
@@ -13,7 +16,16 @@ export const useNotices = (userId) => {
     const fetchNotices = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await noticesApi.fetchAll();
+            let data = await noticesApi.fetchAll();
+            const dailyIds = data.filter(usesDailySessionRsvp).map(item => item.id);
+            if (dailyIds.length) {
+                const sessionMap = await programSessionsApi.fetchOpen(dailyIds, userId);
+                data = data.map(item => usesDailySessionRsvp(item) ? {
+                    ...item,
+                    today_session: sessionMap[item.id] || null,
+                    open_sessions: sessionMap[item.id]?.open_sessions || [],
+                } : item);
+            }
 
             // Fetch applicant counts
             const countsMap = await noticesApi.fetchAllJoinCounts();
@@ -32,6 +44,10 @@ export const useNotices = (userId) => {
                     resMap[r.notice_id] = r.status;
                     resDetailsMap[r.notice_id] = r;
                 });
+                data.filter(usesDailySessionRsvp).forEach(item => {
+                    const status = item.today_session?.my_response?.status;
+                    if (status && status !== 'CANCELLED') resMap[item.id] = status;
+                });
                 setResponses(resMap);
                 setResponseDetails(resDetailsMap);
             }
@@ -42,8 +58,39 @@ export const useNotices = (userId) => {
         }
     }, [userId]);
 
-    const handleResponse = async (noticeId, status) => {
+    const handleResponse = async (noticeId, status, sessionId = null) => {
         try {
+            const dailyNotice = notices.find(item => item.id === noticeId && usesDailySessionRsvp(item));
+            if (dailyNotice) {
+                const session = sessionId
+                    ? (dailyNotice.open_sessions || []).find(item => item.id === sessionId)
+                    : dailyNotice.today_session;
+                if (!session || session.status !== 'OPEN') throw new Error('오늘은 신청을 받고 있지 않습니다.');
+                const oldStatus = responses[noticeId];
+                const result = await programSessionsApi.respond(session, userId, status);
+                setResponses(prev => {
+                    const next = { ...prev };
+                    if (result?.status === 'CANCELLED') delete next[noticeId];
+                    else next[noticeId] = result?.status || 'JOIN';
+                    return next;
+                });
+                if (['JOIN', 'WAITLIST'].includes(result?.status) && oldStatus !== result.status) {
+                    try {
+                        await sendProgramApplicationNotification({
+                            noticeId: dailyNotice.id,
+                            userId,
+                            status: result.status,
+                            dailySessionId: session.id,
+                            sessionDate: session.session_date,
+                        });
+                    } catch (notificationError) {
+                        console.error('Daily program application notification failed:', notificationError);
+                    }
+                }
+                await fetchNotices();
+                alert(result?.status === 'WAITLIST' ? '대기 신청이 완료되었습니다.' : result?.status === 'CANCELLED' ? '신청을 취소했습니다.' : '신청이 완료되었습니다.');
+                return;
+            }
             const notice = await noticesApi.loadForStudentRegistration(noticeId);
 
             // 1. Strict Deadline Check
@@ -102,6 +149,20 @@ export const useNotices = (userId) => {
             await noticesApi.upsertStudentResponse(noticeId, userId, finalStatus);
             setResponses(prev => ({ ...prev, [noticeId]: finalStatus }));
             await trackUserWebActivity({ id: userId });
+
+            if (['JOIN', 'WAITLIST'].includes(finalStatus) && oldStatus !== finalStatus) {
+                try {
+                    await sendProgramApplicationNotification({
+                        noticeId: notice.id,
+                        userId,
+                        status: finalStatus,
+                    });
+                } catch (notificationError) {
+                    // The application is already stored; notification failure must
+                    // not encourage a duplicate registration attempt.
+                    console.error('Program application notification failed:', notificationError);
+                }
+            }
 
             // 4. Auto Promotion Logic (When changing FROM join to something else)
             if (oldStatus === RESPONSE_STATUS.JOIN && finalStatus !== RESPONSE_STATUS.JOIN) {

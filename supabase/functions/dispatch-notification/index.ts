@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {resolveAuthLink,authLinkStore} from './auth-link.mjs';
+import { resolveNotificationEvent } from '../_shared/notificationEvent.mjs';
+import { CENTER_CODES, destinationSecretName, enabledDestinations, legacyLineProxySecretName, normalizeRoutingConfig } from '../_shared/notificationRouting.mjs';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,13 +56,12 @@ const requireStaffAccount = async (request: Request, staffId: string) => {
 
   const serviceRoleKey = getSecret("SUPABASE_SERVICE_ROLE_KEY");
   const supabaseUrl = getSecret("SUPABASE_URL");
-  const response = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${encodeURIComponent(profileId)}&select=role,user_group&limit=1`, {
+  const response = await fetch(`${supabaseUrl}/rest/v1/staff_directory?id=eq.${encodeURIComponent(profileId)}&select=id,role&limit=1`, {
     headers: { Authorization: `Bearer ${serviceRoleKey}`, apikey: serviceRoleKey },
   });
   if (!response.ok) throw new Error("Unable to verify staff permissions.");
-  const [user] = await response.json() as Array<{ role?: string; user_group?: string }>;
-  const isStaff = user?.role?.toLowerCase() === "admin" || user?.role?.toLowerCase() === "staff" || user?.user_group?.toLowerCase() === "staff" || user?.user_group === "관리자";
-  if (!isStaff) throw new Error("Only staff can manage coffee chat requests.");
+  const [user] = await response.json() as Array<{ id?: string; role?: string }>;
+  if (!user?.id) throw new Error("Only staff can manage coffee chat requests.");
 };
 
 // An administrator can open the student-preview screen, but this is still
@@ -72,22 +73,21 @@ const requireStudentOrStaffPreviewAccess = async (request: Request, studentId: s
 
   const serviceRoleKey = getSecret("SUPABASE_SERVICE_ROLE_KEY");
   const supabaseUrl = getSecret("SUPABASE_URL");
-  const response = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${encodeURIComponent(profileId)}&select=role,user_group&limit=1`, {
+  const response = await fetch(`${supabaseUrl}/rest/v1/staff_directory?id=eq.${encodeURIComponent(profileId)}&select=id,role&limit=1`, {
     headers: { Authorization: `Bearer ${serviceRoleKey}`, apikey: serviceRoleKey },
   });
   if (!response.ok) throw new Error("Unable to verify preview permissions.");
-  const [user] = await response.json() as Array<{ role?: string; user_group?: string }>;
-  const isAdmin = user?.role?.toLowerCase() === "admin" || user?.user_group === "관리자";
-  if (!isAdmin) throw new Error("Only administrators can preview another student's coffee chats.");
+  const [user] = await response.json() as Array<{ id?: string; role?: string }>;
+  if (!user?.id) throw new Error("Only administrators can preview another student's coffee chats.");
 };
 
-const isSlackCategoryEnabled = async (category: unknown): Promise<boolean> => {
+const isChannelCategoryEnabled = async (channel: "line" | "slack", category: unknown): Promise<boolean> => {
   if (typeof category !== "string" || !category.trim()) return true;
   const serviceRoleKey = getSecret("SUPABASE_SERVICE_ROLE_KEY");
   const supabaseUrl = getSecret("SUPABASE_URL");
   if (!serviceRoleKey || !supabaseUrl) return true;
 
-  const key = `slack_${category}_notifications_enabled`;
+  const key = `${channel}_${category}_notifications_enabled`;
   try {
     const response = await fetch(`${supabaseUrl}/rest/v1/global_settings?key=eq.${encodeURIComponent(key)}&select=value&limit=1`, {
       headers: { Authorization: `Bearer ${serviceRoleKey}`, apikey: serviceRoleKey },
@@ -99,6 +99,35 @@ const isSlackCategoryEnabled = async (category: unknown): Promise<boolean> => {
     // 설정 조회 장애가 신청·알림 전체를 막지는 않도록 기존 기본값(전송)을 유지합니다.
     return true;
   }
+};
+
+const isSlackCategoryEnabled = (category: unknown) => isChannelCategoryEnabled("slack", category);
+
+const buildRestUrl = (supabaseUrl: string, table: string, query: Array<[string, string]>) => {
+  const search = new URLSearchParams();
+  query.forEach(([key, value]) => search.append(key, value));
+  return `${supabaseUrl}/rest/v1/${table}?${search.toString()}`;
+};
+
+const readServiceRow = async (
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  table: string,
+  query: Array<[string, string]>,
+) => {
+  const response = await fetch(buildRestUrl(supabaseUrl, table, query), {
+    headers: { Authorization: `Bearer ${serviceRoleKey}`, apikey: serviceRoleKey },
+  });
+  if (!response.ok) throw new Error(`Unable to verify ${table}. (${response.status})`);
+  const rows = await response.json() as Array<Record<string, unknown>>;
+  return rows[0] || null;
+};
+
+const readRoutingConfig = async (supabaseUrl: string, serviceRoleKey: string) => {
+  const row = await readServiceRow(supabaseUrl, serviceRoleKey, "global_settings", [
+    ["key", "eq.notification_routing_config"], ["select", "value"], ["limit", "1"],
+  ]).catch(() => null) as { value?: string } | null;
+  return normalizeRoutingConfig(row?.value);
 };
 
 serve(async (request) => {
@@ -172,8 +201,13 @@ serve(async (request) => {
         user_group?: string;
         is_master?: boolean;
       }>;
-      const isAdmin = profile?.is_master === true || profile?.role === "admin" || profile?.user_group === "관리자";
-      if (!profile || isAdmin) throw new Error("이 계정은 온라인 비밀번호 초기화를 사용할 수 없습니다.");
+      const staffResponse = await fetch(
+        `${supabaseUrl}/rest/v1/staff_directory?id=eq.${encodeURIComponent(profileId)}&select=id&limit=1`,
+        { headers: { Authorization: `Bearer ${serviceRoleKey}`, apikey: serviceRoleKey } },
+      );
+      if (!staffResponse.ok) throw new Error("계정 권한을 확인하지 못했습니다.");
+      const [staffProfile] = await staffResponse.json() as Array<{ id?: string }>;
+      if (!profile || staffProfile?.id) throw new Error("이 계정은 온라인 비밀번호 초기화를 사용할 수 없습니다.");
 
       const storedBirth = String(profile.birth || "").replace(/\D/g, "");
       const suppliedBirth = birth.trim();
@@ -538,6 +572,192 @@ serve(async (request) => {
       });
     }
 
+    if (action === "notify-event") {
+      const serviceRoleKey = getSecret("SUPABASE_SERVICE_ROLE_KEY");
+      const supabaseUrl = getSecret("SUPABASE_URL");
+      if (!serviceRoleKey || !supabaseUrl) throw new Error("Notification service is not configured.");
+
+      const event = await resolveNotificationEvent(payload, {
+        readOne: (table: string, query: Array<[string, string]>) =>
+          readServiceRow(supabaseUrl, serviceRoleKey, table, query),
+      }) as {
+        category: string;
+        centerCodes: string[];
+        message: string;
+        eventKey: string;
+        source: { table: string; id: string };
+      };
+      if (!event.message.trim() || event.message.length > 4_000) throw new Error("Notification message is invalid.");
+
+      const routingConfig = await readRoutingConfig(supabaseUrl, serviceRoleKey);
+      const candidateDestinations = enabledDestinations({
+        centerCodes: event.centerCodes,
+        category: event.category,
+        routingConfig,
+      });
+      const destinations = candidateDestinations as Array<{ centerCode: string; channel: "line" | "slack" }>;
+
+      const results: Record<string, string> = {};
+      const now = new Date().toISOString();
+      const deliveryHeaders = {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+        "Content-Type": "application/json",
+      };
+
+      const beginDelivery = async (destination: { centerCode: string; channel: "line" | "slack" }) => {
+        const lookup = [
+          ["event_key", `eq.${event.eventKey}`],
+          ["center_code", `eq.${destination.centerCode}`],
+          ["channel", `eq.${destination.channel}`],
+          ["select", "id,status,attempt_count,updated_at"],
+          ["limit", "1"],
+        ] as Array<[string, string]>;
+        let existing: { id?: string; status?: string; attempt_count?: number; updated_at?: string } | null = null;
+        try {
+          existing = await readServiceRow(supabaseUrl, serviceRoleKey, "notification_delivery_logs", lookup) as typeof existing;
+        } catch (auditError) {
+          // During the safe rollout the function may be deployed before the
+          // reviewed migration. Delivery remains available, but without the
+          // audit/idempotency guarantee until the migration is applied.
+          const message = auditError instanceof Error ? auditError.message : String(auditError);
+          if (message.includes("(404)")) return { id: null, shouldSend: true };
+          throw auditError;
+        }
+        const processingIsFresh = existing?.status === "processing" &&
+          Date.now() - new Date(existing.updated_at || 0).getTime() < 5 * 60 * 1_000;
+        if (existing?.status === "sent" || processingIsFresh) {
+          return { id: existing.id || null, shouldSend: false };
+        }
+        if (existing?.id) {
+          const response = await fetch(`${supabaseUrl}/rest/v1/notification_delivery_logs?id=eq.${encodeURIComponent(existing.id)}`, {
+            method: "PATCH",
+            headers: { ...deliveryHeaders, Prefer: "return=representation" },
+            body: JSON.stringify({
+              status: "processing",
+              attempt_count: Number(existing.attempt_count || 1) + 1,
+              error_message: null,
+              updated_at: now,
+            }),
+          });
+          return { id: existing.id, shouldSend: response.ok };
+        }
+        const response = await fetch(`${supabaseUrl}/rest/v1/notification_delivery_logs`, {
+          method: "POST",
+          headers: { ...deliveryHeaders, Prefer: "return=representation" },
+          body: JSON.stringify({
+            event_key: event.eventKey,
+            source_table: event.source.table,
+            source_id: event.source.id,
+            center_code: destination.centerCode,
+            category: event.category,
+            channel: destination.channel,
+          }),
+        });
+        if (response.status === 409) return { id: null, shouldSend: false };
+        if (!response.ok) return { id: null, shouldSend: true };
+        const rows = await response.json() as Array<{ id?: string }>;
+        return { id: rows[0]?.id || null, shouldSend: true };
+      };
+
+      const finishDelivery = async (id: string | null, status: "sent" | "failed", errorMessage = "") => {
+        if (!id) return;
+        await fetch(`${supabaseUrl}/rest/v1/notification_delivery_logs?id=eq.${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: deliveryHeaders,
+          body: JSON.stringify({
+            status,
+            error_message: errorMessage ? errorMessage.slice(0, 1_000) : null,
+            updated_at: new Date().toISOString(),
+            sent_at: status === "sent" ? new Date().toISOString() : null,
+          }),
+        }).catch(() => null);
+      };
+
+      await Promise.all(destinations.map(async (destination) => {
+        const resultKey = `${destination.centerCode}.${destination.channel}`;
+        const claim = await beginDelivery(destination);
+        if (!claim.shouldSend) {
+          results[resultKey] = "duplicate skipped";
+          return;
+        }
+        try {
+          if (destination.channel === "line") {
+            const secretName = destinationSecretName(destination);
+            const groupId = secretName ? getSecret(secretName) : "";
+            const centerToken = getSecret(`LINE_${destination.centerCode === "HAIFN" ? "HAIFN" : "ENOUGH"}_CHANNEL_ACCESS_TOKEN`);
+            const token = centerToken || getSecret("LINE_CHANNEL_ACCESS_TOKEN");
+            if (groupId && token) {
+              const response = await fetch("https://api.line.me/v2/bot/message/push", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  to: groupId,
+                  messages: [{ type: "text", text: event.message }],
+                }),
+              });
+              if (!response.ok) throw new Error(`LINE returned ${response.status}`);
+            } else {
+              // Temporary compatibility for the existing Apps Script/proxy
+              // setup. Remove after both group IDs and the server token have
+              // been verified in production.
+              const proxyUrl = getSecret(legacyLineProxySecretName(destination.centerCode));
+              if (!proxyUrl) {
+                results[resultKey] = "not configured";
+                await finishDelivery(claim.id, "failed", `${secretName || "LINE group"} or LINE token is not configured.`);
+                return;
+              }
+              const response = await fetch(proxyUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: event.message }),
+              });
+              if (!response.ok) throw new Error(`LINE proxy returned ${response.status}`);
+            }
+          } else {
+            const token = getSecret("SLACK_BOT_TOKEN");
+            const channel = destination.centerCode === "HAIFN"
+              ? getSecret("SLACK_HAIFN_CHANNEL_ID") || getSecret("SLACK_ALERT_CHANNEL_ID")
+              : getSecret("SLACK_ENOUGH_CHANNEL_ID");
+            if (!token || !channel) {
+              results[resultKey] = "not configured";
+              await finishDelivery(claim.id, "failed", "Slack route is not configured.");
+              return;
+            }
+            const response = await fetch("https://slack.com/api/chat.postMessage", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+              body: JSON.stringify({ channel, text: event.message }),
+            });
+            const responsePayload = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+            if (!response.ok || !responsePayload?.ok) throw new Error(`Slack returned ${responsePayload?.error || response.status}`);
+          }
+          results[resultKey] = "sent";
+          await finishDelivery(claim.id, "sent");
+        } catch (deliveryError) {
+          const errorMessage = deliveryError instanceof Error ? deliveryError.message : String(deliveryError);
+          results[resultKey] = `failed: ${errorMessage}`;
+          await finishDelivery(claim.id, "failed", errorMessage);
+        }
+      }));
+
+      return new Response(JSON.stringify({
+        success: true,
+        eventKey: event.eventKey,
+        centerCodes: event.centerCodes,
+        category: event.category,
+        results,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "notify" && ["visit", "program", "coffee_chat", "rental"].includes(String(notificationCategory || ""))) {
+      return new Response(JSON.stringify({
+        error: "This notification category must use a verified notify-event source.",
+      }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     if (action !== "notify" || typeof message !== "string" || !message.trim()) throw new Error("A notification message is required.");
     if (message.length > 4_000) throw new Error("Notification message is too long.");
 
@@ -553,11 +773,27 @@ serve(async (request) => {
     }
 
     if (sendLine) {
-      const url = getSecret(lineTarget === "haifn" ? "LINE_HAIFN_PROXY_URL" : "LINE_ENOUGH_PROXY_URL");
-      if (url) jobs.push(fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) }).then((response) => {
-        if (!response.ok) throw new Error(`LINE proxy returned ${response.status}`);
-        results.line = "sent";
-      })); else results.line = "not configured";
+      const centerCode = lineTarget === "haifn" ? CENTER_CODES.HAIFN : CENTER_CODES.ENOUGH_PLACE;
+      const groupSecretName = destinationSecretName({ centerCode, channel: "line" });
+      const groupId = groupSecretName ? getSecret(groupSecretName) : "";
+      const centerToken = getSecret(`LINE_${centerCode === CENTER_CODES.HAIFN ? "HAIFN" : "ENOUGH"}_CHANNEL_ACCESS_TOKEN`);
+      const token = centerToken || getSecret("LINE_CHANNEL_ACCESS_TOKEN");
+      if (groupId && token) {
+        jobs.push(fetch("https://api.line.me/v2/bot/message/push", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ to: groupId, messages: [{ type: "text", text: message }] }),
+        }).then((response) => {
+          if (!response.ok) throw new Error(`LINE returned ${response.status}`);
+          results.line = "sent";
+        }));
+      } else {
+        const url = getSecret(legacyLineProxySecretName(centerCode));
+        if (url) jobs.push(fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) }).then((response) => {
+          if (!response.ok) throw new Error(`LINE proxy returned ${response.status}`);
+          results.line = "sent";
+        })); else results.line = "not configured";
+      }
     }
 
     const visitLocationText = `${typeof locationName === "string" ? locationName : ""} ${message}`;
@@ -601,10 +837,18 @@ serve(async (request) => {
 
     if (sendGoogleSheets) {
       const url = getSecret("GOOGLE_SHEETS_WEBHOOK_URL");
-      if (url && googleSheetsPayload) jobs.push(fetch(url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(googleSheetsPayload) }).then((response) => {
+      const validSheetPayload = googleSheetsPayload && typeof googleSheetsPayload === "object" && (
+        (typeof googleSheetsPayload.tabName === "string" && googleSheetsPayload.tabName.trim()) ||
+        (googleSheetsPayload.isBulk === true && Array.isArray(googleSheetsPayload.payloads) &&
+          googleSheetsPayload.payloads.every((item: any) =>
+            item && typeof item.tabName === "string" && item.tabName.trim() &&
+            Array.isArray(item.rows) && Array.isArray(item.headers)
+          ))
+      );
+      if (url && validSheetPayload) jobs.push(fetch(url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(googleSheetsPayload) }).then((response) => {
         if (!response.ok) throw new Error(`Google Sheets returned ${response.status}`);
         results.googleSheets = "sent";
-      })); else results.googleSheets = "not configured";
+      })); else results.googleSheets = url ? "invalid payload" : "not configured";
     }
 
     await Promise.all(jobs);

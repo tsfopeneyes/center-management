@@ -1,361 +1,49 @@
 import { format } from 'date-fns';
 import { getWeekIdentifier, parseTimeRange } from './dateUtils';
 import { supabase } from '../supabaseClient';
-import { areExternalNotificationsMuted, dispatchServerNotification, dispatchSlackAlert, dispatchVisitSlackAlert, serverIntegrationsEnabled } from './serverIntegration';
-
-const preferenceEnabled = (channel, category) => {
-    const categoryKey = `${channel}_${category}_notifications_enabled`;
-    const legacyKey = `${channel}_notifications_enabled`;
-    return (localStorage.getItem(categoryKey) ?? (category === 'visit' ? localStorage.getItem(legacyKey) : null)) !== 'false';
-};
-
-const loadPreference = async (channel, category) => {
-    const key = `${channel}_${category}_notifications_enabled`;
-    let enabled = preferenceEnabled(channel, category);
-    try {
-        const { data } = await supabase
-            .from('global_settings')
-            .select('value')
-            .eq('key', key)
-            .maybeSingle();
-        if (data?.value !== undefined) {
-            enabled = data.value !== 'false';
-            localStorage.setItem(key, String(enabled));
-        }
-    } catch (error) {
-        console.error(`Failed to load ${key}:`, error);
-    }
-    return enabled;
-};
-
-const isSlackDeliveryConfirmed = (result) => {
-    const payload = result?.data || result;
-    return payload?.results?.slack === 'sent';
-};
+import { dispatchNotificationEvent } from './serverIntegration';
+import { isAdminOrStaff } from './userUtils';
 
 const normalizeSurveyAnswers = (answers) => (Array.isArray(answers) ? answers : [answers])
     .map(value => String(value || '').trim())
     .filter(Boolean);
 
-export const buildVisitNotificationMessage = ({
-    type,
-    userName,
-    schoolName,
-    isGuest = false,
-    referralPath = '',
-    surveyQuestion = '',
-    surveyAnswers = []
-}) => {
-    const cleanName = String(userName || '알 수 없음').replace('(guest)', '').trim();
-    const cleanSchool = String(schoolName || '').trim();
-    const identity = cleanSchool && cleanSchool !== '-' ? `${cleanName} (${cleanSchool})` : cleanName;
-    const isCheckout = type === 'CHECKOUT';
-    const title = `[${isGuest ? 'GUEST ' : ''}${isCheckout ? 'CHECK-OUT' : 'CHECK-IN'}]`;
-    const identityLine = `${isCheckout ? '💙' : '💌'} ${identity}`;
-    const referralBlock = !isCheckout && referralPath
-        ? `\n\n🧭 방문 경로\n▪ ${referralPath}`
-        : '';
-    const answers = normalizeSurveyAnswers(surveyAnswers);
-    const surveyBlock = surveyQuestion && answers.length > 0
-        ? `\n\n${isCheckout ? '📝' : '🎯'} ${surveyQuestion}\n▪ ${answers.join('\n▪ ')}`
-        : '';
-    return `${title}\n${identityLine}${referralBlock}${surveyBlock}`;
-};
-
-export const sendCategoryNotification = async ({ category, message, lineTarget = 'haifn', sendLine = true, sendSlack = true }) => {
-    if (areExternalNotificationsMuted()) return { muted: true };
-    const [linePreference, slackPreference] = await Promise.all([
-        sendLine ? loadPreference('line', category) : Promise.resolve(false),
-        sendSlack ? loadPreference('slack', category) : Promise.resolve(false),
-    ]);
-    const lineEnabled = sendLine && linePreference;
-    const slackEnabled = sendSlack && slackPreference;
-
-    if (serverIntegrationsEnabled()) {
-        const result = await dispatchServerNotification({
-            message,
-            sendLine: lineEnabled,
-            sendSlack: slackEnabled,
-            sendDiscord: false,
-            lineTarget,
-            notificationCategory: category,
-        });
-        if (slackEnabled && !isSlackDeliveryConfirmed(result)) {
-            throw new Error('Slack notification could not be confirmed.');
-        }
-        return result;
-    }
-
-    let slackResult = null;
-    if (slackEnabled) {
-        // Program applications must not silently lose their Slack alert. Retry
-        // short transient failures and let the caller know if delivery still
-        // cannot be confirmed.
-        let lastError;
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-            try {
-                slackResult = await dispatchSlackAlert(message, { notificationCategory: category });
-                if (!isSlackDeliveryConfirmed(slackResult)) {
-                    throw new Error('Slack notification could not be confirmed.');
-                }
-                break;
-            } catch (error) {
-                lastError = error;
-                if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)));
-            }
-        }
-        if (!slackResult) throw lastError || new Error('Slack notification could not be confirmed.');
-    }
-
-    if (!lineEnabled || lineTarget !== 'haifn') return { slack: slackResult };
-
-    try {
-        const { data: settings } = await supabase.from('global_settings').select('*');
-        const settingMap = Object.fromEntries((settings || []).map(setting => [setting.key, setting.value]));
-        const token = settingMap.line_channel_access_token;
-        const groupId = settingMap.line_group_id;
-        const webhookUrl = settingMap.gs_webhook_url;
-        if (token && groupId && webhookUrl) {
-            await fetch(webhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'LINE_NOTIFY', token, to: groupId, message })
-            });
-        }
-    } catch (error) {
-        console.error('LINE notification error:', error);
-    }
-    return { slack: slackResult };
-};
+export const sendProgramApplicationNotification = ({ noticeId, userId, status = 'JOIN', dailySessionId = null, sessionDate = null }) =>
+    dispatchNotificationEvent({
+        eventType: 'PROGRAM_APPLICATION',
+        noticeId,
+        userId,
+        status,
+        ...(dailySessionId ? { dailySessionId, sessionDate } : {}),
+    });
 
 /**
- * Trigger Realtime LINE / Discord Checkin Notification
+ * Route a verified check-in event through the central notification server.
  */
-export const sendCheckinNotification = async ({ userId, userName, schoolName, locationName, studentRegion, isGuest = false, referralPath = '', purposes = [], surveyQuestion = '', surveyAnswers }) => {
-    if (areExternalNotificationsMuted()) return { muted: true };
-    try {
-        const targetLocName = locationName || (studentRegion === '강서' ? '이높플레이스' : '하이픈');
-        const locNameStr = (targetLocName || '').toString();
-
-        const isHaifnLoc = (
-            locNameStr.includes('하이픈') ||
-            locNameStr.includes('HAIFN') ||
-            locNameStr.includes('강동')
-        ) && !(
-            locNameStr.includes('이높') ||
-            locNameStr.includes('ENOUGH_PLACE') ||
-            locNameStr.includes('강서')
-        );
-
-        let lineToken = '', lineGroupId = '', gsWebhookUrl = '', discordWebhookUrl = '';
-        let lineNotificationsEnabled = preferenceEnabled('line', 'visit');
-
-        try {
-            const { data: lineSetting } = await supabase
-                .from('global_settings')
-                .select('value')
-                .eq('key', 'line_visit_notifications_enabled')
-                .maybeSingle();
-            if (lineSetting?.value !== undefined) {
-                lineNotificationsEnabled = lineSetting.value !== 'false';
-                localStorage.setItem('line_visit_notifications_enabled', String(lineNotificationsEnabled));
-            }
-        } catch (error) {
-            console.error('Failed to load LINE notification setting:', error);
-        }
-
-        if (!serverIntegrationsEnabled()) {
-            const { data: settings } = await supabase.from('global_settings').select('*');
-            if (settings) {
-                settings.forEach(s => {
-                    if (s.key === 'line_channel_access_token') lineToken = s.value;
-                    if (s.key === 'line_group_id') lineGroupId = s.value;
-                    if (s.key === 'gs_webhook_url') gsWebhookUrl = s.value;
-                    if (s.key === 'discord_webhook_url') discordWebhookUrl = s.value;
-                });
-            }
-        }
-
-        const finalAnswers = surveyAnswers ?? purposes;
-        const alertMessage = buildVisitNotificationMessage({
-            type: 'CHECKIN', userName, schoolName, isGuest, referralPath,
-            surveyQuestion: surveyQuestion || (normalizeSurveyAnswers(finalAnswers).length ? '방문 목적' : ''),
-            surveyAnswers: finalAnswers
-        });
-
-        if (serverIntegrationsEnabled()) {
-            await dispatchServerNotification({
-                message: alertMessage,
-                sendLine: lineNotificationsEnabled && isHaifnLoc,
-                sendSlack: false,
-                lineTarget: isHaifnLoc ? 'haifn' : 'enough',
-                sendGoogleSheets: true,
-                googleSheetsPayload: {
-                    type: isGuest ? 'GUEST_CHECKIN' : 'CHECKIN', userName, schoolName,
-                    locationName: targetLocName, purposes, timestamp: new Date().toISOString(),
-                },
-            });
-            if (isHaifnLoc) {
-                await dispatchVisitSlackAlert({ message: alertMessage, userId, eventType: 'CHECKIN', locationName: targetLocName });
-            }
-            return;
-        }
-
-        if (isHaifnLoc) {
-            await dispatchVisitSlackAlert({ message: alertMessage, userId, eventType: 'CHECKIN', locationName: targetLocName });
-        }
-
-        // Trigger Google Sheets Webhook (via Proxy or Direct)
-        if (gsWebhookUrl) {
-            try {
-                fetch(gsWebhookUrl, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: isGuest ? 'GUEST_CHECKIN' : 'CHECKIN',
-                        userName,
-                        schoolName,
-                        locationName: targetLocName,
-                        purposes,
-                        timestamp: new Date().toISOString()
-                    })
-                }).catch(e => console.error("GS webhook push error", e));
-            } catch (e) { console.error(e); }
-        }
-
-        // Trigger Discord Webhook
-        if (discordWebhookUrl) {
-            try {
-                fetch(discordWebhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: alertMessage })
-                }).catch(e => console.error("Discord webhook push error", e));
-            } catch (e) { console.error(e); }
-        }
-
-        if (lineNotificationsEnabled) {
-            if (isHaifnLoc && lineToken && lineGroupId && gsWebhookUrl) {
-                fetch(gsWebhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: 'LINE_NOTIFY',
-                        token: lineToken,
-                        to: lineGroupId,
-                        message: alertMessage,
-                    }),
-                }).catch(e => console.error("LINE Apps Script push error", e));
-            }
-        }
-
-    } catch (err) {
-        console.error('Checkin Notification Error:', err);
-    }
-};
+export const sendCheckinNotification = ({ logId, referralPath = '', purposes = [], surveyQuestion = '', surveyAnswers }) =>
+    dispatchNotificationEvent({
+        eventType: 'VISIT_CHECKIN',
+        logId,
+        details: {
+            referralPath,
+            surveyQuestion: surveyQuestion || (normalizeSurveyAnswers(surveyAnswers ?? purposes).length ? '방문 목적' : ''),
+            surveyAnswers: surveyAnswers ?? purposes,
+        },
+    });
 
 /**
- * Trigger Realtime LINE / Discord Checkout Notification
+ * Route a verified checkout event through the central notification server.
  */
-export const sendCheckoutNotification = async ({ userId, userName, schoolName, locationName, studentRegion, isGuest = false, feedbackText = '', surveyQuestion = '', surveyAnswers, checkInTime = null }) => {
-    if (areExternalNotificationsMuted()) return { muted: true };
-    try {
-        const targetLocName = locationName || (studentRegion === '강서' ? '이높플레이스' : '하이픈');
-        const locNameStr = (targetLocName || '').toString();
-
-        const isHaifnLoc = (
-            locNameStr.includes('하이픈') ||
-            locNameStr.includes('HAIFN') ||
-            locNameStr.includes('강동')
-        ) && !(
-            locNameStr.includes('이높') ||
-            locNameStr.includes('ENOUGH_PLACE') ||
-            locNameStr.includes('강서')
-        );
-
-        let lineToken = '', lineGroupId = '', gsWebhookUrl = '', discordWebhookUrl = '';
-        let lineNotificationsEnabled = preferenceEnabled('line', 'visit');
-
-        try {
-            const { data: lineSetting } = await supabase
-                .from('global_settings')
-                .select('value')
-                .eq('key', 'line_visit_notifications_enabled')
-                .maybeSingle();
-            if (lineSetting?.value !== undefined) {
-                lineNotificationsEnabled = lineSetting.value !== 'false';
-                localStorage.setItem('line_visit_notifications_enabled', String(lineNotificationsEnabled));
-            }
-        } catch (error) {
-            console.error('Failed to load LINE notification setting:', error);
-        }
-
-        if (!serverIntegrationsEnabled()) {
-            const { data: settings } = await supabase.from('global_settings').select('*');
-            if (settings) {
-                settings.forEach(s => {
-                    if (s.key === 'line_channel_access_token') lineToken = s.value;
-                    if (s.key === 'line_group_id') lineGroupId = s.value;
-                    if (s.key === 'gs_webhook_url') gsWebhookUrl = s.value;
-                    if (s.key === 'discord_webhook_url') discordWebhookUrl = s.value;
-                });
-            }
-        }
-
-        const finalAnswers = surveyAnswers ?? (feedbackText ? [feedbackText] : []);
-        const alertMessage = buildVisitNotificationMessage({
-            type: 'CHECKOUT', userName, schoolName, isGuest,
+export const sendCheckoutNotification = ({ logId, feedbackText = '', surveyQuestion = '', surveyAnswers }) => {
+    const finalAnswers = surveyAnswers ?? (feedbackText ? [feedbackText] : []);
+    return dispatchNotificationEvent({
+        eventType: 'VISIT_CHECKOUT',
+        logId,
+        details: {
             surveyQuestion: surveyQuestion || (normalizeSurveyAnswers(finalAnswers).length ? '이용 소감' : ''),
-            surveyAnswers: finalAnswers
-        });
-
-        if (serverIntegrationsEnabled()) {
-            await dispatchServerNotification({
-                message: alertMessage,
-                sendLine: lineNotificationsEnabled && isHaifnLoc,
-                sendSlack: false,
-                lineTarget: isHaifnLoc ? 'haifn' : 'enough',
-            });
-            if (isHaifnLoc) {
-                await dispatchVisitSlackAlert({ message: alertMessage, userId, eventType: 'CHECKOUT', locationName: targetLocName });
-            }
-            return;
-        }
-
-        if (isHaifnLoc) {
-            await dispatchVisitSlackAlert({ message: alertMessage, userId, eventType: 'CHECKOUT', locationName: targetLocName });
-        }
-
-        // Trigger Discord Webhook
-        if (discordWebhookUrl) {
-            try {
-                fetch(discordWebhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: alertMessage })
-                }).catch(e => console.error("Discord checkout push error", e));
-            } catch (e) { console.error(e); }
-        }
-
-        if (lineNotificationsEnabled) {
-            if (isHaifnLoc && lineToken && lineGroupId && gsWebhookUrl) {
-                fetch(gsWebhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: 'LINE_NOTIFY',
-                        token: lineToken,
-                        to: lineGroupId,
-                        message: alertMessage,
-                    }),
-                }).catch(e => console.error("LINE Apps Script checkout push error", e));
-            }
-        }
-
-    } catch (err) {
-        console.error('Checkout Notification Error:', err);
-    }
+            surveyAnswers: finalAnswers,
+        },
+    });
 };
 
 /**
@@ -376,6 +64,12 @@ export const syncToGoogleSheets = async (webhookUrl, tabName, rows, headers = []
  */
 export const bulkSyncToGoogleSheets = async (webhookUrl, payloads) => {
     if (!webhookUrl) throw new Error('Google Sheets Webhook URL이 설정되지 않았습니다.');
+    if (!Array.isArray(payloads) || payloads.some(payload =>
+        !payload || typeof payload.tabName !== 'string' || !payload.tabName.trim() ||
+        !Array.isArray(payload.rows) || !Array.isArray(payload.headers)
+    )) {
+        throw new Error('유효하지 않은 Google Sheets 동기화 요청입니다.');
+    }
 
     try {
         await fetch(webhookUrl, {
@@ -396,7 +90,7 @@ export const bulkSyncToGoogleSheets = async (webhookUrl, payloads) => {
  */
 export const backupLogsToGoogleSheets = async (webhookUrl, logs, users, locations, notices) => {
     const adminIds = new Set(users.filter(u =>
-        u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
+        isAdminOrStaff(u)
     ).map(u => u.id));
 
     const formatted = logs
@@ -516,7 +210,7 @@ export const performFullSyncToGoogleSheets = async ({
     console.log('--- Starting Full Data Sync ---');
 
     const adminIds = new Set(users.filter(u =>
-        u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
+        isAdminOrStaff(u)
     ).map(u => u.id));
 
     // 1. 회원정보 (User Info)

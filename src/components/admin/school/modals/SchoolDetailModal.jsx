@@ -198,7 +198,6 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
                                 if (await memberCard.handleDeleteUser(user)) setMemberCardUser(null);
                             }}
                             handleResetPassword={memberCard.handleResetPassword}
-                            handleToggleAdminRole={memberCard.handleToggleAdminRole}
                             handleApproveUser={memberCard.handleApproveUser}
                             userStats={null}
                             fetchData={refreshAllUserData}

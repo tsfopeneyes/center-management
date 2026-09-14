@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { surveyHubApi } from '../api/surveyHubApi';
 
 export const SURVEY_CENTERS = [
     { code: 'HAIFN', label: '하이픈' },
@@ -43,6 +44,9 @@ const canUserAnswerSurvey = async (survey, userId) => {
 export const loadAssignedSurvey = async ({ surveyType, centerCode, locationName, userId }) => {
     const resolvedCenter = centerCode || resolveSurveyCenterCode(locationName);
     if (!resolvedCenter) return loadLegacyConfig(surveyType);
+
+    const modern = await surveyHubApi.resolve({ centerCode: resolvedCenter, surveyType, userId });
+    if (modern !== undefined) return modern ? { id: modern.form_id, config: { ...modern.version.definition, mode: 'MULTI', recommendationsEnabled: false, _surveyLink: modern }, legacy: false } : null;
 
     // New surveys keep their display policy inside config so existing tables and
     // historical responses remain untouched. One-time surveys are tried first;

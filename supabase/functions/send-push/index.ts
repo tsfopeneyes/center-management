@@ -4,6 +4,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { GoogleAuth } from "npm:google-auth-library";
 import webpush from "npm:web-push@3.6.7";
+import { filterProgramUsersByRegions } from '../_shared/programPushRegions.mjs';
+import { attachCanonicalAccountRoles, isMasterStaff, isStaffProfile } from '../_shared/staffRoles.mjs';
 
 // Load the Service Account configuration from Environment Variables
 // (e.g. Deno.env.get('FIREBASE_SERVICE_ACCOUNT'))
@@ -71,11 +73,10 @@ serve(async (req) => {
     if (!sessionResponse.ok) throw new Error('Your sign-in has expired. Please sign in again.');
     const identity = await sessionResponse.json();
     if (identity?.decision !== 'retain' || !identity?.profileId) throw new Error('Unable to verify the signed-in account.');
-    const { data: sender, error: senderError } = await supabase.from('users').select('id,role,user_group').eq('id', identity.profileId).maybeSingle();
-    if (senderError || !sender) throw new Error('Unable to verify administrator permissions.');
-    const role = String(sender.role || '').toLowerCase();
-    const group = String(sender.user_group || '').toLowerCase();
-    if (!['admin','staff'].includes(role) && group !== 'staff' && sender.user_group !== '관리자') {
+    const { data: senderRow, error: senderError } = await supabase.from('staff_directory').select('id,role').eq('id', identity.profileId).maybeSingle();
+    if (senderError || !senderRow) throw new Error('Unable to verify administrator permissions.');
+    const sender = { ...senderRow, account_role: senderRow.role };
+    if (!isStaffProfile(sender)) {
       throw new Error('Only administrators can send push notifications.');
     }
 
@@ -147,11 +148,13 @@ serve(async (req) => {
         if (joinedError) throw joinedError;
         previewUserIds = [...new Set((joined || []).map(row => row.user_id).filter(Boolean))];
       }
-      let previewQuery = supabase.from('users').select('id,auth_user_id,fcm_token,school,role,status');
+      let previewQuery = supabase.from('users').select('id,auth_user_id,fcm_token,school,status');
       if (previewUserIds) previewQuery = previewUserIds.length ? previewQuery.in('id', previewUserIds) : previewQuery.eq('id', '00000000-0000-0000-0000-000000000000');
       const { data: previewRows, error: previewError } = await previewQuery;
       if (previewError) throw previewError;
-      let previewUsers = (previewRows || []).filter(user => user.status !== 'deleted' && String(user.role || 'user').toLowerCase() !== 'admin');
+      let previewUsers = (await attachCanonicalAccountRoles(supabase, previewRows || [])).filter(user => user.status !== 'deleted' && (
+        !isStaffProfile(user) || isMasterStaff(user)
+      ));
       if (programTiming === 'AT_START' && noticeId) {
         const { data: interests } = await supabase.from('program_recruitment_interests').select('auth_user_id').eq('notice_id', noticeId).eq('enabled', true);
         const optedIn = new Set((interests || []).map(row => row.auth_user_id));
@@ -164,9 +167,7 @@ serve(async (req) => {
           regions = Array.isArray(source?.target_regions) ? source.target_regions.filter(Boolean) : regions;
         }
         if (regions.length === 1) {
-          const { data: schools } = await supabase.from('schools').select('name').in('region', regions);
-          const keys = new Set((schools || []).map(row => normalizeSchoolName(row.name)));
-          previewUsers = previewUsers.filter(user => keys.has(normalizeSchoolName(user.school || '')));
+          previewUsers = await filterProgramUsersByRegions(supabase, previewUsers, regions);
         }
       }
       const previewIds = previewUsers.map(user => user.id);
@@ -253,8 +254,9 @@ serve(async (req) => {
     }
 
     // Fetch tokens based on userIds or the verified notice region if provided
-    let query = supabase.from('users').select('id, fcm_token, school, role');
+    let query = supabase.from('users').select('id, fcm_token, school, status');
     let targetSchoolKeys: Set<string> | null = null;
+    let filterByProgramRegions = false;
     if (programUserIds) {
       if (!programUserIds.length) query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       else query = query.in('id', programUserIds);
@@ -264,15 +266,7 @@ serve(async (req) => {
       targetSchoolKeys = new Set([normalizeSchoolName(String(schoolName).trim())]);
     } else if (effectiveTargetRegions.length > 0) {
       // 1. Get school names associated with target regions (e.g. ['강동'] or ['강서'])
-      const { data: schools, error: schoolsError } = await supabase
-        .from('schools')
-        .select('name')
-        .in('region', effectiveTargetRegions);
-      if (schoolsError) throw schoolsError;
-
-      targetSchoolKeys = new Set((schools || [])
-        .map((school: { name: string }) => normalizeSchoolName(school.name))
-        .filter(Boolean));
+      filterByProgramRegions = true;
 
       // Regional program alerts belong only to students in schools assigned
       // to that region. An unknown/empty region mapping must send to nobody,
@@ -282,9 +276,16 @@ serve(async (req) => {
     const { data: queriedUsers, error } = await query;
     if (error) throw error;
 
-    const users = targetSchoolKeys
-      ? (queriedUsers || []).filter((user) => targetSchoolKeys.has(normalizeSchoolName(user.school || '')))
+    const classifiedUsers = effectiveProgramAudience
+      ? (await attachCanonicalAccountRoles(supabase, queriedUsers || [])).filter(user =>
+          user.status !== 'deleted' && (!isStaffProfile(user) || isMasterStaff(user)))
       : (queriedUsers || []);
+
+    const users = filterByProgramRegions
+      ? await filterProgramUsersByRegions(supabase, classifiedUsers, effectiveTargetRegions)
+      : targetSchoolKeys
+        ? classifiedUsers.filter((user) => targetSchoolKeys.has(normalizeSchoolName(user.school || '')))
+        : classifiedUsers;
 
     const userIdsForDelivery = [...new Set(users.map(user => user.id).filter(Boolean))];
     const { data: registeredDevices, error: devicesError } = userIdsForDelivery.length

@@ -7,6 +7,7 @@ import { CATEGORIES } from '../../utils/constants';
 import { formatKoreanTimeRange } from '../../../../../utils/dateUtils';
 import { useCurrentTime } from '../../../../../hooks/useCurrentTime';
 import { formatRecruitmentStart, getRecruitment, getRecruitmentStart } from '../../../../../utils/programRecruitment';
+import { isRecurringProgram } from '../../../../../utils/dailyProgramSessions';
 
 const NoticeCard = ({ 
     notice, 
@@ -15,7 +16,9 @@ const NoticeCard = ({
     noticeStats, 
     onViewDetails, 
     onOpenParticipants, 
+    onOpenCommunity,
     onOpenFeedback,
+    onOpenTodaySession,
     onStatusChange, 
     onEdit, 
     onDelete 
@@ -76,15 +79,20 @@ const NoticeCard = ({
         : '';
     const showRecruitmentSchedule = isActive && Boolean(recruitmentStartText || recruitmentEndText);
 
+    const isOnlineChallenge = notice.is_challenge && notice.challenge_format === 'ONLINE';
     const getProgramDateText = () => {
-        const start = notice.is_recruiting ? notice.program_date : (notice.program_start_date || notice.program_date);
-        const end = notice.is_recruiting ? null : notice.program_end_date;
+        const recurring = isRecurringProgram(notice);
+        const start = isOnlineChallenge
+            ? (notice.program_start_date || notice.program_date)
+            : recurring ? (notice.program_start_date || notice.program_date) : notice.program_date;
+        const end = (isOnlineChallenge || recurring) ? notice.program_end_date : null;
         const days = ['일', '월', '화', '수', '목', '금', '토'];
         if (start && end && start !== end) {
             const startDate = new Date(start);
             const endDate = new Date(end);
             if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime())) {
-                return `${startDate.getMonth() + 1}/${startDate.getDate()}(${days[startDate.getDay()]}) ~ ${endDate.getMonth() + 1}/${endDate.getDate()}(${days[endDate.getDay()]})`;
+                const repeat = notice.program_days?.length ? ` · 매주 ${formatProgramDays(notice.program_days)}` : '';
+                return `${startDate.getMonth() + 1}/${startDate.getDate()} ~ ${endDate.getMonth() + 1}/${endDate.getDate()}${repeat}`;
             }
         }
         if (start) {
@@ -95,7 +103,7 @@ const NoticeCard = ({
     };
 
     const programDateText = getProgramDateText();
-    const programTimeText = formatKoreanTimeRange(notice.program_date || notice.program_start_date, notice.program_duration);
+    const programTimeText = isOnlineChallenge ? '' : formatKoreanTimeRange(notice.program_date || notice.program_start_date, notice.program_duration);
 
     const getDeadlineWarning = () => {
         if (!notice.recruitment_deadline) return null;
@@ -123,12 +131,8 @@ const NoticeCard = ({
         if (mode !== CATEGORIES.PROGRAM) return null;
         const properties = notice.guest_properties || {};
         const result = properties.recruitment_push_result;
-        if (result) {
-            const failed = Number(result.failure_count || 0);
-            return <span className={`px-2 py-0.5 rounded-md text-[9px] font-semibold ${failed ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                <Bell size={9} className="mr-1 inline"/>{failed ? `일부 실패 ${failed}기기` : `${result.target_count || 0}명 발송 완료`}
-            </span>;
-        }
+        // Delivery diagnostics belong in the edit screen, not on program cards.
+        if (result) return null;
         const plans = Array.isArray(properties.recruitment_push_plans) ? properties.recruitment_push_plans : [];
         const hasPush = plans.length > 0 || (properties.recruitment_push_enabled === true && properties.recruitment_push_timing !== 'OFF');
         if (!hasPush) {
@@ -238,7 +242,8 @@ const NoticeCard = ({
             )}
 
             <NoticeCardActions notice={notice} viewMode={viewMode} mode={mode} noticeStats={noticeStats} isActive={isActive}
-                onViewDetails={onViewDetails} onOpenParticipants={onOpenParticipants} onOpenFeedback={onOpenFeedback}
+                onViewDetails={onViewDetails} onOpenParticipants={onOpenParticipants} onOpenCommunity={onOpenCommunity} onOpenFeedback={onOpenFeedback}
+                onOpenTodaySession={onOpenTodaySession}
                 onStatusChange={onStatusChange} onEdit={onEdit} onDelete={onDelete} />
         </div>
     );
@@ -251,7 +256,9 @@ NoticeCard.propTypes = {
     noticeStats: PropTypes.object.isRequired,
     onViewDetails: PropTypes.func.isRequired,
     onOpenParticipants: PropTypes.func.isRequired,
+    onOpenCommunity: PropTypes.func.isRequired,
     onOpenFeedback: PropTypes.func.isRequired,
+    onOpenTodaySession: PropTypes.func.isRequired,
     onStatusChange: PropTypes.func.isRequired,
     onEdit: PropTypes.func.isRequired,
     onDelete: PropTypes.func.isRequired

@@ -1,12 +1,11 @@
 import {normalizeLegacyCredential} from './legacyMigrationService.mjs';
 import {normalizeLoginName} from './loginSecurity.mjs';
+import {legacyProfileToAccountRole} from './staffRoles.mjs';
 
 // Existing guest/temporary profiles that already have a mapped Auth account and
 // credential remain login-capable. Unmapped/blank-credential visit records are
 // skipped naturally; only withdrawn profiles are excluded.
 const excluded=row=>row.status==='withdrawn';
-const canonicalRole=row=>row.isMaster===true||row.role==='admin'||row.userGroup==='관리자'?'admin':
-    ['staff','Rok'].includes(row.role)||row.userGroup==='STAFF'?'staff':'member';
 
 export function createAccountBootstrapService({store,keyFor,readiness=async()=>false,now=Date.now}){
     if(!store?.readBatch||!store?.bootstrap||typeof keyFor!=='function')throw new Error('Bootstrap dependencies required');
@@ -20,7 +19,7 @@ export function createAccountBootstrapService({store,keyFor,readiness=async()=>f
                 const legacyDigest=await normalizeLegacyCredential(row.publicCredential);
                 await store.bootstrap({profileId:row.profileId,authUserId:row.authUserId,email:row.email,
                     nameKey:await keyFor('name',normalizeLoginName(row.name)),phoneKey:await keyFor('phone',row.phone.replace(/[\s()-]/g,'')),legacyDigest,
-                    canonicalRole:canonicalRole(row)});bootstrapped++;
+                    canonicalRole:legacyProfileToAccountRole(row)});bootstrapped++;
             }
             if(rows.length<50)break;
         }

@@ -41,7 +41,7 @@ const NoticeCarousel = ({ allImages }) => {
     };
 
     return (
-        <div className="mb-6 rounded-2xl overflow-hidden shadow-sm bg-gray-50 border border-gray-100 relative group">
+        <div className="mb-6 overflow-hidden bg-gray-50 relative group">
             <div
                 ref={bannerScrollRef}
                 className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide w-full cursor-grab active:cursor-grabbing select-none"
@@ -55,8 +55,8 @@ const NoticeCarousel = ({ allImages }) => {
                 }}
             >
                 {allImages.map((img, idx) => (
-                    <div key={idx} className="flex-shrink-0 w-full snap-center flex items-center justify-center bg-gray-50 relative group/img">
-                        <PinchZoomImage src={img} className="w-full h-auto max-h-[70vh]" imageClassName="w-full h-auto object-contain max-h-[70vh] pointer-events-auto" alt={`Slide ${idx}`} />
+                    <div key={idx} className="flex-shrink-0 w-full snap-center bg-gray-50 relative group/img">
+                        <PinchZoomImage src={img} className="w-full" imageClassName="block w-full h-auto object-contain pointer-events-auto" alt={`Slide ${idx}`} />
                     </div>
                 ))}
             </div>

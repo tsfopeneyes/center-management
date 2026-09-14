@@ -48,20 +48,10 @@ export const TAB_NAMES = {
     NOTICES: 'notices',
     GALLERY: 'gallery',
     MESSAGES: 'messages',
-    GUESTBOOK: 'guestbook',
     CALENDAR: 'calendar',
-    COMMUNITY: 'community',
     HAIFN: 'haifn',
-    AZIT: 'azit',
     CENTER: 'center'
 };
-
-export const COMMUNITY_CATEGORIES = [
-    '일상 나눔',
-    'L-camp',
-    '고백플레이스',
-    '이높플레이스'
-];
 
 export const COLOR_THEMES = {
     PRIMARY: 'blue',

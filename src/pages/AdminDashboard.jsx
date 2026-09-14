@@ -12,6 +12,8 @@ import { requestSupabaseRest } from '../utils/supabaseRest';
 import { calculateCurrentLocations, sortVisitLogsChronologically } from '../utils/liveOccupancyUtils';
 import { getTodayVisitState, recordVisitEvent } from '../utils/visitLifecycle';
 import { hasExpiredWebAccessTimestamp, removeWebAccessTimestamp } from '../utils/webAccessUtils';
+import { isAdminOrStaff } from '../utils/userUtils';
+import { userApi } from '../api/userApi';
 
 // Components
 import AdminSidebar from '../components/admin/AdminSidebar';
@@ -38,16 +40,20 @@ import AdminSurveys from '../components/admin/surveys/AdminSurveys';
 import AdminCommunity from '../components/admin/community/AdminCommunity';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
-import { getAccountAuthClient, isAccountAuthEnabled } from '../auth/accountAuthRuntime';
 import { useFCM } from '../hooks/useFCM';
+import { useAuth } from '../auth/AuthProvider';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
+    const auth = useAuth();
 
     // Auth & Data State
     const [currentAdmin, setCurrentAdmin] = useState(null);
     useFCM(currentAdmin);
-    const [activeMenu, setActiveMenu] = useState('STATUS'); // STATUS, BOARD, GALLERY, USERS, STATISTICS, LOGS, SETTINGS
+    const [activeMenu, setActiveMenu] = useState(() => {
+        const noticeId = new URLSearchParams(window.location.search).get('noticeId');
+        return noticeId ? 'PROGRAMS' : 'STATUS';
+    }); // STATUS, BOARD, GALLERY, USERS, STATISTICS, LOGS, SETTINGS
     const [programNoticeToOpen, setProgramNoticeToOpen] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSidebarPinned, setIsSidebarPinned] = useState(true);
@@ -92,69 +98,42 @@ const AdminDashboard = () => {
     }, [currentAdmin]);
 
     useEffect(() => {
-        const storedAdmin = localStorage.getItem('admin_user');
-        if (!storedAdmin) {
-            navigate('/', { replace: true });
-            return undefined;
-        }
-
-        let admin;
-        try {
-            admin = JSON.parse(storedAdmin);
-        } catch {
-            localStorage.removeItem('admin_user');
-            localStorage.removeItem('user');
-            navigate('/', { replace: true });
-            return undefined;
-        }
-
-        if (!isAccountAuthEnabled()) {
-            setCurrentAdmin(admin);
+        if (auth.status === 'authenticated' || (auth.status === 'refreshing' && auth.profile?.id)) {
+            if (!isAdminOrStaff(auth.profile)) {
+                // Losing a staff role changes the available screen, not the
+                // identity session. Never sign the member out here.
+                navigate('/student', { replace: true });
+                return;
+            }
+            setCurrentAdmin(auth.profile);
+            try { localStorage.setItem('admin_user', JSON.stringify(auth.profile)); } catch {}
+            setAdminAuthError('');
             setAdminAuthReady(true);
-            return undefined;
+            return;
         }
-
-        const coordinator = getAccountAuthClient().createSessionCoordinator(admin.id);
-        let redirected = false;
-        let hasVerifiedSession = false;
-        const applyState = async state => {
-            if (state.phase === 'ready') {
-                hasVerifiedSession = true;
+        if (auth.status === 'offline') {
+            if (currentAdmin?.id && isAdminOrStaff(currentAdmin)) {
+                // This tab already completed server verification. A temporary
+                // outage must not replace the working dashboard with a gate.
                 setAdminAuthError('');
-                setCurrentAdmin(admin);
                 setAdminAuthReady(true);
                 return;
             }
-            if (state.phase === 'retry' || state.phase === 'checking') {
-                // Initial verification blocks entry. Once verified, token refreshes
-                // and scheduled checks stay in the background without replacing
-                // the administrator's current screen.
-                if (!hasVerifiedSession) {
-                    setAdminAuthReady(false);
-                    if (state.phase === 'retry') setAdminAuthError('로그인 상태를 확인하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해주세요.');
-                }
-                return;
-            }
-            if (!redirected && (state.phase === 'reauth' || state.phase === 'blocked')) {
-                redirected = true;
-                setAdminAuthReady(false);
-                await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
-                localStorage.removeItem('admin_user');
-                localStorage.removeItem('user');
-                alert(state.phase === 'blocked'
-                    ? '관리자 계정 권한을 확인할 수 없습니다. 다시 로그인해주세요.'
-                    : '안전한 이용을 위해 관리자 로그인이 다시 필요합니다.');
-                navigate('/', { replace: true });
-            }
-        };
-        const unsubscribe = coordinator.subscribe(() => { void applyState(coordinator.getSnapshot()); });
-        coordinator.start();
-        void coordinator.check().then(applyState);
-        return () => {
-            unsubscribe();
-            coordinator.stop();
-        };
-    }, [navigate]);
+            setAdminAuthReady(false);
+            setAdminAuthError('로그인 세션은 유지 중입니다. 네트워크를 확인한 뒤 다시 시도해주세요.');
+            return;
+        }
+        if (auth.status === 'blocked') {
+            setAdminAuthReady(false);
+            setAdminAuthError('계정 또는 스탭 권한을 확인할 수 없습니다. 관리자에게 문의해주세요.');
+            return;
+        }
+        if (auth.status === 'anonymous') {
+            navigate('/', { replace: true });
+            return;
+        }
+        setAdminAuthReady(false);
+    }, [auth.status, auth.profile, currentAdmin, navigate]);
 
     const playChime = useCallback(() => {
         try {
@@ -251,7 +230,8 @@ const AdminDashboard = () => {
             setLoadError(failedReads.length > 0
                 ? `${failedReads.join(', ')} 데이터를 불러오지 못했습니다. 네트워크를 확인한 뒤 새로고침해 주세요.`
                 : '');
-            setUsers(userData || []);
+            userData = await userApi.attachAccountRoles(userData || []);
+            setUsers(userData);
 
             // Automatically sync currentAdmin with latest DB data
             const storedAdminStr = localStorage.getItem('admin_user');
@@ -295,7 +275,7 @@ const AdminDashboard = () => {
             const userCurrentLocation = calculateCurrentLocations(logs);
 
             const adminIdsSet = new Set(userData?.filter(u =>
-                u.name === 'admin' || u.user_group === '관리자' || u.role === 'admin'
+                isAdminOrStaff(u)
             ).map(u => u.id) || []);
 
             // Occupancy Stats Calculation (Real-time) - Only count non-staff
@@ -359,6 +339,61 @@ const AdminDashboard = () => {
         }
     }, [activeMenu]);
 
+    const applyLiveStatusLogs = useCallback((rawLiveLogs = []) => {
+        const liveLogs = sortVisitLogsChronologically(rawLiveLogs);
+        const userCurrentLocation = calculateCurrentLocations(liveLogs);
+        const adminIds = new Set(usersRef.current.filter(isAdminOrStaff).map(user => user.id));
+        const nextZoneStats = {};
+        const nextVisitors = {};
+
+        locationsRef.current.forEach(location => {
+            nextZoneStats[location.id] = 0;
+            nextVisitors[location.id] = new Set();
+        });
+
+        Object.entries(userCurrentLocation).forEach(([userId, details]) => {
+            if (!details?.locId || nextZoneStats[details.locId] === undefined) return;
+            if (details.isGuest || !adminIds.has(userId)) nextZoneStats[details.locId] += 1;
+        });
+
+        liveLogs.forEach(log => {
+            if (!['CHECKIN', 'MOVE', 'GUEST_ENTRY'].includes(log.type) || !nextVisitors[log.location_id]) return;
+            if (log.user_id && adminIds.has(log.user_id)) return;
+            const user = usersRef.current.find(item => item.id === log.user_id);
+            const visitorKey = log.user_id
+                || (user?.name ? user.name : (log.metadata?.guest_name ? `guest_${log.metadata.guest_name}` : `guest_${log.id}`));
+            nextVisitors[log.location_id].add(visitorKey);
+        });
+
+        setCurrentLocations(userCurrentLocation);
+        setZoneStats(nextZoneStats);
+        setDailyVisitStats(Object.fromEntries(Object.entries(nextVisitors).map(([id, visitors]) => [id, visitors.size])));
+        setAllLogs(previous => {
+            const previousById = new Map(previous.map(log => [log.id, log]));
+            const todayKst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+            const older = previous.filter(log => {
+                return new Date(log.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }) !== todayKst;
+            });
+            const completeLiveLogs = liveLogs.map(log => ({ ...previousById.get(log.id), ...log }));
+            return sortVisitLogsChronologically([...older, ...completeLiveLogs]).slice(-2000);
+        });
+    }, []);
+
+    const refreshLiveStatus = useCallback(async () => {
+        if (activeMenu !== 'STATUS' || document.visibilityState === 'hidden') return;
+        const todayKst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+        const { data, error } = await supabase
+            .from('logs')
+            .select('id,user_id,location_id,type,created_at,metadata,duration')
+            .gte('created_at', `${todayKst}T00:00:00+09:00`)
+            .order('created_at', { ascending: true });
+        if (error) {
+            console.error('Failed to load compact live status:', error);
+            return;
+        }
+        applyLiveStatusLogs(data || []);
+    }, [activeMenu, applyLiveStatusLogs]);
+
     useEffect(() => {
         if (!adminAuthReady) return undefined;
         const storedAdmin = localStorage.getItem('admin_user');
@@ -369,16 +404,32 @@ const AdminDashboard = () => {
         }
         const admin = JSON.parse(storedAdmin);
         setCurrentAdmin(admin);
-        fetchData();
         subscribeToPush(admin.id); // Ask for notification permission
+
+        // The program board owns its compact notice query. Starting the full
+        // dashboard hydration here also pulled thousands of logs, every user,
+        // surveys and feedbacks, then repeated it on each live update. That
+        // can freeze Samsung Internet while the program grid is visible.
+        if (activeMenu === 'PROGRAMS') {
+            setLoading(false);
+            return undefined;
+        }
+        fetchData();
 
         // Realtime Subscription with Debounce (for UI updates)
         let debounceTimer;
-        const debouncedFetch = () => {
+        const debouncedFullFetch = () => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 fetchData();
             }, 1000);
+        };
+
+        const debouncedLiveRefresh = () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                refreshLiveStatus().catch(error => console.error('Failed to refresh live status:', error));
+            }, 500);
         };
 
         let isRefreshingOccupancy = false;
@@ -387,7 +438,7 @@ const AdminDashboard = () => {
 
             isRefreshingOccupancy = true;
             try {
-                await fetchData();
+                await refreshLiveStatus();
             } finally {
                 isRefreshingOccupancy = false;
             }
@@ -395,10 +446,10 @@ const AdminDashboard = () => {
 
         const subscription = supabase
             .channel('public:updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'checkin_surveys' }, debouncedFetch)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_notes' }, debouncedFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, activeMenu === 'STATUS' ? debouncedLiveRefresh : debouncedFullFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, debouncedFullFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'checkin_surveys' }, debouncedFullFetch)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_notes' }, debouncedFullFetch)
             .subscribe(status => {
                 // A browser can miss events while its tab or network is suspended.
                 // Reconcile from the database as soon as the channel reconnects.
@@ -504,7 +555,7 @@ const AdminDashboard = () => {
                         }
                     });
                     
-                    fetchData();
+                    refreshLiveStatus().catch(error => console.error('Failed to refresh live status:', error));
                 }
             } catch (err) {
                 console.error("Failed to poll checkins:", err);
@@ -517,7 +568,7 @@ const AdminDashboard = () => {
         // WebSocket after the admin screen has been open for a while. Refresh
         // the live status separately from the alert preference so checkout is
         // still reflected even when desktop check-in sounds are turned off.
-        const occupancyRefreshInterval = setInterval(refreshOccupancy, 15000);
+        const occupancyRefreshInterval = setInterval(refreshOccupancy, 60000);
         const refreshWhenVisible = () => {
             if (document.visibilityState === 'visible') refreshOccupancy();
         };
@@ -537,7 +588,7 @@ const AdminDashboard = () => {
             window.removeEventListener('online', refreshWhenOnline);
             supabase.removeChannel(subscription);
         };
-    }, [navigate, fetchData, playChime, adminAuthReady]);
+    }, [activeMenu, navigate, fetchData, playChime, adminAuthReady, refreshLiveStatus]);
 
     const handleForceCheckout = useCallback(async (userId) => {
         if (!confirm('해당 이용자를 강제 퇴실 처리하시겠습니까?')) return;
@@ -709,8 +760,8 @@ const AdminDashboard = () => {
         }
     };
 
-    if (adminAuthError) return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6"><div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-lg"><h1 className="text-xl font-black text-gray-900">로그인 확인이 필요해요</h1><p className="mt-3 text-sm font-semibold leading-relaxed text-gray-500">{adminAuthError}</p><button type="button" onClick={() => window.location.reload()} className="mt-6 w-full rounded-2xl bg-blue-600 py-3.5 font-bold text-white">다시 확인</button></div></div>;
-    if (loading || !adminAuthReady) return <div className="flex items-center justify-center h-screen text-gray-400 font-bold">로그인 확인 중...</div>;
+    if (adminAuthError) return <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6"><div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-lg"><h1 className="text-xl font-black text-gray-900">로그인 확인이 필요해요</h1><p className="mt-3 text-sm font-semibold leading-relaxed text-gray-500">{adminAuthError}</p><button type="button" onClick={auth.refresh} className="mt-6 w-full rounded-2xl bg-blue-600 py-3.5 font-bold text-white">다시 확인</button></div></div>;
+    if (loading || !adminAuthReady) return <div className="min-h-screen bg-gray-50" aria-hidden="true" />;
 
     return (
         <div className="flex bg-gray-50 min-h-screen font-sans">

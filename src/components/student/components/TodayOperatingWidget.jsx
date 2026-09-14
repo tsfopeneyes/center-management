@@ -9,6 +9,7 @@ import { useDutyRoster } from '../../../hooks/useDutyRoster';
 import { useSeoulDate } from '../../../hooks/useSeoulDate';
 import { useCurrentTime } from '../../../hooks/useCurrentTime';
 import { isDutyDisplayTime } from '../../../utils/dutyRoster';
+import { hasActiveStaff, resetStaffPresence, sortPresentStaffByStart } from '../../../utils/staffPresence';
 
 const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCategories = [], onStaffClick, tutorialMode = false, tutorialStep = null }) => {
     const todayDate = useSeoulDate();
@@ -76,13 +77,13 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
                             needsReset = true;
                         }
                         
-                        const hasActive = Object.keys(parsedStatus).some(k => k !== 'date' && parsedStatus[k] === true);
+                        const hasActive = hasActiveStaff(parsedStatus);
                         if (isAfter6PM && hasActive) {
                             needsReset = true;
                         }
                         
                         if (needsReset) {
-                            parsedStatus = { date: todayStr };
+                            parsedStatus = resetStaffPresence(todayStr);
                             const payload = {
                                 title: 'STAFF_PRESENCE_STATUS',
                                 content: JSON.stringify(parsedStatus),
@@ -160,7 +161,7 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
             
             // Check if day changed or it's after 6 PM with active presence
             const todayStr = now.toLocaleDateString('sv');
-            const hasActive = Object.keys(presenceStatus).some(k => k !== 'date' && presenceStatus[k] === true);
+            const hasActive = hasActiveStaff(presenceStatus);
             const differentDay = presenceStatus.date && presenceStatus.date !== todayStr;
             
             if (differentDay || (currentHour >= 18 && hasActive)) {
@@ -333,7 +334,10 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
     // Present (non-duty) staff: after 6 PM all are absent
     const presentStaff = tutorialMode ? [] : (isAfter6PM 
         ? [] 
-        : staffList.filter(u => !!presenceStatus[u.id] && (!isDutyTime || u.id !== dutyStaffId)));
+        : sortPresentStaffByStart(
+            staffList.filter(u => !!presenceStatus[u.id] && (!isDutyTime || u.id !== dutyStaffId)),
+            presenceStatus,
+        ));
 
     const isCoffeeChatStep = tutorialMode && tutorialStep === 'homeCoffeeChat';
     const tutorialStaff = { id: 'tutorial-staff', name: '스처', user_group: 'STAFF', role: 'staff', isBusy: false };

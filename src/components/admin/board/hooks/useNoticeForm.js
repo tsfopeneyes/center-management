@@ -14,6 +14,8 @@ const INITIAL_NOTICE_STATE = {
     recruitment_push_timing: 'OFF',
     recruitment_push_scheduled_at: '',
     recruitment_push_plans: [],
+    _had_now_push_plan: false,
+    _saved_recruitment_push_resend_nonce: '',
     category: CATEGORIES.NOTICE,
     is_private: false,
     is_challenge: false,
@@ -23,9 +25,7 @@ const INITIAL_NOTICE_STATE = {
     challenge_success_message: '',
     challenge_show_haifn_btn: false,
     community_enabled: false,
-    community_mission_mode: 'NONE',
-    community_image_required: false,
-    community_after_end: 'READ_ONLY',
+    community_channel_id: '',
     recruitment_deadline: '',
     recruitment_start_at: '',
     max_capacity: '',
@@ -44,12 +44,16 @@ const INITIAL_NOTICE_STATE = {
     program_start_date: '',
     program_end_date: '',
     program_days: [],
+    schedule_mode: 'SINGLE',
+    application_scope: 'PROGRAM',
     host_id: '',
     host_ids: [],
     hosts: [],
     enable_hosts: false,
     host_one_liner: '',
     guest_properties: { allow_guest: false, require_school: true, require_phone: true },
+    open_participation_mode: 'NONE',
+    daily_session_fields: [{ id: 'field-1', label: '오늘의 안내', required: true }],
     enable_post_program_button: false,
     post_program_button_trigger: 'start_time',
     post_program_button_offset_minutes: 0,
@@ -67,16 +71,12 @@ const INITIAL_NOTICE_STATE = {
     ],
     enable_feedback: false,
     is_review_required: false,
-    custom_feedback_config: {
-        questions: [
-            { id: 'q1', type: 'choice', title: '프로그램 참여 이유', options: ['친구 추천', '기존 센터 경험', '프로그램 흥미', '기타'], required: true },
-            { id: 'q2', type: 'text', title: '새로 배우거나 경험한 점', placeholder: '어떤 것을 느끼고 경험하셨나요?', required: true },
-            { id: 'q3', type: 'star', title: '프로그램 전체 만족도', required: true },
-            { id: 'q4', type: 'text', title: '가장 좋았던 순간', placeholder: '가장 인상 깊었던 순간을 적어주세요.', required: true },
-            { id: 'q5', type: 'text', title: '아쉬웠던 점 및 개선 의견', placeholder: '아쉬웠던 점이 있다면 편하게 적어주세요.', required: true },
-            { id: 'q6', type: 'star', title: '다음 프로그램 재참여 의사', required: true }
-        ]
-    }
+    custom_feedback_config: { questions: [] },
+    _program_survey_definition: null,
+    _program_survey_original_definition: null,
+    _program_survey_form_id: null,
+    _program_survey_template_id: null,
+    _program_survey_original_template_id: null
 };
 
 const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
@@ -110,6 +110,9 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
         if (mode === CATEGORIES.PROGRAM) {
             const recruitmentError = validateRecruitmentForm(formData);
             if (recruitmentError) return { isValid: false, message: recruitmentError };
+            if (formData.enable_feedback && !formData._program_survey_definition && !formData.guest_properties?.survey_version_id) {
+                return { isValid: false, message: '프로그램 설문을 만들거나 템플릿을 불러와주세요.' };
+            }
             const customPushPlans = (formData.recruitment_push_plans || []).filter(plan => plan.timing === 'CUSTOM');
             for (const plan of customPushPlans) {
                 if (!plan.scheduled_at) {
@@ -138,8 +141,8 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
                         return { isValid: false, message: '챌린지 소요 시간을 입력해주세요.' };
                     }
                 }
-            } else if (formData.is_recruiting) {
-                // 신청 프로그램
+            } else if (formData.schedule_mode !== 'RECURRING') {
+                // 한 번 진행하는 신청/오픈 프로그램
                 if (!formData.program_date) {
                     return { isValid: false, message: '프로그램 날짜를 선택해주세요.' };
                 }

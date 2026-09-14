@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, CheckCircle2, Save, MapPin } from 'lucide-react';
 import { userApi } from '../../../../api/userApi';
+import { isAdminOrStaff } from '../../../../utils/userUtils';
 
 const ManagerAssignmentModal = ({ isOpen, onClose, selectedRegion, users, onSave }) => {
     const [staffList, setStaffList] = useState([]);
@@ -12,9 +13,7 @@ const ManagerAssignmentModal = ({ isOpen, onClose, selectedRegion, users, onSave
     useEffect(() => {
         if (isOpen && users && selectedRegion) {
             // Filter only STAFF and ADMIN users
-            const eligibleStaff = users.filter(u =>
-                u.user_group === 'STAFF' || u.user_group === '관리자' || u.role === 'admin' || u.name === 'admin'
-            );
+            const eligibleStaff = users.filter(isAdminOrStaff);
 
             setStaffList(eligibleStaff);
             setAssignmentChanges({});

@@ -19,7 +19,8 @@ export function createProfileReadService({pool,verifyToken,readiness=async()=>fa
             await client.query("SELECT set_config('app.profile_id',$1,true)",[profileId]);abort();
             const {rows}=await client.query(`SELECT u.id,u.name,u.gender,u.school,u.church,u.birth,u.phone,u.phone_back4,
                 u.user_group,u.status,u.guardian_name,u.guardian_phone,u.guardian_relation,u.preferences,u.bio,u.profile_image_url,
-                CASE WHEN r.enabled AND r.role IN ('admin','staff') THEN r.role ELSE 'user' END AS role
+                CASE WHEN r.enabled AND r.role IN ('admin','master') THEN r.role ELSE 'member' END AS account_role,
+                CASE WHEN r.enabled AND r.role IN ('admin','master') THEN r.role ELSE 'user' END AS role
                 FROM public.users u JOIN account_security.accounts a ON a.profile_id=u.id
                 JOIN account_security.session_assurances sa ON sa.profile_id=a.profile_id AND sa.auth_user_id=a.auth_user_id
                 LEFT JOIN account_security.account_roles r ON r.profile_id=a.profile_id

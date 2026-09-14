@@ -1,11 +1,20 @@
-export const isAdminOrStaff = (user) => {
-    if (!user) return false;
-    return user.name === 'admin' ||
-        user.user_group === '관리자' ||
-        user.user_group === 'STAFF' ||
-        user.role === 'admin' ||
-        user.role === 'STAFF';
+export const ACCOUNT_ROLES = Object.freeze({
+    MEMBER: 'member',
+    ADMIN: 'admin',
+    MASTER: 'master',
+});
+
+export const getAccountRole = user => {
+    if (!user) return ACCOUNT_ROLES.MEMBER;
+    const role = String(user.account_role ?? user.accountRole ?? '').trim().toLowerCase();
+    return Object.values(ACCOUNT_ROLES).includes(role) ? role : ACCOUNT_ROLES.MEMBER;
 };
+
+export const isMasterStaff = user => getAccountRole(user) === ACCOUNT_ROLES.MASTER;
+
+export const isAdminOrStaff = user => [ACCOUNT_ROLES.ADMIN, ACCOUNT_ROLES.MASTER].includes(getAccountRole(user));
+
+export const isStaffUser = isAdminOrStaff;
 
 export const normalizeSchoolName = (school) => {
     if (!school) return '';

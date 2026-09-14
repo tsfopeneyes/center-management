@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { fetchAllPages } from '../utils/fetchAllPages';
+import { challengeMissionsApi } from './challengeMissionsApi';
 
 const missingPreviewView = (error) => ['42P01', 'PGRST205'].includes(error?.code);
 
@@ -17,7 +18,11 @@ export const fetchProgramPreviews = async () => {
 export const readNoticeWithPreview = async (id, columns = '*') => {
     const { data, error } = await supabase.from('notices').select(columns).eq('id', id).maybeSingle();
     if (error) throw error;
-    if (data) return data;
+    if (data) {
+        if (!data.is_challenge) return data;
+        const challenge_missions = await challengeMissionsApi.fetchMissions(data.id, data.challenge_format || 'OFFLINE');
+        return { ...data, challenge_missions };
+    }
     const preview = await supabase.from('program_calendar_previews').select('*').eq('id', id).maybeSingle();
     if (preview.error && !missingPreviewView(preview.error)) throw preview.error;
     return preview.data || null;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import { feedbackApi } from '../api/feedbackApi';
 import { Calendar, User, ArrowLeft, Share, AlertCircle, MapPin, Users, Smartphone, School, CheckCircle2, X, Download, Copy, Sparkles } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import NoticeCarousel from '../components/student/components/NoticeCarousel';
@@ -8,11 +9,11 @@ import ParticipantModal from '../components/admin/board/components/modals/Partic
 import ProgramFeedbackModal from '../components/student/modals/ProgramFeedbackModal';
 import LinkPreview from '../components/common/LinkPreview';
 import { extractUrls, extractProgramInfo } from '../utils/textUtils';
-import { formatToLocalISO, formatProgramSchedule } from '../utils/dateUtils';
+import { formatToLocalISO, formatProgramSchedule, formatCompactShareSchedule } from '../utils/dateUtils';
 import { TAB_NAMES } from '../constants/appConstants';
 import { trackUserWebActivity } from '../utils/userActivityUtils';
-import { sendCategoryNotification } from '../utils/integrationUtils';
-import { normalizeSchoolName } from '../utils/userUtils';
+import { sendProgramApplicationNotification } from '../utils/integrationUtils';
+import { isAdminOrStaff, normalizeSchoolName } from '../utils/userUtils';
 import { buildGuestPrivacyPreferences, classifyGuestIdentityMatch, parseGuestBirthDate } from '../utils/guestBirthUtils';
 import { getRecruitment, getRegistrationBlockReason } from '../utils/programRecruitment';
 import { useCurrentTime } from '../hooks/useCurrentTime';
@@ -20,25 +21,20 @@ import ProgramAvailabilityNotice from '../components/student/components/ProgramA
 import RecruitmentBadge from '../components/student/components/RecruitmentBadge';
 import { readNoticeWithPreview } from '../api/programReadApi';
 import SignUpForm from '../components/auth/SignUpForm';
-import DatePicker from '../components/common/DatePicker';
+import { programSessionsApi } from '../api/programSessionsApi';
+import { usesDailySessionRsvp, getDailySessionRegistrationBlockReason, formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, isRecurringProgram } from '../utils/dailyProgramSessions';
+import BirthDateInput from '../components/common/BirthDateInput';
 
-const isInternalAccount = (user) => {
-    if (!user) return false;
-    const role = String(user.role || '').toLowerCase();
-    const group = String(user.user_group || '').toLowerCase();
-    return Boolean(
-        user.is_master ||
-        user.name === 'admin' ||
-        ['admin', 'master', 'staff', 'rok'].includes(role) ||
-        group === 'staff' ||
-        user.user_group === '관리자'
-    );
-};
+const isInternalAccount = isAdminOrStaff;
 
 const isProgramEnded = (program) => {
     if (!program) return false;
     if (program.program_status === 'COMPLETED') return true;
     if ((program.guest_properties?.is_ended ?? program.is_ended) === true) return true;
+    if (isRecurringProgram(program)) {
+        const end = program.program_end_date ? new Date(`${String(program.program_end_date).slice(0, 10)}T23:59:59.999+09:00`) : null;
+        return Boolean(end && new Date() > end);
+    }
 
     const programDate = program.program_date;
     if (!programDate) return false;
@@ -71,7 +67,8 @@ const isProgramEnded = (program) => {
 // The public link is long-lived, so it must not rely on the list page having
 // hidden an old program. Keep the same rule for the visible button and the
 // write immediately before a response is created.
-const getProgramRegistrationBlockReason = getRegistrationBlockReason;
+const getProgramRegistrationBlockReason = (program, now = Date.now()) => usesDailySessionRsvp(program)
+    ? getDailySessionRegistrationBlockReason(program, now) : getRegistrationBlockReason(program, now);
 
 const PublicProgramDetail = () => {
     const { id } = useParams();
@@ -107,17 +104,29 @@ const PublicProgramDetail = () => {
     const [selectedMissionForDetail, setSelectedMissionForDetail] = useState(null);
     const [loggedInUser, setLoggedInUser] = useState(null);
     const [isRegistered, setIsRegistered] = useState(false);
+    const [applicationStatus, setApplicationStatus] = useState('JOIN');
     const [showParticipantModal, setShowParticipantModal] = useState(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+    const [selectedSessionId, setSelectedSessionId] = useState(null);
     const [hasReviewed, setHasReviewed] = useState(false);
     const qrCanvasRef = useRef(null);
     const isInternalViewer = isInternalAccount(loggedInUser);
-    const programRegistrationBlockReason = getProgramRegistrationBlockReason(notice);
+    const programRegistrationBlockReason = getProgramRegistrationBlockReason(notice, recruitmentNow);
     const isProgramRegistrationOpen = !programRegistrationBlockReason;
 
-    const loadOpenProgramForRegistration = async () => {
+    const readProgramWithToday = async () => {
         const data = await readNoticeWithPreview(id);
+        if (usesDailySessionRsvp(data)) {
+            const sessionResult = (await programSessionsApi.fetchOpen([data.id]))[data.id] || null;
+            data.today_session = sessionResult;
+            data.open_sessions = sessionResult?.open_sessions || [];
+        }
+        return data;
+    };
+
+    const loadOpenProgramForRegistration = async () => {
+        const data = await readProgramWithToday();
 
         const reason = getProgramRegistrationBlockReason(data);
         if (reason) throw new Error(reason);
@@ -221,6 +230,7 @@ const PublicProgramDetail = () => {
             // Re-read just before writing: shared links can stay open while an
             // administrator finishes or closes the program in another tab.
             const registrationNotice = await loadOpenProgramForRegistration();
+            if (registrationNotice.guest_properties?.allow_guest === false) throw new Error('게스트 신청이 비활성화되어 있습니다.');
             let userId = null;
             let loggedInUser = null;
             let hadPriorGuestProgramApplications = false;
@@ -287,7 +297,7 @@ const PublicProgramDetail = () => {
  
                     if (respCheckErr) throw respCheckErr;
  
-                    if (existingResponse) {
+                    if (existingResponse && !usesDailySessionRsvp(registrationNotice)) {
                         alert('이미 이 연락처로 해당 프로그램 신청이 완료되어 있습니다!');
                         setIsGuestModalOpen(false);
                         setSubmitting(false);
@@ -334,8 +344,13 @@ const PublicProgramDetail = () => {
                 loggedInUser = newUser;
             }
  
-            // 3. Register to notice_responses
-            await loadOpenProgramForRegistration();
+            const freshProgram = await loadOpenProgramForRegistration();
+            if (usesDailySessionRsvp(freshProgram)) {
+                const session = freshProgram.open_sessions?.find(item => item.id === selectedSessionId) || freshProgram.today_session;
+                const result = await programSessionsApi.applyGuest(session, loggedInUser, guestForm.customAnswers || {});
+                setApplicationStatus(result.status);
+                setIsRegistered(true);
+            } else {
             const { error: regErr } = await supabase
                 .from('notice_responses')
                 .insert({
@@ -347,11 +362,12 @@ const PublicProgramDetail = () => {
                 });
  
             if (regErr) throw regErr;
+            }
 
             try {
-                await sendCategoryNotification({
-                    category: 'program',
-                    message: `[PROGRAM]\n📝 ${loggedInUser?.name?.replace('(guest)', '') || guestForm.name}님이 <${registrationNotice.title || '프로그램'}> 프로그램을 신청했어요!`
+                if (!usesDailySessionRsvp(registrationNotice)) await sendProgramApplicationNotification({
+                    noticeId: registrationNotice.id,
+                    userId,
                 });
             } catch (notificationError) {
                 // Registration has already succeeded. Do not misreport it as a
@@ -411,7 +427,12 @@ const PublicProgramDetail = () => {
                 ? (await countPriorProgramApplications(dbUser.id)) > 0
                 : false;
 
-            await loadOpenProgramForRegistration();
+            const freshProgram = await loadOpenProgramForRegistration();
+            if (usesDailySessionRsvp(freshProgram)) {
+                const session = freshProgram.open_sessions?.find(item => item.id === selectedSessionId) || freshProgram.today_session;
+                const result = await programSessionsApi.respond(session, dbUser.id, 'JOIN');
+                setApplicationStatus(result.status);
+            } else {
             const { error: regErr } = await supabase
                 .from('notice_responses')
                 .insert({
@@ -422,11 +443,12 @@ const PublicProgramDetail = () => {
                 });
 
             if (regErr) throw regErr;
+            }
 
             try {
-                await sendCategoryNotification({
-                    category: 'program',
-                    message: `[PROGRAM]\n📝 ${dbUser.name?.replace('(guest)', '') || '학생'}님이 <${registrationNotice.title || '프로그램'}> 프로그램을 신청했어요!`
+                if (!usesDailySessionRsvp(registrationNotice)) await sendProgramApplicationNotification({
+                    noticeId: registrationNotice.id,
+                    userId: dbUser.id,
                 });
             } catch (notificationError) {
                 // Registration has already succeeded. Do not misreport it as a
@@ -459,7 +481,8 @@ const PublicProgramDetail = () => {
 
     useEffect(() => {
         if (notice) {
-            const noticeHosts = notice.hosts || [];
+            const selectedSession = notice.open_sessions?.find(item => item.id === selectedSessionId) || notice.today_session;
+            const noticeHosts = getDailySessionHosts(selectedSession) ?? notice.hosts ?? [];
             const ids = noticeHosts.length > 0
                 ? noticeHosts.map(h => h.host_id).filter(Boolean)
                 : (notice.host_ids || (notice.host_id ? [notice.host_id] : []));
@@ -491,7 +514,7 @@ const PublicProgramDetail = () => {
                 setHostUsers([]);
             }
         }
-    }, [notice]);
+    }, [notice, selectedSessionId]);
 
     useEffect(() => {
         const checkFeedbackStatus = async () => {
@@ -501,14 +524,7 @@ const PublicProgramDetail = () => {
             }
 
             try {
-                const { data, error } = await supabase
-                    .from('program_feedback')
-                    .select('id')
-                    .eq('notice_id', notice.id)
-                    .eq('user_id', loggedInUser.id)
-                    .maybeSingle();
-                if (error) throw error;
-                setHasReviewed(Boolean(data));
+                setHasReviewed(await feedbackApi.hasFeedback(notice.id, loggedInUser.id));
             } catch (err) {
                 console.error('Failed to check program feedback status:', err);
             }
@@ -559,18 +575,23 @@ const PublicProgramDetail = () => {
             if (user) {
                 setLoggedInUser(user);
 
-                // Check if already registered for this notice
-                const { data, error: responseErr } = await supabase
-                    .from('notice_responses')
-                    .select('id')
-                    .eq('notice_id', parseInt(id))
-                    .eq('user_id', user.id)
-                    .maybeSingle();
+                const program = await readProgramWithToday();
+                const daily = usesDailySessionRsvp(program);
+                const selectedSession = program.open_sessions?.find(item => item.id === selectedSessionId) || program.today_session;
+                const responseQuery = daily && selectedSession
+                    ? supabase.from('daily_program_session_responses').select('status').eq('session_id', selectedSession.id)
+                    : !daily ? supabase.from('notice_responses').select('status').eq('notice_id', parseInt(id)) : null;
+                const { data, error: responseErr } = responseQuery
+                    ? await responseQuery.eq('user_id', user.id).in('status', ['JOIN', 'WAITLIST']).maybeSingle()
+                    : { data: null, error: null };
 
                 if (responseErr) {
                     console.error('Error checking program registration:', responseErr);
                 } else if (data) {
                     setIsRegistered(true);
+                    setApplicationStatus(data.status);
+                } else {
+                    setIsRegistered(false);
                 }
             }
             fetchNotice();
@@ -580,7 +601,7 @@ const PublicProgramDetail = () => {
 
     const fetchNotice = async () => {
         try {
-            const data = await readNoticeWithPreview(id, '*, host:users(id, name, profile_image_url, school, role)');
+            const data = await readProgramWithToday();
             setNotice(data || false);
         } catch (err) {
             console.error(err);
@@ -591,9 +612,24 @@ const PublicProgramDetail = () => {
     };
 
     useEffect(() => {
+        if (!selectedSessionId || !loggedInUser?.id || !usesDailySessionRsvp(notice)) return;
+        let active = true;
+        supabase.from('daily_program_session_responses').select('status')
+            .eq('session_id', selectedSessionId).eq('user_id', loggedInUser.id)
+            .in('status', ['JOIN', 'WAITLIST']).maybeSingle()
+            .then(({ data, error }) => {
+                if (error || !active) return;
+                setIsRegistered(Boolean(data));
+                setApplicationStatus(data?.status || 'JOIN');
+            });
+        return () => { active = false; };
+    }, [selectedSessionId, loggedInUser?.id, notice?.id]);
+
+    useEffect(() => {
         const refresh = () => fetchNotice();
         const channel = supabase.channel(`public-program-${id}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notices', filter: `id=eq.${id}` }, refresh)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_program_sessions', filter: `notice_id=eq.${id}` }, refresh)
             .subscribe();
         window.addEventListener('focus', refresh);
         return () => { window.removeEventListener('focus', refresh); supabase.removeChannel(channel); };
@@ -699,14 +735,13 @@ const PublicProgramDetail = () => {
         try {
             const shareText = [
                 notice?.title || 'SCI CENTER 프로그램',
-                formattedSchedule ? `일정: ${formattedSchedule}` : null,
-                `장소: ${notice?.program_location || location || '미정'}`,
-                '프로그램 내용을 확인하고 신청해 보세요!'
-            ].filter(Boolean).join('\n');
+                formattedSchedule ? `📅 ${formatCompactShareSchedule(formattedSchedule)}` : null,
+                `📍 ${notice?.program_location || location || '미정'}`,
+                '',
+                '우리가 연결되는 곳, 하이픈에서 만나요!'
+            ].filter(value => value !== null).join('\n');
             await navigator.share({
-                title: notice?.title || 'SCI CENTER 프로그램',
-                text: shareText,
-                url: programUrl
+                text: `${shareText}\n${programUrl}`
             });
         } catch (err) {
             if (err?.name !== 'AbortError') {
@@ -764,19 +799,36 @@ const PublicProgramDetail = () => {
     }
 
     const { cleanContent, duration, location } = extractProgramInfo(notice.content);
-    const formattedSchedule = formatProgramSchedule(
-        notice.program_date,
-        notice.program_duration || duration,
-        notice.is_recruiting,
-        notice.program_days,
-        notice.program_start_date,
-        notice.program_end_date
-    );
+    const formatOnlineChallengePeriod = () => {
+        const formatDay = value => {
+            if (!value) return '';
+            const date = new Date(`${String(value).slice(0, 10)}T00:00:00+09:00`);
+            if (Number.isNaN(date.getTime())) return '';
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            return `${date.getMonth() + 1}/${date.getDate()}(${weekdays[date.getDay()]})`;
+        };
+        const start = formatDay(notice.program_start_date || notice.program_date);
+        const end = formatDay(notice.program_end_date);
+        return start && end && start !== end ? `${start} ~ ${end}` : start || end || '일정 미정';
+    };
+    const openSessions = usesDailySessionRsvp(notice)
+        ? (notice.open_sessions?.length ? notice.open_sessions : (notice.today_session ? [notice.today_session] : [])) : [];
+    const activeSession = openSessions.find(session => session.id === selectedSessionId) || openSessions[0] || null;
+    const formattedSchedule = usesDailySessionRsvp(notice) ? formatDailySessionSchedule(activeSession) || '신청 회차 준비 중' : notice.is_challenge && notice.challenge_format === 'ONLINE'
+        ? formatOnlineChallengePeriod()
+        : formatProgramSchedule(
+            notice.program_date,
+            notice.program_duration || duration,
+            notice.is_recruiting,
+            notice.program_days,
+            notice.program_start_date,
+            notice.program_end_date
+        );
     const isFeedbackEnabled = notice.enable_feedback === true || notice.guest_properties?.enable_feedback === true;
     const canLeaveFeedback = Boolean(loggedInUser && isRegistered && isProgramEnded(notice) && isFeedbackEnabled);
 
     return (
-        <div className="w-full md:max-w-lg mx-auto min-h-screen bg-white relative pb-64 shadow-2xl">
+        <div className="w-full md:max-w-lg mx-auto min-h-screen bg-white relative pb-48 shadow-2xl">
             {/* Header */}
             <div className="h-14 px-4 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-50">
                 <div className="flex items-center gap-3">
@@ -796,7 +848,9 @@ const PublicProgramDetail = () => {
 
             {/* Content */}
             <div className="px-6 py-8">
-                <NoticeCarousel allImages={allImages} />
+                <div className="-mx-6 -mt-8">
+                    <NoticeCarousel allImages={allImages} />
+                </div>
 
                 <div className="mb-3"><RecruitmentBadge program={notice} now={recruitmentNow} /></div>
                 <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-4">{notice.title}</h1>
@@ -807,10 +861,10 @@ const PublicProgramDetail = () => {
                             <span className="w-16 text-gray-500 font-semibold shrink-0">일정</span>
                             <span className="text-blue-600 font-extrabold">{formattedSchedule}</span>
                         </div>
-                        <div className="flex text-sm leading-relaxed">
+                        {!(notice.is_challenge && notice.challenge_format === 'ONLINE') && <div className="flex text-sm leading-relaxed">
                             <span className="w-16 text-gray-500 font-semibold shrink-0">장소</span>
                             <span className="text-gray-900 font-extrabold">{notice.program_location || location || '미정'}</span>
-                        </div>
+                        </div>}
                         <div className="flex text-sm leading-relaxed">
                             <span className="w-16 text-gray-500 font-semibold shrink-0">인원</span>
                             <span className="text-gray-900 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
@@ -887,32 +941,44 @@ const PublicProgramDetail = () => {
                             </h3>
                         </div>
                         
-                        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.015)]">
-                            <div className="flex items-center justify-around gap-2">
-                                {notice.challenge_missions?.map((mission, index) => (
-                                    <div 
-                                        key={mission.id}
-                                        onClick={() => setSelectedMissionForDetail(mission)}
-                                        className="flex flex-col items-center cursor-pointer select-none group flex-1"
-                                    >
-                                        {/* Icon Circle */}
-                                        <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 bg-blue-50 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                                            {index + 1}
-                                        </div>
-
-                                        {/* Mission Info */}
-                                        <span className="text-[11px] font-bold text-gray-900 leading-snug text-center break-all">
-                                            {mission.title}
-                                        </span>
+                        {notice.challenge_format === 'ONLINE' ? (
+                            <div className="space-y-3">
+                                {(notice.challenge_missions || []).map(mission => (
+                                    <div key={mission.id} className="rounded-2xl bg-gray-50 px-5 py-5 transition-colors hover:bg-gray-100">
+                                        <h4 className="text-[15px] font-extrabold tracking-[-0.01em] text-gray-900">{mission.title}</h4>
+                                        {mission.description && (
+                                            <p className="mt-2 whitespace-pre-wrap text-[13px] font-medium leading-5 text-gray-600">
+                                                {mission.description}
+                                            </p>
+                                        )}
                                     </div>
                                 ))}
                             </div>
-                        </div>
+                        ) : (
+                            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.015)]">
+                                <div className="flex items-center justify-around gap-2">
+                                    {notice.challenge_missions?.map((mission, index) => (
+                                        <div
+                                            key={mission.id}
+                                            onClick={() => setSelectedMissionForDetail(mission)}
+                                            className="flex flex-col items-center cursor-pointer select-none group flex-1"
+                                        >
+                                            <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 bg-blue-50 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                                                {index + 1}
+                                            </div>
+                                            <span className="text-[11px] font-bold text-gray-900 leading-snug text-center break-all">
+                                                {mission.title}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {/* Mission Detail Modal (Overlay) - Read-only for Public View */}
-                {selectedMissionForDetail && (() => {
+                {notice.challenge_format !== 'ONLINE' && selectedMissionForDetail && (() => {
                     const mission = selectedMissionForDetail;
                     return (
                         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
@@ -1070,9 +1136,15 @@ const PublicProgramDetail = () => {
                 )}
             </div>
 
+            {usesDailySessionRsvp(notice) && <div className="mx-5 mb-6 rounded-2xl bg-blue-50 p-4 text-sm">
+                {openSessions.length > 1 && <div className="mb-4 grid grid-cols-2 gap-2.5">{openSessions.map(session => <button key={session.id} type="button" onClick={() => setSelectedSessionId(session.id)} className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${activeSession?.id === session.id ? 'border-blue-600 bg-blue-600 text-white shadow-blue-200' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'}`}>{formatDailySessionSchedule(session)}</button>)}</div>}
+                <p className="font-bold">신청 회차 · {formatDailySessionSchedule(activeSession) || '준비 중'}</p>
+                {getDailySessionValues(notice, activeSession).map(field => <p key={field.id} className="mt-2">{field.label}: {field.value}</p>)}
+                {programRegistrationBlockReason && <p className="mt-2 text-slate-600">{programRegistrationBlockReason}</p>}
+            </div>}
             {/* Bottom Floating Action Bar */}
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 z-50 safe-area-bottom">
-                {(isProgramRegistrationOpen || canLeaveFeedback || isInternalViewer) ? (
+                {(notice.is_recruiting === false || isProgramRegistrationOpen || canLeaveFeedback || isInternalViewer) ? (
                     <div className="flex flex-col">
                         {/* Full-width Dark Deadline Bar */}
                         {isProgramRegistrationOpen && notice.recruitment_deadline && !isProgramEnded(notice) && (
@@ -1082,7 +1154,9 @@ const PublicProgramDetail = () => {
                         )}
                         
                         <div className="p-4 flex flex-col gap-2">
-                            {isInternalViewer ? (
+                            {!notice.is_recruiting && !usesDailySessionRsvp(notice) ? (
+                                <div className="w-full rounded-2xl bg-emerald-50 py-4 text-center text-sm font-black text-emerald-700">신청 없이 참여할 수 있어요</div>
+                            ) : isInternalViewer ? (
                                 <button
                                     type="button"
                                     onClick={() => setShowParticipantModal(true)}
@@ -1112,7 +1186,7 @@ const PublicProgramDetail = () => {
                                             }}
                                             className="w-full bg-slate-900 text-white rounded-2xl py-4 font-black text-base transition active:scale-[0.98]"
                                         >
-                                            신청 완료됨 (대시보드 이동)
+                                            {applicationStatus === 'WAITLIST' ? '대기 신청 완료 (대시보드 이동)' : '신청 완료됨 (대시보드 이동)'}
                                         </button>
                                     )
                                 ) : (
@@ -1161,7 +1235,7 @@ const PublicProgramDetail = () => {
 
             {showParticipantModal && isInternalViewer && (
                 <ParticipantModal
-                    notice={notice}
+                    notice={{ ...notice, _initialSessionDate: activeSession?.session_date }}
                     initialView="attendance"
                     onClose={() => setShowParticipantModal(false)}
                     onRefresh={fetchNotice}
@@ -1342,7 +1416,7 @@ const PublicProgramDetail = () => {
 
                                 <div>
                                     <label className="block text-[11px] font-black text-gray-400 mb-1.5 ml-1 uppercase">생년월일</label>
-                                    <DatePicker label="생년월일" required max={new Date().toLocaleDateString('en-CA')} value={guestForm.birth} onChange={(birth) => setGuestForm(prev => ({ ...prev, birth }))} />
+                                    <BirthDateInput label="생년월일" required max={new Date().toLocaleDateString('en-CA')} value={guestForm.birth} onChange={(birth) => setGuestForm(prev => ({ ...prev, birth }))} />
                                 </div>
 
                                 {parseGuestBirthDate(guestForm.birth)?.isUnder14 && (
@@ -1429,7 +1503,7 @@ const PublicProgramDetail = () => {
                         <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100">
                             <CheckCircle2 size={32} />
                         </div>
-                        <h3 className="text-lg font-black text-gray-900 mb-2">신청이 완료되었습니다!</h3>
+                        <h3 className="text-lg font-black text-gray-900 mb-2">{applicationStatus === 'WAITLIST' ? '대기 신청이 완료되었습니다!' : '신청이 완료되었습니다!'}</h3>
                         <p className="text-xs font-semibold text-gray-500 mb-6 leading-relaxed">
                             프로그램 참여 정보가 안전하게 전달되었습니다.<br />
                             {shouldSuggestGuestConversion

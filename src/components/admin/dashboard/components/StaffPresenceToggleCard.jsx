@@ -6,6 +6,8 @@ import { Loader2, Settings, X, UserCheck } from 'lucide-react';
 import StaffPresenceSettings from '../../settings/components/StaffPresenceSettings';
 import CheckinSurveySettings from '../../settings/components/CheckinSurveySettings';
 import AdminPageHeader from '../../common/AdminPageHeader';
+import { isAdminOrStaff } from '../../../../utils/userUtils';
+import { hasActiveStaff, resetStaffPresence, updateStaffPresence } from '../../../../utils/staffPresence';
 
 const StaffPresenceToggleCard = ({ users }) => {
     const [staffConfig, setStaffConfig] = useState({ "하이픈": [], "이높플레이스": [] });
@@ -72,12 +74,7 @@ const StaffPresenceToggleCard = ({ users }) => {
                         }
                         
                         if (needsReset || isAfter6PM) {
-                            const resetStatus = { date: todayStr };
-                            Object.keys(parsedStatus).forEach(key => {
-                                if (key !== 'date') {
-                                    resetStatus[key] = false;
-                                }
-                            });
+                            const resetStatus = resetStaffPresence(todayStr);
                             setPresenceStatus(resetStatus);
                             
                             // Silently update the database to reset values
@@ -167,7 +164,7 @@ const StaffPresenceToggleCard = ({ users }) => {
             
             // Check if day changed or it's after 6 PM with active presence
             const todayStr = now.toLocaleDateString('sv');
-            const hasActive = Object.keys(presenceStatus).some(k => k !== 'date' && presenceStatus[k] === true);
+            const hasActive = hasActiveStaff(presenceStatus);
             const differentDay = presenceStatus.date && presenceStatus.date !== todayStr;
             
             if (differentDay || (currentHour >= 18 && hasActive)) {
@@ -180,25 +177,29 @@ const StaffPresenceToggleCard = ({ users }) => {
 
     const handleTogglePresence = async (userId) => {
         setUpdatingId(userId);
-        const currentPresent = !!presenceStatus[userId];
-        
         const now = new Date();
         const todayStr = now.toLocaleDateString('sv');
         
-        const nextStatus = {
-            ...presenceStatus,
-            date: todayStr,
-            [userId]: !currentPresent
-        };
-
         try {
             // Find existing record
             const { data: existing } = await supabase
                 .from('notices')
-                .select('id')
+                .select('id, content')
                 .eq('category', 'SYSTEM')
                 .eq('title', 'STAFF_PRESENCE_STATUS')
                 .maybeSingle();
+
+            let latestStatus = presenceStatus;
+            if (existing?.content) {
+                try { latestStatus = JSON.parse(existing.content) || presenceStatus; }
+                catch { latestStatus = presenceStatus; }
+            }
+            const latestPresent = latestStatus[userId] === true;
+            const nextStatus = updateStaffPresence(
+                { ...latestStatus, date: todayStr },
+                userId,
+                !latestPresent,
+            );
 
             const payload = {
                 title: 'STAFF_PRESENCE_STATUS',
@@ -340,7 +341,7 @@ const StaffPresenceToggleCard = ({ users }) => {
 
     // Duty candidates: only admin users, excluding those configured as staff in the other space
     const enough_placeDutyCandidates = users
-        .filter(u => u.role === 'admin' && !staffConfig["하이픈"]?.includes(u.id))
+        .filter(u => isAdminOrStaff(u) && !staffConfig["하이픈"]?.includes(u.id))
         .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
     if (loading) {

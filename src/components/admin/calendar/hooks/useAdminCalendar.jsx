@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getProgramCalendarCategories, getProgramCalendarKey, isProgramCalendarCategory } from '../../../../utils/calendarColors';
 import { saveCalendarCategory } from '../../../../api/calendarCategoriesApi';
 import { extractProgramInfo } from '../../../../utils/textUtils';
+import { usesDailySessionRsvp } from '../../../../utils/dailyProgramSessions';
 
 export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
     // State
@@ -26,6 +27,7 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
     const dynamicCategories = useMemo(() => calendarCategories.filter(category => !isProgramCalendarCategory(category)), [calendarCategories]);
     const programCategories = useMemo(() => getProgramCalendarCategories(calendarCategories), [calendarCategories]);
     const [rentalBookings, setRentalBookings] = useState([]);
+    const [dailyProgramSessions, setDailyProgramSessions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -92,6 +94,15 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
             if (rentalError) throw rentalError;
             setRentalBookings(rentalData || []);
 
+            // 4. Fetch only the dates on which a daily-session program was actually opened.
+            const { data: sessionData, error: sessionError } = await supabase
+                .from('daily_program_sessions')
+                .select('id, notice_id, session_date, starts_at, status, capacity, voided_at')
+                .is('voided_at', null)
+                .order('session_date', { ascending: true });
+            if (sessionError) throw sessionError;
+            setDailyProgramSessions(sessionData || []);
+
             // Synchronize visible categories
             setVisibleCategories(prev => {
                 const next = { ...prev };
@@ -128,6 +139,26 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
             .forEach(n => {
                 const { cleanContent, location, duration } = extractProgramInfo(n.content);
                 const finalLocation = location || n.program_location || '';
+
+                if (usesDailySessionRsvp(n)) {
+                    dailyProgramSessions
+                        .filter(session => session.notice_id === n.id)
+                        .forEach(session => {
+                            const programDateStr = session.starts_at || `${session.session_date}T12:00:00`;
+                            programEvents.push({
+                                id: `PRG-SESSION-${session.id}`,
+                                originalId: n.id,
+                                title: n.title,
+                                content: cleanContent,
+                                start: parseISO(programDateStr),
+                                end: parseISO(programDateStr),
+                                category: getProgramCalendarKey(n),
+                                isPublic: true,
+                                raw: { ...n, today_session: session, program_location: finalLocation, duration, program_date: programDateStr }
+                            });
+                        });
+                    return;
+                }
                 
                 if (!n.is_recruiting && n.program_start_date && n.program_end_date && n.program_days && n.program_days.length > 0) {
                     const start = new Date(n.program_start_date);
@@ -241,7 +272,7 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
             if (e.isPublic) return visibleCategories[e.category];
             return visibleCategories[e.category_id];
         });
-    }, [notices, adminSchedules, rentalBookings, dynamicCategories, visibleCategories]);
+    }, [notices, adminSchedules, rentalBookings, dailyProgramSessions, dynamicCategories, visibleCategories]);
 
     // Helper to check if event spans/includes a specific day
     const isEventOnDay = (event, day) => {

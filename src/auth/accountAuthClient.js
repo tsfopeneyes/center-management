@@ -34,6 +34,7 @@ export function createAccountAuthClient({baseUrl,supabaseUrl,publishableKey,auth
     const discardCreatedSession=createSessionDiscardTransport({supabaseUrl,publishableKey,fetcher});
     const exclusive=createBrowserAuthLock({locks,name:'center-account-auth'});
     return Object.freeze({
+        session:resolveSession,
         createSessionCoordinator:expectedProfileId=>createSessionCoordinator({auth,resolveSession,expectedProfileId}),
         login:createLoginController({auth,login,readProfile:profile,discardCreatedSession,exclusive}),
         password:createPasswordChangeController({auth,change:credentials,resolveSession,exclusive}),

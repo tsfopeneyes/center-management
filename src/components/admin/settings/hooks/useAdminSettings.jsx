@@ -8,6 +8,7 @@ import { processAnalyticsData, processUserAnalytics, processProgramAnalytics } f
 import { aggregateVisitSessions } from '../../../../utils/visitUtils';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../../auth/accountAuthRuntime';
 import {DEFAULT_ADMIN_SIDEBAR_CONFIG} from '../../../../constants/adminSidebarMenu';
+import { normalizeNotificationRouteConfig } from '../../../../utils/notificationRouteConfig';
 
 const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, users, allLogs, responses, schoolLogs, notices }) => {
     // 1. Profile State
@@ -27,28 +28,8 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
 
     // 2. Integration State
     const [gsWebhookUrl, setGsWebhookUrl] = useState(localStorage.getItem('gs_webhook_url') || '');
-    const [lineChannelAccessToken, setLineChannelAccessToken] = useState(localStorage.getItem('line_channel_access_token') || '');
-    const [lineGroupId, setLineGroupId] = useState(localStorage.getItem('line_group_id') || '');
-    const [lineVisitNotificationsEnabled, setLineVisitNotificationsEnabled] = useState(
-        (localStorage.getItem('line_visit_notifications_enabled') ?? localStorage.getItem('line_notifications_enabled')) !== 'false'
-    );
-    const [lineCoffeeChatNotificationsEnabled, setLineCoffeeChatNotificationsEnabled] = useState(
-        localStorage.getItem('line_coffee_chat_notifications_enabled') !== 'false'
-    );
-    const [lineProgramNotificationsEnabled, setLineProgramNotificationsEnabled] = useState(
-        localStorage.getItem('line_program_notifications_enabled') !== 'false'
-    );
-    const [slackVisitNotificationsEnabled, setSlackVisitNotificationsEnabled] = useState(
-        (localStorage.getItem('slack_visit_notifications_enabled') ?? localStorage.getItem('slack_notifications_enabled')) !== 'false'
-    );
-    const [slackCoffeeChatNotificationsEnabled, setSlackCoffeeChatNotificationsEnabled] = useState(
-        localStorage.getItem('slack_coffee_chat_notifications_enabled') !== 'false'
-    );
-    const [slackProgramNotificationsEnabled, setSlackProgramNotificationsEnabled] = useState(
-        localStorage.getItem('slack_program_notifications_enabled') !== 'false'
-    );
-    const [slackRentalNotificationsEnabled, setSlackRentalNotificationsEnabled] = useState(
-        localStorage.getItem('slack_rental_notifications_enabled') !== 'false'
+    const [notificationRouteConfig, setNotificationRouteConfig] = useState(() =>
+        normalizeNotificationRouteConfig(localStorage.getItem('notification_routing_config'))
     );
     const [discordWebhookUrl, setDiscordWebhookUrl] = useState(localStorage.getItem('discord_webhook_url') || '');
     const [kioskMasterPin, setKioskMasterPin] = useState(localStorage.getItem('kiosk_master_pin') || '1801');
@@ -56,31 +37,21 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
     const [syncProgress, setSyncProgress] = useState('');
     const [isBadgeSystemEnabled, setIsBadgeSystemEnabled] = useState(true);
 
-    // 알림 토글은 관리자 PC의 localStorage가 아니라 DB 값을 기준으로 동기화합니다.
+    // 지점별 라우팅 설정만 알림의 단일 기준으로 사용합니다.
     useEffect(() => {
         let mounted = true;
-        const setters = {
-            line_visit_notifications_enabled: setLineVisitNotificationsEnabled,
-            line_coffee_chat_notifications_enabled: setLineCoffeeChatNotificationsEnabled,
-            line_program_notifications_enabled: setLineProgramNotificationsEnabled,
-            slack_visit_notifications_enabled: setSlackVisitNotificationsEnabled,
-            slack_coffee_chat_notifications_enabled: setSlackCoffeeChatNotificationsEnabled,
-            slack_program_notifications_enabled: setSlackProgramNotificationsEnabled,
-            slack_rental_notifications_enabled: setSlackRentalNotificationsEnabled,
-        };
         const loadNotificationSettings = async () => {
             try {
                 const { data, error } = await supabase
                     .from('global_settings')
                     .select('key, value')
-                    .in('key', Object.keys(setters));
+                    .eq('key', 'notification_routing_config')
+                    .maybeSingle();
                 if (error) throw error;
                 if (!mounted) return;
-                (data || []).forEach(({ key, value }) => {
-                    const enabled = value !== 'false';
-                    setters[key]?.(enabled);
-                    localStorage.setItem(key, String(enabled));
-                });
+                const normalized = normalizeNotificationRouteConfig(data?.value);
+                setNotificationRouteConfig(normalized);
+                localStorage.setItem('notification_routing_config', JSON.stringify(normalized));
             } catch (error) {
                 console.error('Failed to load notification settings:', error);
             }
@@ -111,7 +82,6 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         { id: 'badges', label: '뱃지', isVisible: true },
         { id: 'programs', label: '센터', isVisible: true },
         { id: 'calendar', label: '캘린더', isVisible: true },
-        { id: 'azit', label: '커뮤니티', isVisible: true },
         { id: 'haifn', label: '하이픈', isVisible: true }
     ]);
     const [configLoading, setConfigLoading] = useState(false);
@@ -267,7 +237,6 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
                             { id: 'badges', label: '뱃지', isVisible: true },
                             { id: 'programs', label: '센터', isVisible: true },
                             { id: 'calendar', label: '캘린더', isVisible: true },
-                            { id: 'azit', label: '커뮤니티', isVisible: true },
                             { id: 'haifn', label: '하이픈', isVisible: true }
                         ];
                         const merged = defaultTabs.map(def => {
@@ -573,32 +542,15 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
     // --- Integration Logics ---
     const handleSaveIntegrations = async () => {
         localStorage.setItem('gs_webhook_url', gsWebhookUrl);
-        localStorage.setItem('line_channel_access_token', lineChannelAccessToken);
-        localStorage.setItem('line_group_id', lineGroupId);
-        const notificationSettings = {
-            line_visit_notifications_enabled: lineVisitNotificationsEnabled,
-            line_coffee_chat_notifications_enabled: lineCoffeeChatNotificationsEnabled,
-            line_program_notifications_enabled: lineProgramNotificationsEnabled,
-            slack_visit_notifications_enabled: slackVisitNotificationsEnabled,
-            slack_coffee_chat_notifications_enabled: slackCoffeeChatNotificationsEnabled,
-            slack_program_notifications_enabled: slackProgramNotificationsEnabled,
-            slack_rental_notifications_enabled: slackRentalNotificationsEnabled,
-        };
-        Object.entries(notificationSettings).forEach(([key, value]) => localStorage.setItem(key, String(value)));
-        // Keep the previous keys synchronized for older kiosk/browser sessions.
-        localStorage.setItem('line_notifications_enabled', String(lineVisitNotificationsEnabled));
-        localStorage.setItem('slack_notifications_enabled', String(slackVisitNotificationsEnabled));
+        const normalizedRouteConfig = normalizeNotificationRouteConfig(notificationRouteConfig);
+        localStorage.setItem('notification_routing_config', JSON.stringify(normalizedRouteConfig));
         localStorage.setItem('discord_webhook_url', discordWebhookUrl);
         localStorage.setItem('kiosk_master_pin', kioskMasterPin);
         
         try {
             const settingsToSave = [
                 { key: 'gs_webhook_url', value: gsWebhookUrl },
-                { key: 'line_channel_access_token', value: lineChannelAccessToken },
-                { key: 'line_group_id', value: lineGroupId },
-                ...Object.entries(notificationSettings).map(([key, value]) => ({ key, value: String(value) })),
-                { key: 'line_notifications_enabled', value: String(lineVisitNotificationsEnabled) },
-                { key: 'slack_notifications_enabled', value: String(slackVisitNotificationsEnabled) },
+                { key: 'notification_routing_config', value: JSON.stringify(normalizedRouteConfig) },
                 { key: 'discord_webhook_url', value: discordWebhookUrl },
                 { key: 'kiosk_master_pin', value: kioskMasterPin }
             ];
@@ -1061,15 +1013,7 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
         handleAdminProfileImageSelect, handleSaveCroppedImage, handleSaveAdminProfile,
 
         gsWebhookUrl, setGsWebhookUrl,
-        lineChannelAccessToken, setLineChannelAccessToken,
-        lineGroupId, setLineGroupId,
-        lineVisitNotificationsEnabled, setLineVisitNotificationsEnabled,
-        lineCoffeeChatNotificationsEnabled, setLineCoffeeChatNotificationsEnabled,
-        lineProgramNotificationsEnabled, setLineProgramNotificationsEnabled,
-        slackVisitNotificationsEnabled, setSlackVisitNotificationsEnabled,
-        slackCoffeeChatNotificationsEnabled, setSlackCoffeeChatNotificationsEnabled,
-        slackProgramNotificationsEnabled, setSlackProgramNotificationsEnabled,
-        slackRentalNotificationsEnabled, setSlackRentalNotificationsEnabled,
+        notificationRouteConfig, setNotificationRouteConfig,
         discordWebhookUrl, setDiscordWebhookUrl,
         kioskMasterPin, setKioskMasterPin,
         isBackingUp, syncProgress,

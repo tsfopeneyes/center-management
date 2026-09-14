@@ -1,7 +1,5 @@
-const normalizeSchoolName=(name='')=>String(name).replace(/\s+/g,'')
-    .replace(/여자고등학교$/,'여고').replace(/여자중학교$/,'여중')
-    .replace(/과학고등학교$/,'과고').replace(/외국어고등학교$/,'외고')
-    .replace(/고등학교$/,'고').replace(/중학교$/,'중').replace(/초등학교$/,'초');
+import { filterProgramUsersByRegions } from '../_shared/programPushRegions.mjs';
+import {attachCanonicalAccountRoles,isMasterStaff,isStaffProfile} from '../_shared/staffRoles.mjs';
 
 const checked=({data,error})=>{if(error)throw new Error(error.code||'database');return data;};
 
@@ -13,18 +11,22 @@ async function recipientUsers(db,job,notice) {
             .select('auth_user_id,fcm_token').eq('notice_id',notice.id).eq('enabled',true));
         const authIds=[...new Set(rows.map(row=>row.auth_user_id))];
         if(!authIds.length)return [];
-        const users=checked(await db.from('users').select('id,auth_user_id,fcm_token,school,status,role').in('auth_user_id',authIds));
+        const rawUsers=checked(await db.from('users').select('id,auth_user_id,fcm_token,school,status').in('auth_user_id',authIds));
         for(const row of rows)interestTokens.set(row.auth_user_id,row.fcm_token);
-        return users.map(user=>({...user,interest_token:interestTokens.get(user.auth_user_id)||null}));
+        const users=await attachCanonicalAccountRoles(db,rawUsers);
+        return users.filter(user=>user.status!=='deleted' && (!isStaffProfile(user) || isMasterStaff(user)))
+            .map(user=>({...user,interest_token:interestTokens.get(user.auth_user_id)||null}));
     }
     if(job.audience==='APPLICANTS') {
         const rows=checked(await db.from('notice_responses').select('user_id').eq('notice_id',notice.id).eq('status','JOIN'));
         ids=[...new Set(rows.map(row=>row.user_id).filter(Boolean))];
         if(!ids.length)return [];
     }
-    let query=db.from('users').select('id,auth_user_id,fcm_token,school,status,role');
+    let query=db.from('users').select('id,auth_user_id,fcm_token,school,status');
     if(ids)query=query.in('id',ids);
-    let users=checked(await query).filter(user=>user.status!=='deleted' && String(user.role||'user').toLowerCase()!=='admin');
+    let users=(await attachCanonicalAccountRoles(db,checked(await query))).filter(user=>user.status!=='deleted' && (
+        !isStaffProfile(user) || isMasterStaff(user)
+    ));
     // At recruitment start, opt-in users are handled by the mandatory heart
     // alert. Excluding them here prevents a simultaneous regional/global copy.
     if(job.timing==='AT_START') {
@@ -35,9 +37,7 @@ async function recipientUsers(db,job,notice) {
     if(job.audience!=='TARGET_REGIONS')return users;
     const regions=Array.isArray(notice.target_regions)?notice.target_regions.filter(Boolean):[];
     if(!regions.length || regions.length>=2)return users;
-    const schools=checked(await db.from('schools').select('name').in('region',regions));
-    const keys=new Set(schools.map(row=>normalizeSchoolName(row.name)).filter(Boolean));
-    return users.filter(user=>keys.has(normalizeSchoolName(user.school)));
+    return filterProgramUsersByRegions(db,users,regions);
 }
 
 async function stableId(value) {

@@ -15,7 +15,7 @@ export function createMemberAdminTransport({endpoint,publishableKey,auth,fetcher
         }catch(error){if(error instanceof AuthOperationError)throw error;throw new AuthOperationError('temporarily_unavailable');}
     };
     return Object.freeze({
-        setRole:({profileId,admin})=>request({action:'set-admin',profileId,admin}),
+        setRole:({profileId,targetRole,reason})=>request({action:'set-role',profileId,targetRole,reason}),
         withdraw:({profileId})=>request({action:'withdraw',profileId}),
         merge:({requestId,sourceProfileId,targetProfileId})=>request({action:'merge',requestId,sourceProfileId,targetProfileId}),
         listReviews:()=>request({action:'list-merge-reviews'})

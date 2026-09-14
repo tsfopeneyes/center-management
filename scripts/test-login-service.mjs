@@ -87,7 +87,7 @@ try{
         ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
         CREATE TABLE auth.users(id uuid PRIMARY KEY,is_anonymous boolean,banned_until timestamptz,encrypted_password text);
         CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,not_after timestamptz);
-        INSERT INTO public.users VALUES('${p}','original-one','school-one','청소년','unchanged'),('${q}','original-two','school-two','졸업생','unchanged');
+        INSERT INTO public.users VALUES('${p}','가상회원','school-one','청소년','unchanged'),('${q}','가상회원','school-two','졸업생','unchanged');
         INSERT INTO auth.users VALUES('${a}',false,NULL,'unchanged'),('${b}',false,NULL,'unchanged');
         INSERT INTO auth.sessions VALUES('${oldSession}','${a}',NULL);`);
     const original=await query('SELECT row_to_json(u) AS data FROM public.users u ORDER BY id');
@@ -101,7 +101,7 @@ try{
     }
 
     await db.exec('SET ROLE account_login_worker');
-    const displayCandidates=await store.findCandidatesByName(await keyFor('name','가상회원'));
+    const displayCandidates=await store.findCandidatesByName(await keyFor('name','가상회원'),'가상회원');
     assert.deepEqual(displayCandidates.map(item=>item.profileId),[p,q]);assert.ok(displayCandidates.every(item=>!('password' in item)));
     const success=await invoke(reconfirm);
     assert.equal(success.profileId,p);assert.equal(success.authUserId,a);
@@ -123,6 +123,16 @@ try{
     await rejected({...reconfirm,profileId:'invalid'});
     await rejected({...initial,password:'x'.repeat(129)});
 
+    await limits();
+    await query('UPDATE public.users SET name=$2 WHERE id=$1',[p,'수정이름']);
+    const renamed = await store.findCandidatesByName(await keyFor('name','수정이름'),'수정이름');
+    assert.deepEqual(renamed.map(row=>row.profileId),[p]);
+    const prepared = await store.findCandidatesPrepared(await keyFor('name','수정이름'),await keyFor('test','rename-client'),await keyFor('test','rename-subject'),'수정이름');
+    assert.deepEqual(prepared.candidates.map(row=>row.profileId),[p]);
+    assert.equal((await invoke({...initial,name:'수정이름'})).profileId,p);
+    await rejected(initial,'name_not_found');
+    assert.equal((await store.findByLookup(await keyFor('name','수정이름'),await keyFor('phone','01011111111'),'수정이름'))[0].profileId,p);
+    await query('UPDATE public.users SET name=$2 WHERE id=$1',[p,'가상회원']);
     await limits();
     const beforeSignIn=signIns;
     await query("UPDATE account_security.login_identifiers SET credential_mode='legacy_pending' WHERE profile_id=$1",[p]);

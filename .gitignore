@@ -45,3 +45,6 @@ dev-server*.log
 analysis/
 backups/
 reports/
+.chrome-*
+.edge-*
+.codex-*

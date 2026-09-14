@@ -6,6 +6,7 @@ import getCroppedImg from '../../../utils/imageUtils';
 import { hashPassword } from '../../../utils/hashUtils';
 import useModalClose from '../../../hooks/useModalClose';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../auth/accountAuthRuntime';
+import { isAdminOrStaff } from '../../../utils/userUtils';
 
 const ProfileSettingsModal = ({ 
     user, 
@@ -24,13 +25,8 @@ const ProfileSettingsModal = ({
     const [church, setChurch] = useState(user?.church || '');
     const [isSchoolChurch, setIsSchoolChurch] = useState(user?.preferences?.is_school_church ?? false);
     const [bio, setBio] = useState(user?.bio || '');
-    const isStaff = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'staff' || user?.user_group?.toLowerCase() === 'staff' || user?.user_group === '관리자';
-    const isAdminUser = user?.role?.toLowerCase() === 'admin' ||
-        user?.role?.toLowerCase() === 'staff' ||
-        user?.user_group?.toLowerCase() === 'admin' ||
-        user?.user_group?.toLowerCase() === 'staff' ||
-        user?.user_group === '관리자';
-    const canAccessTutorial = isAdminUser || user?.name?.replace('(guest)', '').trim() === '김학생';
+    const isStaff = isAdminOrStaff(user);
+    const canAccessTutorial = isStaff || user?.name?.replace('(guest)', '').trim() === '김학생';
 
     const [showCropModal, setShowCropModal] = useState(false);
     const [photoURL, setPhotoURL] = useState(null);

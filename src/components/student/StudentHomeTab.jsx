@@ -14,6 +14,7 @@ import CoffeeChatModal from './modals/CoffeeChatModal';
 import { supabase } from '../../supabaseClient';
 import ContentPostModal from './modals/ContentPostModal';
 import {parseContentPost, sortContentPosts} from '../../utils/contentPosts';
+import { isAdminOrStaff } from '../../utils/userUtils';
 
 const StudentHomeTab = ({
     user,
@@ -119,7 +120,7 @@ const StudentHomeTab = ({
         const loadContents=async()=>{
             try{
                 let region=studentRegion || (user?.school?.includes('강서')?'강서':'강동');
-                if(user?.role==='admin') region=selectedRegion==='GANGSEO'?'강서':selectedRegion==='GANGDONG'?'강동':null;
+                if(isAdminOrStaff(user)) region=selectedRegion==='GANGSEO'?'강서':selectedRegion==='GANGDONG'?'강동':null;
                 let query=supabase.from('contents').select('*, schools(region)').eq('is_active',true).order('created_at',{ascending:false});
                 if(region){const {data:matchedSchools}=await supabase.from('schools').select('id').eq('region',region);query=query.in('school_id',(matchedSchools||[]).map(s=>s.id));}
                 const {data,error}=await query;if(error)throw error;if(active)setHomeContents(sortContentPosts((data||[]).map(parseContentPost).filter(Boolean)));
@@ -203,7 +204,7 @@ const StudentHomeTab = ({
 
                             {/* Profile Right: Actions */}
                             <div className="flex items-center gap-1.5 shrink-0">
-                                {user?.role === 'admin' ? (
+                                {isAdminOrStaff(user) ? (
                                     <button 
                                         onClick={() => navigate('/admin')}
                                         className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 transition-all px-3 py-1.5 rounded-full border border-white/25 shadow-sm text-white font-bold text-[12px] group"
@@ -286,7 +287,7 @@ const StudentHomeTab = ({
                             </span>
 
                             {/* Admin Testing Region Filter Tabs */}
-                            {user?.role === 'admin' && (
+                            {isAdminOrStaff(user) && (
                                 <div className="flex bg-white/10 p-0.5 rounded-xl w-full border border-white/10 mt-1 select-none">
                                     <button
                                         onClick={() => setSelectedRegion('ALL')}
@@ -667,7 +668,7 @@ const StudentHomeTab = ({
                                                         <span className="w-1 h-3 rounded-full bg-tossBlue shrink-0"></span>
                                                         <h4 className="font-extrabold text-tossGrey800 text-[13.5px] sm:text-[14.5px] leading-none">오픈 프로그램</h4>
                                                     </div>
-                                                    <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">누구나 신청 없이 함께할 수 있어요</p>
+                                                    <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">자유 참여 또는 오늘 신청으로 함께할 수 있어요</p>
                                                 </div>
                                                 <div
                                                     className="no-swipe flex cursor-grab snap-x gap-3 overflow-x-auto pb-1 active:cursor-grabbing"

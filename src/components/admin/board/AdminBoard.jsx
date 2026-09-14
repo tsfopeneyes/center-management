@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import { noticesApi } from '../../../api/noticesApi';
 import { supabase } from '../../../supabaseClient';
 import { readNoticeWithPreview } from '../../../api/programReadApi';
+import { programSessionsApi } from '../../../api/programSessionsApi';
+import { usesDailySessionRsvp, isRecurringProgram } from '../../../utils/dailyProgramSessions';
 
 // Hooks
 import useViewPreferences from './hooks/useViewPreferences';
@@ -15,8 +17,10 @@ import FilterBar from './components/filters/FilterBar';
 import WriteForm from './components/forms/WriteForm';
 import NoticeGrid from './components/grid/NoticeGrid';
 import ParticipantModal from './components/modals/ParticipantModal';
+import TodaySessionModal from './components/modals/TodaySessionModal';
 import AdminFeedbackListModal from './components/modals/AdminFeedbackListModal';
 import NoticeModal from '../../student/NoticeModal';
+import ChallengeCommunityModal from '../../student/modals/ChallengeCommunityModal';
 
 // Constants
 import { CATEGORIES } from './utils/constants';
@@ -49,6 +53,22 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
     const [modalNotice, setModalNotice] = useState(null);
     const [feedbackNotice, setFeedbackNotice] = useState(null);
     const [viewNotice, setViewNotice] = useState(null); // For NoticeModal
+    const [viewComments, setViewComments] = useState([]);
+    const [viewComment, setViewComment] = useState('');
+    const [todaySessionNotice, setTodaySessionNotice] = useState(null);
+    const [communityNotice, setCommunityNotice] = useState(null);
+
+    const handleOpenTodaySession = useCallback((notice, initialView = 'overview') => {
+        setTodaySessionNotice({ notice, initialView });
+    }, []);
+
+    const adminUser = useMemo(() => {
+        try {
+            return JSON.parse(localStorage.getItem('admin_user')) || {};
+        } catch {
+            return {};
+        }
+    }, []);
 
     const { viewMode, setViewMode } = useViewPreferences();
     const { 
@@ -65,13 +85,27 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
     const displayNotices = mode === CATEGORIES.PROGRAM 
         ? (programTab === 'ACTIVE' ? activePrograms : completedPrograms)
         : filteredNotices;
+    const applicationPrograms = useMemo(
+        () => mode === CATEGORIES.PROGRAM ? displayNotices.filter(notice => notice.is_recruiting !== false) : [],
+        [displayNotices, mode]
+    );
+    const openPrograms = useMemo(
+        () => mode === CATEGORIES.PROGRAM ? displayNotices.filter(notice => notice.is_recruiting === false) : [],
+        [displayNotices, mode]
+    );
 
     const { noticeStats } = useNoticeStats(filteredNotices, mode);
 
     const fetchNotices = useCallback(async () => {
         try {
             setLoading(true);
-            const dataRes = await noticesApi.fetchAll();
+            let dataRes = await noticesApi.fetchAll({ category: mode });
+            const sessionIds = dataRes.filter(notice => usesDailySessionRsvp(notice) || isRecurringProgram(notice)).map(notice => notice.id);
+            if (sessionIds.length) {
+                const sessionMap = await programSessionsApi.fetchOpen(sessionIds);
+                dataRes = dataRes.map(notice => (usesDailySessionRsvp(notice) || isRecurringProgram(notice))
+                    ? { ...notice, today_session: sessionMap[notice.id] || null, open_sessions: sessionMap[notice.id]?.open_sessions || [] } : notice);
+            }
             setNotices(dataRes);
         } catch (error) {
             console.error('Error fetching notices:', error);
@@ -92,6 +126,12 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                     setNotices(prev => prev.map(n => n.id === payload.new.id ? { ...n, ...payload.new } : n));
                     setViewNotice(prev => (prev && prev.id === payload.new.id) ? { ...prev, ...payload.new } : prev);
                 }
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_program_sessions' }, () => {
+                fetchNotices();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_program_session_responses' }, () => {
+                fetchNotices();
             })
             .subscribe();
 
@@ -209,6 +249,66 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
         setFeedbackNotice(notice);
     }, []);
 
+    const fetchViewComments = useCallback(async (noticeId) => {
+        if (!noticeId) {
+            setViewComments([]);
+            return;
+        }
+        const { data, error } = await supabase
+            .from('comments')
+            .select('*, users(name, profile_image_url), notice_comment_reactions(user_id, emoji, users(id, name, school, profile_image_url))')
+            .eq('notice_id', noticeId)
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        setViewComments(data || []);
+    }, []);
+
+    useEffect(() => {
+        if (!viewNotice?.id) {
+            setViewComments([]);
+            setViewComment('');
+            return;
+        }
+        fetchViewComments(viewNotice.id).catch(error => {
+            console.error('Failed to load notice comments:', error);
+            setViewComments([]);
+        });
+    }, [viewNotice?.id, fetchViewComments]);
+
+    const handlePostViewComment = useCallback(async (event) => {
+        event.preventDefault();
+        const content = viewComment.trim();
+        if (!content || !viewNotice?.id || !adminUser?.id) return;
+        try {
+            const { error } = await supabase.from('comments').insert([{
+                notice_id: viewNotice.id,
+                user_id: adminUser.id,
+                content,
+            }]);
+            if (error) throw error;
+            setViewComment('');
+            await fetchViewComments(viewNotice.id);
+        } catch (error) {
+            console.error('Failed to post notice comment:', error);
+            alert('댓글 작성에 실패했습니다.');
+        }
+    }, [adminUser?.id, fetchViewComments, viewComment, viewNotice?.id]);
+
+    const handleDeleteViewComment = useCallback(async (commentId) => {
+        if (!window.confirm('댓글을 삭제하시겠습니까?')) return;
+        try {
+            const { error } = await supabase.from('comments')
+                .delete()
+                .eq('id', commentId)
+                .eq('user_id', adminUser.id);
+            if (error) throw error;
+            await fetchViewComments(viewNotice?.id);
+        } catch (error) {
+            console.error('Failed to delete notice comment:', error);
+            alert('댓글 삭제에 실패했습니다.');
+        }
+    }, [adminUser.id, fetchViewComments, viewNotice?.id]);
+
     const handleViewDetails = useCallback((notice) => {
         setViewNotice(notice);
     }, []);
@@ -281,18 +381,72 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                     </div>
                 ) : (
                     <>
-                        <NoticeGrid 
-                            notices={displayNotices}
-                            viewMode={viewMode}
-                            mode={mode}
-                            noticeStats={noticeStats}
-                            onViewDetails={handleViewDetails}
-                            onOpenParticipants={handleOpenParticipants}
-                            onOpenFeedback={handleOpenFeedback}
-                            onStatusChange={handleProgramStatusChange}
-                            onEdit={handleEditNotice}
-                            onDelete={handleDeleteNotice}
-                        />
+                        {mode === CATEGORIES.PROGRAM ? (
+                            <div className="space-y-12">
+                                {applicationPrograms.length > 0 && (
+                                    <section>
+                                        <div className="mb-5 flex items-center gap-3">
+                                            <h3 className="text-base font-black text-[#191f28]">신청 프로그램</h3>
+                                            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-600">{applicationPrograms.length}</span>
+                                            <div className="h-px flex-1 bg-[#f2f4f6]" />
+                                        </div>
+                                        <NoticeGrid
+                                            notices={applicationPrograms}
+                                            viewMode={viewMode}
+                                            mode={mode}
+                                            noticeStats={noticeStats}
+                                            onViewDetails={handleViewDetails}
+                                            onOpenParticipants={handleOpenParticipants}
+                                            onOpenCommunity={setCommunityNotice}
+                                            onOpenFeedback={handleOpenFeedback}
+                                            onOpenTodaySession={handleOpenTodaySession}
+                                            onStatusChange={handleProgramStatusChange}
+                                            onEdit={handleEditNotice}
+                                            onDelete={handleDeleteNotice}
+                                        />
+                                    </section>
+                                )}
+
+                                {openPrograms.length > 0 && (
+                                    <section>
+                                        <div className="mb-5 flex items-center gap-3">
+                                            <h3 className="text-base font-black text-[#191f28]">오픈 프로그램</h3>
+                                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-600">{openPrograms.length}</span>
+                                            <div className="h-px flex-1 bg-[#f2f4f6]" />
+                                        </div>
+                                        <NoticeGrid
+                                            notices={openPrograms}
+                                            viewMode={viewMode}
+                                            mode={mode}
+                                            noticeStats={noticeStats}
+                                            onViewDetails={handleViewDetails}
+                                            onOpenParticipants={handleOpenParticipants}
+                                            onOpenCommunity={setCommunityNotice}
+                                            onOpenFeedback={handleOpenFeedback}
+                                            onOpenTodaySession={handleOpenTodaySession}
+                                            onStatusChange={handleProgramStatusChange}
+                                            onEdit={handleEditNotice}
+                                            onDelete={handleDeleteNotice}
+                                        />
+                                    </section>
+                                )}
+                            </div>
+                        ) : (
+                            <NoticeGrid
+                                notices={displayNotices}
+                                viewMode={viewMode}
+                                mode={mode}
+                                noticeStats={noticeStats}
+                                onViewDetails={handleViewDetails}
+                                onOpenParticipants={handleOpenParticipants}
+                                onOpenCommunity={setCommunityNotice}
+                                onOpenFeedback={handleOpenFeedback}
+                                onOpenTodaySession={handleOpenTodaySession}
+                                onStatusChange={handleProgramStatusChange}
+                                onEdit={handleEditNotice}
+                                onDelete={handleDeleteNotice}
+                            />
+                        )}
                         <div className="text-center mt-8 mb-4 text-[11px] md:text-xs font-bold text-gray-400">
                             총 {displayNotices.length}개의 {mode === CATEGORIES.PROGRAM ? '일정' : '게시글'}
                         </div>
@@ -304,6 +458,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
             {modalNotice && (
                 <ParticipantModal 
                     notice={modalNotice.notice || modalNotice}
+                    user={adminUser}
                     initialView={modalNotice.initialView}
                     onClose={handleCloseParticipants}
                     onRefresh={() => fetchNotices()}
@@ -317,12 +472,35 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                 />
             )}
 
+            {todaySessionNotice && (
+                <TodaySessionModal
+                    notice={todaySessionNotice.notice}
+                    initialView={todaySessionNotice.initialView}
+                    onClose={() => setTodaySessionNotice(null)}
+                    onChanged={fetchNotices}
+                    onViewParticipants={(sessionDate) => {
+                        setTodaySessionNotice(null);
+                        handleOpenParticipants({ ...todaySessionNotice.notice, _initialSessionDate: sessionDate }, 'attendance');
+                    }}
+                />
+            )}
+
+            {communityNotice && (
+                <ChallengeCommunityModal
+                    notice={communityNotice}
+                    user={adminUser}
+                    initialFilter={null}
+                    onClose={() => setCommunityNotice(null)}
+                    onMissionCompleted={fetchNotices}
+                />
+            )}
+
             {viewNotice && (
                 <NoticeModal
                     fromAdmin={true}
                     notice={viewNotice}
                     onClose={() => setViewNotice(null)}
-                    user={JSON.parse(localStorage.getItem('admin_user')) || {}}
+                    user={adminUser}
                     responses={{}}
                     onResponse={() => {}}
                     onUpdate={async (updated, isAlreadySaved = false) => {
@@ -345,11 +523,11 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                     }}
                     onDelete={handleDeleteNotice}
                     onViewParticipants={handleOpenParticipants}
-                    comments={[]}
-                    newComment=""
-                    setNewComment={() => {}}
-                    onPostComment={() => {}}
-                    onDeleteComment={() => {}}
+                    comments={viewComments}
+                    newComment={viewComment}
+                    setNewComment={setViewComment}
+                    onPostComment={handlePostViewComment}
+                    onDeleteComment={handleDeleteViewComment}
                 />
             )}
         </div>

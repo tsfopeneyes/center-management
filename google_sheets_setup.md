@@ -41,6 +41,9 @@ function doPost(e) {
         UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push", options);
         return ContentService.createTextOutput("LINE Sent").setMimeType(ContentService.MimeType.TEXT);
       }
+
+      return ContentService.createTextOutput("Ignored: invalid LINE payload")
+        .setMimeType(ContentService.MimeType.TEXT);
     }
     
     // LINE Official Account Webhook 로깅 (그룹 ID 확인용)
@@ -62,11 +65,22 @@ function doPost(e) {
     
     // 벌크 데이터인 경우 처리 (여러 탭 동시 업데이트)
     var payloads = data.isBulk ? data.payloads : [data];
+
+    if (!Array.isArray(payloads)) {
+      return ContentService.createTextOutput("Ignored: invalid payloads")
+        .setMimeType(ContentService.MimeType.TEXT);
+    }
     
     payloads.forEach(function(p) {
       var tabName = p.tabName;
       var rows = p.rows;
       var headers = p.headers;
+
+      // 이름 없는 실시간 알림 요청 등이 기본 이름의 빈 시트를 만들지 않도록 차단
+      if (!p || typeof tabName !== "string" || !tabName.trim() ||
+          !Array.isArray(rows) || !Array.isArray(headers)) {
+        return;
+      }
 
       var sheet = ss.getSheetByName(tabName);
       

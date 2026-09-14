@@ -140,7 +140,8 @@ const PostSettings = ({ formData, updateField, mode, noticeId }) => {
                                 <button type="button" className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-[11px] font-black text-emerald-700"
                                     onClick={() => {
                                         if (!window.confirm('이미 발송한 푸시를 다시 발송하도록 설정할까요? 저장하면 선택한 대상에게 다시 발송됩니다.')) return;
-                                        updateField('guest_properties', {...formData.guest_properties, recruitment_push_dispatched_at: null, recruitment_push_immediate_dispatched_at: null, recruitment_push_result: null});
+                                        const resendNonce = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                                        updateField('guest_properties', {...formData.guest_properties, recruitment_push_resend_nonce: resendNonce, recruitment_push_result: null});
                                         setPushPlans([{id:'now',timing:'NOW',audience:'TARGET_REGIONS',scheduled_at:''}]);
                                     }}>다시 발송 설정</button>
                             </div>

@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { MessageSquare, Users, Clock, Radio, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useLiveCenterChat } from '../hooks/useLiveCenterChat';
+import { isAdminOrStaff } from '../utils/userUtils';
 
 const TvSignageViewer = () => {
     const { center: paramCenter } = useParams();
@@ -48,7 +49,7 @@ const TvSignageViewer = () => {
                 const todayKst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
                 const { data, error } = await supabase
                     .from('logs')
-                    .select('*, users(name, school, user_group)')
+                    .select('id,user_id,type,action_type,location_id,location_name,checkin_time,checkout_time,created_at,users(name,school,user_group)')
                     .filter('created_at', 'gte', `${todayKst}T00:00:00+09:00`)
                     .order('created_at', { ascending: false });
 
@@ -87,10 +88,31 @@ const TvSignageViewer = () => {
         };
 
         fetchActiveUsers();
-        const interval = setInterval(fetchActiveUsers, 30000);
+        let refreshTimer;
+        const scheduleRefresh = () => {
+            clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(fetchActiveUsers, 500);
+        };
+        const channel = supabase.channel(`tv-signage-logs-${activeCenter}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'logs' }, scheduleRefresh)
+            .subscribe(status => {
+                if (status === 'SUBSCRIBED') fetchActiveUsers();
+            });
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') fetchActiveUsers();
+        }, 300000);
+        const refreshWhenVisible = () => {
+            if (document.visibilityState === 'visible') fetchActiveUsers();
+        };
+        window.addEventListener('online', refreshWhenVisible);
+        document.addEventListener('visibilitychange', refreshWhenVisible);
         return () => {
             isMounted = false;
+            clearTimeout(refreshTimer);
             clearInterval(interval);
+            window.removeEventListener('online', refreshWhenVisible);
+            document.removeEventListener('visibilitychange', refreshWhenVisible);
+            supabase.removeChannel(channel);
         };
     }, [activeCenter]);
 
@@ -190,7 +212,7 @@ const TvSignageViewer = () => {
                             .replace(/\(게스트\)/gi, '')
                             .trim() || '게스트';
 
-                        const isStaff = msg.sender_role === 'staff' || msg.sender_role === 'admin' || msg.is_staff;
+                        const isStaff = msg.is_staff || isAdminOrStaff({ account_role: msg.sender_role });
                         const timeStr = msg.created_at
                             ? new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
                             : '';

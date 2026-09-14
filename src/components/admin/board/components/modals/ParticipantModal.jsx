@@ -9,6 +9,7 @@ import AttendanceSection from './AttendanceSection';
 import WalkInSection from './WalkInSection';
 import PollResultsSection from './PollResultsSection';
 import ChallengeStatusSection from './ChallengeStatusSection';
+import ChallengeCommunityModal from '../../../../student/modals/ChallengeCommunityModal';
 import UserEditModal from '../../../users/modals/UserEditModal';
 import { supabase } from '../../../../../supabaseClient';
 
@@ -25,8 +26,7 @@ const getKoreanDayOfWeek = (dateStr) => {
     }
 };
 
-const ParticipantModal = ({ notice, onClose, onRefresh, initialView }) => {
-    useModalClose(!!notice, onClose);
+const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => {
     const {
         participantList,
         pollModalResults,
@@ -58,6 +58,8 @@ const ParticipantModal = ({ notice, onClose, onRefresh, initialView }) => {
         return 'attendance';
     });
     const [selectedUserForModal, setSelectedUserForModal] = useState(null);
+    const [missionPostFilter, setMissionPostFilter] = useState(null);
+    useModalClose(!!notice && !missionPostFilter, onClose);
 
     useEffect(() => {
         const targetView = initialView || notice?._initialView;
@@ -65,6 +67,10 @@ const ParticipantModal = ({ notice, onClose, onRefresh, initialView }) => {
             setActiveView(targetView);
         }
     }, [initialView, notice?._initialView]);
+
+    useEffect(() => {
+        if (notice?._initialSessionDate) setSelectedDate(notice._initialSessionDate);
+    }, [notice?._initialSessionDate, setSelectedDate]);
 
     const handleUserClick = async (user) => {
         if (!user || !user.id) return;
@@ -93,7 +99,7 @@ const ParticipantModal = ({ notice, onClose, onRefresh, initialView }) => {
 
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
+            if (e.key === 'Escape' && !missionPostFilter) {
                 onClose();
             }
         };
@@ -101,7 +107,7 @@ const ParticipantModal = ({ notice, onClose, onRefresh, initialView }) => {
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [onClose]);
+    }, [missionPostFilter, onClose]);
 
     if (!notice) return null;
 
@@ -137,7 +143,7 @@ const ParticipantModal = ({ notice, onClose, onRefresh, initialView }) => {
 
                     {activeView !== 'poll' && (
                         <div className="p-6 flex-1 text-sm text-gray-500 space-y-4 font-medium overflow-y-auto">
-                            {notice.is_recruiting === false ? (
+                            {(notice.is_recruiting === false || availableDates.length > 0) ? (
                                 availableDates.length <= 1 ? (
                                     <div className="space-y-1 bg-slate-100/70 border border-slate-200/60 p-4 rounded-2xl shadow-sm">
                                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">운영 날짜</span>
@@ -275,7 +281,15 @@ const ParticipantModal = ({ notice, onClose, onRefresh, initialView }) => {
                             setShowEntranceList={setShowEntranceList}
                             selectedDate={selectedDate}
                             setSelectedDate={setSelectedDate}
+                            hasSessionHistory={availableDates.length > 0}
                             onUserClick={handleUserClick}
+                            onOpenMissionPosts={(student, mission) => setMissionPostFilter({
+                                participantId: student.id,
+                                participantName: student.name,
+                                missionId: mission.id,
+                                missionTitle: mission.title,
+                                locked: true,
+                            })}
                         />
                     )}
                 </div>
@@ -291,12 +305,22 @@ const ParticipantModal = ({ notice, onClose, onRefresh, initialView }) => {
                     }}
                 />
             )}
+            {missionPostFilter && user && (
+                <ChallengeCommunityModal
+                    notice={notice}
+                    user={user}
+                    initialFilter={missionPostFilter}
+                    onClose={() => setMissionPostFilter(null)}
+                    onMissionCompleted={() => fetchParticipants(notice)}
+                />
+            )}
         </div>
     );
 };
 
 ParticipantModal.propTypes = {
     notice: PropTypes.object.isRequired,
+    user: PropTypes.object,
     onClose: PropTypes.func.isRequired,
     onRefresh: PropTypes.func
 };

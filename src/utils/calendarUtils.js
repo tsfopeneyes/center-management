@@ -1,3 +1,5 @@
+import { usesDailySessionRsvp } from './dailyProgramSessions';
+
 export const kstDateKey = (value) => {
     if (value == null || value === '') return '';
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:$|T\d{2}:\d{2}(?::\d{2})?$)/.test(value)) return value.slice(0, 10);
@@ -48,6 +50,19 @@ export const buildCalendarEvents = ({ programs = [], schedules = [], categories 
     const space = region === '강동' ? 'HAIFN' : region === '강서' ? 'ENOUGH_PLACE' : null;
     for (const program of programs) {
         if (program.category !== 'PROGRAM') continue;
+        if (usesDailySessionRsvp(program)) {
+            for (const session of (program.daily_program_sessions || [])) {
+                const day = session.session_date || kstDateKey(session.starts_at);
+                if (!day || !events[day]) continue;
+                events[day].push({
+                    id: `program-session-${session.id}`,
+                    type: 'PROGRAM',
+                    title: program.title,
+                    raw: { ...program, today_session: session, program_date: session.starts_at },
+                });
+            }
+            continue;
+        }
         const start = kstDateKey(program.program_start_date || program.program_date);
         const end = kstDateKey(program.program_end_date || program.program_date || program.program_start_date);
         if (!start || !end) continue;

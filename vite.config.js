@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 import legacy from '@vitejs/plugin-legacy'
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return ({
   define: mode === 'development'
@@ -12,11 +12,11 @@ export default defineConfig(({ mode }) => {
     : {},
   plugins: [
     react(),
-    legacy({
+    command === 'build' && legacy({
       targets: ['chrome >= 60', 'safari >= 11'],
       polyfills: true
     })
-  ],
+  ].filter(Boolean),
   build: {
     target: ['chrome60', 'es2015'],
     rollupOptions: {
@@ -28,6 +28,15 @@ export default defineConfig(({ mode }) => {
     }
   },
   server: {
+    // Codex can retain hidden preview tabs. Their HMR reconnects used to make
+    // every server start recompile the app several times before the visible
+    // tab could respond. A normal refresh is deterministic and much faster.
+    hmr: false,
+    watch: {
+      // Browser smoke-test profiles contain databases and lock files that
+      // change continuously. Watching them can restart Vite in a loop.
+      ignored: ['**/.chrome-*/**', '**/.edge-*/**', '**/.codex-*/**']
+    },
     proxy: {
       '/naver-api': {
         target: 'https://openapi.naver.com',

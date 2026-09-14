@@ -15,9 +15,7 @@ const ProgramAnalyticsView = ({ hookData, users, schoolLogs }) => {
         // Fetch all program feedbacks on mount
         const fetchFeedbacks = async () => {
             try {
-                const { data } = await supabase
-                    .from('program_feedback')
-                    .select('*, users(name, school)');
+                const data = await feedbackApi.fetchAllFeedbacks();
                 if (data) {
                     const grouped = {};
                     data.forEach(f => {
@@ -113,7 +111,7 @@ const ProgramAnalyticsView = ({ hookData, users, schoolLogs }) => {
                                                         <div className="flex items-center gap-1 text-yellow-500 mb-0.5">
                                                             <Award size={12} className="fill-current" />
                                                             <span className="font-black text-xs text-gray-700">
-                                                                {(allFeedbacks[p.id].reduce((sum, f) => sum + (f.q3_satisfaction || 0), 0) / allFeedbacks[p.id].length).toFixed(1)}
+                                                                {(() => { const rated = allFeedbacks[p.id].filter(f => !f.aggregation_excluded && f.q3_satisfaction != null); return rated.length ? (rated.reduce((sum,f)=>sum+f.q3_satisfaction,0)/rated.length).toFixed(1) : '—'; })()}
                                                             </span>
                                                         </div>
                                                         <span className="text-[10px] font-bold text-blue-600 group-hover:underline">리뷰 {allFeedbacks[p.id].length}개 조회</span>

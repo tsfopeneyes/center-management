@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { isAdminOrStaff } from '../utils/userUtils';
 
 export const useCoffeeChatRealtime = (user, onRequestReceived, onStatusChanged) => {
     useEffect(() => {
         if (!user?.id) return;
 
-        const isStaff = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'staff' || user?.user_group?.toLowerCase() === 'staff' || user?.user_group === '관리자';
+        const isStaff = isAdminOrStaff(user);
 
         let channel;
 

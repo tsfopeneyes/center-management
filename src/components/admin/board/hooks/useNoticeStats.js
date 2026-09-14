@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../../../supabaseClient';
+import { feedbackApi } from '../../../../api/feedbackApi';
 import { RESPONSE_STATUS } from '../../../../constants/appConstants';
 import { useProgramInterestCounts } from './useProgramInterestCounts';
 
@@ -87,12 +88,7 @@ const useNoticeStats = (filteredNotices, mode) => {
                 // 3. Fetch feedback totals so completed program cards can expose
                 // the feedback list only when at least one response exists.
                 if (feedbackNoticeIds.length > 0) {
-                    const { data: feedbacks, error: feedbackError } = await supabase
-                        .from('program_feedback')
-                        .select('notice_id')
-                        .in('notice_id', feedbackNoticeIds);
-
-                    if (feedbackError) throw feedbackError;
+                    const feedbacks = (await feedbackApi.fetchAllFeedbacks()).filter(f => feedbackNoticeIds.includes(f.notice_id));
 
                     feedbackNoticeIds.forEach(id => {
                         nStats[id] = {

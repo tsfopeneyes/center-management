@@ -4,6 +4,7 @@ import { MessageSquare, MessageCircle, Send, AlertTriangle, Shield, Info, Sparkl
 import { supabase } from '../../../supabaseClient';
 import { useLiveCenterChat } from '../../../hooks/useLiveCenterChat';
 import { normalizeSchoolName } from '../../../utils/schoolUtils';
+import { isAdminOrStaff as isStaffUser, isMasterStaff } from '../../../utils/userUtils';
 
 // Safe Motion Fallback for Samsung Smart Signage / Tizen Browsers
 const motion = {
@@ -43,18 +44,8 @@ const EMOJI_CATEGORIES = [
 
 const LiveCenterChat = ({ currentUser, studentRegion, initialCenter, isStandalone = false }) => {
     // 1. Privileges
-    const isMaster = Boolean(
-        currentUser?.is_master ||
-        currentUser?.user_group === '관리자' ||
-        currentUser?.role === 'admin' ||
-        currentUser?.role === 'Rok'
-    );
-
-    const isAdminOrStaff = Boolean(
-        isMaster ||
-        currentUser?.user_group === 'STAFF' ||
-        currentUser?.role === 'staff'
-    );
+    const isMaster = isMasterStaff(currentUser);
+    const isAdminOrStaff = isStaffUser(currentUser);
 
     // 2. Active Center Code state
     const getCenterFromRegion = (region, initCenter) => {
@@ -383,13 +374,7 @@ const LiveCenterChat = ({ currentUser, studentRegion, initialCenter, isStandalon
     const getCenterForCandidate = (u, sMap) => {
         if (!u) return 'BOTH';
         // Staff & Admins can be tagged in ANY center
-        if (
-            u.role === 'admin' ||
-            u.role === 'staff' ||
-            u.role === 'Rok' ||
-            u.user_group === 'STAFF' ||
-            u.user_group === '관리자'
-        ) {
+        if (isStaffUser(u)) {
             return 'BOTH';
         }
 
@@ -1110,7 +1095,7 @@ const LiveCenterChat = ({ currentUser, studentRegion, initialCenter, isStandalon
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="font-bold text-xs text-tossGrey900 truncate group-hover:text-tossBlue">{u.name}</span>
-                                                    {(u.role === 'admin' || u.user_group === 'STAFF' || u.role === 'staff') && (
+                                                    {isStaffUser(u) && (
                                                         <span className="px-1.5 py-0.2 bg-tossBlue/10 text-tossBlue text-[9px] font-bold rounded">스처쌤</span>
                                                     )}
                                                 </div>

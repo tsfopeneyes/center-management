@@ -1,10 +1,10 @@
+import { isAdminOrStaff } from './userUtils';
+
 export const isDutyStaffCandidate = (user) => {
     if (!user?.id || !String(user.name || '').trim()) return false;
-    const role = String(user.role || '').toLowerCase();
-    const group = String(user.user_group || '').toLowerCase();
     const status = String(user.status || '').toLowerCase();
     if (['withdrawn', 'deleted', 'pending', 'rejected'].includes(status)) return false;
-    return role === 'admin' || role === 'staff' || group === 'staff' || user.user_group === '관리자';
+    return isAdminOrStaff(user);
 };
 
 export const dutyStaffOptions = (users) => {

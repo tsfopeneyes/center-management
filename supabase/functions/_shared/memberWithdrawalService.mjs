@@ -13,14 +13,16 @@ export function createMemberWithdrawalService({pool,authorize,readiness=async()=
             await client.query("SET LOCAL idle_in_transaction_session_timeout='7s'");
             await client.query("SELECT set_config('app.target_profile_id',$1,true)",[profileId]);
             const liveActor=(await client.query(`SELECT 1 FROM account_security.account_roles
-                WHERE profile_id=$1 AND enabled AND role='admin'`,[actor.actorProfileId])).rows.length;
+                WHERE profile_id=$1 AND enabled AND role IN ('admin','master')`,[actor.actorProfileId])).rows.length;
             if(liveActor!==1)throw new LoginError('forbidden',403);
 
-            const target=await client.query(`SELECT u.id,u.user_group,a.profile_id AS account_profile_id
+            const target=await client.query(`SELECT u.id,a.profile_id AS account_profile_id,r.role AS account_role,r.enabled AS role_enabled
                 FROM public.users u LEFT JOIN account_security.accounts a ON a.profile_id=u.id
+                LEFT JOIN account_security.account_roles r ON r.profile_id=u.id
                 WHERE u.id=$1 FOR UPDATE OF u`,[profileId]);
             if(target.rows.length!==1)throw new LoginError('invalid_request',400);
-            if(['STAFF','관리자'].includes(target.rows[0].user_group))throw new LoginError('forbidden',403);
+            if(target.rows[0].role_enabled===true && ['admin','master'].includes(target.rows[0].account_role))
+                throw new LoginError('forbidden',403);
 
             if(target.rows[0].account_profile_id){
                 await client.query(`UPDATE account_security.login_identifiers SET enabled=false WHERE profile_id=$1`,[profileId]);

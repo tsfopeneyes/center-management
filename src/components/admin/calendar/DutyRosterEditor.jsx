@@ -3,7 +3,7 @@ import { UserRound } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import { useDutyRoster, notifyDutyRosterChanged } from '../../../hooks/useDutyRoster';
 import { getMonthGrid, dateHeading } from '../../../utils/calendarUtils';
-import { fetchAllPages } from '../../../utils/fetchAllPages';
+import { userApi } from '../../../api/userApi';
 import { dutyStaffOptions, sameDutyAssignment, saveDutyAssignment } from '../../../utils/dutyRoster';
 import StaffSearchPicker from './StaffSearchPicker';
 
@@ -74,10 +74,7 @@ export default function DutyRosterEditor({ month: calendarMonth, fixedDate, staf
     useEffect(() => {
         if (staffOptions) return;
         let active = true;
-        fetchAllPages(() => supabase.from('users')
-            .select('id,name,role,user_group,status,profile_image_url')
-            .or('role.in.(admin,staff,STAFF),user_group.in.(STAFF,관리자)')
-            .order('name').order('id'))
+        userApi.fetchStaff()
             .then(data => { if (active) setStaffState({ data, loading: false, error: '' }); })
             .catch(() => { if (active) setStaffState({ data: [], loading: false, error: '스태프 목록을 불러오지 못했습니다. 화면을 새로고침해주세요.' }); });
         return () => { active = false; };

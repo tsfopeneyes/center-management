@@ -4,6 +4,7 @@ import { filterProfanity } from '../utils/profanityFilter';
 import { compressImage } from '../utils/imageUtils';
 import { isAccountAuthEnabled } from '../auth/accountAuthRuntime';
 import { uploadAccountImage } from '../auth/accountMedia';
+import { isAdminOrStaff } from '../utils/userUtils';
 
 export const useLiveCenterChat = (centerCode, currentUser) => {
     const [messages, setMessages] = useState([]);
@@ -210,7 +211,7 @@ export const useLiveCenterChat = (centerCode, currentUser) => {
 
         // Determine user role badge
         let roleBadge = '학생';
-        if (currentUser.is_master || currentUser.role === 'admin' || currentUser.user_group === '관리자' || currentUser.user_group === 'STAFF' || currentUser.role === 'staff' || currentUser.role === 'Rok') {
+        if (isAdminOrStaff(currentUser)) {
             roleBadge = '스처쌤';
         } else if (currentUser.user_group === '게스트' || currentUser.name?.includes('(guest)')) {
             roleBadge = '게스트';

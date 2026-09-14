@@ -6,6 +6,7 @@ import RentalBookingModal from './modals/RentalBookingModal';
 import MyRentalsModal from './modals/MyRentalsModal';
 import ContentPostModal from './modals/ContentPostModal';
 import { parseContentPost, sortContentPosts } from '../../utils/contentPosts';
+import { isAdminOrStaff } from '../../utils/userUtils';
 
 const StudentCenterTab = ({
     user,
@@ -60,7 +61,7 @@ const StudentCenterTab = ({
             } else if (selectedRegion === 'GANGSEO') {
                 const { data: schs } = await supabase.from('schools').select('id').eq('region', '강서');
                 query = query.in('school_id', schs?.map(s => s.id) || []);
-            } else if (user?.role !== 'admin') {
+            } else if (!isAdminOrStaff(user)) {
                 // Query by region instead of individual school name to show all items in the region
                 const region = studentRegion || (studentSchool.includes('강서') ? '강서' : '강동');
                 const { data: schs } = await supabase.from('schools').select('id').eq('region', region);
@@ -88,7 +89,7 @@ const StudentCenterTab = ({
             } else if (selectedRegion === 'GANGSEO') {
                 const { data: schs } = await supabase.from('schools').select('id').eq('region', '강서');
                 query = query.in('school_id', schs?.map(s => s.id) || []);
-            } else if (user?.role !== 'admin') {
+            } else if (!isAdminOrStaff(user)) {
                 // Query by region instead of individual school name to show all spaces in the region
                 const region = studentRegion || (studentSchool.includes('강서') ? '강서' : '강동');
                 const { data: schs } = await supabase.from('schools').select('id').eq('region', region);

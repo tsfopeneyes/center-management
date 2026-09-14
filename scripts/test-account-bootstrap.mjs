@@ -15,6 +15,8 @@ try{
     CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,is_anonymous boolean,banned_until timestamptz);
     CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,not_after timestamptz);`);
   for(const name of ['session','login','credential','roles','bootstrap'])await db.exec(readFileSync(new URL('../supabase/manual/proposals/auth-'+name+'-foundation.sql',import.meta.url),'utf8'));
+  await db.exec(`ALTER TABLE account_security.account_roles DROP CONSTRAINT account_roles_role_check;
+    ALTER TABLE account_security.account_roles ADD CONSTRAINT account_roles_role_check CHECK(role IN ('member','admin','master'));`);
   await db.query(`INSERT INTO public.users VALUES($1,$2,'관리자','학교','010-1234-5678','5678','1234','관리자','admin','approved','{}',true),
     ($3,$4,'임시방문','학교','010-9999-9999','9999',NULL,'게스트','user','approved','{"is_temporary":true}',false)`,[member,adminAuth,guest,guestAuth]);
   await db.query("INSERT INTO auth.users VALUES($1,'admin@example.invalid',false,NULL),($2,'guest@example.invalid',false,NULL)",[adminAuth,guestAuth]);
@@ -28,7 +30,7 @@ try{
     FROM account_security.accounts a JOIN account_security.login_identifiers i USING(profile_id)
     JOIN account_security.legacy_credentials l USING(profile_id) JOIN account_security.account_roles r USING(profile_id)`)).rows[0];
   assert.equal(saved.mapping_verified,true);assert.equal(saved.status,'active');assert.equal(saved.credential_mode,'legacy_pending');
-  assert.equal(saved.phone_key,await keyFor('phone','01012345678'));assert.match(saved.password_digest,/^[a-f0-9]{64}$/);assert.equal(saved.role,'admin');assert.equal(saved.sessions,0);
+  assert.equal(saved.phone_key,await keyFor('phone','01012345678'));assert.match(saved.password_digest,/^[a-f0-9]{64}$/);assert.equal(saved.role,'master');assert.equal(saved.sessions,0);
   await db.query("UPDATE account_security.login_identifiers SET credential_mode='legacy_bridge' WHERE profile_id=$1",[member]);
   const seed=createExistingSessionBootstrap({pool:createRoleBoundPool(basePool,'account_bootstrap_worker'),readiness:async()=>true,now:()=>Date.UTC(2026,8,1),graceMs:3600000});
   assert.deepEqual(await seed(),{status:'complete',seeded:1});assert.deepEqual(await seed(),{status:'complete',seeded:0});

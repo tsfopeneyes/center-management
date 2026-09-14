@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { X, Heart, Smile, Users, HelpCircle, Sparkles } from 'lucide-react';
-import { supabase } from '../../../supabaseClient';
-import { dispatchSlackAlert } from '../../../utils/serverIntegration';
+import { dispatchNotificationEvent } from '../../../utils/serverIntegration';
 import { requestSupabaseFunction } from '../../../utils/supabaseRest';
 import useModalClose from '../../../hooks/useModalClose';
 
@@ -52,90 +51,12 @@ const CoffeeChatModal = ({ staff, student, onClose, onSuccess, tutorialMode = fa
                 coffeeChatMessage: message.trim() || null,
             });
 
-            // 2. Send LINE and Discord notifications
-            let lineToken = localStorage.getItem('line_channel_access_token');
-            let lineGroupId = localStorage.getItem('line_group_id');
-            let gsWebhookUrl = localStorage.getItem('gs_webhook_url');
-            let discordWebhookUrl = localStorage.getItem('discord_webhook_url');
-            let lineCoffeeChatEnabled = localStorage.getItem('line_coffee_chat_notifications_enabled') !== 'false';
-            let slackCoffeeChatEnabled = localStorage.getItem('slack_coffee_chat_notifications_enabled') !== 'false';
-
-            try {
-                const { data: settings } = await supabase.from('global_settings').select('*');
-                if (settings && settings.length > 0) {
-                    settings.forEach(s => {
-                        if (s.key === 'line_channel_access_token' && s.value) {
-                            lineToken = s.value;
-                            localStorage.setItem('line_channel_access_token', s.value);
-                        }
-                        if (s.key === 'line_group_id' && s.value) {
-                            lineGroupId = s.value;
-                            localStorage.setItem('line_group_id', s.value);
-                        }
-                        if (s.key === 'gs_webhook_url' && s.value) {
-                            gsWebhookUrl = s.value;
-                            localStorage.setItem('gs_webhook_url', s.value);
-                        }
-                        if (s.key === 'discord_webhook_url' && s.value) {
-                            discordWebhookUrl = s.value;
-                            localStorage.setItem('discord_webhook_url', s.value);
-                        }
-                        if (s.key === 'line_coffee_chat_notifications_enabled') {
-                            lineCoffeeChatEnabled = s.value !== 'false';
-                            localStorage.setItem('line_coffee_chat_notifications_enabled', String(lineCoffeeChatEnabled));
-                        }
-                        if (s.key === 'slack_coffee_chat_notifications_enabled') {
-                            slackCoffeeChatEnabled = s.value !== 'false';
-                            localStorage.setItem('slack_coffee_chat_notifications_enabled', String(slackCoffeeChatEnabled));
-                        }
-                    });
-                }
-            } catch (e) {
-                console.error("Failed to fetch latest global_settings for coffee chat:", e);
-            }
-
-            const formattedTopics = selectedTopics.join(', ');
-            const alertMsg = `[COFFEE CHAT]\n☕ ${student.name}님이 ${staff.name} 쌤에게 대화를 신청했어요!\n📌 주제: ${formattedTopics}${message.trim() ? `\n💬 스처쌤에게 하고 싶은 말:\n"${message.trim()}"` : ''}`;
-
-            if (slackCoffeeChatEnabled) {
-                dispatchSlackAlert(alertMsg, { notificationCategory: 'coffee_chat' }).catch(error => console.error('Slack coffee chat notification error:', error));
-            }
-
-            // Discord Webhook
-            if (discordWebhookUrl) {
-                try {
-                    await fetch(discordWebhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ content: alertMsg })
-                    });
-                } catch (e) {
-                    console.error("Failed to send Discord webhook:", e);
-                }
-            }
-
-            // LINE Webhook (Only for Haifn branch students/staff)
-            const studentSchool = student?.school || '';
-            const staffGroup = staff?.user_group || '';
-            const isEnoughPlace = studentSchool.includes('강서') || studentSchool.includes('이높') || staffGroup.includes('이높') || staffGroup.includes('강서');
-            const isHaifnUser = !isEnoughPlace;
-
-            if (lineCoffeeChatEnabled && isHaifnUser && lineToken && lineGroupId && gsWebhookUrl) {
-                try {
-                    await fetch(gsWebhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({
-                            action: 'LINE_NOTIFY',
-                            token: lineToken,
-                            to: lineGroupId,
-                            message: alertMsg
-                        })
-                    });
-                } catch (e) {
-                    console.error("Failed to send LINE notification:", e);
-                }
-            }
+            // 2. The server reloads this request, resolves the staff member's
+            // assigned center and selects every LINE/Slack destination.
+            dispatchNotificationEvent({
+                eventType: 'COFFEE_CHAT_APPLICATION',
+                coffeeChatId: result?.coffeeChat?.id,
+            }).catch(error => console.error('Coffee chat notification error:', error));
 
             alert(`${staff.name} 쌤에게 커피챗 신청이 완료되었습니다! 💙`);
             // Pass the saved row back so the student home card can appear

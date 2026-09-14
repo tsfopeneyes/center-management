@@ -61,3 +61,38 @@ export const calculateCurrentLocations = (logs = [], now = new Date()) => {
 
     return currentLocations;
 };
+
+// Realtime delivers one changed row at a time. Keep the same newest-first,
+// bounded snapshot used by the initial REST query without downloading the
+// whole log history again after every event.
+export const mergeRealtimeVisitLog = (logs = [], payload = {}, limit = 3000) => {
+    const nextRow = payload.new;
+    const previousRow = payload.old;
+    const rowId = nextRow?.id || previousRow?.id;
+
+    if (!rowId) return null;
+
+    const remaining = logs.filter(log => log.id !== rowId);
+    if (payload.eventType !== 'DELETE' && nextRow) remaining.push(nextRow);
+
+    return remaining
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, limit);
+};
+
+export const countActiveUsersByGroup = ({ currentLocations = {}, users = [], locations = [], groups = [], isStaff }) => {
+    const staffIds = new Set(users.filter(user => isStaff?.(user)).map(user => user.id));
+    const locationById = new Map(locations.map(location => [location.id, location]));
+    const counts = Object.fromEntries(groups.map(group => [group.id, 0]));
+    counts.unassigned = 0;
+
+    Object.entries(currentLocations).forEach(([userId, details]) => {
+        if (!details?.locId || (!details.isGuest && staffIds.has(userId))) return;
+        const location = locationById.get(details.locId);
+        if (!location) return;
+        if (location.group_id && Object.prototype.hasOwnProperty.call(counts, location.group_id)) counts[location.group_id] += 1;
+        else counts.unassigned += 1;
+    });
+
+    return counts;
+};

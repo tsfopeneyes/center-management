@@ -1,30 +1,11 @@
 import React from 'react';
 import { Share2, Database, ShieldAlert } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-
+import NotificationRouteMatrix from './NotificationRouteMatrix';
 const STUDENT_APP_URL = 'https://app.schoolchurchimpact.org';
-
 const IntegrationConfig = ({
-    gsWebhookUrl,
-    setGsWebhookUrl,
-    lineChannelAccessToken,
-    setLineChannelAccessToken,
-    lineGroupId,
-    setLineGroupId,
-    lineVisitNotificationsEnabled,
-    setLineVisitNotificationsEnabled,
-    lineCoffeeChatNotificationsEnabled,
-    setLineCoffeeChatNotificationsEnabled,
-    lineProgramNotificationsEnabled,
-    setLineProgramNotificationsEnabled,
-    slackVisitNotificationsEnabled,
-    setSlackVisitNotificationsEnabled,
-    slackCoffeeChatNotificationsEnabled,
-    setSlackCoffeeChatNotificationsEnabled,
-    slackProgramNotificationsEnabled,
-    setSlackProgramNotificationsEnabled,
-    slackRentalNotificationsEnabled,
-    setSlackRentalNotificationsEnabled,
+    gsWebhookUrl, setGsWebhookUrl,
+    notificationRouteConfig, setNotificationRouteConfig,
     discordWebhookUrl,
     setDiscordWebhookUrl,
     kioskMasterPin,
@@ -83,52 +64,8 @@ const IntegrationConfig = ({
         };
         image.src = objectUrl;
     };
-    const Toggle = ({ enabled, onChange, label }) => (
-        <button
-            type="button"
-            role="switch"
-            aria-label={label}
-            aria-checked={enabled}
-            onClick={() => onChange(!enabled)}
-            className={`relative h-8 w-14 min-w-14 max-w-14 shrink-0 overflow-hidden rounded-full transition-colors ${enabled ? 'bg-[#3182F6]' : 'bg-[#D1D6DB]'}`}
-        >
-            <span
-                className="absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
-                style={{ left: enabled ? '28px' : '4px' }}
-            />
-        </button>
-    );
-
-    const notificationRows = [
-        {
-            label: '입·출입',
-            description: '체크인과 체크아웃 알림',
-            line: [lineVisitNotificationsEnabled, setLineVisitNotificationsEnabled],
-            slack: [slackVisitNotificationsEnabled, setSlackVisitNotificationsEnabled]
-        },
-        {
-            label: '커피챗',
-            description: '학생의 커피챗 신청 알림',
-            line: [lineCoffeeChatNotificationsEnabled, setLineCoffeeChatNotificationsEnabled],
-            slack: [slackCoffeeChatNotificationsEnabled, setSlackCoffeeChatNotificationsEnabled]
-        },
-        {
-            label: '프로그램 신청',
-            description: '회원·비회원의 프로그램 신청 알림',
-            line: [lineProgramNotificationsEnabled, setLineProgramNotificationsEnabled],
-            slack: [slackProgramNotificationsEnabled, setSlackProgramNotificationsEnabled]
-        },
-        {
-            label: '대관 신청',
-            description: '학생의 공간 대관 신청 알림',
-            line: null,
-            slack: [slackRentalNotificationsEnabled, setSlackRentalNotificationsEnabled]
-        }
-    ];
-
     return (
         <div className="space-y-6">
-            {/* Header with Save Button */}
             <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex justify-between items-center">
                 <div className="flex items-center gap-2">
                     <Share2 size={22} className="text-[#3182f6]" />
@@ -140,7 +77,6 @@ const IntegrationConfig = ({
                 <button onClick={handleSaveIntegrations} className="px-6 py-2.5 bg-[#3182f6] hover:bg-[#1b64da] text-white rounded-xl font-bold text-sm transition shadow-sm active:scale-95">설정 저장</button>
             </div>
 
-            {/* Google Sheets */}
             <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-green-600 font-bold">
                     <Database size={20} />
@@ -174,58 +110,21 @@ const IntegrationConfig = ({
                 </div>
             </div>
 
-            {/* Messenger Notifications */}
             <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-[#3182f6] font-bold">
                     <Share2 size={20} />
                     <span className="text-base">실시간 메신저 알림</span>
                 </div>
-                <p className="text-xs text-gray-400 leading-relaxed -mt-2">입·출입과 주요 신청 내역을 설정한 메신저로 관리자 및 선생님에게 전달합니다.</p>
+                <p className="text-xs text-gray-400 leading-relaxed -mt-2">지점별로 LINE과 Slack에 전달할 알림을 설정합니다.</p>
 
-                <div className="overflow-hidden rounded-2xl border border-[#E5E8EB] bg-[#F8F9FA]">
-                    <div className="grid grid-cols-[minmax(0,1fr)_72px_72px] items-center gap-2 border-b border-[#E5E8EB] bg-white px-4 py-2.5 text-xs font-extrabold text-[#6B7684]">
-                        <span>알림 항목</span>
-                        <span className="text-center">LINE</span>
-                        <span className="text-center">Slack</span>
-                    </div>
-                    {notificationRows.map((row, index) => (
-                        <div key={row.label} className={`grid grid-cols-[minmax(0,1fr)_72px_72px] items-center gap-2 px-4 py-3 ${index < notificationRows.length - 1 ? 'border-b border-[#E5E8EB]' : ''}`}>
-                            <div className="min-w-0">
-                                <p className="text-sm font-bold text-[#191F28]">{row.label}</p>
-                                <p className="mt-0.5 text-xs text-[#6B7684]">{row.description}</p>
-                            </div>
-                            <div className="flex justify-center">
-                                {row.line ? <Toggle enabled={row.line[0]} onChange={row.line[1]} label={`LINE ${row.label} 알림`} /> : <span className="text-xs font-bold text-[#B0B8C1]">—</span>}
-                            </div>
-                            <div className="flex justify-center">
-                                <Toggle enabled={row.slack[0]} onChange={row.slack[1]} label={`Slack ${row.label} 알림`} />
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                <NotificationRouteMatrix value={notificationRouteConfig} onChange={setNotificationRouteConfig} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="md:col-span-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                        <p className="text-xs font-extrabold text-blue-800">LINE·Slack 보안 연결은 서버에서 관리됩니다.</p>
+                        <p className="mt-1 text-xs font-medium leading-5 text-blue-700">브라우저에는 토큰이나 방 ID를 저장하지 않습니다. 이 화면에서는 지점별 알림 사용 여부만 관리합니다.</p>
+                    </div>
                     <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">LINE 채널 액세스 토큰 (Channel Access Token)</label>
-                        <input
-                            type="password"
-                            value={lineChannelAccessToken}
-                            onChange={e => setLineChannelAccessToken(e.target.value)}
-                            placeholder="LINE 채널 액세스 토큰을 입력하세요"
-                            className="w-full px-4 py-3 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">LINE 대상 그룹 ID (Group ID)</label>
-                        <input
-                            type="text"
-                            value={lineGroupId}
-                            onChange={e => setLineGroupId(e.target.value)}
-                            placeholder="Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                            className="w-full px-4 py-3 bg-[#f2f4f6] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#3182f6] focus:ring-4 focus:ring-[#3182f6]/10 transition-all font-semibold text-[#191f28] text-sm"
-                        />
-                    </div>
-                    <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">Discord 웹훅 URL (선택사항)</label>
                         <input
                             type="text"
@@ -238,7 +137,6 @@ const IntegrationConfig = ({
                 </div>
             </div>
 
-            {/* Kiosk Master Pin */}
             <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-red-500 font-bold">
                     <ShieldAlert size={20} />
@@ -267,7 +165,6 @@ const IntegrationConfig = ({
                 </div>
             </div>
 
-            {/* Student web app QR for printed materials */}
             <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-gray-100 pb-4">
                     <div>

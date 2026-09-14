@@ -8,8 +8,12 @@ import { splitDateTime, joinDateTime } from '../../utils/noticeHelpers';
 import { PROGRAM_TYPES, MAX_PROGRAM_HAIFN_REWARD } from '../../utils/constants';
 import { Calendar, Clock, MapPin, Gift, CheckSquare, Users, ChevronUp, ChevronDown, MessageSquare, Target, Trash, Bookmark, User, School, Smartphone, Sparkles, ToggleLeft, ToggleRight, HelpCircle, Dices, Camera, FileText } from 'lucide-react';
 import { supabase } from '../../../../../supabaseClient';
+import { userApi } from '../../../../../api/userApi';
 import { fromKstInput } from '../../../../../utils/programRecruitment';
 import { useCurrentTime } from '../../../../../hooks/useCurrentTime';
+import { createDailySessionField, MAX_DAILY_SESSION_FIELDS } from '../../../../../utils/dailyProgramSessions';
+import { v4 as uuidv4 } from 'uuid';
+import ProgramSurveyPicker from '../../../../surveys/ProgramSurveyPicker';
 
 const HAIFN_DETAILS = [
     'B1F STAGE',
@@ -65,23 +69,30 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
         setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
     };
     const [admins, setAdmins] = React.useState([]);
+    const [availableCommunities, setAvailableCommunities] = React.useState([]);
 
     React.useEffect(() => {
         const fetchAdmins = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('users')
-                    .select('id, name, school')
-                    .eq('role', 'admin')
-                    .order('name');
-                if (error) throw error;
-                setAdmins(data || []);
+                setAdmins(await userApi.fetchStaff());
             } catch (err) {
                 console.error('Error fetching admins:', err);
             }
         };
         fetchAdmins();
     }, []);
+
+    React.useEffect(() => {
+        if (!formData.is_challenge || formData.challenge_format !== 'ONLINE') return;
+        let active = true;
+        supabase.from('community_channels').select('id,name,source_notice_id,status')
+            .in('status', ['ACTIVE', 'READ_ONLY']).order('name')
+            .then(({ data, error }) => {
+                if (!error && active) setAvailableCommunities((data || []).filter(channel =>
+                    !channel.source_notice_id || channel.id === formData.community_channel_id));
+            });
+        return () => { active = false; };
+    }, [formData.is_challenge, formData.challenge_format, formData.community_channel_id]);
 
     // Local state to keep track of selection category without losing state when parent is empty
     const [localMain, setLocalMain] = React.useState(() => {
@@ -355,18 +366,83 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                 </div>
             </div>
 
+            {!formData.is_challenge && (
+                <div className="rounded-2xl border border-slate-100 bg-white p-4 space-y-4">
+                    <div>
+                        <p className="text-sm font-black text-slate-800">진행 횟수</p>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                            {[['SINGLE', '한 번'], ['RECURRING', '여러 번']].map(([value, label]) => (
+                                <button key={value} type="button" onClick={() => updateField('schedule_mode', value)} className={`rounded-xl border px-4 py-3 text-sm font-bold ${formData.schedule_mode === value ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500'}`}>{label}</button>
+                            ))}
+                        </div>
+                    </div>
+                    {formData.is_recruiting && formData.schedule_mode === 'RECURRING' && (
+                        <div className="border-t border-slate-100 pt-4">
+                            <p className="text-sm font-black text-slate-800">신청 방법</p>
+                            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {[['PROGRAM', '한 번 신청하면 전체 참여'], ['SESSION', '참여할 회차마다 신청']].map(([value, label]) => (
+                                    <button key={value} type="button" onClick={() => updateField('application_scope', value)} className={`rounded-xl border px-4 py-3 text-left text-sm font-bold ${formData.application_scope === value ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500'}`}>{label}</button>
+                                ))}
+                            </div>
+                            {formData.application_scope === 'SESSION' && (
+                                <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-black text-slate-700">회차별 안내 항목</p>
+                                            <p className="mt-0.5 text-[11px] font-medium text-slate-500">신청을 열 때 회차마다 입력할 내용을 정합니다. 필요 없으면 모두 삭제해도 됩니다.</p>
+                                        </div>
+                                        <span className="shrink-0 text-[11px] font-bold text-slate-400">최대 {MAX_DAILY_SESSION_FIELDS}개</span>
+                                    </div>
+                                    {(formData.daily_session_fields || []).length > 0 ? (
+                                        <div className="space-y-2">
+                                            {(formData.daily_session_fields || []).map((field, index, fields) => (
+                                                <div key={field.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2">
+                                                    <input
+                                                        value={field.label || ''}
+                                                        onChange={event => updateField('daily_session_fields', fields.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value } : item))}
+                                                        placeholder={index === 0 ? '예: 오늘의 안내' : '예: 준비물 또는 오늘의 메뉴'}
+                                                        aria-label={`회차 항목 ${index + 1} 이름`}
+                                                        className="h-9 min-w-0 flex-1 rounded-lg bg-slate-50 px-3 text-sm font-bold outline-none focus:ring-1 focus:ring-blue-500"
+                                                    />
+                                                    <label className="flex shrink-0 items-center gap-1 text-[11px] font-bold text-slate-600">
+                                                        <input type="checkbox" checked={field.required !== false} onChange={event => updateField('daily_session_fields', fields.map((item, itemIndex) => itemIndex === index ? { ...item, required: event.target.checked } : item))} className="h-4 w-4 rounded border-slate-300 text-blue-600" />필수
+                                                    </label>
+                                                    <div className="flex shrink-0 items-center">
+                                                        <button type="button" disabled={index === 0} onClick={() => { const next = [...fields]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; updateField('daily_session_fields', next); }} aria-label="위로 이동" className="rounded-md p-1 text-slate-400 disabled:opacity-25"><ChevronUp size={15}/></button>
+                                                        <button type="button" disabled={index === fields.length - 1} onClick={() => { const next = [...fields]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; updateField('daily_session_fields', next); }} aria-label="아래로 이동" className="rounded-md p-1 text-slate-400 disabled:opacity-25"><ChevronDown size={15}/></button>
+                                                        <button type="button" onClick={() => updateField('daily_session_fields', fields.filter((_, itemIndex) => itemIndex !== index))} aria-label="항목 삭제" className="rounded-md p-1 text-red-400"><Trash size={15}/></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="rounded-xl border border-dashed border-slate-200 bg-white py-4 text-center text-[11px] font-semibold text-slate-400">회차를 열 때 별도 안내를 입력하지 않습니다.</p>
+                                    )}
+                                    {(formData.daily_session_fields || []).length < MAX_DAILY_SESSION_FIELDS && (
+                                        <button type="button" onClick={() => updateField('daily_session_fields', [...(formData.daily_session_fields || []), createDailySessionField((formData.daily_session_fields || []).length)])} className="w-full rounded-xl border border-dashed border-blue-200 bg-white py-2.5 text-xs font-black text-blue-600">+ 안내 항목 추가</button>
+                                    )}
+                                    <p className="text-[11px] font-semibold text-slate-500">관리자가 다음 회차의 신청을 열면 그때만 학생 화면에 표시됩니다.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {formData.is_challenge && (
                 <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-3">
                     <div><p className="text-sm font-black text-slate-800">챌린지 참여 방식</p><p className="text-xs font-semibold text-slate-400 mt-1">참여 장소에 따라 필요한 설정을 구분합니다.</p></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <button type="button" onClick={() => updateField('challenge_format', 'ONLINE')} className={`p-4 rounded-2xl border-2 text-left ${formData.challenge_format === 'ONLINE' ? 'border-blue-600 bg-blue-50' : 'border-slate-100'}`}>
+                        <button type="button" onClick={() => {
+                            if (formData.challenge_format !== 'ONLINE') updateField('challenge_missions', []);
+                            updateField('challenge_format', 'ONLINE');
+                        }} className={`p-4 rounded-2xl border-2 text-left ${formData.challenge_format === 'ONLINE' ? 'border-blue-600 bg-blue-50' : 'border-slate-100'}`}>
                             <p className="text-sm font-black text-slate-800">온라인 챌린지</p><p className="mt-1 text-xs text-slate-500">기간 안에 어디서든 커뮤니티로 참여</p>
                         </button>
                         <button type="button" onClick={() => {
+                            if (formData.challenge_format === 'ONLINE') updateField('challenge_missions', []);
                             updateField('challenge_format', 'OFFLINE');
                             updateField('community_enabled', false);
-                            updateField('community_mission_mode', 'NONE');
-                            updateField('community_image_required', false);
                         }} className={`p-4 rounded-2xl border-2 text-left ${(formData.challenge_format || 'OFFLINE') === 'OFFLINE' ? 'border-blue-600 bg-blue-50' : 'border-slate-100'}`}>
                             <p className="text-sm font-black text-slate-800">오프라인 챌린지</p><p className="mt-1 text-xs text-slate-500">정해진 장소에서 미션 수행 후 인증</p>
                         </button>
@@ -462,8 +538,8 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                 </div>
                             )}
                         </div>
-                    ) : formData.is_recruiting ? (
-                        // Recruiting Program (Single Date & Time & Duration)
+                    ) : formData.schedule_mode !== 'RECURRING' ? (
+                        // Single open/application program
                         <div className="lg:col-span-2 grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
                             <div className="min-w-0 space-y-1.5">
                                 <label className="text-xs font-bold text-slate-500 mb-1.5 ml-1 block">프로그램 일시</label>
@@ -686,7 +762,9 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                 <p className="text-[11px] text-slate-400 font-medium mt-1.5 ml-1 block leading-normal">0을 입력하면 신청 인원 제한이 해제됩니다.</p>
                             </div>
 
-                            <RecruitmentPeriodFields formData={formData} updateField={updateField} />
+                            {!(formData.schedule_mode === 'RECURRING' && formData.application_scope === 'SESSION') && (
+                                <RecruitmentPeriodFields formData={formData} updateField={updateField} />
+                            )}
 
                             {/* 비공개 여부 */}
                             <div 
@@ -921,7 +999,8 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                         </div>
 
                         {/* 피드백 설문 수집이 활성화된 경우만 노출되는 상세 질문 & 조건 설정 */}
-                        {formData.enable_feedback && (
+                        {formData.enable_feedback && <ProgramSurveyPicker formData={formData} updateField={updateField} />}
+                        {false && (
                             <div className="pt-4 border-t border-slate-200/60 space-y-4 animate-fade-in">
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-slate-600 mb-1 block">후기 작성 필수 여부</label>
@@ -1276,25 +1355,13 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                         <div><p className="text-sm font-black text-slate-800">챌린지 커뮤니티</p><p className="text-xs font-semibold text-slate-400 mt-1">참여자끼리 글·사진·댓글·이모지 반응을 나눕니다.</p></div>
                         <button type="button" onClick={() => updateField('community_enabled', !formData.community_enabled)} className={`px-4 py-2 rounded-xl text-xs font-black ${formData.community_enabled ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{formData.community_enabled ? '사용 중' : '사용 안 함'}</button>
                     </div>
-                    {formData.community_enabled && <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
-                        <label className="text-xs font-bold text-slate-600">게시글 미션 인증
-                            <select value={formData.community_mission_mode || 'NONE'} onChange={e => updateField('community_mission_mode', e.target.value)} className="mt-2 w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 outline-none">
-                                <option value="NONE">인증하지 않음</option><option value="AUTO">게시 즉시 완료</option><option value="REVIEW">관리자 승인 후 완료</option>
-                            </select>
-                        </label>
-                        <label className="text-xs font-bold text-slate-600">챌린지 종료 후
-                            <select value={formData.community_after_end || 'READ_ONLY'} onChange={e => updateField('community_after_end', e.target.value)} className="mt-2 w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 outline-none">
-                                <option value="READ_ONLY">읽기 전용</option><option value="CLOSED">커뮤니티 닫기</option>
-                            </select>
-                        </label>
-                        <label className="md:col-span-2 flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-600"><input type="checkbox" checked={formData.community_image_required === true} onChange={e => updateField('community_image_required', e.target.checked)}/>미션 인증 게시글은 사진을 필수로 받기</label>
-                    </div>}
+                    {formData.community_enabled && <><label className="block text-xs font-bold text-slate-600">연결할 커뮤니티<select value={formData.community_channel_id || ''} onChange={event => updateField('community_channel_id', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"><option value="">프로그램 이름으로 새 커뮤니티 자동 생성</option>{availableCommunities.map(channel => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</select></label><div className="rounded-xl bg-blue-50 px-4 py-3 text-xs font-bold leading-5 text-blue-700">기존 독립 커뮤니티를 선택하거나 새 커뮤니티를 자동 생성할 수 있습니다. 참여자가 글을 작성하면 선택한 미션이 바로 완료됩니다.</div></>}
                 </div>
                 )}
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
+                {(formData.challenge_format !== 'ONLINE' || formData.community_enabled) && <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
                     <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                         <Target size={18} className="text-blue-600" />
-                        <span className="text-sm font-bold text-slate-800">챌린지 미션 설정</span>
+                        <span className="text-sm font-bold text-slate-800">{formData.challenge_format === 'ONLINE' ? '온라인 미션 설정' : '오프라인 미션 설정'}</span>
                     </div>
 
                     <div className="space-y-4">
@@ -1340,6 +1407,33 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                     />
                                                 </div>
                                             </div>
+
+                                            {formData.challenge_format === 'ONLINE' && (
+                                                <div className="grid grid-cols-1 gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+                                                    <label className="text-xs font-bold text-slate-600">수행 방식
+                                                        <select
+                                                            value={mission.schedule_type || 'FLEXIBLE'}
+                                                            onChange={e => {
+                                                                const scheduleType = e.target.value;
+                                                                const updated = [...(formData.challenge_missions || [])];
+                                                                updated[index] = { ...updated[index], schedule_type: scheduleType, fixed_date: '', target_count: scheduleType === 'FLEXIBLE' ? Math.max(1, Number(updated[index].target_count) || 1) : 1 };
+                                                                updateField('challenge_missions', updated);
+                                                            }}
+                                                            className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none"
+                                                        >
+                                                            <option value="DAILY">챌린지 기간 동안 매일</option>
+                                                            <option value="FIXED_DATE">지정한 날짜에 한 번</option>
+                                                            <option value="FLEXIBLE">기간 내 정한 횟수</option>
+                                                        </select>
+                                                    </label>
+                                                    {mission.schedule_type === 'FIXED_DATE' && <label className="text-xs font-bold text-slate-600">수행 날짜
+                                                        <input type="date" min={formData.program_start_date || undefined} max={formData.program_end_date || undefined} value={mission.fixed_date || ''} onChange={e => { const updated = [...(formData.challenge_missions || [])]; updated[index] = { ...updated[index], fixed_date: e.target.value }; updateField('challenge_missions', updated); }} className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none" />
+                                                    </label>}
+                                                    {(mission.schedule_type || 'FLEXIBLE') === 'FLEXIBLE' && <label className="text-xs font-bold text-slate-600">목표 횟수
+                                                        <input type="number" min="1" max="365" value={mission.target_count || 1} onChange={e => { const updated = [...(formData.challenge_missions || [])]; updated[index] = { ...updated[index], target_count: Math.max(1, Number(e.target.value) || 1) }; updateField('challenge_missions', updated); }} className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none" />
+                                                    </label>}
+                                                </div>
+                                            )}
 
                                             {formData.challenge_format !== 'ONLINE' && <div className="flex flex-col gap-1">
                                                 <label className="text-xs font-bold text-slate-500 mb-1 block">수행 장소</label>
@@ -1409,14 +1503,14 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                 />
                                             </div>
 
-                                            <div className="flex flex-col gap-1">
+                                            {formData.challenge_format !== 'ONLINE' && <div className="flex flex-col gap-1">
                                                 <label className="text-xs font-bold text-slate-500 mb-1 block">인증 방식</label>
                                                 <div className="grid grid-cols-2 gap-2">
                                                     {[
-                                                        { value: 'photo', label: '사진 업로드', icon: Camera },
-                                                        { value: 'text', label: '텍스트 입력', icon: FileText }
+                                                        { value: 'PHOTO', label: '사진 업로드', icon: Camera },
+                                                        { value: 'TEXT', label: '텍스트 입력', icon: FileText }
                                                     ].map(({ value, label, icon: Icon }) => {
-                                                        const selected = (mission.verification_type || 'photo') === value;
+                                                        const selected = String(mission.verification_type || 'PHOTO').toUpperCase() === value;
                                                         return (
                                                             <button
                                                                 key={value}
@@ -1438,7 +1532,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                                                         );
                                                     })}
                                                 </div>
-                                            </div>
+                                            </div>}
                                         </div>
                                     </div>
                                 );
@@ -1449,12 +1543,15 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                             type="button"
                             onClick={() => {
                                 const newMission = {
-                                    id: `m-${Date.now()}-${Math.random()}`,
+                                    id: uuidv4(),
                                     title: '',
                                     location: '',
                                     location_type: '',
                                     description: '',
-                                    verification_type: 'photo'
+                                    verification_type: 'PHOTO',
+                                    schedule_type: 'FLEXIBLE',
+                                    fixed_date: '',
+                                    target_count: 1
                                 };
                                 updateField('challenge_missions', [...(formData.challenge_missions || []), newMission]);
                             }}
@@ -1475,7 +1572,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
                             />
                         </div>
                     </div>
-                </div></div>
+                </div>}</div>
             )}
 
             {/* 7. 신청자 전용 맞춤 버튼 및 팝업 설정 (아코디언 카드) */}

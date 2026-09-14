@@ -4,7 +4,7 @@ import { User, Smartphone, School, Calendar, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { findMatchingGuestAccount, normalizeSchoolName } from '../../utils/userUtils';
 import { buildGuestPrivacyPreferences, parseGuestBirthDate } from '../../utils/guestBirthUtils';
-import DatePicker from '../common/DatePicker';
+import BirthDateInput from '../common/BirthDateInput';
 
 const GuestEntryForm = ({ onSuccess, onCancel }) => {
     const [formData, setFormData] = useState({
@@ -192,7 +192,7 @@ const GuestEntryForm = ({ onSuccess, onCancel }) => {
 
             <div>
                 <label className="block text-xs font-black text-slate-400 mb-1 ml-1 uppercase">생년월일</label>
-                <DatePicker label="생년월일" required max={new Date().toLocaleDateString('en-CA')} value={formData.birth} onChange={(birth) => setFormData(prev => ({ ...prev, birth }))} />
+                <BirthDateInput label="생년월일" required max={new Date().toLocaleDateString('en-CA')} value={formData.birth} onChange={(birth) => setFormData(prev => ({ ...prev, birth }))} />
             </div>
 
             {parseGuestBirthDate(formData.birth)?.isUnder14 && (

@@ -21,18 +21,18 @@ export function createLoginStore(pool) {
         async findByProfile(id) {
             return (await query(`SELECT ${projection} FROM account_security.accounts a ${joins} WHERE a.profile_id=$1::uuid LIMIT 2`,[id])).rows;
         },
-        async findByLookup(nameKey, phoneKey) {
+        async findByLookup(nameKey, phoneKey, name) {
             return (await query(`SELECT ${projection} FROM account_security.accounts a ${joins}
-                WHERE l.name_key=$1 AND ($2::text IS NULL OR l.phone_key=$2) LIMIT 2`,[nameKey,phoneKey])).rows;
+                JOIN public.users u ON u.id=a.profile_id WHERE $1::text IS NOT NULL AND lower(normalize(btrim(u.name), NFC))=$3 AND ($2::text IS NULL OR l.phone_key=$2) LIMIT 2`,[nameKey,phoneKey,name])).rows;
         },
-        async findCandidatesByName(nameKey) {
+        async findCandidatesByName(nameKey,name) {
             const {rows}=await query(`SELECT u.id::text AS "profileId",u.name,u.school,u.user_group AS "userGroup"
                 FROM account_security.login_identifiers i JOIN account_security.accounts a USING(profile_id)
-                JOIN public.users u ON u.id=i.profile_id WHERE i.name_key=$1 AND i.enabled
-                AND a.mapping_verified AND a.status='active' ORDER BY u.id LIMIT 20`,[nameKey]);
+                JOIN public.users u ON u.id=i.profile_id WHERE $1::text IS NOT NULL AND lower(normalize(btrim(u.name), NFC))=$2 AND i.enabled
+                AND a.mapping_verified AND a.status='active' ORDER BY u.id LIMIT 20`,[nameKey,name]);
             return rows;
         },
-        async findCandidatesPrepared(nameKey,clientKey,subjectKey){
+        async findCandidatesPrepared(nameKey,clientKey,subjectKey,name){
             const {rows}=await query(`WITH client_limit AS (
                     INSERT INTO account_security.login_limits(key,bucket,attempts)
                     VALUES($2,floor(extract(epoch FROM statement_timestamp())/600)::bigint,1)
@@ -45,10 +45,10 @@ export function createLoginStore(pool) {
                     WHERE login_limits.attempts<10 RETURNING 1),
                 candidates AS (SELECT u.id::text AS "profileId",u.name,u.school,u.user_group AS "userGroup"
                     FROM account_security.login_identifiers i JOIN account_security.accounts a USING(profile_id)
-                    JOIN public.users u ON u.id=i.profile_id WHERE i.name_key=$1 AND i.enabled
+                    JOIN public.users u ON u.id=i.profile_id WHERE $1::text IS NOT NULL AND lower(normalize(btrim(u.name), NFC))=$4 AND i.enabled
                     AND a.mapping_verified AND a.status='active' ORDER BY u.id LIMIT 20)
                 SELECT EXISTS(SELECT 1 FROM client_limit) AND EXISTS(SELECT 1 FROM subject_limit) AS allowed,
-                    COALESCE((SELECT json_agg(candidates) FROM candidates),'[]'::json) AS candidates`,[nameKey,clientKey,subjectKey]);
+                    COALESCE((SELECT json_agg(candidates) FROM candidates),'[]'::json) AS candidates`,[nameKey,clientKey,subjectKey,name]);
             return {allowed:rows[0]?.allowed===true,candidates:rows[0]?.candidates||[]};
         },
         async prepareByProfile(profileId,clientKey,subjectKey,accountKey){
@@ -75,7 +75,7 @@ export function createLoginStore(pool) {
                 [profileId,clientKey,subjectKey,accountKey]);
             return {allowed:rows[0]?.allowed===true,candidates:rows[0]?.candidates||[]};
         },
-        async prepareByLookup(nameKey,phoneKey,clientKey,subjectKey){
+        async prepareByLookup(nameKey,phoneKey,clientKey,subjectKey,name){
             const {rows}=await query(`WITH client_limit AS (
                     INSERT INTO account_security.login_limits(key,bucket,attempts)
                     VALUES($3,floor(extract(epoch FROM statement_timestamp())/600)::bigint,1)
@@ -87,10 +87,10 @@ export function createLoginStore(pool) {
                     ON CONFLICT(key,bucket) DO UPDATE SET attempts=login_limits.attempts+1
                     WHERE login_limits.attempts<10 RETURNING 1),
                 candidates AS (SELECT ${projection} FROM account_security.accounts a ${joins}
-                    WHERE l.name_key=$1 AND ($2::text IS NULL OR l.phone_key=$2) LIMIT 2)
+                    JOIN public.users u ON u.id=a.profile_id WHERE $1::text IS NOT NULL AND lower(normalize(btrim(u.name), NFC))=$5 AND ($2::text IS NULL OR l.phone_key=$2) LIMIT 2)
                 SELECT EXISTS(SELECT 1 FROM client_limit) AND EXISTS(SELECT 1 FROM subject_limit) AS allowed,
                     COALESCE((SELECT json_agg(candidates) FROM candidates),'[]'::json) AS candidates`,
-                [nameKey,phoneKey,clientKey,subjectKey]);
+                [nameKey,phoneKey,clientKey,subjectKey,name]);
             return {allowed:rows[0]?.allowed===true,candidates:rows[0]?.candidates||[]};
         },
         async grantAssurance(expected, principal, validUntil, {signal} = {}) {

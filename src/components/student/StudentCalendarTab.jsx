@@ -9,6 +9,7 @@ import { formatKoreanTimeRange } from '../../utils/dateUtils';
 import RecruitmentBadge from './components/RecruitmentBadge';
 import UserAvatar from '../common/UserAvatar';
 import { getCalendarEventTheme } from '../../utils/calendarColors';
+import { usesDailySessionRsvp } from '../../utils/dailyProgramSessions';
 
 const StudentCalendarTab = ({
     adminSchedules = [], notices = [], calendarCategories = [], openNoticeDetail,
@@ -21,16 +22,58 @@ const StudentCalendarTab = ({
     const [month, setMonth] = useState(initial.slice(0, 7));
     const [selectedDate, setSelectedDate] = useState(null);
     const [hours, setHours] = useState(suppliedHours || null);
+    const [dailyProgramSessions, setDailyProgramSessions] = useState([]);
     // Existing student screens route every non-Gangseo account to HAIFN. Keep
     // the calendar consistent when a legacy/custom school has no region row.
     const isHaifnCenter = studentRegion !== '강서';
     const duty = useDutyRoster(month, isHaifnCenter && dutyAssignments === undefined);
     const roster = dutyAssignments ?? duty.roster;
     const days = useMemo(() => getMonthGrid(month), [month]);
+    const dailyNoticeIds = useMemo(
+        () => notices.filter(usesDailySessionRsvp).map(notice => notice.id),
+        [notices]
+    );
+    const calendarPrograms = useMemo(() => {
+        const sessionsByNotice = new Map();
+        dailyProgramSessions.forEach(session => {
+            if (!sessionsByNotice.has(session.notice_id)) sessionsByNotice.set(session.notice_id, []);
+            sessionsByNotice.get(session.notice_id).push(session);
+        });
+        return notices.map(notice => usesDailySessionRsvp(notice)
+            ? { ...notice, daily_program_sessions: sessionsByNotice.get(notice.id) || [] }
+            : notice);
+    }, [notices, dailyProgramSessions]);
     const eventsByDay = useMemo(() => buildCalendarEvents({
-        programs: [...notices, ...(tutorialMode ? tutorialPrograms : [])],
+        programs: [...calendarPrograms, ...(tutorialMode ? tutorialPrograms : [])],
         schedules: adminSchedules, categories: calendarCategories, region: studentRegion, days,
-    }), [notices, tutorialMode, tutorialPrograms, adminSchedules, calendarCategories, studentRegion, days]);
+    }), [calendarPrograms, tutorialMode, tutorialPrograms, adminSchedules, calendarCategories, studentRegion, days]);
+
+    useEffect(() => {
+        let active = true;
+        if (!dailyNoticeIds.length || !days.length) {
+            setDailyProgramSessions([]);
+            return () => { active = false; };
+        }
+
+        supabase
+            .from('daily_program_sessions')
+            .select('id, notice_id, session_date, starts_at, status, capacity, voided_at')
+            .in('notice_id', dailyNoticeIds)
+            .is('voided_at', null)
+            .gte('session_date', days[0])
+            .lte('session_date', days[days.length - 1])
+            .order('session_date', { ascending: true })
+            .then(({ data, error }) => {
+                if (!active) return;
+                if (error) {
+                    console.error('회차형 프로그램 일정을 불러오지 못했습니다:', error);
+                    setDailyProgramSessions([]);
+                    return;
+                }
+                setDailyProgramSessions(data || []);
+            });
+        return () => { active = false; };
+    }, [dailyNoticeIds, days]);
 
     useEffect(() => {
         if (suppliedHours !== undefined) { setHours(suppliedHours); return; }

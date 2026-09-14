@@ -3,193 +3,21 @@ import { supabase } from '../supabaseClient';
 import { isConsecutiveWorkingDay } from '../utils/analyticsUtils';
 import confetti from 'canvas-confetti';
 import { TERMS_VERSION } from '../constants/appConstants';
-import { areExternalNotificationsMuted, dispatchServerNotification, dispatchVisitSlackAlert, serverIntegrationsEnabled } from '../utils/serverIntegration';
+import { dispatchNotificationEvent } from '../utils/serverIntegration';
 import { getTodayVisitState, recordVisitEvent } from '../utils/visitLifecycle';
 import { loadAssignedSurvey } from '../utils/surveyAssignments';
-import { buildVisitNotificationMessage } from '../utils/integrationUtils';
 
-const sendRealtimeNotification = async (user, type, location, metadata = {}) => {
-    if (areExternalNotificationsMuted()) return { muted: true };
-    let lineToken = '';
-    let lineGroupId = '';
-    let gsWebhookUrl = '';
-    let discordWebhookUrl = '';
-    let lineNotificationsEnabled = localStorage.getItem('line_notifications_enabled') !== 'false';
-
-    if (!serverIntegrationsEnabled()) {
-        lineToken = localStorage.getItem('line_channel_access_token') || '';
-        lineGroupId = localStorage.getItem('line_group_id') || '';
-        gsWebhookUrl = localStorage.getItem('gs_webhook_url') || '';
-        discordWebhookUrl = localStorage.getItem('discord_webhook_url') || '';
-        try {
-        const { data: settings } = await supabase.from('global_settings').select('*');
-        if (settings && settings.length > 0) {
-            settings.forEach(s => {
-                if (s.key === 'line_channel_access_token' && s.value) {
-                    lineToken = s.value;
-                    localStorage.setItem('line_channel_access_token', s.value);
-                }
-                if (s.key === 'line_group_id' && s.value) {
-                    lineGroupId = s.value;
-                    localStorage.setItem('line_group_id', s.value);
-                }
-                if (s.key === 'gs_webhook_url' && s.value) {
-                    gsWebhookUrl = s.value;
-                    localStorage.setItem('gs_webhook_url', s.value);
-                }
-                if (s.key === 'discord_webhook_url' && s.value) {
-                    discordWebhookUrl = s.value;
-                    localStorage.setItem('discord_webhook_url', s.value);
-                }
-            });
-        }
-        } catch (e) {
-        console.error("Failed to fetch latest global_settings for realtime notification:", e);
-        }
-    }
-
-    try {
-        const { data: lineSetting } = await supabase
-            .from('global_settings')
-            .select('value')
-            .eq('key', 'line_notifications_enabled')
-            .maybeSingle();
-        if (lineSetting?.value !== undefined) {
-            lineNotificationsEnabled = lineSetting.value !== 'false';
-            localStorage.setItem('line_notifications_enabled', String(lineNotificationsEnabled));
-        }
-    } catch (error) {
-        console.error('Failed to load LINE notification setting:', error);
-    }
-
-    // 0. Check if it is Haifn branch to prevent LINE usage on ENOUGH_PLACE
-    let isHaifnBranch = false;
-    try {
-        let locId = location?.id;
-        let locName = location?.name || '';
-        let groupId = location?.group_id;
-
-        if (locId && (!groupId || !locName)) {
-            const { data: loc } = await supabase
-                .from('locations')
-                .select('group_id, name')
-                .eq('id', locId)
-                .maybeSingle();
-            if (loc) {
-                groupId = loc.group_id;
-                if (loc.name) locName = loc.name;
-            }
-        }
-
-        if (groupId) {
-            const { data: grp } = await supabase
-                .from('location_groups')
-                .select('name')
-                .eq('id', groupId)
-                .maybeSingle();
-            if (grp?.name) {
-                const grpName = grp.name;
-                if (grpName.includes('하이픈') || grpName.includes('HAIFN') || grpName.includes('강동')) {
-                    isHaifnBranch = true;
-                } else if (grpName.includes('이높') || grpName.includes('ENOUGH_PLACE') || grpName.includes('강서')) {
-                    isHaifnBranch = false;
-                }
-            }
-        }
-
-        if (locName.includes('하이픈') || locName.includes('HAIFN') || locName.includes('강동')) {
-            isHaifnBranch = true;
-        }
-        if (locName.includes('이높') || locName.includes('ENOUGH_PLACE') || locName.includes('강서')) {
-            isHaifnBranch = false;
-        }
-    } catch (err) {
-        console.error("Failed to check branch for notification:", err);
-    }
-
-    let message = '';
-    
-    if (type === 'CHECKIN') {
-        const isGuest = user.user_group === '게스트' || user.name?.includes('(guest)');
-        message = buildVisitNotificationMessage({
-            type: 'CHECKIN', userName: user.name, schoolName: user.school, isGuest,
+const sendRealtimeNotification = async (_user, type, _location, metadata = {}) => {
+    if (!['CHECKIN', 'CHECKOUT'].includes(type)) return { skipped: true };
+    return dispatchNotificationEvent({
+        eventType: type === 'CHECKIN' ? 'VISIT_CHECKIN' : 'VISIT_CHECKOUT',
+        logId: metadata.logId,
+        details: {
             referralPath: metadata.referralPath || '',
-            surveyQuestion: metadata.surveyQuestion || (metadata.survey ? '방문 목적' : ''),
-            surveyAnswers: metadata.surveyAnswers || (metadata.survey ? metadata.survey.split(', ') : [])
-        });
-    } else if (type === 'CHECKOUT') {
-        const isGuest = user.user_group === '게스트' || user.name?.includes('(guest)');
-        message = buildVisitNotificationMessage({
-            type: 'CHECKOUT', userName: user.name, schoolName: user.school, isGuest,
-            surveyQuestion: metadata.surveyQuestion || (metadata.purpose ? '이용 소감' : ''),
-            surveyAnswers: metadata.surveyAnswers || (metadata.purpose ? metadata.purpose.split(', ') : [])
-        });
-    } else {
-        const timeStr = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-        message = `🔔 [이동] ${user.name}님이 ${location.name}에 이동했습니다. (${timeStr})`;
-    }
-
-    if (serverIntegrationsEnabled()) {
-        try {
-            await dispatchServerNotification({
-                message,
-                sendLine: lineNotificationsEnabled && (type === 'CHECKIN' || type === 'CHECKOUT') && isHaifnBranch,
-                sendSlack: false,
-                lineTarget: 'haifn',
-            });
-        } catch (error) {
-            console.error('Server notification dispatch failed:', error);
-        }
-        if (isHaifnBranch) {
-            await dispatchVisitSlackAlert({ message, userId: user.id, eventType: type, locationName: location?.name || '' });
-        }
-        return;
-    }
-
-    if (isHaifnBranch) {
-        await dispatchVisitSlackAlert({ message, userId: user.id, eventType: type, locationName: location?.name || '' });
-    }
-
-    console.log("sendRealtimeNotification diagnostic:", {
-        hasLineToken: !!lineToken,
-        hasLineGroupId: !!lineGroupId,
-        hasGsWebhookUrl: !!gsWebhookUrl,
-        discordWebhookUrl: !!discordWebhookUrl,
-        isHaifnBranch,
-        message
+            surveyQuestion: metadata.surveyQuestion || (metadata.survey ? '방문 목적' : metadata.purpose ? '이용 소감' : ''),
+            surveyAnswers: metadata.surveyAnswers || (metadata.survey ? metadata.survey.split(', ') : metadata.purpose ? metadata.purpose.split(', ') : []),
+        },
     });
-
-    // 1. Send Discord Webhook
-    if (discordWebhookUrl) {
-        try {
-            await fetch(discordWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: message })
-            });
-        } catch (e) {
-            console.error("Failed to send Discord webhook:", e);
-        }
-    }
-
-    // 2. Send LINE Message via Google Apps Script Webhook (For CHECKIN & CHECKOUT at Haifn branch)
-    if (lineNotificationsEnabled && (type === 'CHECKIN' || type === 'CHECKOUT') && lineToken && lineGroupId && gsWebhookUrl && isHaifnBranch) {
-        try {
-            await fetch(gsWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({
-                    action: 'LINE_NOTIFY',
-                    token: lineToken,
-                    to: lineGroupId,
-                    message: message
-                })
-            });
-            console.log("LINE Notification fetch sent to Google Sheets Webhook successfully.");
-        } catch (e) {
-            console.error("Failed to send LINE notification:", e);
-        }
-    }
 };
 
 export const useKioskManager = (navigate) => {
@@ -211,6 +39,7 @@ export const useKioskManager = (navigate) => {
     const [showGuestForm, setShowGuestForm] = useState(false);
     const [pendingKioskUser, setPendingKioskUser] = useState(null);
     const [pendingCheckoutUser, setPendingCheckoutUser] = useState(null);
+    const [pendingNotificationLogId, setPendingNotificationLogId] = useState(null);
     const [checkoutVisitDate, setCheckoutVisitDate] = useState('');
     const [checkoutHaifnMsg, setCheckoutHaifnMsg] = useState('');
     const [checkoutDuration, setCheckoutDuration] = useState('');
@@ -380,8 +209,8 @@ export const useKioskManager = (navigate) => {
             // Resolve again after the member is known so ONCE surveys can skip
             // prior respondents and select the next eligible survey.
             const [assignedCheckin, assignedCheckout] = await Promise.all([
-                loadAssignedSurvey({ surveyType: 'CHECKIN', locationName: selectedLocation.name, userId: user.id }),
-                loadAssignedSurvey({ surveyType: 'CHECKOUT', locationName: selectedLocation.name, userId: user.id })
+                loadAssignedSurvey({ surveyType: 'CHECKIN', locationName: selectedLocation.name, userId: user.id }).catch(error => { console.error('Optional survey lookup failed:', error); return null; }),
+                loadAssignedSurvey({ surveyType: 'CHECKOUT', locationName: selectedLocation.name, userId: user.id }).catch(error => { console.error('Optional survey lookup failed:', error); return null; })
             ]);
             const effectiveCheckinSurvey = assignedCheckin?.config
                 ? { ...assignedCheckin.config, _surveyId: assignedCheckin.id || null }
@@ -535,11 +364,13 @@ export const useKioskManager = (navigate) => {
             if (!['CREATED', 'RECONCILED'].includes(visitWrite.outcome)) {
                 throw new Error('이미 처리된 방문 상태입니다. 화면을 다시 확인해주세요.');
             }
+            const notificationLogId = (visitWrite.event || visitWrite.state?.lastEvent)?.id || null;
+            setPendingNotificationLogId(notificationLogId);
 
             // Send real-time notification (Delay for checkin-survey or checkout-purpose)
             const shouldDelayNotification = nextType === 'CHECKOUT' || (nextType === 'CHECKIN' && Boolean(checkinSurveyConfig));
             if (!shouldDelayNotification) {
-                sendRealtimeNotification(user, nextType, selectedLocation);
+                await sendRealtimeNotification(user, nextType, selectedLocation, { logId: notificationLogId });
             }
 
             // D. If guest user checking in, also insert GUEST_ENTRY for statistics
@@ -579,7 +410,8 @@ export const useKioskManager = (navigate) => {
                     : '';
 
                 if (!effectiveCheckoutSurvey) {
-                    sendRealtimeNotification(user, 'CHECKOUT', selectedLocation, {
+                    await sendRealtimeNotification(user, 'CHECKOUT', selectedLocation, {
+                        logId: notificationLogId,
                         duration: hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`,
                         purpose: ''
                     });
@@ -729,7 +561,7 @@ export const useKioskManager = (navigate) => {
             setStatus('LOADING');
             const purposeString = purposes.join(', ');
 
-            if (checkoutSurveyConfig) {
+            if (checkoutSurveyConfig && !checkoutSurveyConfig._surveyLink) {
                 const isText = checkoutSurveyConfig.mode === 'FEEDBACK_QA';
                 const responsePayload = {
                     user_id: pendingCheckoutUser.id,
@@ -746,7 +578,8 @@ export const useKioskManager = (navigate) => {
             }
 
             // Trigger the delayed checkout LINE notification
-            sendRealtimeNotification(pendingCheckoutUser, 'CHECKOUT', selectedLocation, {
+            await sendRealtimeNotification(pendingCheckoutUser, 'CHECKOUT', selectedLocation, {
+                logId: pendingNotificationLogId,
                 duration: checkoutDuration,
                 purpose: purposeString,
                 surveyQuestion: checkoutSurveyConfig?.question || checkoutSurveyConfig?.qaQuestion || '',
@@ -919,7 +752,7 @@ export const useKioskManager = (navigate) => {
             setStatus('LOADING');
 
             // Save survey selections to checkin_surveys table (gracefully handle missing table/network errors)
-            if (selections && selections.length > 0) {
+            if (selections && selections.length > 0 && !checkinSurveyConfig?._surveyLink) {
                 try {
                     const { error } = await supabase.from('checkin_surveys').insert([{
                         user_id: pendingKioskUser.id,
@@ -953,7 +786,8 @@ export const useKioskManager = (navigate) => {
                 }
             }
             const surveyString = surveyLabels.join(', ');
-            sendRealtimeNotification(pendingKioskUser, 'CHECKIN', selectedLocation, {
+            await sendRealtimeNotification(pendingKioskUser, 'CHECKIN', selectedLocation, {
+                logId: pendingNotificationLogId,
                 survey: surveyString,
                 surveyQuestion: checkinSurveyConfig?.question || checkinSurveyConfig?.qaQuestion || '',
                 surveyAnswers: surveyLabels
@@ -1118,7 +952,10 @@ export const useKioskManager = (navigate) => {
 
     const resetState = () => {
         if (status === 'SHOW_SURVEY' && pendingKioskUser && selectedLocation) {
-            sendRealtimeNotification(pendingKioskUser, 'CHECKIN', selectedLocation, { survey: '' });
+            // The kiosk stays on the same page while reset completes, so this
+            // fallback can finish in the background without a navigation abort.
+            void sendRealtimeNotification(pendingKioskUser, 'CHECKIN', selectedLocation, { logId: pendingNotificationLogId, survey: '' })
+                .catch(error => console.error('Kiosk checkin notification failed:', error));
         }
         setPincode('');
         setStatus('IDLE');
@@ -1126,6 +963,7 @@ export const useKioskManager = (navigate) => {
         setResult(null);
         setCheckoutDuration('');
         setPendingCheckoutUser(null);
+        setPendingNotificationLogId(null);
         setCheckoutVisitDate('');
         setCheckoutHaifnMsg('');
         setPendingKioskUser(null);

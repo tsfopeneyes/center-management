@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Eye, Search, X, Sparkles, ChevronRight } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
+import { isAdminOrStaff, isMasterStaff } from '../../../utils/userUtils';
+import { userApi } from '../../../api/userApi';
 
 const StudentImpersonateBar = ({ user, impersonatedUser, onSelectStudent, onReset }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -9,8 +11,8 @@ const StudentImpersonateBar = ({ user, impersonatedUser, onSelectStudent, onRese
     const [showDropdown, setShowDropdown] = useState(false);
     const containerRef = useRef(null);
 
-    // Only allow staff / master users
-    const isMasterOrStaff = user?.user_group === 'STAFF' || user?.is_master || user?.role === 'admin' || user?.name === 'Rok' || user?.name === 'admin';
+    // Viewing the service as another student is a master-only capability.
+    const canPreviewStudents = isMasterStaff(user);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -42,7 +44,8 @@ const StudentImpersonateBar = ({ user, impersonatedUser, onSelectStudent, onRese
                 if (error) {
                     console.error('Error searching students:', error);
                 } else if (data) {
-                    setSearchResults(data);
+                    const classified = await userApi.attachAccountRoles(data);
+                    setSearchResults(classified.filter(candidate => !isAdminOrStaff(candidate)));
                     setShowDropdown(true);
                 }
             } catch (err) {
@@ -55,7 +58,7 @@ const StudentImpersonateBar = ({ user, impersonatedUser, onSelectStudent, onRese
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
-    if (!isMasterOrStaff) return null;
+    if (!canPreviewStudents) return null;
 
     return (
         <div ref={containerRef} className="w-full mb-3.5 z-[100] relative animate-fade-in">

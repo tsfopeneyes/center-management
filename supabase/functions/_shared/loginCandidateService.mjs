@@ -9,11 +9,11 @@ export function createLoginCandidateService({store,keyFor,readiness=async()=>fal
         if(!await readiness())throw new LoginError('temporarily_unavailable',503);
         const clientLimitKey=await keyFor('candidate-client',clientKey),subjectLimitKey=await keyFor('candidate-name',name),nameKey=await keyFor('name',name);
         let rows;
-        if(store.findCandidatesPrepared){const prepared=await store.findCandidatesPrepared(nameKey,clientLimitKey,subjectLimitKey);
+        if(store.findCandidatesPrepared){const prepared=await store.findCandidatesPrepared(nameKey,clientLimitKey,subjectLimitKey,name);
             if(!prepared.allowed)throw new LoginError('try_later',429);rows=prepared.candidates;
         }else{
             if(!await store.consumeLimit(clientLimitKey,20)||!await store.consumeLimit(subjectLimitKey,10))throw new LoginError('try_later',429);
-            rows=await store.findCandidatesByName(nameKey);
+            rows=await store.findCandidatesByName(nameKey,name);
         }
         return {protocol:1,status:'ok',candidates:rows.map(row=>({profileId:row.profileId,name:row.name,school:row.school,userGroup:row.userGroup}))};
     };

@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Trash2, UserPlus, Calendar, ClipboardList } from 'lucide-react';
 import { exportParticipantsToExcel } from '../../../../../utils/exportUtils';
+import { usesDailySessionRsvp } from '../../../../../utils/dailyProgramSessions';
 
 const AttendanceSection = ({ 
     notice, 
@@ -14,9 +15,13 @@ const AttendanceSection = ({
     setShowEntranceList,
     selectedDate,
     setSelectedDate,
+    hasSessionHistory,
     onUserClick
 }) => {
-    const isOpenProgram = notice.is_recruiting === false;
+    const isDailySessionProgram = usesDailySessionRsvp(notice);
+    const isSessionBasedProgram = isDailySessionProgram || hasSessionHistory;
+    const isDateBasedProgram = notice.is_recruiting === false || hasSessionHistory;
+    const isOpenProgram = notice.is_recruiting === false && !isSessionBasedProgram;
     const customFields = Array.isArray(notice.guest_properties?.custom_fields)
         ? notice.guest_properties.custom_fields
         : [];
@@ -24,7 +29,7 @@ const AttendanceSection = ({
     return (
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gray-50">
             {/* Mobile Date Picker for Open Programs */}
-            {isOpenProgram && (
+            {isDateBasedProgram && (
                 <div className="md:hidden flex flex-col bg-white p-4 rounded-xl shadow-sm gap-2">
                     <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest">
                         <Calendar size={12} />
@@ -48,7 +53,7 @@ const AttendanceSection = ({
                         </span>
                     </h3>
                     <p className="text-[10px] text-gray-500 mt-1">
-                        {isOpenProgram 
+                        {isDateBasedProgram
                             ? `${selectedDate} 참여 인원`
                             : `출석: ${participantList.JOIN.filter(u => u.is_attended).length} / 미참석: ${participantList.JOIN.filter(u => !u.is_attended).length}`
                         }
@@ -67,7 +72,7 @@ const AttendanceSection = ({
                         onClick={() => setShowEntranceList(!showEntranceList)}
                         className={`flex-1 sm:flex-none text-center px-3 py-2 text-xs font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-1.5 ${showEntranceList ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                     >
-                        <UserPlus size={14} /> 명단 추가 (지급)
+                        <UserPlus size={14} /> {isSessionBasedProgram ? '명단 추가' : '명단 추가 (지급)'}
                     </button>
                     <button 
                         onClick={() => exportParticipantsToExcel(participantList.JOIN, notice.title, customFields)}
@@ -142,16 +147,18 @@ const AttendanceSection = ({
                                 <div className="col-span-1 md:flex hidden justify-center items-center gap-2.5">
                                     {!isOpenProgram ? (
                                         <>
-                                            <button 
-                                                onClick={() => onStaffToggle(user.id, user.is_staff)}
-                                                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all duration-200 border ${
-                                                    user.is_staff
-                                                        ? 'bg-purple-50 text-purple-600 border-purple-200/60 shadow-sm font-extrabold'
-                                                        : 'bg-slate-50/50 text-slate-400 border-slate-200/50 hover:bg-slate-100 hover:text-slate-600 hover:border-slate-300'
-                                                }`}
-                                            >
-                                                스탭
-                                            </button>
+                                            {!isSessionBasedProgram && (
+                                                <button
+                                                    onClick={() => onStaffToggle(user.id, user.is_staff)}
+                                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all duration-200 border ${
+                                                        user.is_staff
+                                                            ? 'bg-purple-50 text-purple-600 border-purple-200/60 shadow-sm font-extrabold'
+                                                            : 'bg-slate-50/50 text-slate-400 border-slate-200/50 hover:bg-slate-100 hover:text-slate-600 hover:border-slate-300'
+                                                    }`}
+                                                >
+                                                    스탭
+                                                </button>
+                                            )}
                                             <button 
                                                 onClick={() => onDeleteParticipant(user.id, user.name)}
                                                 className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
@@ -168,7 +175,7 @@ const AttendanceSection = ({
                         ))
                     ) : (
                         <div className="p-8 text-center text-gray-400 text-sm">
-                            {isOpenProgram ? `${selectedDate}에 등록된 참여자가 없습니다.` : "신청한 참여자가 없습니다."}
+                            {isDateBasedProgram ? `${selectedDate}에 등록된 참여자가 없습니다.` : "신청한 참여자가 없습니다."}
                         </div>
                     )}
                 </div>
@@ -249,7 +256,12 @@ AttendanceSection.propTypes = {
     showEntranceList: PropTypes.bool.isRequired,
     setShowEntranceList: PropTypes.func.isRequired,
     selectedDate: PropTypes.string,
-    setSelectedDate: PropTypes.func
+    setSelectedDate: PropTypes.func,
+    hasSessionHistory: PropTypes.bool
+};
+
+AttendanceSection.defaultProps = {
+    hasSessionHistory: false
 };
 
 export default React.memo(AttendanceSection);

@@ -1,6 +1,8 @@
+import { isStaffProfile } from "../_shared/staffRoles.mjs";
+
 const NOTION_API_VERSION = "2026-03-11";
 const DEFAULT_OPENAI_MODEL = "gpt-5.6-terra";
-const MAX_NOTION_PAGES = 6;
+const MAX_NOTION_PAGES = 4;
 const MAX_NOTION_CONTEXT_CHARS = 18_000;
 const MAX_WEBAPP_CONTEXT_CHARS = 12_000;
 const MAX_WEBAPP_ROWS = 1_000;
@@ -15,6 +17,9 @@ const MAX_REPORT_CHANNELS = 20;
 const MAX_REPORT_MESSAGES_PER_CHANNEL = 80;
 const MAX_SLACK_REPORT_CONTEXT_CHARS = 24_000;
 const MAX_SLACK_SEARCH_RESULTS = 120;
+const REQUEST_TIMEOUT_MS = 90_000;
+const OPENAI_REQUEST_TIMEOUT_MS = 30_000;
+const PROGRESS_INTERVAL_MS = 15_000;
 
 const WEBAPP_KEYWORDS = /웹앱|센터\s*(현황|이용|방문)|이용자|방문|입실|퇴실|재실|프로그램|신청|참여|응답|학교별|회원|사용자|청소년|설문|피드백|대여|예약|하이픈|포인트|스토어|주문/;
 const NOTION_KEYWORDS = /노션|notion|회의록|회의|문서|매뉴얼|프로젝트|할\s*일|업무|계획|일정|자료/iu;
@@ -93,6 +98,18 @@ function runInBackground(promise: Promise<unknown>): void {
       console.error("slack-tsf background task failed", error);
     }),
   );
+}
+
+async function withRequestTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: number | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("TSF_TIMEOUT: 요청 처리 제한 시간을 초과했습니다.")), REQUEST_TIMEOUT_MS) as unknown as number;
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 function hexToBytes(hex: string): Uint8Array | null {
@@ -593,15 +610,26 @@ async function buildVisitContext(range: DateRange): Promise<string> {
 }
 
 async function buildUsersContext(): Promise<string> {
-  const rows = await optionalSupabaseSelect("users", [
-    ["select", "role,school"],
-    ["limit", String(MAX_WEBAPP_ROWS)],
+  const [rows, staff] = await Promise.all([
+    optionalSupabaseSelect("users", [
+      ["select", "id,school"],
+      ["limit", String(MAX_WEBAPP_ROWS)],
+    ]),
+    optionalSupabaseSelect("staff_directory", [
+      ["select", "id,role"],
+      ["limit", String(MAX_WEBAPP_ROWS)],
+    ]),
   ]);
   if (rows.length === 0) return "[웹앱 이용자 현황] 조회 가능한 기록 없음";
+  const staffRoles = new Map(staff.map((row) => [String(row.id), String(row.role || "admin")]));
+  const classifiedRows = rows.map((row) => ({
+    ...row,
+    account_role: staffRoles.get(String(row.id)) || "member",
+  }));
   return [
     "[웹앱 이용자 현황 · 현재]",
     `전체 ${rows.length}명`,
-    `역할별: ${formatCounts(countBy(rows, "role"))}`,
+    `역할별: ${formatCounts(countBy(classifiedRows, "account_role"))}`,
     `학교별: ${formatCounts(countBy(rows, "school"), 15)}`,
     rows.length >= MAX_WEBAPP_ROWS ? `※ 최대 ${MAX_WEBAPP_ROWS}명까지만 집계됨` : "",
   ].filter(Boolean).join("\n");
@@ -926,14 +954,6 @@ function visitGroupKey(dateKey: string, groupBy: string): string {
   return "전체";
 }
 
-function isStaffUser(user: JsonRecord | undefined): boolean {
-  if (!user) return false;
-  const name = String(user.name || "").toLowerCase();
-  const role = String(user.role || "").toLowerCase();
-  const group = String(user.user_group || "").toLowerCase();
-  return name === "admin" || role === "admin" || role === "staff" || group === "관리자" || group === "staff";
-}
-
 export async function getVisitMetrics(args: JsonRecord): Promise<JsonRecord> {
   if (getSecret("TSF_WEBAPP_DATA_ENABLED").toLowerCase() === "false") {
     return { error: "센터 웹앱 데이터 조회가 서버 설정에서 꺼져 있습니다." };
@@ -944,19 +964,24 @@ export async function getVisitMetrics(args: JsonRecord): Promise<JsonRecord> {
   const locationKeyword = typeof args.location_keyword === "string"
     ? args.location_keyword.trim().toLocaleLowerCase("ko-KR")
     : "";
-  const [{ rows: logs, truncated }, userResult, locations, locationGroups] = await Promise.all([
+  const [{ rows: logs, truncated }, userResult, staffResult, locations, locationGroups] = await Promise.all([
     supabaseSelectAll("logs", [
       ["select", "id,user_id,type,location_id,created_at"],
       ...dateFilters("created_at", range),
       ["type", "in.(CHECKIN,CHECKOUT,MOVE)"],
       ["order", "created_at.asc"],
     ]),
-    supabaseSelectAll("users", [["select", "id,name,role,user_group"]], 10_000),
+    supabaseSelectAll("users", [["select", "id,name"]], 10_000),
+    supabaseSelectAll("staff_directory", [["select", "id,role"]], 10_000),
     optionalSupabaseSelect("locations", [["select", "id,name,group_id"], ["limit", "300"]]),
     optionalSupabaseSelect("location_groups", [["select", "id,name"], ["limit", "100"]]),
   ]);
 
-  const users = new Map(userResult.rows.map((row) => [String(row.id), row]));
+  const staffRoles = new Map(staffResult.rows.map((row) => [String(row.id), String(row.role || "admin")]));
+  const users = new Map(userResult.rows.map((row) => [String(row.id), {
+    ...row,
+    account_role: staffRoles.get(String(row.id)) || "member",
+  }]));
   const locationNames = new Map(
     locations.map((row) => [String(row.id), String(row.name || "장소 미지정")]),
   );
@@ -977,7 +1002,7 @@ export async function getVisitMetrics(args: JsonRecord): Promise<JsonRecord> {
   const eligibleLogs = logs.filter((row) => {
     if (typeof row.user_id !== "string") return false;
     const user = users.get(row.user_id);
-    return Boolean(user) && !isStaffUser(user);
+    return Boolean(user) && !isStaffProfile(user);
   });
   const logsByUserDay = new Map<string, JsonRecord[]>();
   for (const row of eligibleLogs) {
@@ -1775,6 +1800,77 @@ function propertyToPlain(property: unknown): string {
   return "";
 }
 
+async function getTaskSchedule(args: JsonRecord): Promise<JsonRecord> {
+  const range = parseToolDateRange(args);
+  const sourceName = getSecret("NOTION_TASKS_DATA_SOURCE_NAME") || "할 일 DB";
+  const sourceRef = await findDataSourceByName(sourceName);
+  if (typeof sourceRef.id !== "string") throw new Error("할 일 DB의 데이터 소스 ID를 확인하지 못했습니다.");
+
+  const dataSource = await retrieveDataSource(sourceRef.id);
+  const schema = dataSourceProperties(dataSource);
+  const titleName = titlePropertyName(schema);
+  const dateNames = Object.entries(schema)
+    .filter(([, property]) => property.type === "date")
+    .map(([name]) => name)
+    .sort((left, right) => {
+      const score = (name: string) => /마감|일정|날짜|시작|종료/.test(name) ? 0 : 1;
+      return score(left) - score(right);
+    });
+  if (dateNames.length === 0) throw new Error("할 일 DB에서 날짜 속성을 찾지 못했습니다.");
+
+  const startDate = formatKstIsoDate(range.start);
+  const endExclusive = formatKstIsoDate(range.end);
+  const responses = await Promise.all(dateNames.slice(0, 6).map(async (dateName) => {
+    const response = await notionFetch(`/v1/data_sources/${encodeURIComponent(sourceRef.id as string)}/query`, {
+      method: "POST",
+      body: JSON.stringify({
+        page_size: 100,
+        filter: {
+          and: [
+            { property: dateName, date: { on_or_after: startDate } },
+            { property: dateName, date: { before: endExclusive } },
+          ],
+        },
+      }),
+    });
+    return { dateName, pages: Array.isArray(response.results) ? response.results as JsonRecord[] : [] };
+  }));
+
+  const tasks = new Map<string, JsonRecord>();
+  for (const { dateName, pages } of responses) {
+    for (const page of pages) {
+      const id = typeof page.id === "string" ? page.id : `${dateName}:${tasks.size}`;
+      const properties = page.properties && typeof page.properties === "object" && !Array.isArray(page.properties)
+        ? page.properties as Record<string, unknown>
+        : {};
+      const date = propertyToPlain(properties[dateName]);
+      const details = Object.entries(properties)
+        .filter(([name]) => /상태|완료|담당|프로젝트|부문/.test(name))
+        .map(([name, value]) => [name, propertyToPlain(value)] as const)
+        .filter(([, value]) => Boolean(value))
+        .map(([name, value]) => `${name}: ${value}`);
+      const existing = tasks.get(id);
+      const item = {
+        title: propertyToPlain(properties[titleName]) || "제목 없음",
+        date,
+        date_property: dateName,
+        details,
+        url: typeof page.url === "string" ? page.url : "",
+      };
+      if (!existing || String(item.date).localeCompare(String(existing.date || "")) < 0) tasks.set(id, item);
+    }
+  }
+
+  const items = [...tasks.values()].sort((left, right) => String(left.date || "").localeCompare(String(right.date || "")));
+  return {
+    source: sourceName,
+    period: { start_date: startDate, end_date: formatKstIsoDate(new Date(range.end.getTime() - 1)) },
+    count: items.length,
+    tasks: items,
+    note: items.length === 0 ? "해당 기간의 할 일 DB 일정이 없습니다. 일반 문서 검색으로 대체하지 마세요." : "할 일 DB의 날짜 속성만 기준으로 조회했습니다.",
+  };
+}
+
 function pageSummary(page: JsonRecord): { title: string; properties: string; url: string } {
   const properties = page.properties && typeof page.properties === "object"
     ? page.properties as Record<string, unknown>
@@ -1897,17 +1993,19 @@ function blockToPlain(block: JsonRecord): string {
 }
 
 async function retrieveBlockText(blockId: string, depth = 0): Promise<string> {
-  if (depth > 2) return "";
+  if (depth > 1) return "";
   const data = await notionFetch(
     `/v1/blocks/${encodeURIComponent(blockId)}/children?page_size=100`,
   );
   const blocks = Array.isArray(data.results) ? data.results as JsonRecord[] : [];
   const lines: string[] = [];
+  let nestedReads = 0;
 
-  for (const block of blocks.slice(0, 100)) {
+  for (const block of blocks.slice(0, 60)) {
     const plain = blockToPlain(block);
     if (plain) lines.push(plain);
-    if (block.has_children === true && typeof block.id === "string" && lines.join("\n").length < 8_000) {
+    if (block.has_children === true && typeof block.id === "string" && lines.join("\n").length < 6_000 && nestedReads < 8) {
+      nestedReads += 1;
       const childText = await retrieveBlockText(block.id, depth + 1);
       if (childText) lines.push(childText);
     }
@@ -1917,12 +2015,10 @@ async function retrieveBlockText(blockId: string, depth = 0): Promise<string> {
 
 async function buildNotionContext(question: string): Promise<string> {
   const terms = searchTerms(question);
-  let indexedRows = (await Promise.all(terms.map((term) => findIndexedNotionRecords(term)))).flat();
-  if (indexedRows.length === 0) {
-    // The first search builds the cache, and later searches also refresh it when Notion changed outside TSF.
-    await syncNotionSearchIndex();
-    indexedRows = (await Promise.all(terms.map((term) => findIndexedNotionRecords(term)))).flat();
-  }
+  // Never rebuild the complete Notion index inside an interactive Slack request.
+  // A cache miss falls through to Notion's bounded search API below. Full index
+  // synchronization can take longer than the Edge Function wall-clock limit.
+  const indexedRows = (await Promise.all(terms.map((term) => findIndexedNotionRecords(term)))).flat();
   const indexedPages = await Promise.all(
     [...new Map(indexedRows.filter((row) => typeof row.notion_page_id === "string").map((row) => [String(row.notion_page_id), row])).values()]
       .slice(0, MAX_NOTION_PAGES)
@@ -2103,8 +2199,23 @@ const TSF_TOOLS: JsonRecord[] = [
   },
   {
     type: "function",
+    name: "get_task_schedule",
+    description: "Notion 할 일 DB의 날짜 속성을 기준으로 지정 기간의 일정을 조회합니다. 이번 주 일정, 다음 주 일정, 오늘 할 일처럼 날짜 범위의 일정 질문에 사용하며, 같은 기간의 Slack 전 채널 일정 확인을 위해 search_slack_messages도 함께 호출합니다.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        start_date: { type: "string", description: "조회 시작일, YYYY-MM-DD" },
+        end_date: { type: "string", description: "조회 마지막 날(포함), YYYY-MM-DD" },
+      },
+      required: ["start_date", "end_date"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
     name: "search_notion",
-    description: "연결된 Notion의 회의록, 업무, 일정, 프로젝트, 매뉴얼과 문서를 검색하고 본문을 읽습니다.",
+    description: "연결된 Notion의 회의록, 프로젝트, 매뉴얼과 문서를 검색하고 본문을 읽습니다. 기간별 일정 조회에는 사용하지 않습니다.",
     strict: true,
     parameters: {
       type: "object",
@@ -2276,6 +2387,7 @@ async function executeTsfTool(name: string, args: JsonRecord): Promise<string> {
     else if (name === "get_points_store_metrics") result = await buildHaifnContext(parseToolDateRange(args));
     else if (name === "get_survey_metrics") result = await buildSurveyContext(parseToolDateRange(args));
     else if (name === "search_slack_messages") result = await searchSlackMessages(args);
+    else if (name === "get_task_schedule") result = await getTaskSchedule(args);
     else if (name === "get_notion_write_schema") result = await getNotionWriteSchema();
     else if (name === "find_notion_record_candidates") {
       const query = typeof args.query === "string" ? args.query.trim() : "";
@@ -2408,6 +2520,7 @@ async function answerQuestion(
   safetySource: string,
   threadContext = "",
   reportMode = false,
+  onProgress?: (stage: string) => Promise<void>,
 ): Promise<AssistantAnswer> {
   const openAIKey = getSecret("OPENAI_API_KEY");
   if (!openAIKey) throw new Error("OPENAI_API_KEY가 설정되지 않았습니다.");
@@ -2420,7 +2533,8 @@ async function answerQuestion(
     "재단·센터·웹앱·회원·방문·프로그램·대여·포인트·설문·회의·업무에 관한 사실 질문은 반드시 적절한 도구를 먼저 사용하세요.",
     "프로그램명, 참여자 수, 신청자 수, 출석 수 질문은 반드시 프로그램 도구를 사용하세요. 최근 목록으로 판단하지 마세요. 웹앱의 신청과 JOIN은 같은 뜻이므로 결과에는 '신청 인원'만 쓰고 JOIN을 따로 반복하지 마세요.",
     "질문 하나에 웹앱과 Notion이 모두 필요하면 여러 도구를 사용해 함께 확인하세요.",
-    "회의·일정·결정·진행 상황·담당 업무처럼 Slack과 Notion 양쪽에 있을 수 있는 사실을 물으면, 사용자가 출처를 하나로 제한하지 않은 한 search_slack_messages와 search_notion을 함께 호출하세요. 한쪽에 결과가 없다는 이유로 확인을 끝내지 마세요.",
+    "이번 주·다음 주·오늘·특정 기간의 일정이나 스케줄을 물으면 get_task_schedule과 search_slack_messages를 반드시 함께 호출하세요. get_task_schedule로 Notion 할 일 DB의 날짜 속성을 조회하고, search_slack_messages로 같은 기간의 허용된 Slack 전 채널에서 일정·행사·회의·워크숍·마감 언급을 확인한 뒤 중복을 정리해 합치세요. 일정 질문에는 일반 문서 검색인 search_notion을 호출하지 말고, 관련 없는 Notion 페이지로 보충하지 마세요.",
+    "회의·결정·진행 상황·담당 업무처럼 Slack과 Notion 양쪽에 있을 수 있는 사실을 물으면, 사용자가 출처를 하나로 제한하지 않은 한 search_slack_messages와 search_notion을 함께 호출하세요. 한쪽에 결과가 없다는 이유로 확인을 끝내지 마세요.",
     "처음 보는 유형의 질문도 키워드 규칙을 기다리지 말고, 사용 가능한 조회 도구를 조합해 근거를 찾으세요. 조회 도구로 확인할 수 없는 쓰기 작업만 지원 범위를 분명히 설명하세요.",
     "사용자가 특정 프로젝트의 할 일 목록, 연결된 할 일, 진행 중인 업무를 물으면 일반 Notion 검색으로 답하지 말고 반드시 get_project_tasks를 사용하세요. 프로젝트 제목 일부만 말해도 그 도구에 그대로 전달하세요. 결과에는 각 할 일의 제목·상태/마감일 등 속성·Notion 링크를 함께 보여주세요.",
     "'하이픈 방문자'의 하이픈은 센터/지점 이름입니다. 포인트 도구가 아니라 방문 집계 도구에서 location_keyword로 조회하세요.",
@@ -2446,8 +2560,7 @@ async function answerQuestion(
     "사용자가 '스탭 피드백도 결과보고서에 반영해줘'처럼 명시하면, 같은 Slack 스레드에서 스탭들이 나눈 이전 메시지만 읽어 결과보고서 본문에 '## 스탭 피드백' 꼭지를 추가하세요. 이 꼭지는 기존 결과보고서와 같은 쉬운 말·짧은 문장·목록 형식을 사용합니다. 먼저 '### 스탭이 말한 핵심'에서 공통 의견을 짧게 정리하고, 이어 '### 스탭 의견 원문' 아래에 '####' 대신 '### 의견 1', '### 의견 2'처럼 각 메시지를 나누어 넣으세요. 요청자의 지시, 퐁퐁의 답변, 저장 안내는 스탭 피드백에 넣지 마세요. 스탭 피드백 추가를 요청하지 않았으면 이 꼭지는 만들지 마세요.",
     "저장 전에는 '저장할까요?'처럼 모호하게 묻지 마세요. 준비 도구로 제목·본문·분류·연결 대상을 확정된 초안으로 보여주고 확인 버튼을 제공하세요.",
     "프로그램·회원·방문 기록의 생성·수정·삭제, 개인별 정보 저장은 지원하지 않는다고 안내하고 기존 관리자 화면을 사용하게 하세요.",
-    "Notion 검색 결과를 사용했다면 답변 끝에 반드시 '찾은 Notion 자료'를 만들고, 각 자료를 '[페이지 제목](URL) — 핵심 내용' 형식으로 표시하세요. URL이 없는 경우에만 제목과 '링크 없음'을 표시하세요. 사용자가 요약을 요청했어도 페이지 링크와 핵심 내용을 생략하지 마세요.",
-    "단, 사용자가 특정 Notion 페이지의 링크만 달라고 하거나 '링크 줘/링크 다시 줘/페이지 열어줘'라고 요청한 경우에는 같은 페이지를 두 번 보여주지 마세요. '찾았습니다. [페이지 제목](URL)' 한 줄만 답하고 '찾은 Notion 자료' 목록·설명은 붙이지 마세요.",
+    "Notion 자료를 조회했더라도 '찾은 Notion 자료' 같은 출처 목록을 자동으로 붙이지 마세요. 사용자가 출처나 링크를 명시적으로 요청했거나 다음 행동에 링크가 꼭 필요할 때만 관련성이 높은 페이지 링크를 한 번 표시하세요. 관련성이 낮은 검색 결과는 절대 답변에 노출하지 마세요.",
     "한국어로 답하고 Slack에서 읽기 쉽게 핵심 답부터 간결하게 쓰세요. 별표 두 개(**)를 포함한 Markdown 강조 표시는 절대 사용하지 마세요.",
     ...(reportMode ? ["전 채널 운영 보고서 요청입니다. 제공된 Slack 채널 수합과 웹앱 집계만 근거로 보고서를 작성하세요. 추가 도구 호출은 하지 마세요. 첫 줄에는 기간을 쓰고, 이어서 아래 네 개의 번호·제목을 반드시 이 순서 그대로 사용하세요: '0. 핵심 요약', '1. 오픈아이즈', '2. 센터', '3. 센터 방문 현황'. 1. 오픈아이즈에는 채널 이름에 '오픈아이즈', 'openeyes', 'open eyes'가 들어간 채널의 메시지에서만 업무를 넣으세요. 콘텐츠 PM 회의·콘텐츠 랩 등 다른 채널의 내용은 오픈아이즈에 절대로 넣지 말고 2. 센터에 분류하세요. 1. 오픈아이즈와 2. 센터에는 각각 '주요 업무 내용'과 '다음 할 일' 소제목을 넣으세요. 각 소제목 아래에서는 업무 하나씩을 다시 항목으로 나누고, 항목마다 무엇을 준비·결정·처리했는지와 관련 대상·일정·담당·후속 확인 사항 중 자료에 있는 내용을 1~2개의 짧은 문장으로 쓰세요. 제목만 나열하거나 여러 업무를 한 문단에 섞지 마세요. 3. 센터 방문 현황은 하이픈 위치의 입·퇴실 기록만 기준으로 작성하며, 다른 장소의 기록은 절대로 섞지 마세요. '전체 이용 현황' 소제목 아래에 총 방문 횟수, 순 방문자 수, 평균 이용 시간, 가장 이용이 많은 요일과 시간대를 모두 쓰세요. 이어 '방문 집중 분석'에서 해당 요일·시간대에 집중된 이유를 제공된 Slack 메시지와 웹앱 프로그램·공지 데이터에 근거해 1~2개 항목으로 설명하세요. 웹앱 프로그램 목록의 기간·기준 일정·시작 시간·반복 요일과 프로그램 안내문을 반드시 먼저 대조하세요. 날짜 또는 반복 요일과 시작 시간이 방문 집중 시간대와 겹치는 프로그램이 있으면, 그 프로그램명과 일정·시간을 명시해 집중 원인으로 작성하세요. 이 대조를 마치기 전에는 '연결되는 기록을 확인하지 못함'이라고 쓰지 마세요. 전주 대비·장소별 이용·일반/게스트/신규/재방문 구성·이용 목적·체크아웃 누락/이상 이용 시간은 넣지 마세요. 이어 '당직 피드 요약' 소제목 하나만 넣으세요. 당직 피드의 당일 특이 사항·공간 불편 사항·층별 상황을 유형이나 날짜별로 세분화하지 말고, 전체 내용을 종합해 '발생한 특이사항'과 '필요해 보이는 조치' 두 항목으로 짧게 요약하세요. 조치가 자료에 직접 적혀 있지 않다면 단정하지 말고 '확인이 필요함'처럼 표현하세요. 기록이 없으면 '기록된 당직 특이사항 없음'이라고 쓰세요. 자료에 없는 세부사항은 만들어내지 마세요."] : []),
   ].join("\n");
@@ -2467,6 +2580,7 @@ async function answerQuestion(
     : "medium";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    await onProgress?.(round === 0 ? "1/3 질문을 분석하고 있습니다" : "3/3 찾은 자료를 비교해 답변을 작성하고 있습니다");
     const response = await fetchWithTimeout("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -2486,7 +2600,7 @@ async function answerQuestion(
         safety_identifier: safetyIdentifier,
         store: false,
       }),
-    }, 45_000);
+    }, OPENAI_REQUEST_TIMEOUT_MS);
 
     const data = await response.json().catch(() => ({})) as JsonRecord;
     if (!response.ok) {
@@ -2503,6 +2617,12 @@ async function answerQuestion(
     }
 
     if (Array.isArray(data.output)) input.push(...data.output);
+    const progressLabels = [...new Set(toolCalls.map((call) => {
+      if (call.name === "search_slack_messages") return "Slack 채널";
+      if (call.name.includes("notion") || call.name === "get_project_tasks" || call.name === "get_task_schedule") return "Notion";
+      return "웹앱";
+    }))].join("·");
+    await onProgress?.(`2/3 ${progressLabels} 자료를 조회하고 있습니다`);
     const outputs = await Promise.all(toolCalls.map(async (call) => {
       let args: JsonRecord = {};
       try {
@@ -3074,6 +3194,33 @@ async function updateSlackMessage(channel: string, ts: string, text: string, blo
   if (!response.ok || data.ok !== true) throw new Error(`Slack 메시지 갱신 오류: ${String(data.error || response.statusText)}`);
 }
 
+function startSlackProgress(channel: string, statusTs: string) {
+  const startedAt = Date.now();
+  let currentStage = "1/3 질문을 분석하고 있습니다";
+  let finished = false;
+  let queue: Promise<void> = Promise.resolve();
+  const update = async (stage: string): Promise<void> => {
+    currentStage = stage;
+    if (finished || !statusTs) return;
+    queue = queue.then(async () => {
+      if (finished) return;
+      const elapsedSeconds = Math.max(1, Math.floor((Date.now() - startedAt) / 1_000));
+      await updateSlackMessage(channel, statusTs, `진행 중 · ${currentStage}
+경과 ${elapsedSeconds}초`);
+    }).catch((error) => console.warn("TSF progress update skipped", error));
+    await queue;
+  };
+  const timer = setInterval(() => void update(currentStage), PROGRESS_INTERVAL_MS) as unknown as number;
+  return {
+    update,
+    finish: async () => {
+      finished = true;
+      clearInterval(timer);
+      await queue;
+    },
+  };
+}
+
 async function executeConfirmedAction(action: PendingAction, channel: string, messageTs: string): Promise<void> {
   try {
     if (channel && messageTs) {
@@ -3164,7 +3311,7 @@ async function handleMention(event: SlackEvent, teamId: string): Promise<void> {
 
   const threadTs = event.thread_ts || event.ts;
   let statusTs = "";
-  let progressTimer: number | undefined;
+  let progress: ReturnType<typeof startSlackProgress> | null = null;
   try {
     const status = await postSlackMessage(
       event.channel,
@@ -3172,20 +3319,20 @@ async function handleMention(event: SlackEvent, teamId: string): Promise<void> {
       threadTs,
     );
     statusTs = typeof status.ts === "string" ? status.ts : "";
-    if (statusTs) {
-      progressTimer = setTimeout(() => {
-        void updateSlackMessage(
-          event.channel as string,
-          statusTs,
-          "Slack·Notion·웹앱에서 관련 자료를 확인하고 있습니다…",
-        ).catch((error) => console.warn("TSF progress update skipped", error));
-      }, 12_000) as unknown as number;
-    }
+    progress = startSlackProgress(event.channel, statusTs);
+    await progress.update("1/3 질문과 대화 맥락을 확인하고 있습니다");
     const threadContext = await getSlackThreadContext(event.channel, threadTs, event.user);
     const reportMode = wantsCrossChannelReport(question);
     const reportContext = reportMode ? await buildCrossChannelReportContext(question) : "";
     const webappContext = reportMode ? await buildReportWebappContext(question) : "";
-    const answer = await answerQuestion(question, `${teamId}:${event.user}`, [threadContext, reportContext, webappContext].filter(Boolean).join("\n\n"), reportMode);
+    const answer = await withRequestTimeout(answerQuestion(
+      question,
+      `${teamId}:${event.user}`,
+      [threadContext, reportContext, webappContext].filter(Boolean).join("\n\n"),
+      reportMode,
+      (stage) => progress?.update(stage) || Promise.resolve(),
+    ));
+    await progress.finish();
     const token = answer.pendingAction ? await encodeAction(answer.pendingAction) : "";
     const text = draftPreview(answer);
     const blocks = answer.pendingAction ? actionBlocks(text, token, answer.pendingAction.kind) : undefined;
@@ -3205,11 +3352,12 @@ async function handleMention(event: SlackEvent, teamId: string): Promise<void> {
       : detail.includes("timeout") || detail.includes("timed out")
       ? "처리 시간"
       : "서버 처리";
-    const message = `요청을 처리하지 못했습니다. ${stage} 단계에서 문제가 발생했습니다. 잠시 후 새 메시지로 다시 시도해 주세요.`;
+    await progress?.finish();
+    const message = detail.includes("tsf_timeout")
+      ? "90초 안에 처리를 마치지 못해 자동 종료했습니다. 멈춘 상태로 남겨두지 않았습니다. 날짜나 대상 채널을 좁혀 다시 요청해 주세요."
+      : `요청을 처리하지 못했습니다. ${stage} 단계에서 문제가 발생했습니다. 잠시 후 새 메시지로 다시 시도해 주세요.`;
     if (statusTs) await updateSlackMessage(event.channel, statusTs, message);
     else await postSlackMessage(event.channel, message, threadTs);
-  } finally {
-    if (progressTimer !== undefined) clearTimeout(progressTimer);
   }
 }
 
@@ -3220,14 +3368,24 @@ async function handleDirectMessage(event: SlackEvent, teamId: string): Promise<v
 
   const threadTs = event.thread_ts || event.ts;
   let statusTs = "";
+  let progress: ReturnType<typeof startSlackProgress> | null = null;
   try {
     const status = await postSlackMessage(event.channel, "요청을 확인했고, 자료를 살펴보고 있어요.", threadTs);
     statusTs = typeof status.ts === "string" ? status.ts : "";
+    progress = startSlackProgress(event.channel, statusTs);
+    await progress.update("1/3 질문과 대화 맥락을 확인하고 있습니다");
     const threadContext = await getSlackThreadContext(event.channel, threadTs, event.user);
     const reportMode = wantsCrossChannelReport(question);
     const reportContext = reportMode ? await buildCrossChannelReportContext(question) : "";
     const webappContext = reportMode ? await buildReportWebappContext(question) : "";
-    const answer = await answerQuestion(question, `${teamId}:${event.user}`, [threadContext, reportContext, webappContext].filter(Boolean).join("\n\n"), reportMode);
+    const answer = await withRequestTimeout(answerQuestion(
+      question,
+      `${teamId}:${event.user}`,
+      [threadContext, reportContext, webappContext].filter(Boolean).join("\n\n"),
+      reportMode,
+      (stage) => progress?.update(stage) || Promise.resolve(),
+    ));
+    await progress.finish();
     const token = answer.pendingAction ? await encodeAction(answer.pendingAction) : "";
     const text = draftPreview(answer);
     const blocks = answer.pendingAction ? actionBlocks(text, token, answer.pendingAction.kind) : undefined;
@@ -3247,7 +3405,10 @@ async function handleDirectMessage(event: SlackEvent, teamId: string): Promise<v
       : detail.includes("timeout") || detail.includes("timed out")
       ? "처리 시간"
       : "서버 처리";
-    const message = `요청을 처리하지 못했습니다. ${stage} 단계에서 문제가 발생했습니다. 잠시 후 새 메시지로 다시 시도해 주세요.`;
+    await progress?.finish();
+    const message = detail.includes("tsf_timeout")
+      ? "90초 안에 처리를 마치지 못해 자동 종료했습니다. 날짜나 대상 채널을 좁혀 다시 요청해 주세요."
+      : `요청을 처리하지 못했습니다. ${stage} 단계에서 문제가 발생했습니다. 잠시 후 새 메시지로 다시 시도해 주세요.`;
     if (statusTs) await updateSlackMessage(event.channel, statusTs, message);
     else await postSlackMessage(event.channel, message, threadTs);
   }
@@ -3263,7 +3424,7 @@ async function handleSlashCommand(
     const reportMode = wantsCrossChannelReport(question);
     const reportContext = reportMode ? await buildCrossChannelReportContext(question) : "";
     const webappContext = reportMode ? await buildReportWebappContext(question) : "";
-    const answer = await answerQuestion(question, `${teamId}:${userId}`, [reportContext, webappContext].filter(Boolean).join("\n\n"), reportMode);
+    const answer = await withRequestTimeout(answerQuestion(question, `${teamId}:${userId}`, [reportContext, webappContext].filter(Boolean).join("\n\n"), reportMode));
     const token = answer.pendingAction ? await encodeAction(answer.pendingAction) : "";
     const text = draftPreview(answer);
     await replaceSlashResponse(responseUrl, text, answer.pendingAction ? actionBlocks(text, token, answer.pendingAction.kind) : undefined);

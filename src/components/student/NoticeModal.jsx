@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles, XCircle, ExternalLink, Dices, RefreshCw, MessageSquare, Eye, FileText } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ZoomIn, X, Calendar as CalendarIcon, User, Trash2, MapPin, Users, Upload, Clock, CheckCircle, Check, Sparkles, XCircle, ExternalLink, Dices, RefreshCw, Eye, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../supabaseClient';
+import { feedbackApi } from '../../api/feedbackApi';
 import { isAccountAuthEnabled } from '../../auth/accountAuthRuntime';
 import { uploadAccountImage } from '../../auth/accountMedia';
 import { noticesApi } from '../../api/noticesApi';
@@ -13,12 +15,15 @@ import { extractUrls, extractProgramInfo } from '../../utils/textUtils';
 import useNoticeModal from './hooks/useNoticeModal';
 import { compressImage } from '../../utils/imageUtils';
 import confetti from 'canvas-confetti';
+import { formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, usesDailySessionRsvp, isRecurringProgram } from '../../utils/dailyProgramSessions';
+import { isAdminOrStaff } from '../../utils/userUtils';
 
 // Components
 import NoticeCarousel from './components/NoticeCarousel';
 import NoticeHeader from './components/NoticeHeader';
 import NoticeReactions from './NoticeReactions';
 import WriteForm from '../admin/board/components/forms/WriteForm';
+import TodaySessionModal from '../admin/board/components/modals/TodaySessionModal';
 
 const seededShuffle = (array, seed) => {
     if (!seed) return array;
@@ -42,12 +47,22 @@ const seededShuffle = (array, seed) => {
     return shuffled;
 };
 
+const ONLINE_MISSION_CARD_STYLES = [
+    { card: 'border-blue-100 bg-gradient-to-br from-white to-blue-50/80', icon: 'bg-blue-600 text-white shadow-blue-100', label: 'text-blue-600' },
+    { card: 'border-violet-100 bg-gradient-to-br from-white to-violet-50/80', icon: 'bg-violet-600 text-white shadow-violet-100', label: 'text-violet-600' },
+    { card: 'border-emerald-100 bg-gradient-to-br from-white to-emerald-50/80', icon: 'bg-emerald-600 text-white shadow-emerald-100', label: 'text-emerald-600' },
+    { card: 'border-amber-100 bg-gradient-to-br from-white to-amber-50/80', icon: 'bg-amber-500 text-white shadow-amber-100', label: 'text-amber-600' },
+];
+
 import ProgramFeedbackModal from './modals/ProgramFeedbackModal';
 import AdminFeedbackListModal from '../admin/board/components/modals/AdminFeedbackListModal';
 import { getRecruitment } from '../../utils/programRecruitment';
 import { useCurrentTime } from '../../hooks/useCurrentTime';
 import ProgramAvailabilityNotice from './components/ProgramAvailabilityNotice';
 import ChallengeCommunityModal from './modals/ChallengeCommunityModal';
+import { challengeMissionsApi } from '../../api/challengeMissionsApi';
+import { commentReactionsApi } from '../../api/commentReactionsApi';
+import useCommentReactionLongPress from '../../hooks/useCommentReactionLongPress';
 
 const NoticeModalContent = ({
     notice, context, onClose, user, fromAdmin = false, isImpersonating = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants, onRegisterRegularUser, tutorialMode = false, tutorialStep = '', tutorialOpenCardsTotal = 0, tutorialOpenCardIndex = 0, tutorialChallengeCardsTotal = 0, tutorialChallengeCardIndex = 0, onTutorialAction, onTutorialReaction, onTutorialComment
@@ -84,13 +99,7 @@ const NoticeModalContent = ({
     useEffect(() => {
         if (!notice?.id || !user?.id || fromAdmin || isImpersonating || tutorialMode) return;
 
-        const viewerRole = String(user.role || '').toLowerCase();
-        const viewerGroup = String(user.user_group || '').toLowerCase();
-        const isInternalViewer = ['admin', 'master', 'staff'].includes(viewerRole)
-            || viewerGroup === 'staff'
-            || viewerGroup === '관리자';
-
-        if (isInternalViewer) return;
+        if (isAdminOrStaff(user)) return;
 
         const sessionKey = `viewed_notice_${notice.id}_${user.id}`;
         const alreadyViewed = sessionStorage.getItem(sessionKey);
@@ -105,30 +114,32 @@ const NoticeModalContent = ({
                 }
             }).catch(console.error);
         }
-    }, [notice?.id, user?.id, user?.role, user?.user_group, fromAdmin, isImpersonating, tutorialMode]);
+    }, [notice?.id, user?.id, user?.account_role, user?.accountRole, fromAdmin, isImpersonating, tutorialMode]);
 
     // Challenge & Modal States
     const [challengeParticipants, setChallengeParticipants] = useState([]);
+    const [challengeSubmissions, setChallengeSubmissions] = useState([]);
     const [uploadingMissionId, setUploadingMissionId] = useState(null);
     const [missionTextInputs, setMissionTextInputs] = useState({});
     const [selectedMissionForDetail, setSelectedMissionForDetail] = useState(null);
     const [showSuccessPopup, setShowSuccessPopup] = useState(false);
     const [selectedParticipantForMissions, setSelectedParticipantForMissions] = useState(null);
     const [showChallengeCommunity, setShowChallengeCommunity] = useState(false);
+    const [challengeCommunityFilter, setChallengeCommunityFilter] = useState(null);
     const [showPostProgramPopup, setShowPostProgramPopup] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
     const [showAdminFeedbackModal, setShowAdminFeedbackModal] = useState(false);
     const [feedbackCount, setFeedbackCount] = useState(0);
+    const [todaySessionView, setTodaySessionView] = useState(null);
+    const [selectedSessionId, setSelectedSessionId] = useState(null);
+    const [commentReactionState, setCommentReactionState] = useState({});
+    const { pickerRequest: commentPickerRequest, bindLongPress } = useCommentReactionLongPress();
 
     useEffect(() => {
         const fetchFbCount = async () => {
             if (fromAdmin && notice?.id) {
                 try {
-                    const { count } = await supabase
-                        .from('program_feedback')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('notice_id', notice.id);
-                    setFeedbackCount(count || 0);
+                    setFeedbackCount((await feedbackApi.fetchFeedbackByNotice(notice.id)).length);
                 } catch (e) {
                     console.error('Error fetching fb count:', e);
                 }
@@ -142,13 +153,7 @@ const NoticeModalContent = ({
         const checkReview = async () => {
             if (notice?.id && user?.id) {
                 try {
-                    const { data } = await supabase
-                        .from('program_feedback')
-                        .select('id')
-                        .eq('notice_id', notice.id)
-                        .eq('user_id', user.id)
-                        .maybeSingle();
-                    setHasReviewed(!!data);
+                    setHasReviewed(await feedbackApi.hasFeedback(notice.id, user.id));
                 } catch (e) {
                     console.error('Failed to check review status:', e);
                 }
@@ -166,7 +171,8 @@ const NoticeModalContent = ({
     };
 
     useEffect(() => {
-        const noticeHosts = notice.hosts || [];
+        const selectedSession = notice.open_sessions?.find(item => item.id === selectedSessionId) || notice.today_session;
+        const noticeHosts = getDailySessionHosts(selectedSession) ?? notice.hosts ?? [];
         const ids = noticeHosts.length > 0
             ? noticeHosts.map(h => h.host_id).filter(Boolean)
             : (notice.host_ids || (notice.host_id ? [notice.host_id] : []));
@@ -197,23 +203,27 @@ const NoticeModalContent = ({
         } else {
             setHostUsers([]);
         }
-    }, [notice]);
+    }, [notice, selectedSessionId]);
 
-    useEffect(() => {
+    const refreshChallengeProgress = async () => {
         if (notice?.is_challenge && notice?.id) {
-            const fetchChallengeParticipants = async () => {
-                const { data, error } = await supabase
+            const [{ data, error }, submissions] = await Promise.all([
+                supabase
                     .from('notice_responses')
-                    .select('user_id, status, challenge_mission_statuses, users(name, school)')
+                    .select('user_id, status, users(name, school)')
                     .eq('notice_id', notice.id)
                     .eq('status', 'JOIN')
-                    .order('created_at', { ascending: true });
-                if (data) {
-                    setChallengeParticipants(data);
-                }
-            };
-            fetchChallengeParticipants();
+                    .order('created_at', { ascending: true }),
+                challengeMissionsApi.fetchSubmissions(notice.id, notice.challenge_format || 'OFFLINE'),
+            ]);
+            if (error) throw error;
+            setChallengeParticipants(data || []);
+            setChallengeSubmissions(submissions);
         }
+    };
+
+    useEffect(() => {
+        refreshChallengeProgress().catch(error => console.error('Failed to fetch challenge progress:', error));
     }, [notice?.id, notice?.is_challenge, responses]);
 
     const handleUploadMissionImage = async (missionId, file) => {
@@ -232,28 +242,21 @@ const NoticeModalContent = ({
                 ({ data: { publicUrl } } = supabase.storage.from('notice-images').getPublicUrl(fileName));
             }
 
-            const myResponse = responseDetails[notice.id] || {};
-            const currentStatuses = { ...(myResponse.challenge_mission_statuses || {}) };
-
-            currentStatuses[missionId] = {
-                completed: true,
-                auth_image: publicUrl,
-                auth_type: 'photo',
-                submitted_at: new Date().toISOString()
-            };
-
-            const { error: updateErr } = await supabase
-                .from('notice_responses')
-                .update({ challenge_mission_statuses: currentStatuses })
-                .eq('notice_id', notice.id)
-                .eq('user_id', user.id);
-
-            if (updateErr) throw updateErr;
+            await challengeMissionsApi.submitOffline({
+                challengeId: notice.id,
+                missionId,
+                participantId: user.id,
+                authImageUrl: publicUrl,
+            });
 
             alert('인증샷 등록이 완료되었습니다!');
 
-            const totalMissions = notice.challenge_missions?.length || 0;
-            const isAllCompleted = totalMissions > 0 && notice.challenge_missions.every(m => currentStatuses[m.id]?.completed);
+            const completedMissionIds = new Set(challengeSubmissions
+                .filter(item => item.participant_id === user.id && item.status === 'COMPLETED')
+                .map(item => item.mission_id));
+            completedMissionIds.add(missionId);
+            const isAllCompleted = (notice.challenge_missions?.length || 0) > 0
+                && notice.challenge_missions.every(mission => completedMissionIds.has(mission.id));
             if (isAllCompleted) {
                 setTimeout(() => {
                     confetti({
@@ -265,7 +268,8 @@ const NoticeModalContent = ({
                 }, 500);
             }
             
-            if (onRefresh) onRefresh(); 
+            await refreshChallengeProgress();
+            if (onRefresh) onRefresh();
         } catch (err) {
             console.error('Failed to upload mission image:', err);
             alert('인증샷 업로드에 실패했습니다: ' + err.message);
@@ -283,32 +287,27 @@ const NoticeModalContent = ({
 
         setUploadingMissionId(missionId);
         try {
-            const myResponse = responseDetails[notice.id] || {};
-            const currentStatuses = { ...(myResponse.challenge_mission_statuses || {}) };
-            currentStatuses[missionId] = {
-                completed: true,
-                auth_text: authText,
-                auth_type: 'text',
-                submitted_at: new Date().toISOString()
-            };
-
-            const { error: updateErr } = await supabase
-                .from('notice_responses')
-                .update({ challenge_mission_statuses: currentStatuses })
-                .eq('notice_id', notice.id)
-                .eq('user_id', user.id);
-
-            if (updateErr) throw updateErr;
+            await challengeMissionsApi.submitOffline({
+                challengeId: notice.id,
+                missionId,
+                participantId: user.id,
+                authText,
+            });
 
             alert('텍스트 인증이 등록되었습니다!');
-            const totalMissions = notice.challenge_missions?.length || 0;
-            const isAllCompleted = totalMissions > 0 && notice.challenge_missions.every(m => currentStatuses[m.id]?.completed);
+            const completedMissionIds = new Set(challengeSubmissions
+                .filter(item => item.participant_id === user.id && item.status === 'COMPLETED')
+                .map(item => item.mission_id));
+            completedMissionIds.add(missionId);
+            const isAllCompleted = (notice.challenge_missions?.length || 0) > 0
+                && notice.challenge_missions.every(mission => completedMissionIds.has(mission.id));
             if (isAllCompleted) {
                 setTimeout(() => {
                     confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
                     setShowSuccessPopup(true);
                 }, 500);
             }
+            await refreshChallengeProgress();
             if (onRefresh) onRefresh();
             setSelectedMissionForDetail(null);
         } catch (err) {
@@ -320,14 +319,47 @@ const NoticeModalContent = ({
     };
 
     const { cleanContent, duration, location } = extractProgramInfo(notice.content);
-    const formattedSchedule = formatProgramSchedule(
-        notice.program_date,
-        notice.program_duration || duration,
-        notice.is_recruiting,
-        notice.program_days,
-        notice.program_start_date,
-        notice.program_end_date
+    const isDailySessionProgram = usesDailySessionRsvp(notice);
+    const openSessions = isDailySessionProgram
+        ? (notice.open_sessions?.length ? notice.open_sessions : (notice.today_session ? [notice.today_session] : [])) : [];
+    useEffect(() => {
+        if (!openSessions.some(session => session.id === selectedSessionId)) setSelectedSessionId(openSessions[0]?.id || null);
+    }, [notice.id, notice.open_sessions, notice.today_session, selectedSessionId]);
+    const activeSession = openSessions.find(session => session.id === selectedSessionId) || openSessions[0] || null;
+    const todaySessionFields = getDailySessionValues(notice, activeSession);
+    const todaySessionRows = Array.from(
+        { length: Math.ceil(todaySessionFields.length / 2) },
+        (_, index) => todaySessionFields.slice(index * 2, index * 2 + 2)
     );
+    const getSessionFieldWeight = (field) => {
+        const labelLength = Array.from(field?.label || '').length;
+        const valueLength = Array.from(field?.value || '').length;
+        return Math.max(12, Math.min(30, valueLength + (labelLength * 0.25)));
+    };
+    const formatOnlineChallengePeriod = () => {
+        const formatDay = value => {
+            if (!value) return '';
+            const date = new Date(`${String(value).slice(0, 10)}T00:00:00+09:00`);
+            if (Number.isNaN(date.getTime())) return '';
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            return `${date.getMonth() + 1}/${date.getDate()}(${weekdays[date.getDay()]})`;
+        };
+        const start = formatDay(notice.program_start_date || notice.program_date);
+        const end = formatDay(notice.program_end_date);
+        return start && end && start !== end ? `${start} ~ ${end}` : start || end || '일정 미정';
+    };
+    const formattedSchedule = notice.is_challenge && notice.challenge_format === 'ONLINE'
+        ? formatOnlineChallengePeriod()
+        : isDailySessionProgram && activeSession
+            ? formatDailySessionSchedule(activeSession)
+            : formatProgramSchedule(
+                notice.program_date,
+                notice.program_duration || duration,
+                notice.is_recruiting,
+                notice.program_days,
+                notice.program_start_date,
+                notice.program_end_date
+            );
 
     const isStudentPreviewOrStudent = Boolean(
         isImpersonating ||
@@ -341,10 +373,7 @@ const NoticeModalContent = ({
         fromAdmin || (
             !isStudentPreviewOrStudent && (
                 context === 'admin' ||
-                user?.role === 'admin' ||
-                user?.role === 'ADMIN' ||
-                user?.role === 'master' ||
-                user?.role === 'MASTER' ||
+                isAdminOrStaff(user) ||
                 user?.is_admin ||
                 Boolean(localStorage.getItem('admin_user'))
             )
@@ -386,6 +415,23 @@ const NoticeModalContent = ({
         onTutorialReaction?.(emoji);
     };
     const displayedComments = isTutorialSocial ? [...(comments || []), ...tutorialComments] : (comments || []);
+    useEffect(() => {
+        setCommentReactionState(Object.fromEntries((comments || []).map(comment => [comment.id, comment.notice_comment_reactions || []])));
+    }, [comments]);
+    const handleCommentReaction = async (comment, emoji) => {
+        if (!user?.id || comment.tutorial) return;
+        try {
+            const active = await commentReactionsApi.toggleNoticeComment(comment.id, user.id, emoji);
+            setCommentReactionState(current => {
+                const reactions = (current[comment.id] || comment.notice_comment_reactions || []).filter(item => !(item.user_id === user.id && item.emoji === emoji));
+                if (active) reactions.push({ user_id: user.id, emoji, users: user });
+                return { ...current, [comment.id]: reactions };
+            });
+        } catch (error) {
+            console.error(error);
+            alert('댓글 반응을 저장하지 못했습니다.');
+        }
+    };
     const submitDisplayedComment = (event) => {
         event.preventDefault();
         if (!isTutorialSocial) {
@@ -455,12 +501,39 @@ const NoticeModalContent = ({
 
         fetchParticipantsAndSeed();
 
-        // Auto poll every 2.5 seconds while modal is active for instant F5-free sync!
-        const interval = setInterval(fetchParticipantsAndSeed, 2500);
-        return () => clearInterval(interval);
+        let refreshTimer;
+        const scheduleRefresh = () => {
+            clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(fetchParticipantsAndSeed, 250);
+        };
+        const channel = supabase.channel(`notice-teams-${notice.id}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notices', filter: `id=eq.${notice.id}` }, scheduleRefresh)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses', filter: `notice_id=eq.${notice.id}` }, scheduleRefresh)
+            .subscribe(status => {
+                if (status === 'SUBSCRIBED') scheduleRefresh();
+            });
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') fetchParticipantsAndSeed();
+        }, 60000);
+        const refreshWhenVisible = () => {
+            if (document.visibilityState === 'visible') fetchParticipantsAndSeed();
+        };
+        window.addEventListener('online', refreshWhenVisible);
+        document.addEventListener('visibilitychange', refreshWhenVisible);
+        return () => {
+            clearTimeout(refreshTimer);
+            clearInterval(interval);
+            window.removeEventListener('online', refreshWhenVisible);
+            document.removeEventListener('visibilitychange', refreshWhenVisible);
+            supabase.removeChannel(channel);
+        };
     }, [notice?.id, responses, notice.guest_properties?.team_shuffle_seed]);
     const { isStarted, isEnded, hasCustomFeatures, isProgramStartTimeReached } = (() => {
         const isManuallyEnded = (notice.guest_properties?.is_ended ?? notice.is_ended) === true;
+        if (isRecurringProgram(notice)) {
+            const end = notice.program_end_date ? new Date(`${String(notice.program_end_date).slice(0, 10)}T23:59:59.999+09:00`) : null;
+            return { isStarted: true, isEnded: isManuallyEnded || Boolean(end && new Date() > end), hasCustomFeatures: false, isProgramStartTimeReached: false };
+        }
         const pDate = notice.program_date;
         if (!pDate) return { isStarted: false, isEnded: isManuallyEnded, hasCustomFeatures: false };
 
@@ -556,6 +629,7 @@ const NoticeModalContent = ({
             if (e.key === 'Escape') {
                 // Ignore ESC key if a higher-level overlay is currently open
                 if (document.querySelector('.dropdown-overlay')) return;
+                if (showChallengeCommunity) return;
 
                 if (zoomedImage) {
                     setZoomedImage(null);
@@ -570,9 +644,16 @@ const NoticeModalContent = ({
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [onClose, zoomedImage, isEditing]);
+    }, [onClose, zoomedImage, isEditing, showChallengeCommunity]);
 
-    return (
+    return createPortal(
+        <>
+        <button
+            type="button"
+            className="fixed inset-0 z-[129] cursor-default bg-black/50"
+            aria-label="상세 팝업 닫기"
+            onClick={onClose}
+        />
         <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -596,7 +677,11 @@ const NoticeModalContent = ({
 
             <div data-tour={tutorialMode ? 'tutorial-program-detail' : undefined} className="flex-1 overflow-y-auto scrollbar-hide bg-white">
                 <div className="px-6 pt-6 pb-1">
-                    {!isEditing && <NoticeCarousel allImages={allImages} />}
+                    {!isEditing && (
+                        <div className="-mx-6 -mt-6">
+                            <NoticeCarousel allImages={allImages} />
+                        </div>
+                    )}
 
                     {isEditing ? (
                         <div className="py-2 animate-fade-in-up">
@@ -616,7 +701,7 @@ const NoticeModalContent = ({
                         <>
                             <div className="flex items-center justify-between gap-3 mb-4">
                                 <h1 className="text-2xl font-bold text-tossGrey900 leading-tight">{tutorialMode && notice.is_challenge ? 'HAIFN CHALLENGE' : notice.title}</h1>
-                                {(fromAdmin || user?.role === 'admin' || user?.role === 'master' || user?.role === 'staff' || user?.user_group === 'STAFF' || user?.user_group === '관리자') && (
+                                {(fromAdmin || isAdminOrStaff(user)) && (
                                     <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-extrabold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full">
                                         <Eye size={14} className="text-gray-500" />
                                         조회수 {viewCount || 0}회
@@ -625,23 +710,103 @@ const NoticeModalContent = ({
                             </div>
                             {notice.category === 'PROGRAM' && (
                                 <div className="bg-tossGrey50 rounded-toss-xl p-5 space-y-4 mb-6">
+                                    {isAdmin && isDailySessionProgram && openSessions.length > 1 && (
+                                        <div className="grid grid-cols-2 gap-2.5 border-b border-tossGrey200 pb-4">
+                                            {openSessions.map(session => {
+                                                const selected = activeSession?.id === session.id;
+                                                return (
+                                                    <button
+                                                        key={session.id}
+                                                        type="button"
+                                                        onClick={() => setSelectedSessionId(session.id)}
+                                                        className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${selected
+                                                            ? 'border-tossBlue bg-tossBlue text-white shadow-blue-200'
+                                                            : 'border-tossGrey200 bg-white text-tossGrey700 hover:border-blue-300 hover:bg-blue-50'}`}
+                                                    >
+                                                        {formatDailySessionSchedule(session)}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                     <div className="flex text-sm leading-relaxed">
                                         <span className="w-16 text-tossGrey500 font-semibold shrink-0">일정</span>
                                         <span className="text-tossBlue font-extrabold">{formattedSchedule}</span>
                                     </div>
-                                    <div className="flex text-sm leading-relaxed">
+                                    {!(notice.is_challenge && notice.challenge_format === 'ONLINE') && <div className="flex text-sm leading-relaxed">
                                         <span className="w-16 text-tossGrey500 font-semibold shrink-0">장소</span>
                                         <span className="text-tossGrey900 font-extrabold">{notice.program_location || location || '미정'}</span>
-                                    </div>
+                                    </div>}
                                     <div className="flex text-sm leading-relaxed">
                                         <span className="w-16 text-tossGrey500 font-semibold shrink-0">인원</span>
-                                        <span className="text-tossGrey900 font-extrabold">{notice.max_capacity > 0 ? `${notice.max_capacity}명` : '제한 없음'}</span>
+                                        <span className="text-tossGrey900 font-extrabold">
+                                            {(isDailySessionProgram ? activeSession?.capacity : notice.max_capacity) > 0
+                                                ? `${isDailySessionProgram ? activeSession.capacity : notice.max_capacity}명${isDailySessionProgram ? ` · 현재 ${activeSession?.join_count || 0}명 신청` : ''}`
+                                                : '제한 없음'}
+                                        </span>
                                     </div>
                                 </div>
                             )}
 
+                            {isDailySessionProgram && hostUsers.length > 0 && (
+                                <section className="mb-7">
+                                    <div className="mb-3 flex items-center gap-2">
+                                        <div className="h-[14px] w-[3px] rounded-full bg-tossBlue" />
+                                        <h3 className="text-[15px] font-extrabold leading-none text-tossGrey900">프로그램 호스트</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                                        {hostUsers.map(host => (
+                                            <div key={host.id} className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5">
+                                                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-blue-600 shadow-sm">
+                                                    {host.profile_image_url ? <img src={host.profile_image_url} alt="" className="h-full w-full object-cover" /> : <User size={19}/>}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-black text-slate-900">{host.name}</p>
+                                                    <p className="mt-0.5 line-clamp-2 text-[11px] font-medium leading-relaxed text-slate-500">{host.one_liner || host.school || '이번 회차를 함께 진행해요.'}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+
+                            {isDailySessionProgram && todaySessionFields.length > 0 && (
+                                <section className="mb-8">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
+                                        <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">오늘의 내용</h3>
+                                    </div>
+                                    <div className="space-y-3 border-b border-tossGrey100 pb-6">
+                                        {todaySessionRows.map((row, rowIndex) => (
+                                            <div key={rowIndex} className="flex w-full gap-3">
+                                                {row.map(field => (
+                                                    <div
+                                                        key={field.id}
+                                                        className="min-w-0 rounded-toss-xl border border-[#f1ece3] bg-[#faf8f2] px-4 py-4 shadow-sm"
+                                                        style={{
+                                                            flexBasis: 0,
+                                                            flexGrow: row.length === 1 ? 1 : getSessionFieldWeight(field)
+                                                        }}
+                                                    >
+                                                        <p className="truncate text-[13px] font-extrabold leading-none text-[#e83b2f]">
+                                                            {field.label}
+                                                        </p>
+                                                        <p
+                                                            className="mt-4 whitespace-pre-wrap break-words text-center text-[17px] font-extrabold leading-snug tracking-[-0.025em] text-tossGrey900"
+                                                            title={field.value}
+                                                        >
+                                                            {field.value}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+
                             {/* Sticky Section Tabs: Only show when both Introduction and Host sections are active */}
-                            {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
+                            {notice.category === 'PROGRAM' && !isDailySessionProgram && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                                 <div className="flex border-b border-tossGrey100 sticky top-0 bg-white/95 backdrop-blur z-20 mb-6">
                                     <button
                                         onClick={() => scrollToSection('intro')}
@@ -685,10 +850,20 @@ const NoticeModalContent = ({
 
                             {/* Challenge Sections: render below intro */}
                             {notice.is_challenge && (() => {
-                                const myResponse = responseDetails[notice.id] || {};
-                                const statuses = myResponse.challenge_mission_statuses || {};
-                                const totalMissions = notice.challenge_missions?.length || 0;
-                                const isAllDone = totalMissions > 0 && notice.challenge_missions.every(m => statuses[m.id]?.completed);
+                                const isOnlineChallenge = notice.challenge_format === 'ONLINE';
+                                const ownSubmissions = challengeSubmissions.filter(item => item.participant_id === user.id && (isOnlineChallenge ? item.is_valid !== false : item.status === 'COMPLETED'));
+                                const requiredForMission = mission => {
+                                    if (!isOnlineChallenge) return 1;
+                                    if (mission.schedule_type === 'DAILY') {
+                                        const start = new Date(`${notice.program_start_date}T00:00:00+09:00`);
+                                        const end = new Date(`${notice.program_end_date}T00:00:00+09:00`);
+                                        return Math.max(1, Math.round((end - start) / 86400000) + 1);
+                                    }
+                                    return mission.schedule_type === 'FLEXIBLE' ? Math.max(1, Number(mission.target_count) || 1) : 1;
+                                };
+                                const totalMissions = (notice.challenge_missions || []).reduce((sum, mission) => sum + requiredForMission(mission), 0);
+                                const completedMissions = isOnlineChallenge ? ownSubmissions.length : ownSubmissions.filter(item => item.status === 'COMPLETED').length;
+                                const isAllDone = totalMissions > 0 && completedMissions >= totalMissions;
 
                                 return (
                                     <>
@@ -721,59 +896,67 @@ const NoticeModalContent = ({
                                                 </h3>
                                             </div>
                                             
-                                            <div className="bg-white border border-tossGrey200 rounded-toss-2xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.015)]">
-                                                <div className="flex items-center justify-around gap-2">
-                                                    {notice.challenge_missions?.map((mission, index) => {
-                                                        const myResponse = responseDetails[notice.id] || {};
-                                                        const statuses = myResponse.challenge_mission_statuses || {};
-                                                        const mStatus = statuses[mission.id] || {};
-                                                        const isDone = mStatus.completed;
-                                                        return (
-                                                            <div 
-                                                                key={mission.id}
-                                                                onClick={() => { setSelectedMissionForDetail(mission); if (tutorialMode) onTutorialAction?.('mission-opened'); }}
-                                                                className="flex flex-col items-center cursor-pointer select-none group flex-1"
-                                                            >
-                                                                {/* Icon Circle */}
-                                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 transition-colors ${
-                                                                    isDone 
-                                                                        ? 'bg-tossGrey200 text-tossGrey400' 
-                                                                        : 'bg-tossBlueLight text-tossBlue group-hover:bg-tossBlue group-hover:text-white'
-                                                                }`}>
-                                                                    {isDone ? (
-                                                                        <Check size={14} />
-                                                                    ) : (
-                                                                        index + 1
-                                                                    )}
+                                            {isOnlineChallenge ? (
+                                                <div className="space-y-3">
+                                                    {(notice.challenge_missions || []).map((mission, index) => {
+                                                        const style = ONLINE_MISSION_CARD_STYLES[index % ONLINE_MISSION_CARD_STYLES.length];
+                                                        return <div key={mission.id} className={`relative overflow-hidden rounded-[22px] border p-5 shadow-[0_8px_24px_rgba(15,23,42,0.035)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(15,23,42,0.07)] ${style.card}`}>
+                                                            <div className="relative z-[1] flex items-start gap-4">
+                                                                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-lg ${style.icon}`}><Sparkles size={18}/></span>
+                                                                <div className="min-w-0 flex-1 pt-0.5">
+                                                                    <p className={`text-[10px] font-black uppercase tracking-[0.14em] ${style.label}`}>Mission {String(index + 1).padStart(2, '0')}</p>
+                                                                    <h4 className="mt-1.5 text-[16px] font-black tracking-[-0.02em] text-tossGrey900">{mission.title}</h4>
+                                                                    {mission.description && <p className="mt-2 whitespace-pre-wrap text-[13px] font-medium leading-5 text-tossGrey600">{mission.description}</p>}
                                                                 </div>
-
-                                                                {/* Mission Info */}
-                                                                <span className={`text-[11px] font-bold text-center leading-snug break-all ${
-                                                                    isDone ? 'text-tossGrey400 line-through font-medium' : 'text-tossGrey900'
-                                                                }`}>
-                                                                    {mission.title}
-                                                                </span>
-                                                                {isDone && (
-                                                                    <span className="bg-tossGrey100 text-tossGrey500 text-[8px] font-extrabold px-1.5 py-0.2 rounded mt-1">
-                                                                        성공
-                                                                    </span>
-                                                                )}
                                                             </div>
-                                                        );
+                                                            <span className={`pointer-events-none absolute -bottom-5 -right-2 text-[72px] font-black leading-none opacity-[0.045] ${style.label}`}>{index + 1}</span>
+                                                        </div>;
                                                     })}
                                                 </div>
-                                            </div>
+                                            ) : (
+                                                <div className="bg-white border border-tossGrey200 rounded-toss-2xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.015)]">
+                                                    <div className="flex items-center justify-around gap-2">
+                                                        {notice.challenge_missions?.map((mission, index) => {
+                                                            const missionSubmissions = ownSubmissions.filter(item => item.mission_id === mission.id);
+                                                            const isDone = missionSubmissions.length >= requiredForMission(mission);
+                                                            return (
+                                                                <div
+                                                                    key={mission.id}
+                                                                    onClick={() => { setSelectedMissionForDetail(mission); if (tutorialMode) onTutorialAction?.('mission-opened'); }}
+                                                                    className="flex flex-1 cursor-pointer select-none flex-col items-center group"
+                                                                >
+                                                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 transition-colors ${
+                                                                        isDone
+                                                                            ? 'bg-tossGrey200 text-tossGrey400'
+                                                                            : 'bg-tossBlueLight text-tossBlue group-hover:bg-tossBlue group-hover:text-white'
+                                                                    }`}>
+                                                                        {isDone ? <Check size={14} /> : index + 1}
+                                                                    </div>
+                                                                    <span className={`text-[11px] font-bold text-center leading-snug break-all ${
+                                                                        isDone ? 'text-tossGrey400 line-through font-medium' : 'text-tossGrey900'
+                                                                    }`}>
+                                                                        {mission.title}
+                                                                    </span>
+                                                                    {isDone && (
+                                                                        <span className="bg-tossGrey100 text-tossGrey500 text-[8px] font-extrabold px-1.5 py-0.2 rounded mt-1">
+                                                                            성공
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                     {/* Mission Detail Modal (Overlay) */}
                                     {selectedMissionForDetail && (() => {
                                         const mission = selectedMissionForDetail;
-                                        const myResponse = responseDetails[notice.id] || {};
-                                        const statuses = myResponse.challenge_mission_statuses || {};
-                                        const mStatus = statuses[mission.id] || {};
-                                        const isDone = mStatus.completed;
-                                        const hasImg = !!mStatus.auth_image;
-                                        const isTextVerification = mission.verification_type === 'text';
+                                        const mStatus = challengeSubmissions.find(item => item.participant_id === user.id && item.mission_id === mission.id) || {};
+                                        const isDone = mStatus.status === 'COMPLETED';
+                                        const hasImg = !!mStatus.auth_image_url;
+                                        const isTextVerification = String(mission.verification_type || 'PHOTO').toUpperCase() === 'TEXT';
                                         const hasJoined = responses[notice.id] === 'JOIN';
 
                                         return (
@@ -816,7 +999,7 @@ const NoticeModalContent = ({
                                                                 <div className="pt-2">
                                                                     <span className="text-xs font-bold text-tossGrey400 block mb-2">등록한 인증 사진</span>
                                                                     <div className="relative rounded-2xl overflow-hidden border border-tossGrey150 max-h-56 bg-tossGrey50 flex items-center justify-center">
-                                                                        <img src={mStatus.auth_image} alt="" className="max-h-56 w-full object-cover" />
+                                                                        <img src={mStatus.auth_image_url} alt="" className="max-h-56 w-full object-cover" />
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -861,7 +1044,7 @@ const NoticeModalContent = ({
                                                         ) : isDone ? (
                                                             <div className="flex gap-2">
                                                                 <a
-                                                                    href={mStatus.auth_image}
+                                                                    href={mStatus.auth_image_url}
                                                                     download={`mission_auth_${mission.id}.jpg`}
                                                                     target="_blank"
                                                                     rel="noreferrer"
@@ -945,9 +1128,9 @@ const NoticeModalContent = ({
                                                 </div>
                                             ) : (
                                                 challengeParticipants.map((challenger) => {
-                                                    const statuses = challenger.challenge_mission_statuses || {};
-                                                    const isSuccess = (notice.challenge_missions?.length || 0) > 0 && notice.challenge_missions.every(m => statuses[m.id]?.completed);
-                                                    const completedCount = notice.challenge_missions?.filter(m => statuses[m.id]?.completed).length || 0;
+                                                    const participantSubmissions = challengeSubmissions.filter(item => item.participant_id === challenger.user_id && (isOnlineChallenge ? item.is_valid !== false : item.status === 'COMPLETED'));
+                                                    const completedCount = Math.min(totalMissions, participantSubmissions.length);
+                                                    const isSuccess = totalMissions > 0 && completedCount >= totalMissions;
 
                                                     return (
                                                         <button
@@ -959,27 +1142,26 @@ const NoticeModalContent = ({
                                                             <span className="text-xs font-black text-tossGrey850 truncate w-20 shrink-0">
                                                                 {challenger.users?.name?.replace('(guest)', '')}
                                                             </span>
-                                                            <span className="flex flex-wrap gap-1 flex-1" aria-label={`${completedCount}/${notice.challenge_missions?.length || 0} 완료`}>
-                                                                {(notice.challenge_missions || []).map((mission, missionIndex) => <span key={mission.id || missionIndex} className={`w-3 h-3 rounded-full border ${statuses[mission.id]?.completed ? 'bg-tossBlue border-tossBlue' : 'bg-white border-tossGrey300'}`}/>) }
-                                                            </span>
+                                                            {totalMissions <= 20 ? <span className="flex flex-1 flex-wrap gap-1" aria-label={`${completedCount}/${totalMissions} 완료`}>
+                                                                {Array.from({ length: totalMissions }, (_, progressIndex) => <span key={progressIndex} className={`h-3 w-3 rounded-full border ${progressIndex < completedCount ? 'border-tossBlue bg-tossBlue' : 'border-tossGrey300 bg-white'}`}/>) }
+                                                            </span> : <span className="h-2 flex-1 overflow-hidden rounded-full bg-tossGrey100"><span className="block h-full rounded-full bg-tossBlue" style={{ width: `${totalMissions ? (completedCount / totalMissions) * 100 : 0}%` }}/></span>}
                                                             <span className={`text-[10px] font-black px-2 py-1 rounded-full whitespace-nowrap ${
                                                                 isSuccess 
                                                                     ? 'bg-tossBlueLight text-tossBlue' 
                                                                     : 'bg-tossGrey50 text-tossGrey500'
                                                             }`}>
-                                                                {completedCount}/{notice.challenge_missions?.length || 0} {isSuccess ? '성공' : '진행'}
+                                                                {completedCount}/{totalMissions} {isSuccess ? '성공' : '진행'}
                                                             </span>
                                                         </button>
                                                     );
                                                 })
                                             )}
                                         </div>
-                                        {notice.challenge_format === 'ONLINE' && notice.community_enabled && responseDetails[notice.id]?.status === 'JOIN' && !fromAdmin && <button type="button" onClick={() => setShowChallengeCommunity(true)} className="mt-4 w-full rounded-2xl bg-tossBlue py-4 text-sm font-black text-white shadow-md shadow-blue-100 flex items-center justify-center gap-2"><MessageSquare size={18}/>챌린지 커뮤니티 입장하기</button>}
                                     </div>
                                 </>
                             )})()}
 
-                            {notice.category === 'PROGRAM' && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
+                            {notice.category === 'PROGRAM' && !isDailySessionProgram && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                                 <div ref={hostRef} className="mb-6 scroll-mt-20 flex flex-col gap-3">
                                     {/* Hosts with one-liners: rendered individually */}
                                     {hostUsers.filter(h => h.one_liner && h.one_liner.trim() !== '').map(host => (
@@ -1200,7 +1382,7 @@ const NoticeModalContent = ({
                  <div className="border-t border-tossGrey100 mt-1">
                      <div className="px-4 py-4 text-sm font-bold text-tossGrey900 border-b border-tossGrey100">댓글 {displayedComments.length}</div>
                      {displayedComments.map(c => (
-                         <div key={c.id} data-tour={c.tutorial ? 'tutorial-comment-result' : undefined} className="px-4 py-4 flex gap-3 text-sm hover:bg-tossGrey50 transition group/notice-comment">
+                         <div key={c.id} {...(!c.tutorial ? bindLongPress(c.id) : {})} data-tour={c.tutorial ? 'tutorial-comment-result' : undefined} className="px-4 py-4 flex select-none gap-3 text-sm hover:bg-tossGrey50 transition group/notice-comment">
                              <UserAvatar user={c.users} size="w-8 h-8" />
                              <div className="flex-1">
                                  <div className="flex items-baseline justify-between">
@@ -1215,10 +1397,28 @@ const NoticeModalContent = ({
                                      )}
                                  </div>
                                  <p className="text-tossGrey700 mt-1 leading-normal">{c.content}</p>
+                                 {!c.tutorial && <div className="mt-1 origin-left scale-90"><NoticeReactions reactions={commentReactionState[c.id] || c.notice_comment_reactions || []} currentUserId={user?.id} onToggleReaction={emoji => handleCommentReaction(c, emoji)} hideAddButtonOnMobile pickerOpenToken={commentPickerRequest.commentId === c.id ? commentPickerRequest.token : 0}/></div>}
                              </div>
                          </div>
                      ))}
-                     
+                     {(user?.id || isTutorialSocial) && (
+                         <div data-tour={isTutorialSocial ? 'tutorial-notice-comment-input' : undefined} className="border-t border-tossGrey100 bg-white px-4 py-4">
+                             <form onSubmit={submitDisplayedComment} className="flex items-center gap-3">
+                                 <UserAvatar user={user} size="w-8 h-8" />
+                                 <div className="flex-1 bg-tossGrey50 border border-tossGrey200 rounded-toss-xl px-4 py-2 flex items-center">
+                                     <input
+                                         type="text"
+                                         value={isTutorialSocial ? tutorialCommentText : (newComment || '')}
+                                         onChange={(e) => isTutorialSocial ? setTutorialCommentText(e.target.value) : setNewComment?.(e.target.value)}
+                                         placeholder="댓글 달기..."
+                                         className="bg-transparent text-sm w-full outline-none py-1.5 text-tossGrey850"
+                                     />
+                                     {(isTutorialSocial ? tutorialCommentText : newComment)?.trim() && <button type="submit" className="text-tossBlue text-sm font-bold ml-2">게시</button>}
+                                 </div>
+                             </form>
+                             {isTutorialSocial && <p className="mt-2 text-center text-[10px] font-semibold text-tossGrey400">튜토리얼 댓글은 실제 게시글에 저장되지 않아요.</p>}
+                         </div>
+                     )}
                  </div>
              </div>
              {/* Program Notice Fixed Bottom Action Bar */}
@@ -1233,12 +1433,43 @@ const NoticeModalContent = ({
                          <div className="p-4 bg-white space-y-2.5">
                              {/* 1. 상단 숏컷 버튼 (신청자 / 투표 결과 / 팀배치 / 피드백) */}
                              <div className="flex items-center gap-2">
-                                 <button
-                                     onClick={() => onViewParticipants && onViewParticipants(notice, 'attendance')}
-                                     className="flex-1 h-11 rounded-toss-xl font-bold text-tossBlue text-xs bg-tossBlueLight hover:bg-blue-100 transition transform active:scale-[0.98] flex items-center justify-center cursor-pointer px-2"
-                                 >
-                                     <span>신청자 ({joinCount}명)</span>
-                                 </button>
+                                {isDailySessionProgram ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => onViewParticipants
+                                                ? onViewParticipants({ ...notice, _initialSessionDate: activeSession?.session_date }, 'attendance')
+                                                : setTodaySessionView('participants')}
+                                            className="flex-1 h-11 rounded-toss-xl font-bold text-tossBlue text-xs bg-tossBlueLight hover:bg-blue-100 transition transform active:scale-[0.98] flex items-center justify-center cursor-pointer px-2"
+                                        >
+                                            <span>신청자 ({activeSession?.join_count || 0}명)</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTodaySessionView('edit')}
+                                            className="flex-1 h-11 rounded-toss-xl border border-tossBlue/20 font-bold text-tossBlue text-xs bg-white hover:bg-tossBlueLight transition transform active:scale-[0.98] flex items-center justify-center cursor-pointer px-2"
+                                        >
+                                            <span>오늘 회차 수정</span>
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        onClick={() => onViewParticipants && onViewParticipants(notice, 'attendance')}
+                                        className="flex-1 h-11 rounded-toss-xl font-bold text-tossBlue text-xs bg-tossBlueLight hover:bg-blue-100 transition transform active:scale-[0.98] flex items-center justify-center cursor-pointer px-2"
+                                    >
+                                        <span>신청자 ({joinCount}명)</span>
+                                    </button>
+                                )}
+
+                                 {notice.is_challenge && notice.challenge_format === 'ONLINE' && notice.community_enabled && (
+                                     <button
+                                         type="button"
+                                         onClick={() => { setChallengeCommunityFilter(null); setShowChallengeCommunity(true); }}
+                                         className="flex-1 h-11 rounded-toss-xl font-bold text-emerald-700 text-xs bg-emerald-50 hover:bg-emerald-100 transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 border border-emerald-100 cursor-pointer px-2"
+                                     >
+                                         <span>커뮤니티</span>
+                                     </button>
+                                 )}
 
                                  {notice.is_poll && (
                                      <button
@@ -1275,9 +1506,13 @@ const NoticeModalContent = ({
                                          <span>종료된 프로그램입니다</span>
                                      </div>
                                  ) : (
-                                     <button
-                                         onClick={async () => {
-                                             if (window.confirm('프로그램을 지금 종료하시겠습니까?\n\n종료하면 [종료된 프로그램] 상태로 변경되며, 참가했던 학생들에게 피드백 작성 버튼이 노출됩니다.')) {
+                                         <button
+                                             onClick={async () => {
+                                             const feedbackEnabled = notice.enable_feedback === true || notice.guest_properties?.enable_feedback === true;
+                                             const confirmationMessage = feedbackEnabled
+                                                 ? '프로그램을 지금 종료하시겠습니까?\n\n종료하면 [종료된 프로그램] 상태로 변경되며, 참가했던 학생들에게 피드백 작성 버튼이 노출됩니다.'
+                                                 : '프로그램을 지금 종료하시겠습니까?\n\n종료하면 [종료된 프로그램] 상태로 변경됩니다.';
+                                             if (window.confirm(confirmationMessage)) {
                                                  try {
                                                      const currentGp = notice.guest_properties || {};
                                                      const { error } = await supabase
@@ -1312,6 +1547,27 @@ const NoticeModalContent = ({
                                  )}
                              </div>
                          </div>
+                     ) : isDailySessionProgram ? (
+                            <div className="p-4">
+                                {openSessions.length > 1 && !isAdmin && (
+                                    <div className="mb-3 grid grid-cols-2 gap-2">
+                                        {openSessions.map(session => (
+                                            <button key={session.id} type="button" onClick={() => setSelectedSessionId(session.id)} className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${activeSession?.id === session.id ? 'border-tossBlue bg-tossBlue text-white shadow-blue-200' : 'border-tossGrey200 bg-white text-tossGrey700'}`}>
+                                                {formatDailySessionSchedule(session)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {activeSession?.my_response?.status === 'JOIN' || activeSession?.my_response?.status === 'WAITLIST' ? (
+                                    <button onClick={() => onResponse(notice.id, 'CANCEL', activeSession.id)} className="w-full rounded-toss-xl border border-red-200 bg-red-50 py-3.5 text-base font-black text-tossError">
+                                        {activeSession.my_response.status === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}
+                                    </button>
+                                ) : (
+                                    <button onClick={() => onResponse(notice.id, 'JOIN', activeSession?.id)} className="w-full rounded-toss-xl bg-tossBlue py-3.5 text-base font-black text-white shadow-md shadow-blue-100">
+                                        신청하기
+                                    </button>
+                                )}
+                            </div>
                      ) : notice.is_recruiting === false ? (
                             <div className="p-4">
                                 <div className="w-full rounded-toss-xl bg-tossSuccess/10 py-3.5 text-center text-sm font-black text-tossSuccess">
@@ -1342,7 +1598,15 @@ const NoticeModalContent = ({
                         ) : responses[notice.id] === 'JOIN' ? (
                             /* 2. 신청 완료 학생: 버튼 활성화 시점(isStarted/offset) 경과 시 customButtonName 버튼으로 전환, 전이면 신청 취소 */
                             <div className="p-4 flex gap-3">
-                                {isStarted && hasCustomFeatures ? (
+                                {notice.is_challenge && notice.challenge_format === 'ONLINE' && notice.community_enabled && !recruitment.canApply ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setChallengeCommunityFilter(null); setShowChallengeCommunity(true); }}
+                                        className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-2 shadow-md shadow-blue-100 cursor-pointer"
+                                    >
+                                        <span>챌린지 커뮤니티 입장하기</span>
+                                    </button>
+                                ) : isStarted && hasCustomFeatures ? (
                                     <button
                                          onClick={() => setShowPostProgramPopup(true)}
                                          className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer"
@@ -1412,26 +1676,6 @@ const NoticeModalContent = ({
                   />
               )}
 
-             {/* Comment Input for Non-Program Notices */}
-             {notice.category !== 'PROGRAM' && (
-                 <div data-tour={isTutorialSocial ? 'tutorial-notice-comment-input' : undefined} className="p-3 border-t border-tossGrey200 bg-white sticky bottom-0 z-50">
-                     <form onSubmit={submitDisplayedComment} className="flex items-center gap-3">
-                         <UserAvatar user={user} size="w-8 h-8" />
-                         <div className="flex-1 bg-tossGrey50 border border-tossGrey200 rounded-toss-xl px-4 py-2 flex items-center">
-                             <input
-                                 type="text"
-                                 value={isTutorialSocial ? tutorialCommentText : (newComment || '')}
-                                 onChange={(e) => isTutorialSocial ? setTutorialCommentText(e.target.value) : setNewComment(e.target.value)}
-                                 placeholder="댓글 달기..."
-                                 className="bg-transparent text-sm w-full outline-none py-1.5 text-tossGrey850"
-                             />
-                             {(isTutorialSocial ? tutorialCommentText : newComment)?.trim() && <button type="submit" className="text-tossBlue text-sm font-bold ml-2">게시</button>}
-                         </div>
-                     </form>
-                     {isTutorialSocial && <p className="mt-2 text-center text-[10px] font-semibold text-tossGrey400">튜토리얼 댓글은 실제 게시글에 저장되지 않아요.</p>}
-                 </div>
-             )}
-
              {/* Zoom Overlay (Banner/Carousel & Poll Options) */}
              {zoomedImage && (
                  <div
@@ -1483,7 +1727,7 @@ const NoticeModalContent = ({
              {/* Participant Mission Detail Overlay Modal */}
              {selectedParticipantForMissions && (() => {
                  const challenger = selectedParticipantForMissions;
-                 const statuses = challenger.challenge_mission_statuses || {};
+                 const participantSubmissions = challengeSubmissions.filter(item => item.participant_id === challenger.user_id && (notice.challenge_format === 'ONLINE' ? item.is_valid !== false : item.status === 'COMPLETED'));
                  const name = challenger.users?.name?.replace('(guest)', '') || '참여자';
                  
                  return (
@@ -1512,13 +1756,51 @@ const NoticeModalContent = ({
                                  
                                  <div className="space-y-4">
                                      {notice.challenge_missions?.map((mission, index) => {
-                                          const mStatus = statuses[mission.id] || {};
-                                          const isDone = mStatus.completed;
-                                          const authImg = mStatus.auth_image;
+                                          const missionSubmissions = participantSubmissions.filter(item => item.mission_id === mission.id);
+                                          const mStatus = missionSubmissions[0] || {};
+                                          const missionTarget = notice.challenge_format === 'ONLINE'
+                                              ? (mission.schedule_type === 'DAILY'
+                                                  ? Math.max(1, Math.round((new Date(`${notice.program_end_date}T00:00:00+09:00`) - new Date(`${notice.program_start_date}T00:00:00+09:00`)) / 86400000) + 1)
+                                                  : mission.schedule_type === 'FLEXIBLE' ? Math.max(1, Number(mission.target_count) || 1) : 1)
+                                              : 1;
+                                          const isDone = notice.challenge_format === 'ONLINE' ? missionSubmissions.length >= missionTarget : mStatus.status === 'COMPLETED';
+                                          const authImg = mStatus.auth_image_url;
                                           const authText = mStatus.auth_text;
+                                          const canOpenThread = notice.challenge_format === 'ONLINE'
+                                              && notice.community_enabled
+                                              && (fromAdmin || responseDetails[notice.id]?.status === 'JOIN');
                                          
                                          return (
-                                             <div key={mission.id || index} className="bg-slate-50/60 border border-slate-200/50 rounded-2xl p-4 space-y-3">
+                                             <div
+                                                 key={mission.id || index}
+                                                 role={canOpenThread ? 'button' : undefined}
+                                                 tabIndex={canOpenThread ? 0 : undefined}
+                                                 onClick={canOpenThread ? () => {
+                                                     setChallengeCommunityFilter({
+                                                         participantId: challenger.user_id,
+                                                         participantName: name,
+                                                         missionId: mission.id,
+                                                         missionTitle: mission.title,
+                                                         locked: fromAdmin,
+                                                     });
+                                                     setSelectedParticipantForMissions(null);
+                                                     setShowChallengeCommunity(true);
+                                                 } : undefined}
+                                                 onKeyDown={canOpenThread ? event => {
+                                                     if (event.key !== 'Enter' && event.key !== ' ') return;
+                                                     event.preventDefault();
+                                                     setChallengeCommunityFilter({
+                                                         participantId: challenger.user_id,
+                                                         participantName: name,
+                                                         missionId: mission.id,
+                                                         missionTitle: mission.title,
+                                                         locked: fromAdmin,
+                                                     });
+                                                     setSelectedParticipantForMissions(null);
+                                                     setShowChallengeCommunity(true);
+                                                 } : undefined}
+                                                 className={`bg-slate-50/60 border border-slate-200/50 rounded-2xl p-4 space-y-3 ${canOpenThread ? 'cursor-pointer transition hover:border-blue-200 hover:bg-blue-50/60 focus:outline-none focus:ring-2 focus:ring-blue-200' : ''}`}
+                                             >
                                                  <div className="flex items-center gap-3">
                                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
                                                          isDone ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'
@@ -1528,6 +1810,7 @@ const NoticeModalContent = ({
                                                      <span className={`text-sm font-bold ${isDone ? 'text-slate-800' : 'text-slate-400'}`}>
                                                          {mission.title}
                                                      </span>
+                                                     {notice.challenge_format === 'ONLINE' && <span className="ml-auto text-[10px] font-black text-tossBlue">{missionSubmissions.length}/{missionTarget}</span>}
                                                  </div>
                                                  
                                                   {isDone && authImg && (
@@ -1557,7 +1840,7 @@ const NoticeModalContent = ({
                      </div>
                  );
              })()}
-             {showChallengeCommunity && <ChallengeCommunityModal notice={{...notice,__myResponse:responseDetails[notice.id]}} user={user} onClose={() => setShowChallengeCommunity(false)} onMissionCompleted={() => { onRefresh?.(); }} />}
+             {showChallengeCommunity && <ChallengeCommunityModal notice={notice} user={user} initialFilter={challengeCommunityFilter} onClose={() => { setShowChallengeCommunity(false); setChallengeCommunityFilter(null); }} onMissionCompleted={() => { refreshChallengeProgress().catch(console.error); onRefresh?.(); }} />}
             {/* Post-Program Custom Popup Modal (Ultra Sleek Toss Light Minimal UI) */}
             {showPostProgramPopup && (
                 <div 
@@ -1776,7 +2059,17 @@ const NoticeModalContent = ({
                     </div>
                 </div>
             )}
-    </motion.div>
+        </motion.div>
+        {todaySessionView && (
+            <TodaySessionModal
+                notice={notice}
+                initialView={todaySessionView}
+                onClose={() => setTodaySessionView(null)}
+                onChanged={() => onRefresh?.()}
+            />
+        )}
+        </>,
+        document.body
     );
 };
 

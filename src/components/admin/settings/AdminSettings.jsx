@@ -15,9 +15,10 @@ import OperatingHoursSettings from './components/OperatingHoursSettings';
 import StaffPresenceSettings from './components/StaffPresenceSettings';
 import WebAccessSettings from './components/WebAccessSettings';
 import AdminPageHeader from '../common/AdminPageHeader';
+import { isMasterStaff } from '../../../utils/userUtils';
 
 const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, fetchData, users, allLogs, responses = [], schoolLogs = [], setActiveMenu }) => {
-    const isMaster = currentAdmin?.is_master || currentAdmin?.name === 'Rok' || currentAdmin?.name === 'admin';
+    const isMaster = isMasterStaff(currentAdmin);
 
     const {
         profilePreview,
@@ -32,15 +33,7 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
         handleAdminProfileImageSelect, handleSaveCroppedImage, handleSaveAdminProfile,
 
         gsWebhookUrl, setGsWebhookUrl,
-        lineChannelAccessToken, setLineChannelAccessToken,
-        lineGroupId, setLineGroupId,
-        lineVisitNotificationsEnabled, setLineVisitNotificationsEnabled,
-        lineCoffeeChatNotificationsEnabled, setLineCoffeeChatNotificationsEnabled,
-        lineProgramNotificationsEnabled, setLineProgramNotificationsEnabled,
-        slackVisitNotificationsEnabled, setSlackVisitNotificationsEnabled,
-        slackCoffeeChatNotificationsEnabled, setSlackCoffeeChatNotificationsEnabled,
-        slackProgramNotificationsEnabled, setSlackProgramNotificationsEnabled,
-        slackRentalNotificationsEnabled, setSlackRentalNotificationsEnabled,
+        notificationRouteConfig, setNotificationRouteConfig,
         discordWebhookUrl, setDiscordWebhookUrl,
         kioskMasterPin, setKioskMasterPin,
         isBackingUp, syncProgress,
@@ -217,24 +210,8 @@ const AdminSettings = ({ currentAdmin, locations, locationGroups = [], notices, 
                         <IntegrationConfig
                             gsWebhookUrl={gsWebhookUrl}
                             setGsWebhookUrl={setGsWebhookUrl}
-                            lineChannelAccessToken={lineChannelAccessToken}
-                            setLineChannelAccessToken={setLineChannelAccessToken}
-                            lineGroupId={lineGroupId}
-                            setLineGroupId={setLineGroupId}
-                            lineVisitNotificationsEnabled={lineVisitNotificationsEnabled}
-                            setLineVisitNotificationsEnabled={setLineVisitNotificationsEnabled}
-                            lineCoffeeChatNotificationsEnabled={lineCoffeeChatNotificationsEnabled}
-                            setLineCoffeeChatNotificationsEnabled={setLineCoffeeChatNotificationsEnabled}
-                            lineProgramNotificationsEnabled={lineProgramNotificationsEnabled}
-                            setLineProgramNotificationsEnabled={setLineProgramNotificationsEnabled}
-                            slackVisitNotificationsEnabled={slackVisitNotificationsEnabled}
-                            setSlackVisitNotificationsEnabled={setSlackVisitNotificationsEnabled}
-                            slackCoffeeChatNotificationsEnabled={slackCoffeeChatNotificationsEnabled}
-                            setSlackCoffeeChatNotificationsEnabled={setSlackCoffeeChatNotificationsEnabled}
-                            slackProgramNotificationsEnabled={slackProgramNotificationsEnabled}
-                            setSlackProgramNotificationsEnabled={setSlackProgramNotificationsEnabled}
-                            slackRentalNotificationsEnabled={slackRentalNotificationsEnabled}
-                            setSlackRentalNotificationsEnabled={setSlackRentalNotificationsEnabled}
+                            notificationRouteConfig={notificationRouteConfig}
+                            setNotificationRouteConfig={setNotificationRouteConfig}
                             discordWebhookUrl={discordWebhookUrl}
                             setDiscordWebhookUrl={setDiscordWebhookUrl}
                             kioskMasterPin={kioskMasterPin}

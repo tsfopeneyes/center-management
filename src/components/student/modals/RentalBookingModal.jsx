@@ -3,22 +3,7 @@ import { supabase } from '../../../supabaseClient';
 import { X, Calendar, MapPin, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useModalClose from '../../../hooks/useModalClose';
-import { sendCategoryNotification } from '../../../utils/integrationUtils';
-
-const KOREAN_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-
-const formatRentalDate = (dateString) => {
-    const [year, month, day] = String(dateString).split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return `${month}월 ${day}일(${KOREAN_WEEKDAYS[date.getDay()]})`;
-};
-
-const formatRentalTime = (timeString) => {
-    const [hourValue, minute] = String(timeString).split(':').map(Number);
-    const period = hourValue < 12 ? '오전' : '오후';
-    const hour = hourValue % 12 || 12;
-    return `${period} ${hour}시${minute ? ` ${minute}분` : ''}`;
-};
+import { dispatchNotificationEvent } from '../../../utils/serverIntegration';
 
 const RentalBookingModal = ({ user, rental, bookings, onClose, onSuccess, tutorialMode = false }) => {
     useModalClose(!!rental, onClose);
@@ -71,7 +56,7 @@ const RentalBookingModal = ({ user, rental, bookings, onClose, onSuccess, tutori
 
         setSubmitting(true);
         try {
-            const { error } = await supabase
+            const { data: booking, error } = await supabase
                 .from('rental_bookings')
                 .insert([{
                     rental_id: rental.id,
@@ -80,35 +65,18 @@ const RentalBookingModal = ({ user, rental, bookings, onClose, onSuccess, tutori
                     start_time: selectedSlot.start,
                     end_time: `${selectedSlot.end}|${purpose}|${headcount}|${meetingName}|${notes}`,
                     status: 'PENDING' // Set pending until admin approval
-                }]);
+                }])
+                .select('id')
+                .single();
 
             if (error) throw error;
-
-            let rentalName = rental.name || '공간';
-            try {
-                if (rental.name?.trim().startsWith('{')) rentalName = JSON.parse(rental.name).name || rentalName;
-            } catch (parseError) {
-                console.error('Failed to parse rental name:', parseError);
-            }
-            const centerName = rental.schools?.region === '강서' ? '이높플레이스' : '하이픈';
-            const notificationMessage = [
-                '[대관 신청]',
-                `🏠 ${user?.name || '이용자'}님이 ${centerName} ${rentalName} 대관을 신청했어요.`,
-                `📅 ${formatRentalDate(selectedDate)} ${formatRentalTime(selectedSlot.start)} ~ ${formatRentalTime(selectedSlot.end)}`,
-                `👥 ${meetingName} / ${headcount}명`,
-                `📝 ${purpose}`,
-                `🙏 ${notes.trim() || '없음'}`,
-            ].join('\n');
             // 대관 신청 완료는 Slack 전송과 독립적으로 바로 보여줍니다.
             // 알림은 백그라운드에서 전달되며 실패해도 저장된 신청에는 영향을 주지 않습니다.
-            void sendCategoryNotification({
-                    category: 'rental',
-                    message: notificationMessage,
-                    lineTarget: rental.schools?.region === '강서' ? 'enough' : 'haifn',
-                    sendLine: false,
-                    sendSlack: true,
-                }).catch((notificationError) => {
-                console.error('Slack rental notification error:', notificationError);
+            void dispatchNotificationEvent({
+                eventType: 'RENTAL_APPLICATION',
+                bookingId: booking.id,
+            }).catch((notificationError) => {
+                console.error('Rental notification error:', notificationError);
             });
             setBookingComplete(true);
         } catch (error) {
