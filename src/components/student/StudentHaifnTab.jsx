@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { haifnApi } from '../../api/haifnApi';
-import { Wallet, Store, ShieldAlert, History, ChevronRight, CheckCircle2, FileSpreadsheet, Search } from 'lucide-react';
+import { Store, History, CheckCircle2, Search, X } from 'lucide-react';
 import HaifnHistoryModal from './modals/HaifnHistoryModal';
 import PurchaseReceiptModal from './modals/PurchaseReceiptModal';
 import { createPortal } from 'react-dom';
-import { confirmApp } from '../../utils/appDialog';
+import HaifnPointIcon from './components/HaifnPointIcon';
 
-const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMode = false, tutorialStep = '' }) => {
+const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMode = false, tutorialStep = '', previewMode = false, onRegister }) => {
     const [showHistory, setShowHistory] = useState(false);
     const [receiptData, setReceiptData] = useState(null);
     const [storeItems, setStoreItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('전체');
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [exchangeNoticeItem, setExchangeNoticeItem] = useState(null);
     const [tutorialPurchaseItem, setTutorialPurchaseItem] = useState(null);
     const [tutorialPendingItem, setTutorialPendingItem] = useState(null);
     const [tutorialResultItem, setTutorialResultItem] = useState(null);
-    const categories = ['전체', '음료', '간식', '사용', '대관', '기타'];
 
     const pullData = async () => {
         setLoading(true);
@@ -44,7 +44,26 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
         pullData();
     }, [user.id, refreshTrigger]);
 
+    useEffect(() => {
+        if (!selectedItem) return undefined;
+
+        const handleKeyDown = (event) => {
+            if (event.key !== 'Escape' || isProcessing) return;
+            if (exchangeNoticeItem) setExchangeNoticeItem(null);
+            setSelectedItem(null);
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedItem, exchangeNoticeItem, isProcessing]);
+
     const handlePurchase = async (item) => {
+        if (previewMode) {
+            setSelectedItem(null);
+            onRegister?.();
+            return;
+        }
+
         const availableHaifn = tutorialMode
             ? Math.max(0, 50 - (tutorialPurchaseItem && !tutorialPurchaseItem.requires_approval ? tutorialPurchaseItem.amount : 0))
             : (user.current_haifn || 0);
@@ -59,16 +78,6 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
             return;
         }
 
-        const msg = item.requires_approval
-            ? `'${item.name}' 교환을 신청하시겠습니까?\n(관리자 승인 후 차감됩니다)`
-            : `'${item.name}' 항목을 교환하시겠습니까?\n(${item.amount}H 차감)`;
-
-        const confirmed = await confirmApp(msg, {
-            title: item.requires_approval ? '교환을 신청할까요?' : '아이템을 교환할까요?',
-            confirmText: item.requires_approval ? '신청하기' : '교환하기',
-        });
-        if (!confirmed) return;
-
         setIsProcessing(true);
         try {
             await haifnApi.createOrder(user.id, item.id, item.amount, item.requires_approval, item.name);
@@ -76,6 +85,7 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
             pullData(); // Refresh history and items
             
             if (!item.requires_approval) {
+                setSelectedItem(null);
                 // Instantly pop up receipt
                 setReceiptData({
                     source_description: `[스토어 교환] ${item.name}`,
@@ -84,7 +94,7 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
                     image_url: item.image_url
                 });
             } else {
-                alert('신청이 접수되었습니다. 관리자 승인을 기다려주세요.');
+                setExchangeNoticeItem(item);
             }
         } catch (err) {
             console.error(err);
@@ -98,11 +108,7 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const spendItems = filteredItems.filter(i => {
-        if (i.item_type !== 'SPEND') return false;
-        if (selectedCategory !== '전체') return i.category === selectedCategory;
-        return true;
-    });
+    const spendItems = filteredItems.filter(i => i.item_type === 'SPEND');
 
     const confirmTutorialPurchase = () => {
         if (!tutorialPendingItem) return;
@@ -134,9 +140,7 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
                     </h2>
                     
                     <div className="flex items-center gap-1 pb-0.5 select-none">
-                        <div className="w-5 h-5 rounded-full bg-tossBlue flex items-center justify-center shadow-toss-subtle border border-tossBlue/20">
-                            <span className="font-bold text-white text-[11px] italic pr-[1.5px]">H</span>
-                        </div>
+                        <HaifnPointIcon size="md" />
                         <span className="text-[13px] font-medium text-tossGrey600 tracking-tight ml-0.5">포인트</span>
                         <span className="text-lg font-bold text-tossBlue ml-1">{displayedHaifn}</span>
                         <span className="text-[13px] font-medium text-tossGrey600">개</span>
@@ -158,30 +162,14 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
 
                     {/* History */}
                     <button 
-                        onClick={() => setShowHistory(true)}
+                        onClick={() => previewMode ? onRegister?.() : setShowHistory(true)}
                         className="flex shrink-0 items-center justify-center gap-1.5 px-3.5 py-2 bg-white border border-tossGrey200 rounded-toss-xl text-[13px] font-bold text-tossGrey700 hover:bg-tossGrey50 transition-colors shadow-toss-subtle"
                     >
                         <History size={15} className="text-tossGrey500" /> 
-                        <span>구매내역</span>
+                        <span>교환 내역</span>
                     </button>
                 </div>
                 
-                {/* Categories Row (TDS Segmented Tab Switcher Style) */}
-                <div className="flex bg-tossGrey100 p-1 rounded-[12px] mt-4 overflow-x-auto scrollbar-hide gap-1">
-                    {categories.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`shrink-0 px-4 py-1.5 rounded-[10px] text-[13px] font-bold transition-all ${
-                                selectedCategory === cat 
-                                ? 'bg-white text-tossGrey900 shadow-toss-subtle' 
-                                : 'text-tossGrey500 hover:text-tossGrey800'
-                            }`}
-                        >
-                            {cat}
-                        </button>
-                    ))}
-                </div>
             </div>
 
             {loading ? (
@@ -199,9 +187,9 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
                                         key={item.id} 
                                         data-tour={tutorialPurchaseItem?.id === item.id ? 'tutorial-store-result' : undefined}
                                         data-tour-label={item.name}
-                                        onClick={() => canAfford && !isProcessing && handlePurchase(item)}
+                                        onClick={() => !isProcessing && setSelectedItem(item)}
                                         className={`bg-white px-4 py-3.5 rounded-toss-xl flex items-center gap-3.5 relative transition-all shadow-toss-standard hover:shadow-toss-elevated border-none ${
-                                            canAfford && !isProcessing ? 'cursor-pointer active:scale-[0.98]' : 'opacity-60 grayscale-[0.3]'
+                                            !isProcessing ? 'cursor-pointer active:scale-[0.98]' : 'opacity-60'
                                         }`}
                                     >
                                         <div className="w-14 h-14 rounded-toss-lg flex items-center justify-center overflow-hidden shrink-0 border border-tossGrey100 relative">
@@ -219,22 +207,12 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
                                                 <h4 className="font-bold text-tossGrey900 text-[15px] truncate leading-tight">
                                                     {item.name}
                                                 </h4>
-                                                {item.requires_approval && (
-                                                    <span className="text-[9px] font-bold text-tossError bg-tossError/10 px-1.5 py-[2px] rounded-toss-sm shrink-0">
-                                                        승인필요
-                                                    </span>
-                                                )}
                                             </div>
                                             
                                             <div className="flex items-center gap-2 pl-1">
                                                 <p className={`text-[13px] font-bold tracking-tight ${canAfford ? 'text-tossGrey500' : 'text-tossGrey400'} leading-none`}>
                                                     {item.amount.toLocaleString()} H
                                                 </p>
-                                                {!canAfford && (
-                                                    <span className="text-[10px] font-bold text-tossError bg-tossError/10 px-1.5 py-[1px] rounded-toss-sm leading-none flex items-center h-[16px]">
-                                                        포인트 부족
-                                                    </span>
-                                                )}
                                                 {tutorialPurchaseItem?.id === item.id && (
                                                     <span className={`text-[10px] font-bold px-1.5 py-[1px] rounded-toss-sm leading-none flex items-center h-[16px] ${item.requires_approval ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
                                                         {item.requires_approval ? '승인 대기' : '체험 교환 완료'}
@@ -256,6 +234,78 @@ const StudentHaifnTab = ({ user, notifyParentRefresh, refreshTrigger, tutorialMo
                     onClose={() => setShowHistory(false)} 
                     storeItems={storeItems}
                 />
+            )}
+
+            {selectedItem && createPortal(
+                <div className="fixed inset-0 z-[350] flex items-center justify-center overflow-y-auto bg-black/45 p-5 backdrop-blur-[2px]" onClick={() => !isProcessing && setSelectedItem(null)}>
+                    <div role="dialog" aria-modal="true" aria-labelledby="store-item-title" className="relative flex max-h-[calc(100dvh-40px)] w-full max-w-[360px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <button type="button" aria-label="상품 상세 닫기" disabled={isProcessing} onClick={() => setSelectedItem(null)} className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md transition-colors hover:bg-black/50 disabled:opacity-50">
+                            <X size={18} />
+                        </button>
+                        <div className="aspect-square w-full shrink-0 bg-[#f7f7f5]">
+                            {selectedItem.image_url ? <img src={selectedItem.image_url} alt={selectedItem.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center"><Store size={48} className="text-tossGrey300" /></div>}
+                        </div>
+                        <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-5">
+                            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                                <div className="border-b border-tossGrey100 pb-4">
+                                    <h3 id="store-item-title" className="break-keep text-[21px] font-black leading-[1.35] tracking-[-0.02em] text-tossGrey900">{selectedItem.name}</h3>
+                                    <div className="mt-2.5 flex items-center gap-1.5">
+                                        <HaifnPointIcon size="lg" />
+                                        <span className="text-xl font-black tracking-tight text-tossBlue">{selectedItem.amount.toLocaleString()}</span>
+                                        <span className="text-sm font-bold text-tossGrey500">개</span>
+                                    </div>
+                                </div>
+                                <div className="py-4">
+                                    <p className="mb-1.5 text-[13px] font-bold text-tossGrey700">상품 설명</p>
+                                    <p className="whitespace-pre-wrap break-keep text-sm font-medium leading-[1.65] text-tossGrey600">{selectedItem.description?.trim() || '상품의 세부 설명이 아직 등록되지 않았어요.'}</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={isProcessing || (!previewMode && displayedHaifn < selectedItem.amount)}
+                                onClick={() => handlePurchase(selectedItem)}
+                                className="mt-1 h-[50px] w-full shrink-0 rounded-2xl bg-tossBlue text-[15px] font-black text-white transition-all hover:bg-blue-600 active:scale-[0.99] disabled:bg-tossGrey200 disabled:text-tossGrey500"
+                            >
+                                {isProcessing ? '처리 중...' : previewMode ? '등록하고 교환하기' : displayedHaifn < selectedItem.amount ? '하이픈이 부족해요' : selectedItem.requires_approval ? '교환 신청하기' : '교환하기'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {exchangeNoticeItem && createPortal(
+                <div className="fixed inset-0 z-[450] flex items-center justify-center bg-black/45 p-5 backdrop-blur-sm">
+                    <div role="dialog" aria-modal="true" aria-labelledby="exchange-notice-title" className="w-full max-w-sm rounded-[28px] bg-white p-6 text-center shadow-2xl">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-2xl">🧾</div>
+                        <h3 id="exchange-notice-title" className="mt-4 text-xl font-black text-tossGrey900">교환 신청 완료</h3>
+                        <p className="mt-2 break-keep text-sm font-semibold leading-6 text-tossGrey600">2F 인포에 가서 하이픈 교환 내역을 보여주세요!</p>
+                        <div className="mt-6 grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setExchangeNoticeItem(null);
+                                    setSelectedItem(null);
+                                    setShowHistory(true);
+                                }}
+                                className="h-12 rounded-2xl bg-tossGrey100 text-sm font-extrabold text-tossGrey700"
+                            >
+                                교환 내역
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setExchangeNoticeItem(null);
+                                    setSelectedItem(null);
+                                }}
+                                className="h-12 rounded-2xl bg-tossBlue text-sm font-extrabold text-white"
+                            >
+                                확인
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
 
             {tutorialPendingItem && createPortal(

@@ -54,6 +54,8 @@ import { useAuth } from '../auth/AuthProvider';
 export const useStudentDashboard = () => {
     const navigate = useNavigate();
     const auth = useAuth();
+    const isPreviewMode = !auth.profile?.id
+        && new URLSearchParams(window.location.search).get('preview') === '1';
     const [activeTab, setActiveTab] = useState(TAB_NAMES.HOME);
     const [loading, setLoading] = useState(true);
     const [studentRegion, setStudentRegion] = useState(null);
@@ -165,6 +167,20 @@ export const useStudentDashboard = () => {
 
 
     useEffect(() => {
+        if (isPreviewMode) {
+            setUser({
+                id: null,
+                name: '잠깐 둘러보는 친구',
+                school: '센터 방문자',
+                user_group: 'PREVIEW',
+                current_haifn: 0,
+                is_preview: true,
+            });
+            setLoading(false);
+            fetchBadgeData();
+            fetchSchedules();
+            return;
+        }
         if (auth.status === 'initializing') return;
         if (auth.status === 'anonymous') {
             const params = new URLSearchParams(window.location.search);
@@ -227,7 +243,7 @@ export const useStudentDashboard = () => {
 
         // Region fetching handled in dedicated useEffect below for effectiveUser
 
-    }, [auth.status, auth.profile?.id, navigate, fetchStats, fetchBadgeData, fetchNotifications, fetchSchedules]);
+    }, [auth.status, auth.profile?.id, isPreviewMode, navigate, fetchStats, fetchBadgeData, fetchNotifications, fetchSchedules, setUser]);
 
     useEffect(() => {
         let cancelled = false;
@@ -452,6 +468,7 @@ export const useStudentDashboard = () => {
     };
 
     const isVisibleForStudentRegion = (notice) => {
+        if (isPreviewMode) return true;
         // 본인이 신청한 프로그램은 비공개이거나 다른 대상 지역이어도
         // 홈의 신청 내역에서 계속 확인할 수 있어야 한다.
         if (notice.category === CATEGORIES.PROGRAM && ['JOIN', 'WAITLIST'].includes(responses[notice.id])) {
@@ -617,6 +634,7 @@ export const useStudentDashboard = () => {
 
     return {
         // Core State
+        isPreviewMode,
         loading,
         user: effectiveUser, 
         realUser: user, 

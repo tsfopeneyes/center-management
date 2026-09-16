@@ -26,7 +26,7 @@ const AdminStore = ({ users }) => {
                             : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
                     }`}
                 >
-                    <Inbox size={18} />주문 승인
+                    <Inbox size={18} />교환 관리
                 </button>
                 <button
                     onClick={() => setActiveTab('ITEMS')}

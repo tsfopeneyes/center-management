@@ -12,8 +12,18 @@ export function createRegistrationStore(pool) {
                 (id,request_key,identity_key,details_key,login_email,valid_until)
                 VALUES($1,$2,$3,$4,$5,clock_timestamp()+($6 * interval '1 millisecond'))
                 ON CONFLICT DO NOTHING`,[id,requestKey,identityKey,detailsKey,loginEmail,lifetimeMs]);
-            const {rows}=await pool.query(`SELECT ${projection} FROM account_security.registration_operations WHERE request_key=$1`,[requestKey]);
-            const row=rows[0];
+            let {rows}=await pool.query(`SELECT ${projection} FROM account_security.registration_operations WHERE request_key=$1`,[requestKey]);
+            let row=rows[0];
+            // A mobile browser can lose its in-memory request secret after Auth
+            // creation but before membership finalization. Recover only the exact
+            // still-valid submission; the service still requires a fresh proof of
+            // the password for the already-bound Auth user before finalizing it.
+            if(!row) {
+                ({rows}=await pool.query(`SELECT ${projection} FROM account_security.registration_operations
+                    WHERE identity_key=$1 AND details_key=$2 AND state='auth_ready'
+                    AND valid_until>clock_timestamp()`,[identityKey,detailsKey]));
+                row=rows.length===1?rows[0]:null;
+            }
             if(!row || row.identityKey!==identityKey || row.detailsKey!==detailsKey || !row.usable) {
                 throw new LoginError('registration_review_required',409);
             }

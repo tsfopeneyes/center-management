@@ -7,8 +7,10 @@ const normalizeGuestName=value=>String(value||'').replace(/\s*\(guest\)\s*$/i,''
 export function createMembershipFinalizer({pool,keyFor,validateForm,verifyToken,readiness=async()=>false,now=Date.now}) {
     const review=()=>new LoginError('registration_review_required',409);
     const abort=(signal)=>{if(signal?.aborted)throw new LoginError('temporarily_unavailable',503);};
-    return async({operationId,requestSecret,submission,accessToken},{signal}={})=>{
-        if(!isProfileId(operationId) || typeof requestSecret!=='string' || !/^[A-Za-z0-9_-]{43}$/.test(requestSecret) ||
+    return async({operationId,requestSecret,operationRequestKey,submission,accessToken},{signal}={})=>{
+        const hasRequestSecret=typeof requestSecret==='string'&&/^[A-Za-z0-9_-]{43}$/.test(requestSecret);
+        const hasOperationRequestKey=typeof operationRequestKey==='string'&&/^[a-f0-9]{64}$/.test(operationRequestKey);
+        if(!isProfileId(operationId) || (!hasRequestSecret&&!hasOperationRequestKey) ||
             typeof accessToken!=='string' || !accessToken || accessToken.length>8192)throw new LoginError('invalid_request',400);
         if(!await readiness())throw new LoginError('temporarily_unavailable',503);
         abort(signal);
@@ -17,7 +19,7 @@ export function createMembershipFinalizer({pool,keyFor,validateForm,verifyToken,
         if(!principal || !isProfileId(principal.authUserId) || !isProfileId(principal.sessionId) ||
             principal.live!==true || principal.isAnonymous!==false || !Number.isFinite(principal.expiresAt) ||
             principal.expiresAt<=now()+30000)throw new LoginError('invalid_login',401);
-        const requestKey=await keyFor('registration-request',requestSecret);
+        const requestKey=hasOperationRequestKey?operationRequestKey:await keyFor('registration-request',requestSecret);
         const detailsKey=await keyFor('registration-details',canonicalDetails);
         const nameKey=await keyFor('name',normalizeLoginName(profile.name));
         const phoneKey=await keyFor('phone',profile.phone.replace(/-/g,''));

@@ -636,6 +636,7 @@ const NoticeModalContent = ({
             if (e.key === 'Escape') {
                 // Ignore ESC key if a higher-level overlay is currently open
                 if (document.querySelector('.dropdown-overlay')) return;
+                if (document.querySelector('.membership-prompt-overlay')) return;
                 if (showChallengeCommunity) return;
 
                 if (zoomedImage) {

@@ -15,6 +15,7 @@ import { supabase } from '../../supabaseClient';
 import ContentPostModal from './modals/ContentPostModal';
 import {parseContentPost, sortContentPosts} from '../../utils/contentPosts';
 import { isAdminOrStaff } from '../../utils/userUtils';
+import HaifnPointIcon from './components/HaifnPointIcon';
 
 const StudentHomeTab = ({
     user,
@@ -57,6 +58,7 @@ const StudentHomeTab = ({
     onDismissAcceptance,
     onRegisterRegularUser,
     visitStatus,
+    isPreviewMode = false,
     tutorialMode = false,
     tutorialStep = null
 }) => {
@@ -176,11 +178,11 @@ const StudentHomeTab = ({
     return (
         <>
             {/* Premium Integrated Profile Card */}
-            <header data-tour="home-overview" className="bg-tossBlue px-4 py-5 text-white rounded-b-toss-xl shadow-toss-standard mb-0 gpu-accelerated">
+            <header data-tour="home-overview" className={`bg-tossBlue px-4 text-white rounded-b-toss-xl shadow-toss-standard mb-0 gpu-accelerated ${isPreviewMode ? 'py-3.5' : 'py-5'}`}>
                 <div className="max-w-sm sm:max-w-md mx-auto">
                     {/* Top Section: Avatar + Profile Info + 2x2 Stats Grid (가로 1열 고정 구조) */}
                     <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between gap-3 mb-2">
+                        <div className={`flex items-center justify-between gap-3 ${isPreviewMode ? '' : 'mb-2'}`}>
                             {/* Profile Left: Avatar & Info */}
                             <div className="flex items-center gap-3">
                                 <div className="relative shrink-0">
@@ -190,13 +192,21 @@ const StudentHomeTab = ({
                                         onClick={() => setShowProfileSettings(true)}
                                         className="cursor-pointer p-0.5 bg-white/20 rounded-full ring-2 ring-white/10"
                                     >
-                                        <UserAvatar user={user} size="w-14 h-14 sm:w-16 sm:h-16" textSize="text-lg sm:text-xl" />
+                                        {isPreviewMode ? (
+                                            <img
+                                                src="/hati.png"
+                                                alt="하티"
+                                                className="block h-14 w-14 shrink-0 rounded-full border border-white/80 bg-white object-contain p-1 shadow-sm sm:h-16 sm:w-16"
+                                            />
+                                        ) : (
+                                            <UserAvatar user={user} size="w-14 h-14 sm:w-16 sm:h-16" textSize="text-lg sm:text-xl" />
+                                        )}
                                     </motion.div>
                                 </div>
                                 <div className="flex flex-col min-w-0 justify-center">
                                     <p className="text-white/80 text-[10px] sm:text-[11px] font-bold tracking-wider uppercase mb-0.5 select-none leading-none">{user?.school || '더작은재단'}</p>
                                     <h1 className="text-[17px] sm:text-[20px] font-bold tracking-tight leading-tight text-white whitespace-nowrap flex items-center gap-1">
-                                        {user?.name?.replace('(guest)', '')} 님
+                                        {user?.name?.replace('(guest)', '')}{isPreviewMode ? '' : ' 님'}
                                         {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                     </h1>
                                 </div>
@@ -204,7 +214,16 @@ const StudentHomeTab = ({
 
                             {/* Profile Right: Actions */}
                             <div className="flex items-center gap-1.5 shrink-0">
-                                {isAdminOrStaff(user) ? (
+                                {isPreviewMode ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onRegisterRegularUser?.()}
+                                        className="gradient-border-button hover:bg-slate-50 text-slate-900 px-3.5 py-1.5 shadow-sm text-xs font-black transition-all active:scale-95 shrink-0"
+                                    >
+                                        <Sparkles size={11} className="mr-1.5 shrink-0 text-indigo-500" />
+                                        <span>센터 등록</span>
+                                    </button>
+                                ) : isAdminOrStaff(user) ? (
                                     <button 
                                         onClick={() => navigate('/admin')}
                                         className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 transition-all px-3 py-1.5 rounded-full border border-white/25 shadow-sm text-white font-bold text-[12px] group"
@@ -217,7 +236,7 @@ const StudentHomeTab = ({
                                         onClick={() => handleTabChange(TAB_NAMES.HAIFN)}
                                         className="flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors px-2.5 py-1 rounded-full border border-white/25 shadow-sm"
                                     >
-                                        <div className="w-4 h-4 rounded-full bg-tossCaution text-tossGrey800 flex items-center justify-center text-[9px] font-bold shadow-sm leading-none shrink-0 border border-tossCaution/50">H</div>
+                                        <HaifnPointIcon size="sm" />
                                         <span className="font-bold text-[13px] sm:text-[14px] text-white tracking-tight">{user?.current_haifn || 0}</span>
                                     </button>
                                 ) : null}
@@ -233,7 +252,7 @@ const StudentHomeTab = ({
                                 )}
 
                                 {/* Personal notifications, including coffee-chat requests. */}
-                                <button
+                                {!isPreviewMode && <button
                                     type="button"
                                     onClick={() => setShowNotificationsModal(true)}
                                     aria-label={unreadNotificationCount > 0 ? `새 알림 ${unreadNotificationCount}건 확인` : '새로운 소식 확인'}
@@ -245,7 +264,7 @@ const StudentHomeTab = ({
                                             {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
                                         </span>
                                     )}
-                                </button>
+                                </button>}
                                 
                                 {/* Settings Icon */}
                                 <button 
@@ -266,7 +285,7 @@ const StudentHomeTab = ({
                         </div>
 
                         {/* Bottom Section: Text Summary (Compact) */}
-                        <div className="flex flex-col items-center justify-center text-center -mt-2 mb-1.5 gap-2.5">
+                        {!isPreviewMode && <div className="flex flex-col items-center justify-center text-center -mt-2 mb-1.5 gap-2.5">
                             <span className="text-white/90 text-[13.5px] sm:text-[14.5px] font-bold tracking-tight">
                                 {isGuest ? (
                                     <>
@@ -321,7 +340,7 @@ const StudentHomeTab = ({
                                     </button>
                                 </div>
                             )}
-                        </div>
+                        </div>}
                     </div>
                 </div>
             </header>

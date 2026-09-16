@@ -76,7 +76,11 @@ try {
     assert.deepEqual(repeated.created_at,createdAt);assert.deepEqual(repeated.valid_until,validUntil);
     await rejected({...one,password:'wrong native password'},'invalid_login');assert.equal(creates,1);
     await rejected({...one,details:{...one.details,name:'changed submission'}},'registration_review_required');
-    await rejected({...one,requestSecret:fixture(2).requestSecret},'registration_review_required');
+    // Losing browser memory after Auth creation can be recovered with the exact
+    // same details and a fresh proof of the existing password.
+    const recoveredSecret=fixture(2).requestSecret;
+    assert.deepEqual(await invoke({...one,requestSecret:recoveredSecret}),{protocol:1,status:'membership_pending'});
+    await rejected({...one,requestSecret:fixture(2).requestSecret,password:'wrong native password'},'invalid_login');
     // Lost create response is recovered, without a second Auth create call.
     const two=fixture(2);loss=true;await rejected(two,'temporarily_unavailable');loss=false;
     const beforeRecovery=creates;
@@ -123,6 +127,7 @@ try {
         finalized++;
         assert.ok(tokens.has(input.accessToken));
         assert.equal(input.requestSecret,four.requestSecret);
+        assert.match(input.operationRequestKey,/^[a-f0-9]{64}$/);
         assert.deepEqual(input.submission,four.details);
         assert.ok(input.operationId);
         return {protocol:1,status:'registered',internal:'must not leave server'};

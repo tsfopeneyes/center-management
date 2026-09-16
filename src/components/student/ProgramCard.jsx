@@ -17,6 +17,7 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
     const isScheduled = recruitment.status === 'SCHEDULED';
     const scheduledLabel = isScheduled ? formatRecruitmentStart(getRecruitmentStart(program), '모집 예정') : '';
     const isDailySessionProgram = usesDailySessionRsvp(program);
+    const actionButtonClass = `w-full px-2 font-bold leading-relaxed transition-colors border border-transparent shadow-toss-subtle ${compact ? 'py-2 rounded-toss-md text-xs' : 'py-3.5 rounded-toss-xl text-sm'}`;
 
     // Check for "Closing Soon" (within 24 hours of recruitment_deadline)
     const isClosingSoon = (() => {
@@ -210,11 +211,11 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                 </div>
 
                 {isDailySessionProgram ? (
-                    <button className={`w-full font-black transition-colors border border-transparent ${compact ? 'py-2 rounded-toss-md text-xs mt-auto' : 'py-3.5 rounded-toss-xl text-sm mt-auto'} ${program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey600' : program.responseStatus === 'WAITLIST' ? 'bg-amber-100 text-amber-700' : 'bg-tossBlue text-white'}`}>
+                    <button className={`${actionButtonClass} mt-auto ${program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey600 shadow-none' : program.responseStatus === 'WAITLIST' ? 'bg-amber-100 text-amber-700 shadow-none' : 'bg-tossBlue text-white'}`}>
                         {program.responseStatus === 'JOIN' ? '신청 완료' : program.responseStatus === 'WAITLIST' ? '대기 중' : '신청하기'}
                     </button>
                 ) : !program.is_recruiting ? (
-                    <button className={`w-full font-bold transition-colors border border-transparent ${compact ? 'py-2 rounded-toss-md text-xs mt-auto' : 'py-3.5 rounded-toss-xl text-sm mt-auto'} bg-tossSuccess/10 text-tossSuccess pointer-events-none`}>
+                    <button className={`${actionButtonClass} mt-auto bg-tossSuccess/10 text-tossSuccess pointer-events-none shadow-none`}>
                         신청 없이 참여할 수 있어요!
                     </button>
                 ) : (
@@ -232,7 +233,7 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                                 }
                             }));
                         } : undefined}
-                        className={`w-full min-w-0 px-2 font-bold leading-relaxed transition-colors active:scale-95 shadow-toss-subtle border border-transparent ${compact ? 'py-2 rounded-toss-md text-xs' : 'py-3.5 rounded-toss-xl text-sm'} ${isScheduled ? 'bg-tossBlue text-white hover:bg-tossBlueHover cursor-pointer' : program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none shadow-none' : (program.responseStatus === 'WAITLIST' ? 'bg-tossWarning/10 text-[#fe9800] pointer-events-none shadow-none' : 'bg-tossBlue text-white hover:bg-tossBlueHover')}`}
+                        className={`${actionButtonClass} min-w-0 px-2 active:scale-95 ${isScheduled ? 'bg-tossBlue text-white hover:bg-tossBlueHover cursor-pointer' : program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none shadow-none' : (program.responseStatus === 'WAITLIST' ? 'bg-tossWarning/10 text-[#fe9800] pointer-events-none shadow-none' : 'bg-tossBlue text-white hover:bg-tossBlueHover')}`}
                     >
                         {isScheduled ? '모집 예정' : !recruitment.canViewDetails ? recruitment.message : !recruitment.canApply ? '상세 보기' : program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '신청하기')}
                     </button>

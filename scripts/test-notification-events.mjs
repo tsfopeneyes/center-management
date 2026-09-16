@@ -51,6 +51,32 @@ const checkin = await resolveNotificationEvent({ eventType: 'VISIT_CHECKIN', log
 assert.deepEqual(checkin.centerCodes, ['HAIFN']);
 assert.match(checkin.message, /CHECK-IN/);
 
+const repeatedQuestion = '센터에 어떤 것들이 있으면 좋을까요?';
+const checkinWithSurvey = await resolveNotificationEvent({
+  eventType: 'VISIT_CHECKIN',
+  logId: 'log-haifn',
+  details: {
+    surveyQuestion: repeatedQuestion,
+    surveyAnswers: [`${repeatedQuestion}: Praise List - 찬양으로 하나님과 연결되는 한 시간`],
+  },
+}, { readOne });
+assert.equal((checkinWithSurvey.message.match(new RegExp(repeatedQuestion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length, 1);
+assert.match(checkinWithSurvey.message, /▪ Praise List - 찬양으로 하나님과 연결되는 한 시간/);
+
+const checkinWithMultipleQuestions = await resolveNotificationEvent({
+  eventType: 'VISIT_CHECKIN',
+  logId: 'log-haifn',
+  details: {
+    surveyQuestion: '체크인 설문',
+    surveyAnswers: [
+      '센터에 어떤 것들이 있으면 좋을까요?: Praise List',
+      '오늘 나누고 싶은 이야기는?: 첫 줄\n둘째 줄',
+    ],
+  },
+}, { readOne });
+assert.match(checkinWithMultipleQuestions.message, /🎯 체크인 설문\n\n▫ 센터에 어떤 것들이 있으면 좋을까요\?\n▪ Praise List/);
+assert.match(checkinWithMultipleQuestions.message, /\n\n▫ 오늘 나누고 싶은 이야기는\?\n▪ 첫 줄\n  둘째 줄/);
+
 const checkout = await resolveNotificationEvent({ eventType: 'VISIT_CHECKOUT', logId: 'log-enough' }, { readOne });
 assert.deepEqual(checkout.centerCodes, ['ENOUGH_PLACE']);
 assert.match(checkout.message, /CHECK-OUT/);

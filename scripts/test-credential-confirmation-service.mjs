@@ -11,6 +11,7 @@ const context={accessToken:'admin-token',clientKey:'trusted'};
 assert.deepEqual(await service({protocol:1,profileId},context),{protocol:1,status:'reset_confirmed',confirmationId,validUntil:600000});
 quota=false;await assert.rejects(()=>service({protocol:1,profileId},context),error=>error.code==='try_later');quota=true;
 allowed=false;await assert.rejects(()=>service({protocol:1,profileId},context),error=>error.code==='forbidden');
-await assert.rejects(()=>service({protocol:1,profileId},{clientKey:'trusted'}),error=>error.code==='invalid_request');
+await assert.rejects(()=>service({protocol:1,profileId},{clientKey:'trusted'}),error=>error.code==='invalid_login');
+await assert.rejects(()=>service({protocol:1,profileId},{accessToken:'admin-token'}),error=>error.code==='temporarily_unavailable');
 assert.equal(created,1);
 console.log('PASS reset confirmation service: current admin bearer, bounded lifetime/quota, server-generated confirmation only');

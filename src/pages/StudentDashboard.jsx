@@ -62,6 +62,14 @@ const createInitialTutorialSession = () => ({
 });
 
 const TUTORIAL_NOTICE_STEPS = ['noticeRead', 'noticeComment', 'noticeCommentResult'];
+const PreviewMembershipPanel = ({ onRegister }) => (
+    <div className="mx-5 mt-6 rounded-[28px] border border-tossGrey100 bg-white px-6 py-12 text-center shadow-toss-standard">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-2xl">✨</div>
+        <h2 className="mt-4 text-lg font-black text-tossGrey900">센터에 등록하면 이용할 수 있어요</h2>
+        <p className="mt-2 text-sm font-semibold leading-6 text-tossGrey500">개인 활동과 참여 기능은 등록 후 안전하게 연결해 드려요.</p>
+        <button type="button" onClick={onRegister} className="mt-6 h-12 w-full rounded-2xl bg-tossBlue text-sm font-extrabold text-white">등록 안내 보기</button>
+    </div>
+);
 const TUTORIAL_CENTER_STEPS = [
     'programTypes', 'programCard', 'programSelect', 'programDetail', 'programApplied',
     'openSelect', 'openDetail', 'challengeSelect', 'challengeDetail',
@@ -126,11 +134,34 @@ const StudentDashboard = () => {
     const [hideMainHeader, setHideMainHeader] = useState(false);
     const [activeParticipantNotice, setActiveParticipantNotice] = useState(null);
     const [selectedStaffForChat, setSelectedStaffForChat] = useState(null);
+    const [showMembershipPrompt, setShowMembershipPrompt] = useState(false);
     const [showOnboardingTutorial, setShowOnboardingTutorial] = useState(false);
     const [tutorialSession, setTutorialSession] = useState(createInitialTutorialSession);
 
     const navigate = useNavigate();
     const location = useLocation();
+    const isPreviewMode = hookData.isPreviewMode;
+    const requireMembership = (action) => {
+        if (isPreviewMode) {
+            setShowMembershipPrompt(true);
+            return false;
+        }
+        action?.();
+        return true;
+    };
+
+    useEffect(() => {
+        if (!showMembershipPrompt) return undefined;
+
+        const handleMembershipPromptKeyDown = (event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            setShowMembershipPrompt(false);
+        };
+
+        window.addEventListener('keydown', handleMembershipPromptKeyDown);
+        return () => window.removeEventListener('keydown', handleMembershipPromptKeyDown);
+    }, [showMembershipPrompt]);
     const [checkinToastMsg, setCheckinToastMsg] = useState(null);
     const [showCheckinSurveyModal, setShowCheckinSurveyModal] = useState(false);
     const [checkinLocationName, setCheckinLocationName] = useState('');
@@ -1465,7 +1496,7 @@ const StudentDashboard = () => {
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
-            {!hookData.impersonatedUser && <PushPermissionPrompt user={user} />}
+            {!hookData.impersonatedUser && !isPreviewMode && <PushPermissionPrompt user={user} />}
             <AnimatePresence>
                 {recruitmentSavedPreview && (
                     <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
@@ -1618,13 +1649,13 @@ const StudentDashboard = () => {
                             setSelectedNotice(null);
                             setNoticeContext(null);
                         }}
-                        isImpersonating={Boolean(hookData.impersonatedUser)}
+                        isImpersonating={Boolean(hookData.impersonatedUser) || isPreviewMode}
                         user={hookData.effectiveUser || hookData.impersonatedUser || user}
                         responses={isTutorialProgram(selectedNotice) ? { ...responses, ...tutorialResponses } : responses}
                         responseDetails={responseDetails}
-                        onResponse={handleTutorialResponse}
+                        onResponse={(...args) => requireMembership(() => handleTutorialResponse(...args))}
                         onRefresh={fetchNotices}
-                        onRegisterRegularUser={() => setShowRegisterModal(true)}
+                        onRegisterRegularUser={() => isPreviewMode ? setShowMembershipPrompt(true) : setShowRegisterModal(true)}
                         tutorialMode={isTutorialSelectedNotice}
                         tutorialStep={tutorialSession.step}
                         onTutorialAction={handleTutorialAction}
@@ -1637,8 +1668,11 @@ const StudentDashboard = () => {
                         comments={comments}
                         newComment={newComment}
                         setNewComment={setNewComment}
-                        onPostComment={handlePostComment}
-                        onDeleteComment={handleDeleteComment}
+                        onPostComment={(event) => {
+                            if (isPreviewMode) event?.preventDefault?.();
+                            requireMembership(() => handlePostComment(event));
+                        }}
+                        onDeleteComment={(commentId) => requireMembership(() => handleDeleteComment(commentId))}
                         onUpdate={async (updatedNotice, isAlreadySaved = false) => {
                             try {
                                 if (!isAlreadySaved) {
@@ -1728,7 +1762,7 @@ const StudentDashboard = () => {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto p-6 z-10 shadow-toss-elevated flex flex-col gap-4 relative"
+                            className="scrollbar-hide bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto p-6 z-10 shadow-toss-elevated flex flex-col gap-4 relative"
                         >
                             <button
                                 onClick={() => setShowRegisterModal(false)}
@@ -1738,18 +1772,18 @@ const StudentDashboard = () => {
                             </button>
                             
                             <div className="text-left mb-2">
-                                <h3 className="text-[18px] font-black text-tossGrey900 leading-tight">하이픈 정식 회원 가입</h3>
-                                <p className="text-xs text-tossGrey500 font-semibold mt-1">나머지 정보를 입력해 하이픈 등록을 완료해 주세요.</p>
+                                <h3 className="text-[18px] font-black text-tossGrey900 leading-tight">{isPreviewMode ? '센터 등록' : '하이픈 정식 회원 가입'}</h3>
+                                <p className="text-xs text-tossGrey500 font-semibold mt-1">{isPreviewMode ? '정보를 입력해 센터 등록을 완료해 주세요.' : '나머지 정보를 입력해 하이픈 등록을 완료해 주세요.'}</p>
                             </div>
                             
-                            <SignUpForm 
+                        <SignUpForm 
                                 onSuccess={({ under14 } = {}) => {
                                     setShowRegisterModal(false);
                                     setRegistrationSuccess({ under14: Boolean(under14) });
                                 }}
                                 onCancel={() => setShowRegisterModal(false)}
-                                guestUserId={user.id}
-                                prefilledData={{
+                                guestUserId={isPreviewMode ? null : user.id}
+                                prefilledData={isPreviewMode ? null : {
                                     name: user.name.replace('(guest)', ''),
                                     school: user.school,
                                     birth: user.birth || '',
@@ -1787,7 +1821,7 @@ const StudentDashboard = () => {
                     />
                 )}
 
-                {selectedStaffForChat && (
+                {selectedStaffForChat && !isPreviewMode && (
                     <CoffeeChatModal
                         staff={selectedStaffForChat.id === user.id ? { ...selectedStaffForChat, ...user } : selectedStaffForChat}
                         student={user}
@@ -2254,10 +2288,10 @@ const StudentDashboard = () => {
                 <StudentHomeTab
                     user={user}
                     unreadNotificationCount={unreadNotificationCount}
-                    setShowProfileSettings={setShowProfileSettings}
-                    setShowNotificationsModal={setShowNotificationsModal}
+                    setShowProfileSettings={(open) => isPreviewMode && open ? setShowMembershipPrompt(true) : setShowProfileSettings(open)}
+                    setShowNotificationsModal={(open) => isPreviewMode && open ? setShowMembershipPrompt(true) : setShowNotificationsModal(open)}
                     handleShare={handleShare}
-                    setShowEnlargedQr={setShowEnlargedQr}
+                    setShowEnlargedQr={(open) => isPreviewMode && open ? setShowMembershipPrompt(true) : setShowEnlargedQr(open)}
                     navigate={navigate}
                     adminSchedules={adminSchedules}
                     calendarCategories={calendarCategories}
@@ -2267,7 +2301,7 @@ const StudentDashboard = () => {
                     programCount={programCount}
                     setShowProgramHistory={setShowProgramHistory}
                     handleTabChange={handleTabChange}
-                    handleLogout={handleLogout}
+                    handleLogout={() => isPreviewMode ? navigate('/') : handleLogout()}
                     homePrograms={homePrograms}
                     responses={responses}
                     openNoticeDetail={openNoticeDetailForStudent}
@@ -2279,7 +2313,7 @@ const StudentDashboard = () => {
                     studentRegion={effectiveRegion}
                     selectedRegion={hookData.selectedRegion}
                     setSelectedRegion={hookData.setSelectedRegion}
-                    onStaffClick={(staff) => setSelectedStaffForChat(staff)}
+                    onStaffClick={(staff) => requireMembership(() => setSelectedStaffForChat(staff))}
                     onCheckPendingRequest={triggerPendingModal}
                     pendingCount={pendingCount}
                     studentChatStatus={studentChatStatus}
@@ -2292,6 +2326,7 @@ const StudentDashboard = () => {
                     onDismissAcceptance={handleDismissAcceptance}
                     onRegisterRegularUser={() => setShowRegisterModal(true)}
                     visitStatus={displayedVisitStatus}
+                    isPreviewMode={isPreviewMode}
                     tutorialMode={showOnboardingTutorial && ['home', 'homeOpenStatus', 'homeCoffeeChat'].includes(tutorialSession.step)}
                     tutorialStep={tutorialSession.step}
                 />
@@ -2336,7 +2371,11 @@ const StudentDashboard = () => {
             )}
 
             {activeTab === TAB_NAMES.MESSAGES && (
-                <StudentChat currentUser={user} onRefreshUnread={() => { }} onSubViewToggle={setHideMainHeader} />
+                isPreviewMode ? (
+                    <PreviewMembershipPanel onRegister={() => setShowMembershipPrompt(true)} />
+                ) : (
+                    <StudentChat currentUser={user} onRefreshUnread={() => { }} onSubViewToggle={setHideMainHeader} />
+                )
             )}
 
             {activeTab === TAB_NAMES.CALENDAR && (
@@ -2346,7 +2385,7 @@ const StudentDashboard = () => {
                     calendarCategories={calendarCategories}
                     openNoticeDetail={openNoticeDetailForStudent}
                     studentRegion={effectiveRegion}
-                    onStaffClick={(staff) => setSelectedStaffForChat(staff)}
+                    onStaffClick={(staff) => requireMembership(() => setSelectedStaffForChat(staff))}
                     tutorialMode={showOnboardingTutorial}
                     tutorialPrograms={selectedTutorialProgram && tutorialResponses[selectedTutorialProgram.id] ? [selectedTutorialProgram] : []}
                     onTutorialEventOpen={() => setTutorialSession((current) => ({ ...current, step: 'calendarDetail' }))}
@@ -2364,6 +2403,8 @@ const StudentDashboard = () => {
                     refreshTrigger={refreshTrigger}
                     tutorialMode={showOnboardingTutorial}
                     tutorialStep={tutorialSession.step}
+                    previewMode={isPreviewMode}
+                    onRegister={() => setShowMembershipPrompt(true)}
                 />
             )}
                 </motion.div>
@@ -2384,6 +2425,31 @@ const StudentDashboard = () => {
                     />
                 )}
             </AnimatePresence>
+
+            {showMembershipPrompt && (
+                <div className="membership-prompt-overlay fixed inset-0 z-[10020] flex items-center justify-center bg-black/45 p-5 backdrop-blur-sm" onClick={() => setShowMembershipPrompt(false)}>
+                    <motion.div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="membership-prompt-title"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="w-full max-w-sm rounded-[28px] bg-white p-6 text-center shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-2xl">🤝</div>
+                        <h2 id="membership-prompt-title" className="mt-4 text-xl font-black text-tossGrey900">함께 참여해 볼까요?</h2>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-tossGrey600">센터에 등록해서 연결의 기쁨을 함께 누려요</p>
+                        <div className="mt-6 grid grid-cols-2 gap-3">
+                            <button type="button" onClick={() => setShowMembershipPrompt(false)} className="h-12 rounded-2xl bg-tossGrey100 text-sm font-extrabold text-tossGrey700">취소</button>
+                            <button type="button" onClick={() => {
+                                setShowMembershipPrompt(false);
+                                setShowRegisterModal(true);
+                            }} className="h-12 rounded-2xl bg-tossBlue text-sm font-extrabold text-white">등록하기</button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
 
             {/* Bottom Navigation */}
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white border-t border-tossGrey200 flex justify-around items-center px-4 py-3 z-[120] safe-area-bottom">

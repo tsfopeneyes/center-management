@@ -23,6 +23,28 @@ const cleanAnswers = (value) => (Array.isArray(value) ? value : [])
   .filter(Boolean)
   .slice(0, 20);
 
+const removeRepeatedQuestionPrefix = (question, answer) => {
+  if (!question || !answer) return answer;
+  const prefix = new RegExp(`^${question.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[:：]\\s*`);
+  return cleanText(answer.replace(prefix, ''), answer, 300);
+};
+
+const labeledSurveyAnswer = (answer) => {
+  const match = answer.match(/^(.{1,200}?)\s*[:：]\s+([\s\S]+)$/);
+  if (!match) return null;
+  return { question: cleanText(match[1], '', 200), answer: cleanText(match[2], '', 300) };
+};
+
+const surveyLines = (question, answers, icon) => {
+  const labeled = answers.map(labeledSurveyAnswer);
+  if (labeled.length > 1 && labeled.every(Boolean)) {
+    const lines = question ? [`${icon} ${question}`] : [];
+    labeled.forEach((item) => lines.push('', `▫ ${item.question}`, `▪ ${item.answer.replace(/\r?\n/g, '\n  ')}`));
+    return lines;
+  }
+  return [`${icon} ${question}`, ...answers.map((answer) => `▪ ${removeRepeatedQuestionPrefix(question, answer).replace(/\r?\n/g, '\n  ')}`)];
+};
+
 const requireRow = async (readOne, table, query, message) => {
   const row = await readOne(table, query);
   if (!row) throw new Error(message);
@@ -43,7 +65,7 @@ const buildVisitMessage = ({ eventType, user, details }) => {
   if (!checkout && referralPath) lines.push('', '🧭 방문 경로', `▪ ${referralPath}`);
   const question = cleanText(details?.surveyQuestion, '', 300);
   const answers = cleanAnswers(details?.surveyAnswers);
-  if (question && answers.length) lines.push('', `${checkout ? '📝' : '🎯'} ${question}`, ...answers.map((answer) => `▪ ${answer}`));
+  if (question && answers.length) lines.push('', ...surveyLines(question, answers, checkout ? '📝' : '🎯'));
   return lines.join('\n');
 };
 

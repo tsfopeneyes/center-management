@@ -46,6 +46,10 @@ export function createLoginService({store, gateway, verifyToken, keyFor, legacyB
             account.status !== 'active' || account.mappingVerified !== true || account.enabled !== true ||
             !['legacy_bridge','supabase_password'].includes(account.credentialMode) || !account.loginEmail ||
             !Number.isSafeInteger(account.credentialVersion) || account.credentialVersion < 1) throw invalidLogin();
+        // An administrator reset stores a separate one-use credential. Route
+        // the browser to that restricted change flow before attempting either
+        // the legacy bridge or the permanent provider password.
+        if (account.mustChangePassword !== false) throw new LoginError('password_change_required',403);
         let providerPassword=input.password;
         if(account.credentialMode==='legacy_bridge'){
             if(!await legacyBridge.verify(input.password,account.legacyDigest))throw invalidLogin();
@@ -70,7 +74,6 @@ export function createLoginService({store, gateway, verifyToken, keyFor, legacyB
                 principal.isAnonymous !== false || !Number.isFinite(principal.expiresAt) || principal.expiresAt <= now() + 30000) throw invalidLogin();
             // A reset credential must never become a general application session.
             // The restricted password-change flow is a separate operation.
-            if (account.mustChangePassword !== false) throw new LoginError('password_change_required',403);
             checkAbort();
             const validUntil = now() + assuranceTtlMs;
             // The store locks and rechecks the CURRENT connection, credential

@@ -215,6 +215,15 @@ export const haifnApi = {
     },
 
     async getStoreOrders() {
+        const { data: rpcData, error: rpcError } = await supabase
+            .rpc('get_store_exchange_orders');
+
+        if (!rpcError && Array.isArray(rpcData)) return rpcData;
+        if (!rpcError && rpcData?.error) {
+            throw new Error('관리자 권한으로 로그인한 뒤 다시 시도해 주세요.');
+        }
+
+        // Fallback for deployments where the RPC has not been installed yet.
         const { data, error } = await supabase
             .from('store_orders')
             .select(`
@@ -299,6 +308,15 @@ export const haifnApi = {
     },
 
     async processOrder(orderId, userId, amount, isApproved, adminId, itemName, itemType = 'SPEND') {
+        const { error: rpcError } = await supabase.rpc('complete_store_exchange', {
+            p_order_id: orderId,
+            p_approved: isApproved,
+        });
+
+        if (!rpcError) return;
+        if (rpcError.code !== 'PGRST202' && rpcError.code !== '42883') throw rpcError;
+
+        // Fallback for deployments where the atomic RPC has not been installed yet.
         const newStatus = isApproved ? 'APPROVED' : 'REJECTED';
         
         // 1. Update order status
