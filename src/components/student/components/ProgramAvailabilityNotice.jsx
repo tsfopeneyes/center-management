@@ -6,7 +6,7 @@ import { getRecruitment } from '../../../utils/programRecruitment';
 export default function ProgramAvailabilityNotice({ program, now }) {
     const state = getRecruitment(program, now);
     return <div className="p-6 text-center space-y-4">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><CalendarClock size={26} /></div>
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FBF3E7] text-[#CF3A27]"><CalendarClock size={26} /></div>
         <RecruitmentBadge program={program} now={now} />
         <h2 className="text-xl font-bold text-slate-900 break-words">{program.title}</h2>
         <p className="text-sm font-semibold leading-relaxed text-slate-600">{state.message}</p>

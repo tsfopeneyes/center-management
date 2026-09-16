@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import { haifnApi } from '../../../../api/haifnApi';
-import { CheckCircle, XCircle, Clock, Search, PackageCheck, RefreshCw, Trash2 } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Search, PackageCheck, RefreshCw, Trash2, AlertCircle } from 'lucide-react';
 import UserAvatar from '../../../common/UserAvatar';
 
 const StoreApprovals = () => {
@@ -10,14 +10,25 @@ const StoreApprovals = () => {
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const [deletingId, setDeletingId] = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState('');
+    const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
-    const fetchOrders = async () => {
-        setLoading(true);
+    const fetchOrders = useCallback(async ({ silent = false } = {}) => {
+        if (silent) setRefreshing(true);
+        else setLoading(true);
+        setError('');
         try {
-            const [orderData, instantExchangeData] = await Promise.all([
+            const [ordersResult, instantResult] = await Promise.allSettled([
                 haifnApi.getStoreOrders(),
                 haifnApi.getInstantStoreExchanges(),
             ]);
+            if (ordersResult.status === 'rejected') throw ordersResult.reason;
+            const orderData = ordersResult.value;
+            const instantExchangeData = instantResult.status === 'fulfilled' ? instantResult.value : [];
+            if (instantResult.status === 'rejected') {
+                console.warn('Legacy instant exchanges could not be loaded:', instantResult.reason);
+            }
 
             const normalizedOrders = (orderData || []).map(order => ({
                 ...order,
@@ -37,7 +48,9 @@ const StoreApprovals = () => {
                         && order.haifn_items?.name === itemName
                         && Math.abs(order.amount) === Math.abs(transaction.amount)
                         && !matchedOrderIds.has(order.id);
-                    const isNearInTime = Math.abs(new Date(order.created_at) - new Date(transaction.created_at)) < 60 * 1000;
+                    // 승인형 상품의 차감 내역은 신청 시각이 아니라 교환 완료 시각에 생성됩니다.
+                    const orderTransactionAt = order.completed_at || order.created_at;
+                    const isNearInTime = Math.abs(new Date(orderTransactionAt) - new Date(transaction.created_at)) < 5 * 60 * 1000;
 
                     return isSameOrder && isNearInTime;
                 });
@@ -66,22 +79,43 @@ const StoreApprovals = () => {
                 transactionId: transaction.id,
             }));
 
+            const statusPriority = { PENDING: 0, APPROVED: 1, COMPLETED: 1, INSTANT: 2, REJECTED: 3 };
             setOrders([...normalizedOrders, ...instantExchangeOrders]
-                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+                .sort((a, b) => {
+                    const priorityDiff = (statusPriority[a.displayStatus] ?? 9) - (statusPriority[b.displayStatus] ?? 9);
+                    return priorityDiff || new Date(b.created_at) - new Date(a.created_at);
+                }));
+            setLastUpdatedAt(new Date());
         } catch (err) {
             console.error('Failed to fetch store orders:', err);
+            setError('교환 요청을 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.');
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchOrders();
-    }, []);
+        const channel = supabase
+            .channel('admin-store-orders')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'store_orders' }, () => fetchOrders({ silent: true }))
+            .subscribe();
+        const refreshOnFocus = () => fetchOrders({ silent: true });
+        window.addEventListener('focus', refreshOnFocus);
+
+        return () => {
+            supabase.removeChannel(channel);
+            window.removeEventListener('focus', refreshOnFocus);
+        };
+    }, [fetchOrders]);
 
     const handleProcess = async (order, isApproved) => {
-        const action = isApproved ? '승인' : '반려';
-        if (!window.confirm(`${order.users?.name} 학생의 [${order.haifn_items?.name}] 신청을 ${action}하시겠습니까?`)) return;
+        const action = isApproved ? '교환 완료' : '신청 취소';
+        const prompt = isApproved
+            ? `${order.users?.name} 학생에게 [${order.haifn_items?.name}] 상품을 전달하고 교환을 완료하시겠습니까?`
+            : `${order.users?.name} 학생의 [${order.haifn_items?.name}] 교환 신청을 취소하시겠습니까?`;
+        if (!window.confirm(prompt)) return;
 
         try {
             const admin = JSON.parse(localStorage.getItem('admin_user'));
@@ -92,8 +126,8 @@ const StoreApprovals = () => {
             // Optionally send notification to user
             try {
                 const message = isApproved 
-                    ? `🎉 [스토어] 신청하신 '${order.haifn_items?.name}'이(가) 승인되었습니다! (-${order.amount}H)` 
-                    : `😢 [스토어] 신청하신 '${order.haifn_items?.name}'이(가) 관리자에 의해 반려되었습니다. 포인트가 차감되지 않습니다.`;
+                    ? `🎉 [하이픈 스토어] '${order.haifn_items?.name}' 교환이 완료되었습니다.`
+                    : `📦 [하이픈 스토어] '${order.haifn_items?.name}' 교환 신청이 취소되었습니다.`;
 
                 await supabase.from('messages').insert([{
                     sender_id: adminId,
@@ -102,11 +136,11 @@ const StoreApprovals = () => {
                 }]);
             } catch (e) { console.error('Message send failed', e); }
 
-            alert(`정상적으로 ${action} 처리되었습니다.`);
+            alert(`${action} 처리되었습니다.`);
             fetchOrders();
         } catch (err) {
             console.error(err);
-            alert(`${action} 처리 실패: ` + err.message);
+            alert(`${action} 실패: ` + err.message);
         }
     };
 
@@ -153,11 +187,11 @@ const StoreApprovals = () => {
     }, [orders, searchQuery, statusFilter]);
 
     const statusMeta = {
-        PENDING: { label: '승인 대기', className: 'bg-orange-50 text-orange-700 border-orange-100', icon: Clock },
-        APPROVED: { label: '승인 완료', className: 'bg-emerald-50 text-emerald-700 border-emerald-100', icon: CheckCircle },
-        COMPLETED: { label: '승인 완료', className: 'bg-emerald-50 text-emerald-700 border-emerald-100', icon: CheckCircle },
-        INSTANT: { label: '즉시 교환', className: 'bg-blue-50 text-blue-700 border-blue-100', icon: CheckCircle },
-        REJECTED: { label: '반려', className: 'bg-red-50 text-red-600 border-red-100', icon: XCircle },
+        PENDING: { label: '처리 필요', className: 'bg-orange-50 text-orange-700 border-orange-100', icon: Clock },
+        APPROVED: { label: '교환 완료', className: 'bg-emerald-50 text-emerald-700 border-emerald-100', icon: CheckCircle },
+        COMPLETED: { label: '교환 완료', className: 'bg-emerald-50 text-emerald-700 border-emerald-100', icon: CheckCircle },
+        INSTANT: { label: '바로 교환', className: 'bg-blue-50 text-blue-700 border-blue-100', icon: CheckCircle },
+        REJECTED: { label: '신청 취소', className: 'bg-red-50 text-red-600 border-red-100', icon: XCircle },
     };
 
     if (loading) return <div className="p-10 text-center text-gray-400 font-bold">스토어 주문 내역을 불러오는 중입니다...</div>;
@@ -170,29 +204,40 @@ const StoreApprovals = () => {
                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                             <PackageCheck size={21} />
                         </div>
-                        <h3 className="text-xl font-black tracking-tight text-gray-800">스토어 주문 내역</h3>
+                        <h3 className="text-xl font-black tracking-tight text-gray-800">학생 교환 요청</h3>
                     </div>
-                    <p className="mt-2 text-sm font-medium text-gray-500">교환 내역을 확인하고 승인 대기 주문을 처리하세요.</p>
+                    <p className="mt-2 text-sm font-medium text-gray-500">새 요청이 자동으로 표시됩니다. 처리할 요청은 항상 목록 위에 모아둘게요.</p>
                 </div>
-                <button
-                    onClick={fetchOrders}
+                <div className="flex items-center gap-3 self-start md:self-auto">
+                    {lastUpdatedAt && <span className="text-[11px] font-medium text-gray-400">{lastUpdatedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 업데이트</span>}
+                    <button
+                    onClick={() => fetchOrders({ silent: true })}
+                    disabled={refreshing}
                     className="inline-flex items-center justify-center gap-1.5 self-start rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 transition-colors hover:bg-gray-50 md:self-auto"
                 >
-                    <RefreshCw size={15} /> 새로고침
-                </button>
+                    <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} /> 새로고침
+                    </button>
+                </div>
             </div>
+
+            {error && (
+                <div role="alert" className="flex items-center justify-between gap-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                    <span className="flex items-center gap-2"><AlertCircle size={18} className="shrink-0" />{error}</span>
+                    <button type="button" onClick={() => fetchOrders()} className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs shadow-sm">다시 시도</button>
+                </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <p className="text-xs font-bold text-gray-500">승인 대기</p>
+                    <p className="text-xs font-bold text-gray-500">처리 필요</p>
                     <p className="mt-1 text-xl font-black text-orange-600">{pendingCount}<span className="ml-1 text-xs">건</span></p>
                 </div>
                 <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <p className="text-xs font-bold text-gray-500">승인 완료</p>
+                    <p className="text-xs font-bold text-gray-500">교환 완료</p>
                     <p className="mt-1 text-xl font-black text-emerald-600">{approvedCount}<span className="ml-1 text-xs">건</span></p>
                 </div>
                 <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4 shadow-sm">
-                    <p className="text-xs font-bold text-blue-600">즉시 교환</p>
+                    <p className="text-xs font-bold text-blue-600">바로 교환</p>
                     <p className="mt-1 text-xl font-black text-blue-600">{instantCount}<span className="ml-1 text-xs">건</span></p>
                 </div>
                 <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -205,10 +250,10 @@ const StoreApprovals = () => {
                 <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
                     {[
                         { id: 'ALL', label: `전체 ${orders.length}` },
-                        { id: 'PENDING', label: `승인 대기 ${pendingCount}` },
-                        { id: 'APPROVED', label: '승인 완료' },
-                        { id: 'INSTANT', label: `즉시 교환 ${instantCount}` },
-                        { id: 'REJECTED', label: '반려' },
+                        { id: 'PENDING', label: `처리 필요 ${pendingCount}` },
+                        { id: 'APPROVED', label: '교환 완료' },
+                        { id: 'INSTANT', label: `바로 교환 ${instantCount}` },
+                        { id: 'REJECTED', label: '신청 취소' },
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -268,13 +313,13 @@ const StoreApprovals = () => {
                                             onClick={() => handleProcess(order, false)}
                                             className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 md:flex-none"
                                         >
-                                            반려
+                                            신청 취소
                                         </button>
                                         <button
                                             onClick={() => handleProcess(order, true)}
                                             className="flex-1 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-500 md:flex-none"
                                         >
-                                            승인
+                                            교환 완료
                                         </button>
                                     </div>
                                 )}
@@ -306,3 +351,4 @@ const StoreApprovals = () => {
 };
 
 export default StoreApprovals;
+

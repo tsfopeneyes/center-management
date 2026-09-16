@@ -15,6 +15,8 @@ import { supabase } from '../../supabaseClient';
 import ContentPostModal from './modals/ContentPostModal';
 import {parseContentPost, sortContentPosts} from '../../utils/contentPosts';
 import { isAdminOrStaff } from '../../utils/userUtils';
+import HaifnPointIcon from './components/HaifnPointIcon';
+import ContentImage from '../common/ContentImage';
 
 const StudentHomeTab = ({
     user,
@@ -57,6 +59,7 @@ const StudentHomeTab = ({
     onDismissAcceptance,
     onRegisterRegularUser,
     visitStatus,
+    isPreviewMode = false,
     tutorialMode = false,
     tutorialStep = null
 }) => {
@@ -176,11 +179,14 @@ const StudentHomeTab = ({
     return (
         <>
             {/* Premium Integrated Profile Card */}
-            <header data-tour="home-overview" className="bg-tossBlue px-4 py-5 text-white rounded-b-toss-xl shadow-toss-standard mb-0 gpu-accelerated">
-                <div className="max-w-sm sm:max-w-md mx-auto">
+            <header data-tour="home-overview" className={`relative overflow-hidden bg-[#CF3A27] px-4 text-white rounded-b-[30px] shadow-[0_8px_24px_rgba(207,58,39,0.18)] mb-0 gpu-accelerated ${isPreviewMode ? 'py-3.5' : 'py-4'}`}>
+                <div aria-hidden="true" className="absolute -right-6 -top-9 h-24 w-24 rounded-full bg-[#F8DF53]" />
+                <div aria-hidden="true" className="absolute bottom-0 right-14 h-16 w-24 rounded-t-full bg-[#E88AAC]/80" />
+                <div aria-hidden="true" className="absolute right-4 top-8 h-3.5 w-3.5 rounded-full bg-[#E88AAC]" />
+                <div className="relative z-10 max-w-sm sm:max-w-md mx-auto">
                     {/* Top Section: Avatar + Profile Info + 2x2 Stats Grid (가로 1열 고정 구조) */}
                     <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between gap-3 mb-2">
+                        <div className={`flex items-center justify-between gap-3 ${isPreviewMode ? '' : 'mb-2'}`}>
                             {/* Profile Left: Avatar & Info */}
                             <div className="flex items-center gap-3">
                                 <div className="relative shrink-0">
@@ -188,15 +194,23 @@ const StudentHomeTab = ({
                                         whileHover={{ scale: 1.03 }}
                                         whileTap={{ scale: 0.97 }}
                                         onClick={() => setShowProfileSettings(true)}
-                                        className="cursor-pointer p-0.5 bg-white/20 rounded-full ring-2 ring-white/10"
+                                        className="cursor-pointer rounded-full"
                                     >
-                                        <UserAvatar user={user} size="w-14 h-14 sm:w-16 sm:h-16" textSize="text-lg sm:text-xl" />
+                                        {isPreviewMode ? (
+                                            <img
+                                                src="/hati.png"
+                                                alt="하티"
+                                                className="block h-14 w-14 shrink-0 rounded-full border-2 border-white/80 bg-white object-contain shadow-sm sm:h-16 sm:w-16"
+                                            />
+                                        ) : (
+                                            <UserAvatar user={user} size="w-14 h-14 sm:w-16 sm:h-16" textSize="text-lg sm:text-xl" />
+                                        )}
                                     </motion.div>
                                 </div>
                                 <div className="flex flex-col min-w-0 justify-center">
                                     <p className="text-white/80 text-[10px] sm:text-[11px] font-bold tracking-wider uppercase mb-0.5 select-none leading-none">{user?.school || '더작은재단'}</p>
                                     <h1 className="text-[17px] sm:text-[20px] font-bold tracking-tight leading-tight text-white whitespace-nowrap flex items-center gap-1">
-                                        {user?.name?.replace('(guest)', '')} 님
+                                        {user?.name?.replace('(guest)', '')}{isPreviewMode ? '' : ' 님'}
                                         {user?.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
                                     </h1>
                                 </div>
@@ -204,7 +218,16 @@ const StudentHomeTab = ({
 
                             {/* Profile Right: Actions */}
                             <div className="flex items-center gap-1.5 shrink-0">
-                                {isAdminOrStaff(user) ? (
+                                {isPreviewMode ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onRegisterRegularUser?.()}
+                                        className="gradient-border-button hover:bg-slate-50 text-slate-900 px-3.5 py-1.5 shadow-sm text-xs font-black transition-all active:scale-95 shrink-0"
+                                    >
+                                        <Sparkles size={11} className="mr-1.5 shrink-0 text-indigo-500" />
+                                        <span>센터 등록</span>
+                                    </button>
+                                ) : isAdminOrStaff(user) ? (
                                     <button 
                                         onClick={() => navigate('/admin')}
                                         className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 transition-all px-3 py-1.5 rounded-full border border-white/25 shadow-sm text-white font-bold text-[12px] group"
@@ -217,7 +240,7 @@ const StudentHomeTab = ({
                                         onClick={() => handleTabChange(TAB_NAMES.HAIFN)}
                                         className="flex items-center gap-1 bg-white/20 hover:bg-white/30 transition-colors px-2.5 py-1 rounded-full border border-white/25 shadow-sm"
                                     >
-                                        <div className="w-4 h-4 rounded-full bg-tossCaution text-tossGrey800 flex items-center justify-center text-[9px] font-bold shadow-sm leading-none shrink-0 border border-tossCaution/50">H</div>
+                                        <HaifnPointIcon size="sm" />
                                         <span className="font-bold text-[13px] sm:text-[14px] text-white tracking-tight">{user?.current_haifn || 0}</span>
                                     </button>
                                 ) : null}
@@ -233,7 +256,7 @@ const StudentHomeTab = ({
                                 )}
 
                                 {/* Personal notifications, including coffee-chat requests. */}
-                                <button
+                                {!isPreviewMode && <button
                                     type="button"
                                     onClick={() => setShowNotificationsModal(true)}
                                     aria-label={unreadNotificationCount > 0 ? `새 알림 ${unreadNotificationCount}건 확인` : '새로운 소식 확인'}
@@ -245,7 +268,7 @@ const StudentHomeTab = ({
                                             {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
                                         </span>
                                     )}
-                                </button>
+                                </button>}
                                 
                                 {/* Settings Icon */}
                                 <button 
@@ -266,8 +289,8 @@ const StudentHomeTab = ({
                         </div>
 
                         {/* Bottom Section: Text Summary (Compact) */}
-                        <div className="flex flex-col items-center justify-center text-center -mt-2 mb-1.5 gap-2.5">
-                            <span className="text-white/90 text-[13.5px] sm:text-[14.5px] font-bold tracking-tight">
+                        {!isPreviewMode && <div className="flex flex-col items-center justify-center text-center gap-2">
+                            <span className="hidden text-white/90 text-[13.5px] sm:text-[14.5px] font-bold tracking-tight">
                                 {isGuest ? (
                                     <>
                                         {user?.school && (
@@ -288,7 +311,7 @@ const StudentHomeTab = ({
 
                             {/* Admin Testing Region Filter Tabs */}
                             {isAdminOrStaff(user) && (
-                                <div className="flex bg-white/10 p-0.5 rounded-xl w-full border border-white/10 mt-1 select-none">
+                                <div className="flex bg-white/10 p-0.5 rounded-xl w-full border border-white/10 select-none">
                                     <button
                                         onClick={() => setSelectedRegion('ALL')}
                                         className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
@@ -321,13 +344,13 @@ const StudentHomeTab = ({
                                     </button>
                                 </div>
                             )}
-                        </div>
+                        </div>}
                     </div>
                 </div>
             </header>
 
             {/* Main Content Area: Aligned Stack */}
-            <div className="px-4 py-4 pb-28 space-y-4 relative z-0">
+            <div className="px-4 py-4 pb-24 space-y-4 relative z-0 bg-[#F7EFE2]">
                 {visitStatus && (
                     <motion.div
                         data-tour="visit-status"
@@ -594,7 +617,7 @@ const StudentHomeTab = ({
                                             
                                             {(n.images?.length > 0 || n.image_url) && (
                                                 <div className="w-16 h-16 rounded-toss-lg overflow-hidden bg-tossGrey50 shrink-0 border border-tossGrey100 relative shadow-inner">
-                                                    <img src={n.images?.length > 0 ? n.images[0] : n.image_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                                    <ContentImage src={n.images?.length > 0 ? n.images[0] : n.image_url} alt={n.title} fit="cover" className="h-full w-full" imageClassName="h-full" />
                                                 </div>
                                             )}
                                         </motion.div>
@@ -615,10 +638,16 @@ const StudentHomeTab = ({
                                         </div>
                                         <div>
                                             <h3 className="font-bold text-tossGrey900 text-[15px] tracking-tight leading-tight">프로그램</h3>
-                                            <p className="text-[11px] text-tossGrey500 font-semibold mt-0.5">기독 청소년 라이프스타일을 누려봅시다!</p>
+                                            <p className="mt-0.5 text-[11px] font-semibold text-tossGrey500">기독 청소년 라이프스타일을 누려봅시다!</p>
                                         </div>
                                     </div>
-                                    <button onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)} className="text-[11px] text-tossGrey600 font-bold px-2.5 py-1.5 bg-tossGrey100 rounded-toss-md hover:bg-tossGrey200 transition-colors">더보기</button>
+                                    <button
+                                        onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)}
+                                        className="flex items-center gap-0.5 py-1 text-[11px] font-extrabold text-[#CF3A27] transition-colors hover:text-[#B92F20]"
+                                    >
+                                        전체 보기
+                                        <ChevronRight size={14} strokeWidth={2.5} />
+                                    </button>
                                 </div>
                                 <div className="space-y-5">
                                     {(() => {
@@ -636,7 +665,7 @@ const StudentHomeTab = ({
                                                     </p>
                                                 </div>
                                                 <div
-                                                    className="no-swipe flex cursor-grab snap-x gap-3 overflow-x-auto pb-1 active:cursor-grabbing"
+                                                    className="flex flex-col gap-3"
                                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                                                     onMouseDown={startProgramDrag}
                                                     onMouseMove={moveProgramDrag}
@@ -645,7 +674,7 @@ const StudentHomeTab = ({
                                                     onClickCapture={preventProgramClickAfterDrag}
                                                 >
                                                     {myJoinedPrograms.map(p => (
-                                                        <div key={p.id} className={myJoinedPrograms.length === 1 ? "w-full snap-start shrink-0" : "w-[220px] shrink-0 snap-start"}>
+                                                        <div key={p.id} className="w-full">
                                                             <ProgramCard
                                                                 program={{ ...p, responseStatus: responses[p.id] }}
                                                                 onClick={openNoticeDetail}
@@ -671,7 +700,7 @@ const StudentHomeTab = ({
                                                     <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">자유 참여 또는 오늘 신청으로 함께할 수 있어요</p>
                                                 </div>
                                                 <div
-                                                    className="no-swipe flex cursor-grab snap-x gap-3 overflow-x-auto pb-1 active:cursor-grabbing"
+                                                    className="flex flex-col gap-3"
                                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                                                     onMouseDown={startProgramDrag}
                                                     onMouseMove={moveProgramDrag}
@@ -680,7 +709,7 @@ const StudentHomeTab = ({
                                                     onClickCapture={preventProgramClickAfterDrag}
                                                 >
                                                     {openPrograms.slice(0, item.count || 10).map(p => (
-                                                        <div key={p.id} className={openPrograms.length === 1 ? "w-full snap-start shrink-0" : "w-[220px] shrink-0 snap-start"}>
+                                                        <div key={p.id} className="w-full">
                                                             <ProgramCard
                                                                 program={{ ...p, responseStatus: responses[p.id] }}
                                                                 onClick={openNoticeDetail}
@@ -707,7 +736,7 @@ const StudentHomeTab = ({
                                                     <p className="text-[10.5px] sm:text-[11.5px] text-tossGrey500 font-semibold pl-2.5">미리 신청하고 약속된 시간에 만나요!</p>
                                                 </div>
                                                 <div
-                                                    className="no-swipe flex cursor-grab snap-x gap-3 overflow-x-auto pb-1 active:cursor-grabbing"
+                                                    className="flex flex-col gap-3"
                                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                                                     onMouseDown={startProgramDrag}
                                                     onMouseMove={moveProgramDrag}
@@ -716,7 +745,7 @@ const StudentHomeTab = ({
                                                     onClickCapture={preventProgramClickAfterDrag}
                                                 >
                                                     {applyPrograms.slice(0, item.count || 10).map(p => (
-                                                        <div key={p.id} className={applyPrograms.length === 1 ? "w-full snap-start shrink-0" : "w-[220px] shrink-0 snap-start"}>
+                                                        <div key={p.id} className="w-full">
                                                             <ProgramCard
                                                                 program={{ ...p, responseStatus: responses[p.id] }}
                                                                 onClick={openNoticeDetail}
@@ -749,7 +778,13 @@ const StudentHomeTab = ({
                                     <p className="mt-0.5 text-[11px] font-semibold text-tossGrey500">센터에서 자유롭게 누릴 수 있는 다채로운 경험!</p>
                                 </div>
                             </div>
-                            <button onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)} className="rounded-toss-md bg-tossGrey100 px-2.5 py-1.5 text-[11px] font-bold text-tossGrey600">더보기</button>
+                            <button
+                                onClick={() => handleTabChange(TAB_NAMES.PROGRAMS)}
+                                className="flex items-center gap-0.5 py-1 text-[11px] font-extrabold text-[#CF3A27] transition-colors hover:text-[#B92F20]"
+                            >
+                                전체 보기
+                                <ChevronRight size={14} strokeWidth={2.5} />
+                            </button>
                         </div>
                         <div
                             ref={contentScrollRef}
@@ -769,7 +804,7 @@ const StudentHomeTab = ({
                                     className="w-[220px] shrink-0 snap-start cursor-pointer select-none overflow-hidden rounded-2xl border border-tossGrey100 bg-white shadow-sm transition active:scale-[0.98]"
                                 >
                                     <div className="flex aspect-[11/10] w-full items-center justify-center overflow-hidden bg-tossGrey50">
-                                        {item.image_url ? <img src={item.image_url} alt="" draggable="false" className="pointer-events-none h-full w-full object-cover" /> : <Store size={30} className="text-blue-400" />}
+                                        {item.image_url ? <ContentImage src={item.image_url} alt={item.name} draggable="false" fit="cover" className="h-full w-full" imageClassName="h-full" /> : <Store size={30} className="text-[#CF3A27]" />}
                                     </div>
                                     <div className="p-4">
                                         <h4 className="line-clamp-1 font-extrabold text-tossGrey900">{item.name}</h4>

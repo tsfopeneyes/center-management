@@ -4,6 +4,70 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    --color-haifn-red: #CF3A27;
+    --color-haifn-red-hover: #B93223;
+}
+
+/* HAIFN red is the student UI accent. Blue is reserved for open days below. */
+.student-redesign .text-tossBlue,
+.student-redesign .text-blue-400,
+.student-redesign .text-blue-500,
+.student-redesign .text-blue-600,
+.student-redesign .text-blue-700,
+.student-redesign .text-blue-900,
+.student-redesign .text-indigo-500,
+.student-redesign .text-indigo-600 {
+    color: #CF3A27 !important;
+}
+
+.student-redesign .bg-tossBlue,
+.student-redesign .bg-blue-500,
+.student-redesign .bg-blue-600 {
+    background-color: #CF3A27 !important;
+}
+
+.student-redesign .bg-tossBlueLight,
+.student-redesign .bg-blue-50,
+.student-redesign .bg-blue-100,
+.student-redesign .bg-indigo-50 {
+    background-color: #F4DDD4 !important;
+}
+
+.student-redesign .border-blue-100,
+.student-redesign .border-blue-200,
+.student-redesign .border-tossBlue {
+    border-color: #E7B7AD !important;
+}
+
+.student-redesign .ring-blue-100,
+.student-redesign .ring-tossBlue {
+    --tw-ring-color: #F4DDD4 !important;
+}
+
+.student-redesign .operating-open-dot,
+.student-redesign .operating-open-today {
+    background-color: #F8DF53 !important;
+}
+
+.student-redesign .operating-open-today {
+    color: #4A3A0A !important;
+    --tw-ring-color: #F4DDD4 !important;
+}
+
+.student-redesign .operating-open-day {
+    color: #4A3A0A !important;
+    background-color: #F8DF53 !important;
+}
+
+.student-redesign .gradient-border-button {
+    border-color: rgba(255, 255, 255, 0.9);
+}
+
+.student-redesign .gradient-border-button::before {
+    display: none;
+}
+
 @layer base {
     body {
         @apply antialiased text-gray-900 bg-gray-50;

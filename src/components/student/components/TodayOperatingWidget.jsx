@@ -434,7 +434,7 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
     };
 
     return (
-        <div className="bg-white p-5 rounded-toss-xl shadow-toss-standard flex flex-col transition-all duration-300">
+        <div className="operating-status-widget bg-white p-5 rounded-toss-xl shadow-toss-standard flex flex-col transition-all duration-300">
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
@@ -458,7 +458,7 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
                 {/* Legend (범례) */}
                 <div className="flex items-center gap-2.5 text-[10px] font-extrabold text-tossGrey500 select-none">
                     <div className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                        <span className="operating-open-dot w-2.5 h-2.5 rounded-full"></span>
                         <span>오픈</span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -479,38 +479,29 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
                     let dayCircleClass = "";
                     if (isOpenDay) {
                         dayCircleClass = isToday 
-                            ? 'bg-blue-600 text-white font-extrabold ring-4 ring-blue-100' 
-                            : 'bg-blue-50 text-blue-600 font-bold';
+                            ? 'operating-open-today font-extrabold ring-4'
+                            : 'operating-open-day font-bold';
                     } else {
                         dayCircleClass = isToday 
                             ? 'bg-red-500 text-white font-extrabold ring-4 ring-red-100' 
-                            : 'bg-red-50 text-red-500 font-bold';
+                            : 'bg-red-500 text-white font-bold';
                     }
 
                     return (
                         <div 
                             key={idx} 
-                            className={`flex flex-col items-center py-3 px-1 rounded-2xl transition-all border ${
+                            className={`flex flex-col items-center py-2 px-1 rounded-2xl transition-all border ${
                                 isToday 
                                     ? 'bg-tossGrey50/50 border-tossGrey200 shadow-sm' 
                                     : 'bg-transparent border-transparent'
                             }`}
                         >
-                            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] transition-all ${dayCircleClass}`}>
+                            <span className="mb-1.5 text-[10px] font-extrabold text-tossGrey500">
                                 {dayLabel}
                             </span>
-                            
-                            <span className={`text-[13px] font-black mt-2 ${
-                                isToday ? 'text-tossGrey900' : 'text-tossGrey700'
-                            }`}>
+                            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-[12px] transition-all ${dayCircleClass}`}>
                                 {date.getDate()}
                             </span>
-                            
-                            {isToday && (
-                                <span className="text-[8px] text-tossGrey400 font-black mt-0.5 scale-90">
-                                    오늘
-                                </span>
-                            )}
                         </div>
                     );
                 })}

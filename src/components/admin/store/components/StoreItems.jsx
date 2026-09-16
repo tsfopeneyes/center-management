@@ -15,13 +15,11 @@ const compressImageLocal = async (file) => {
 const StoreItems = () => {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedCategory, setSelectedCategory] = useState('전체');
-    const categories = ['전체', '음료', '간식', '사용', '대관', '기타'];
     const [editingItem, setEditingItem] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
 
     const [formData, setFormData] = useState({
-        name: '', amount: 1, item_type: 'SPEND', requires_approval: false, image_url: '', is_active: true, category: '기타'
+        name: '', description: '', amount: 1, item_type: 'SPEND', requires_approval: false, image_url: '', is_active: true, category: '기타'
     });
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -51,6 +49,7 @@ const StoreItems = () => {
         setEditingItem(item);
         setFormData({
             name: item.name,
+            description: item.description || '',
             amount: item.amount,
             item_type: item.item_type,
             requires_approval: item.requires_approval,
@@ -65,7 +64,7 @@ const StoreItems = () => {
     const handleCreateNew = () => {
         setEditingItem('NEW');
         setFormData({
-            name: '', amount: 1, item_type: 'SPEND', requires_approval: false, image_url: '', is_active: true, category: '기타'
+            name: '', description: '', amount: 1, item_type: 'SPEND', requires_approval: false, image_url: '', is_active: true, category: '기타'
         });
         setImagePreview(null);
         setImageFile(null);
@@ -112,6 +111,7 @@ const StoreItems = () => {
 
             const payload = {
                 name: formData.name,
+                description: formData.description.trim() || null,
                 amount: parseInt(formData.amount, 10),
                 item_type: formData.item_type,
                 requires_approval: formData.requires_approval,
@@ -163,22 +163,6 @@ const StoreItems = () => {
                     </button>
                 </div>
 
-                <div className="flex gap-2 mb-6 overflow-x-auto [&::-webkit-scrollbar]:hidden pb-1 -mx-2 px-2 mask-edges">
-                    {categories.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${
-                                selectedCategory === cat 
-                                ? 'bg-gray-800 text-white shadow-sm' 
-                                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                            }`}
-                        >
-                            {cat}
-                        </button>
-                    ))}
-                </div>
-
                 {loading ? (
                     <div className="py-10 text-center text-gray-400 font-bold">항목을 불러오는 중...</div>
                 ) : (
@@ -186,7 +170,6 @@ const StoreItems = () => {
                         {(() => {
                             const groupItems = items.filter(i => {
                                 if (i.item_type !== 'SPEND') return false;
-                                if (selectedCategory !== '전체') return i.category === selectedCategory;
                                 return true;
                             });
                             if (groupItems.length === 0) return <div className="text-gray-400 text-sm">등록된 항목이 없습니다.</div>;
@@ -248,21 +231,6 @@ const StoreItems = () => {
                         </div>
 
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">카테고리</label>
-                                <select 
-                                    value={formData.category}
-                                    onChange={e => setFormData({...formData, category: e.target.value})}
-                                    className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold"
-                                >
-                                    <option value="음료">음료</option>
-                                    <option value="간식">간식</option>
-                                    <option value="사용">사용 (쿠폰, 상품권 등)</option>
-                                    <option value="대관">대관 (공간 이용)</option>
-                                    <option value="기타">기타</option>
-                                </select>
-                            </div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">항목명</label>
@@ -286,6 +254,19 @@ const StoreItems = () => {
                                         className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold text-blue-600"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">세부 설명 (옵션)</label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={e => setFormData({...formData, description: e.target.value})}
+                                    placeholder="교환 방법, 사용 조건, 제공 내용 등을 입력해주세요."
+                                    rows={4}
+                                    maxLength={1000}
+                                    className="w-full resize-none p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-sm font-medium leading-6"
+                                />
+                                <p className="mt-1 text-right text-[10px] text-gray-400">{formData.description.length}/1000</p>
                             </div>
 
                             <div>

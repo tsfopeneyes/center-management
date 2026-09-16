@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, User, School, ArrowRight, Check, CheckCircle2, ChevronRight, X, LogOut, Clock, LogIn, Lock, AlertCircle, Phone, ShieldCheck, Calendar } from 'lucide-react';
+import { Sparkles, User, School, ArrowRight, Check, CheckCircle2, ChevronRight, X, LogOut, Clock, LogIn, Lock, AlertCircle, Phone, ShieldCheck, Calendar, BookOpen } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { supabase } from '../supabaseClient';
 import { verifiedProfileLogin } from '../utils/verifiedProfileLogin';
@@ -102,6 +102,12 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
     };
 
     const [step, setStep] = useState('HOME'); // 'HOME' | 'FORM' | 'SUCCESS' | 'ACTIVE_CHECKIN' | 'CHECKOUT_SUCCESS'
+
+    useEffect(() => {
+        if (!isQRCheckin && searchParams.get('register') === '1') {
+            setShowSignupModal(true);
+        }
+    }, [isQRCheckin, location.search]);
     const [name, setName] = useState('');
     const [school, setSchool] = useState('');
     const [guestBirthDate, setGuestBirthDate] = useState('');
@@ -389,13 +395,21 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
 
         setResetLoading(true);
         try {
-            await requestSupabaseFunction('dispatch-notification', {
-                action: 'reset-student-password',
-                profileId: resetCandidate.id,
-                birth: resetBirth.trim(),
-                phoneBack4: resetPhoneBack4.trim(),
-                password: resetPassword,
-            });
+            if (isAccountAuthEnabled()) {
+                await getAccountAuthClient().temporaryPassword({
+                    profileId: resetCandidate.id,
+                    temporaryPassword: resetPhoneBack4.trim(),
+                    newPassword: resetPassword,
+                });
+            } else {
+                await requestSupabaseFunction('dispatch-notification', {
+                    action: 'reset-student-password',
+                    profileId: resetCandidate.id,
+                    birth: resetBirth.trim(),
+                    phoneBack4: resetPhoneBack4.trim(),
+                    password: resetPassword,
+                });
+            }
 
             setLoginPassword('');
             setShowPasswordResetModal(false);
@@ -846,6 +860,15 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             if(isAccountAuthEnabled()&&err?.code==='invalid_login'){
                 setResetCandidate(null);
                 alert('비밀번호가 일치하지 않습니다. 다시 확인해 주세요.');
+                return false;
+            }
+            if(isAccountAuthEnabled()&&err?.code==='password_change_required'){
+                setResetCandidate(userCandidate);
+                setResetBirth('');
+                setResetPhoneBack4(rawPassword);
+                setResetPassword('');
+                setResetPasswordConfirm('');
+                setShowPasswordResetModal(true);
                 return false;
             }
             if(isAccountAuthEnabled()&&['name_not_found','selection_required'].includes(err?.code))return err.code;
@@ -1423,15 +1446,15 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
     }
 
     return (
-        <div className="h-screen h-[100dvh] bg-[#F8F9FA] text-[#191F28] flex flex-col relative overflow-hidden select-none font-sans bg-[radial-gradient(rgba(148,163,184,0.12)_1.5px,transparent_0)] bg-[size:32px_32px]">
+        <div className={`h-screen h-[100svh] supports-[height:100dvh]:h-[100dvh] text-[#191F28] flex flex-col relative overflow-hidden select-none font-sans ${step === 'HOME' ? 'bg-[#F7EFE2]' : 'bg-[#F8F9FA]'}`}>
             {/* Background Glow Accents */}
             <div className="absolute inset-0 overflow-hidden -z-10 pointer-events-none">
-                <motion.div animate={{ scale: [1, 1.2, 1], x: [0, 30, 0] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute -top-32 left-1/2 -translate-x-1/2 w-[480px] h-[480px] bg-gradient-to-b from-[#E63946]/10 to-orange-500/5 rounded-full blur-[100px]" />
+                <motion.div animate={{ scale: [1, 1.2, 1], x: [0, 30, 0] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute -top-32 left-1/2 -translate-x-1/2 w-[480px] h-[480px] bg-gradient-to-b from-[#CF3A27]/10 to-orange-500/5 rounded-full blur-[100px]" />
                 <motion.div animate={{ scale: [1.1, 1, 1.1], x: [0, -30, 0] }} transition={{ duration: 25, repeat: Infinity, ease: "linear" }} className="absolute -bottom-20 -right-20 w-80 h-80 bg-blue-500/5 rounded-full blur-[90px]" />
             </div>
 
             {/* Background Branding Typography */}
-            <div className="absolute inset-0 overflow-hidden opacity-[0.035] z-0 select-none pointer-events-none flex flex-col justify-around rotate-[-12deg] scale-150 origin-center">
+            <div className={`absolute inset-0 overflow-hidden opacity-[0.035] z-0 select-none pointer-events-none flex-col justify-around rotate-[-12deg] scale-150 origin-center ${step === 'HOME' ? 'hidden' : 'flex'}`}>
                 {Array.from({ length: 8 }).map((_, rIdx) => (
                     <div
                         key={rIdx}
@@ -1445,96 +1468,126 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                 ))}
             </div>
 
+            {step === 'HOME' && (
+                <div className="pointer-events-none absolute inset-y-0 left-1/2 z-[1] w-full max-w-md -translate-x-1/2 overflow-hidden motion-reduce:hidden" aria-hidden="true">
+                    <motion.div
+                        animate={{ x: [0, -18, 12, 0], y: [0, 24, -10, 0] }}
+                        transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+                        className="absolute -right-9 top-[7%] h-28 w-28 rounded-full bg-[#F8DF53]"
+                    />
+                    <motion.div
+                        animate={{ x: [0, 22, -8, 0], y: [0, -16, 20, 0] }}
+                        transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+                        className="absolute right-10 top-[18%] h-5 w-5 rounded-full bg-[#E88AAC]"
+                    />
+                    <motion.img src="/brand/center/particle-p03-r2.png" alt="" animate={{ x: [0, -28, 16, 0], y: [0, 34, -12, 0], rotate: [-8, 18, -4, -8] }} transition={{ duration: 17, repeat: Infinity, ease: 'easeInOut' }} className="absolute right-12 top-[24%] h-9 w-9 object-contain" />
+                    <motion.img src="/brand/center/particle-p13-r2.png" alt="" animate={{ x: [0, 34, 8, 0], y: [0, -26, 18, 0], rotate: [0, 18, -8, 0] }} transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }} className="absolute left-7 top-[39%] h-10 w-10 object-contain" />
+                    <motion.img src="/brand/center/particle-p15-r2.png" alt="" animate={{ x: [0, -24, 12, 0], y: [0, 28, -20, 0], rotate: [6, -12, 10, 6] }} transition={{ duration: 19, repeat: Infinity, ease: 'easeInOut' }} className="absolute right-5 top-[52%] h-11 w-11 object-contain" />
+                    <motion.img src="/brand/center/particle-p17-r2.png" alt="" animate={{ x: [0, 30, -12, 0], y: [0, 22, -16, 0], rotate: [-3, 9, -6, -3] }} transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }} className="absolute left-2 top-[62%] h-10 w-16 object-contain" />
+                </div>
+            )}
+
             {/* Header Brand */}
-            <header className="px-6 pt-4 pb-0 relative z-10 flex items-center justify-between max-w-md mx-auto w-full shrink-0">
-                <span className="font-black tracking-tight text-lg sm:text-xl text-[#191F28]">
-                    SCHOOL CHURCH IMPACT
+            <header className={`px-6 pt-4 pb-0 relative z-20 flex items-center justify-between max-w-md mx-auto w-full shrink-0 ${step === 'HOME' ? 'min-h-[58px]' : ''}`}>
+                <span className="font-black tracking-[-0.04em] text-lg sm:text-xl text-[#191F28]">
+                    {step === 'HOME' ? 'SCI CENTER' : 'SCHOOL CHURCH IMPACT'}
                 </span>
+                {step === 'HOME' && !isQRCheckin && (
+                    <span className="text-[11px] font-extrabold text-[#CF3A27]">우리가 연결되는 오늘</span>
+                )}
                 {isQRCheckin && (
-                    <span className="text-[11px] font-bold px-2.5 py-1 bg-red-50 text-[#E63946] border border-red-100 rounded-full shrink-0">
+                    <span className="text-[11px] font-bold px-2.5 py-1 bg-red-50 text-[#CF3A27] border border-red-100 rounded-full shrink-0">
                         QR 체크인 모드
                     </span>
                 )}
             </header>
 
             {/* Main Content Areas */}
-            <main className={`flex-1 min-h-0 px-6 relative z-10 max-w-md mx-auto w-full overflow-y-auto overscroll-contain ${step === 'SURVEY' ? 'py-4 flex flex-col justify-start' : 'py-0 flex flex-col justify-center'}`}>
+            <main className={`scrollbar-hide flex-1 min-h-0 relative z-10 max-w-md mx-auto w-full overscroll-contain ${step === 'HOME' ? 'overflow-hidden px-0 py-0' : 'overflow-y-auto px-6'} ${step === 'SURVEY' ? 'py-4 flex flex-col justify-start' : step === 'HOME' ? 'flex flex-col justify-start [@media(min-width:480px)_and_(min-height:800px)]:justify-center' : 'flex flex-col justify-center'}`}>
                 <AnimatePresence mode="wait">
                     {step === 'HOME' && (
                         <motion.div
                             key="home"
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -16 }}
-                            transition={{ duration: 0.25 }}
-                            className="space-y-7 my-auto"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="relative flex h-full min-h-0 w-full flex-col px-5 py-3 [@media(min-height:760px)]:py-5 [@media(min-width:480px)_and_(min-height:800px)]:h-auto [@media(min-width:480px)_and_(min-height:800px)]:max-h-[820px]"
                         >
-                            {/* Welcome Typography Header */}
-                            <div className="space-y-5">
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E63946]/10 text-[#E63946] text-[12px] font-bold">
-                                    <Sparkles size={13} className="animate-pulse" />
+                            <div className="relative z-10">
+                                <div className="inline-flex items-center gap-1.5 rounded-full bg-[#F4DDD4] px-3 py-1.5 text-[11px] font-extrabold text-[#CF3A27]">
+                                    <Sparkles size={13} />
                                     <span>Welcome to SCHOOL CHURCH IMPACT</span>
                                 </div>
 
-                                <h1 className="text-[30px] sm:text-[34px] font-black text-[#191F28] leading-[1.25] tracking-tight">
+                                <h1 className="mt-3 text-[29px] font-black leading-[1.14] tracking-[-0.055em] text-[#191F28] [@media(min-height:760px)]:mt-4 [@media(min-height:760px)]:text-[31px] sm:text-[34px]">
                                     SCI 센터에 오신 걸<br />
-                                    <span className="text-[#E63946]">
+                                    <span className="text-[#CF3A27]">
                                         환영합니다!
                                     </span>
                                 </h1>
 
-                                <p className="text-[#4E5968] text-[14px] leading-[1.6] font-medium">
-                                    SCI 센터는 일상 속 그리스도인을 꿈꾸는 모든 청소년을 위한 공간으로, 하나님과 이웃, 그리고 세상과의 연결을 지향합니다.
-                                </p>
-
-                                <p className="text-[#191F28] text-[14px] font-bold tracking-tight pt-0.5">
-                                    원하시는 접속 방식을 선택해 주세요!
+                                <p className="mt-3 max-w-[360px] break-keep text-[clamp(11px,3.1vw,13px)] font-semibold leading-[1.55] text-[#534A42] [@media(min-height:760px)]:mt-4 [@media(min-height:760px)]:leading-[1.65]">
+                                    <span className="whitespace-nowrap">일상 속 그리스도인을 꿈꾸는 모든 청소년을 위한 공간으로,</span><br />
+                                    하나님과 이웃, 그리고 세상과의 연결을 지향합니다.
                                 </p>
                             </div>
 
-                            {/* Primary Action Buttons: 로그인 / 게스트(QR전용) / 센터 등록 */}
-                            <div className="space-y-3 pt-1">
-                                {/* 1. 로그인 (Primary Accent Button) */}
+                            <div className="relative -mx-5 mt-2 flex min-h-[150px] flex-1 items-center justify-center [@media(min-height:760px)]:mt-3 [@media(min-width:480px)_and_(min-height:800px)]:h-[260px] [@media(min-width:480px)_and_(min-height:800px)]:min-h-0 [@media(min-width:480px)_and_(min-height:800px)]:flex-none">
+                                <img
+                                    src="/brand/center/character-group.png"
+                                    alt="SCI 센터 캐릭터 디디, 덤덤, 클로디, 퐁퐁, 하티"
+                                    className="h-full max-h-[clamp(160px,28svh,220px)] w-[94%] object-contain object-center"
+                                />
+                            </div>
+
+                            <div className="relative z-20 mt-2 shrink-0 space-y-2 [@media(min-height:760px)]:mt-2.5 [@media(min-height:760px)]:space-y-2.5">
                                 <button
                                     onClick={() => setShowLoginModal(true)}
-                                    className="w-full h-14 px-6 bg-[#E63946] hover:bg-[#D62839] text-white font-bold rounded-2xl border-0 outline-none shadow-[0_8px_20px_-4px_rgba(230,57,70,0.35)] active:scale-[0.98] transition-all flex items-center justify-between group text-[16px] tracking-tight cursor-pointer"
+                                    className="group flex h-[52px] w-full cursor-pointer items-center justify-between rounded-2xl border-0 bg-[#CF3A27] px-5 text-[16px] font-extrabold tracking-tight text-white transition-all hover:bg-[#B93223] active:scale-[0.98] [@media(min-height:760px)]:h-14"
                                 >
                                     <div className="flex items-center gap-2.5">
-                                        <LogIn size={20} />
+                                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20"><LogIn size={17} /></span>
                                         <span>로그인</span>
                                     </div>
-                                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
-                                        <ArrowRight size={18} className="text-white" />
-                                    </div>
+                                    <ChevronRight size={19} />
                                 </button>
 
-                                {/* 2. 게스트 (Secondary Slate Button - QR 체크인 접속 전용) */}
+                                {!isQRCheckin && (
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate('/student?preview=1')}
+                                        className="group flex h-[52px] w-full cursor-pointer items-center justify-between rounded-2xl border border-[#E7D8C4] bg-white px-5 text-[15px] font-extrabold tracking-tight text-[#191F28] transition-all hover:bg-[#FFFDF9] active:scale-[0.98] [@media(min-height:760px)]:h-14"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F5ECDF]"><BookOpen size={16} /></span>
+                                            <span>로그인 없이 둘러보기</span>
+                                        </div>
+                                        <ChevronRight size={19} />
+                                    </button>
+                                )}
+
                                 {isQRCheckin && (
                                     <button
                                         onClick={() => {
                                             setStep('FORM');
                                         }}
-                                        className="w-full h-14 px-6 bg-[#EAECEF] hover:bg-[#DFE2E6] text-[#191F28] font-bold rounded-2xl border-0 outline-none active:scale-[0.98] transition-all flex items-center justify-between group text-[16px] tracking-tight cursor-pointer"
+                                        className="flex h-14 w-full items-center justify-between rounded-2xl border border-[#E7D8C4] bg-white px-5 text-[16px] font-extrabold text-[#191F28] active:scale-[0.98]"
                                     >
                                         <div className="flex items-center gap-2.5">
-                                            <User size={20} className="text-[#4E5968]" />
+                                            <User size={20} />
                                             <span>게스트</span>
                                         </div>
-                                        <ChevronRight size={20} className="text-[#8B95A1] group-hover:translate-x-0.5 transition-transform" />
+                                        <ChevronRight size={20} />
                                     </button>
                                 )}
 
-                                {/* 3. 센터 등록 (프로그램 신청 로그인 경로에서는 숨김) */}
                                 {!isProgramLoginFlow && (
                                     <button
                                         onClick={() => setShowSignupModal(true)}
-                                        className="w-full h-14 px-6 bg-white hover:bg-gray-50 text-[#4E5968] font-bold rounded-2xl border border-[#E5E8EB] outline-none active:scale-[0.98] transition-all flex items-center justify-between group text-[16px] tracking-tight shadow-xs cursor-pointer"
+                                        className="flex h-8 w-full items-center justify-center bg-transparent text-[12px] font-bold text-[#71665C] transition-colors hover:text-[#CF3A27] [@media(min-height:760px)]:h-10"
                                     >
-                                        <div className="flex items-center gap-2.5">
-                                            <School size={20} className="text-[#8B95A1]" />
-                                            <span>센터 등록</span>
-                                        </div>
-                                        <ChevronRight size={20} className="text-[#8B95A1] group-hover:translate-x-0.5 transition-transform" />
+                                        <span>처음 왔나요? 센터 등록하기</span>
                                     </button>
                                 )}
                             </div>
@@ -1549,7 +1602,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                             transition={{ duration: 0.25 }}
-                            className="bg-white border border-[#E5E8EB] rounded-3xl p-6 shadow-xl space-y-4 my-auto max-h-[85vh] overflow-y-auto"
+                            className="scrollbar-hide bg-white border border-[#E5E8EB] rounded-3xl p-6 shadow-xl space-y-4 my-auto max-h-[85vh] overflow-y-auto"
                         >
                             <div className="flex justify-between items-center border-b border-[#F2F4F6] pb-3">
                                 <div>
@@ -1572,7 +1625,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
                                             placeholder="이름을 입력해주세요"
-                                            className="w-full pl-9 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#E63946] font-bold text-sm"
+                                            className="w-full pl-9 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#CF3A27] font-bold text-sm"
                                         />
                                     </div>
                                 </div>
@@ -1587,7 +1640,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                             value={school}
                                             onChange={(e) => setSchool(e.target.value)}
                                             placeholder="학교 이름 (예: 하이픈고등학교)"
-                                            className="w-full pl-9 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#E63946] font-bold text-sm"
+                                            className="w-full pl-9 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#CF3A27] font-bold text-sm"
                                         />
                                     </div>
                                 </div>
@@ -1605,7 +1658,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                                         key={opt.id}
                                                         type="button"
                                                         onClick={() => toggleReason(opt.label)}
-                                                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all ${isSelected ? 'bg-[#E63946]/10 border-[#E63946] text-[#E63946] font-bold' : 'bg-[#F9FAFB] border-[#E5E8EB] text-[#4E5968] hover:bg-white'}`}
+                                                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all ${isSelected ? 'bg-[#CF3A27]/10 border-[#CF3A27] text-[#CF3A27] font-bold' : 'bg-[#F9FAFB] border-[#E5E8EB] text-[#4E5968] hover:bg-white'}`}
                                                     >
                                                         <span className="text-base shrink-0">{opt.emoji}</span>
                                                         <span className="text-[11.5px] leading-snug font-medium line-clamp-1">{opt.label}</span>
@@ -1618,7 +1671,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                             value={customReason}
                                             onChange={(e) => setCustomReason(e.target.value)}
                                             placeholder="상세 내용을 직접 적어주세요"
-                                            className="w-full px-3 py-2 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#E63946] font-bold text-xs"
+                                            className="w-full px-3 py-2 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#CF3A27] font-bold text-xs"
                                         />
                                     </div>
                                 </div>
@@ -1651,7 +1704,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full h-14 bg-[#E63946] hover:bg-[#D62839] text-white font-bold rounded-2xl transition shadow-md shadow-[#E63946]/25 active:scale-[0.98] disabled:opacity-50 mt-3 text-[16px] tracking-tight flex items-center justify-center"
+                                    className="w-full h-14 bg-[#CF3A27] hover:bg-[#B93223] text-white font-bold rounded-2xl transition shadow-md shadow-[#CF3A27]/25 active:scale-[0.98] disabled:opacity-50 mt-3 text-[16px] tracking-tight flex items-center justify-center"
                                 >
                                     {loading ? (isQRCheckin ? '체크인 처리 중...' : '접속 처리 중...') : (isQRCheckin ? '게스트 체크인 완료' : '게스트 접속')}
                                 </button>
@@ -1669,7 +1722,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                             transition={{ duration: 0.25 }}
                             className="bg-white border border-[#E5E8EB] rounded-3xl p-6 shadow-xl space-y-6 my-auto text-center"
                         >
-                            <div className="w-16 h-16 bg-[#E63946]/10 border border-[#E63946]/20 rounded-full flex items-center justify-center mx-auto text-[#E63946]">
+                            <div className="w-16 h-16 bg-[#CF3A27]/10 border border-[#CF3A27]/20 rounded-full flex items-center justify-center mx-auto text-[#CF3A27]">
                                 <Sparkles size={32} />
                             </div>
 
@@ -1679,7 +1732,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                     <span>현재 이용 중 ({new Date(activeSession.checkInTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })} 입실)</span>
                                 </span>
                                 <h2 className="text-2xl font-extrabold text-[#191F28]">
-                                    <span className="text-[#E63946]">{activeSession.name}</span>님, 반갑습니다!
+                                    <span className="text-[#CF3A27]">{activeSession.name}</span>님, 반갑습니다!
                                 </h2>
                                 <p className="text-[#4E5968] text-sm leading-relaxed font-medium">
                                     현재 <strong className="text-[#191F28] font-bold">{activeSession.locationName}</strong>을 이용하고 계십니다.<br />
@@ -1691,7 +1744,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                 <button
                                     onClick={handleCheckoutConfirm}
                                     disabled={loading}
-                                    className="w-full h-14 bg-[#E63946] hover:bg-[#D62839] text-white font-bold rounded-2xl transition shadow-md shadow-[#E63946]/25 active:scale-[0.98] disabled:opacity-50 text-[16px] tracking-tight flex items-center justify-between px-6"
+                                    className="w-full h-14 bg-[#CF3A27] hover:bg-[#B93223] text-white font-bold rounded-2xl transition shadow-md shadow-[#CF3A27]/25 active:scale-[0.98] disabled:opacity-50 text-[16px] tracking-tight flex items-center justify-between px-6"
                                 >
                                     <span>{loading ? '퇴실 처리 중...' : '퇴실하기 (Check-Out)'}</span>
                                     <LogOut size={20} />
@@ -1806,7 +1859,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                     {isQRCheckin ? '체크인 완료!' : '게스트 접속 완료!'}
                                 </h2>
                                 <p className="text-[#4E5968] text-sm leading-relaxed font-medium">
-                                    <strong className="text-[#E63946] font-bold">{name}</strong>님, 환영합니다!<br />
+                                    <strong className="text-[#CF3A27] font-bold">{name}</strong>님, 환영합니다!<br />
                                     SCI 센터에서 즐거운 연결을 누려보세요
                                 </p>
                             </div>
@@ -1859,7 +1912,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         className="w-full max-w-sm rounded-3xl border border-[#E5E8EB] bg-white p-6 text-center shadow-2xl"
                     >
-                        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#E63946]/10 text-[#E63946]">
+                        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#CF3A27]/10 text-[#CF3A27]">
                             <LogOut size={28} />
                         </div>
                         <h2 className="text-xl font-extrabold text-[#191F28]">체크아웃 하시겠습니까?</h2>
@@ -1882,7 +1935,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                             <button
                                 onClick={handleCheckoutConfirm}
                                 disabled={loading}
-                                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#E63946] text-[16px] font-bold text-white shadow-md shadow-[#E63946]/25 transition active:scale-[0.98] disabled:opacity-50"
+                                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#CF3A27] text-[16px] font-bold text-white shadow-md shadow-[#CF3A27]/25 transition active:scale-[0.98] disabled:opacity-50"
                             >
                                 <LogOut size={19} />
                                 {loading ? '체크아웃 처리 중...' : '네, 체크아웃할게요'}
@@ -1919,7 +1972,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                         <div className="flex justify-between items-center border-b border-[#F2F4F6] pb-3">
                             <div>
                                 <h2 className="text-lg font-extrabold text-[#191F28] flex items-center gap-2">
-                                    <LogIn size={20} className="text-[#E63946]" />
+                                    <LogIn size={20} className="text-[#CF3A27]" />
                                     로그인
                                 </h2>
                                 <p className="text-[12px] text-[#8B95A1] mt-0.5 font-medium">
@@ -1942,7 +1995,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                         value={loginName}
                                         onChange={(e) => setLoginName(e.target.value)}
                                         placeholder="이름 입력 (예: 홍길동)"
-                                        className="w-full pl-9 pr-3 py-3 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#E63946] font-bold text-sm"
+                                        className="w-full pl-9 pr-3 py-3 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#CF3A27] font-bold text-sm"
                                     />
                                 </div>
                             </div>
@@ -1957,7 +2010,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                                         value={loginPassword}
                                         onChange={(e) => setLoginPassword(e.target.value)}
                                         placeholder="비밀번호 입력"
-                                        className="w-full pl-9 pr-3 py-3 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#E63946] font-bold text-sm"
+                                        className="w-full pl-9 pr-3 py-3 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#CF3A27] font-bold text-sm"
                                     />
                                 </div>
                             </div>
@@ -1965,7 +2018,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                             <button
                                 type="submit"
                                 disabled={loginLoading}
-                                className="w-full h-14 bg-[#E63946] hover:bg-[#D62839] text-white font-bold rounded-2xl transition shadow-md shadow-[#E63946]/25 active:scale-[0.98] disabled:opacity-50 mt-4 text-[16px] tracking-tight flex items-center justify-center gap-2"
+                                className="w-full h-14 bg-[#CF3A27] hover:bg-[#B93223] text-white font-bold rounded-2xl transition shadow-md shadow-[#CF3A27]/25 active:scale-[0.98] disabled:opacity-50 mt-4 text-[16px] tracking-tight flex items-center justify-center gap-2"
                             >
                                 {loginLoading ? '로그인 중...' : (isQRCheckin ? '로그인 및 자동 체크인' : '로그인')}
                                 <ArrowRight size={18} />
@@ -1995,21 +2048,21 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                         <div className="flex items-start justify-between gap-4 border-b border-[#F2F4F6] pb-3">
                             <div>
                                 <h2 className="text-lg font-extrabold text-[#191F28]">비밀번호 초기화</h2>
-                                <p className="mt-1 text-xs font-medium text-[#6B7684]">가입 정보 확인 후 새 비밀번호를 설정합니다.</p>
+                                <p className="mt-1 text-xs font-medium text-[#6B7684]">{isAccountAuthEnabled() ? '임시 비밀번호를 확인한 뒤 새 비밀번호를 설정합니다.' : '가입 정보 확인 후 새 비밀번호를 설정합니다.'}</p>
                             </div>
                             <button type="button" onClick={() => setShowPasswordResetModal(false)} className="rounded-full bg-[#F2F4F6] p-2 text-[#8B95A1]">
                                 <X size={18} />
                             </button>
                         </div>
                         <p className="rounded-xl bg-[#F8F9FA] px-3 py-2 text-sm font-bold text-[#4E5968]">{resetCandidate.name}님의 계정</p>
-                        <input
+                        {!isAccountAuthEnabled() && <input
                             type="text"
                             required
                             value={resetBirth}
                             onChange={(event) => setResetBirth(event.target.value)}
                             placeholder="생년월일 8자리 (예: 20100101)"
                             className="w-full rounded-xl border border-[#E5E8EB] bg-[#F9FAFB] px-3 py-3 text-sm font-bold outline-none focus:border-[#3182F6]"
-                        />
+                        />}
                         <input
                             type="tel"
                             required
@@ -2017,7 +2070,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                             maxLength="4"
                             value={resetPhoneBack4}
                             onChange={(event) => setResetPhoneBack4(event.target.value.replace(/\D/g, '').slice(0, 4))}
-                            placeholder="휴대폰 번호 뒤 4자리"
+                            placeholder={isAccountAuthEnabled() ? '임시 비밀번호 4자리' : '휴대폰 번호 뒤 4자리'}
                             className="w-full rounded-xl border border-[#E5E8EB] bg-[#F9FAFB] px-3 py-3 text-sm font-bold outline-none focus:border-[#3182F6]"
                         />
                         <input
@@ -2055,7 +2108,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
                     <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-[#E5E8EB] space-y-4">
                         <h2 className="text-lg font-extrabold text-[#191F28]">동명이인 선택</h2>
                         <p className="text-xs text-[#4E5968]">동일한 이름을 가진 계정이 여러 개 존재합니다. 자신의 계정을 선택해주세요.</p>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                        <div className="scrollbar-hide space-y-2 max-h-60 overflow-y-auto">
                             {loginDuplicates.map((cand) => (
                                 <button
                                     key={cand.id}
@@ -2137,7 +2190,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true }) => {
             {/* In-Page Direct Signup Modal Overlay */}
             {showSignupModal && !isProgramLoginFlow && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-[#E5E8EB] space-y-4 max-h-[90vh] overflow-y-auto">
+                    <div className="scrollbar-hide bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-[#E5E8EB] space-y-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center border-b border-[#F2F4F6] pb-3">
                             <div>
                                 <h2 className="text-lg font-extrabold text-[#191F28]">

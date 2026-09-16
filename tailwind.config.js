@@ -12,6 +12,8 @@ export default {
                 sans: ['Pretendard', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
             },
             colors: {
+                haifnRed: '#CF3A27',
+                haifnRedHover: '#B93223',
                 tossBlue: '#3182f6',
                 tossBlueHover: '#2272eb',
                 tossBlueLight: '#e8f3ff',

@@ -16,7 +16,7 @@ export default function InterestSessionDialog({noticeId,api,onClose,onContinue})
     if (state.phase === 'ready') return null;
     return createPortal(<div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 px-5 py-8 backdrop-blur-[2px]" onClick={e=>e.stopPropagation()}>
         <section role="dialog" aria-modal="true" aria-labelledby="interest-session-title" className="w-full max-w-[360px] rounded-[28px] bg-white px-6 pb-5 pt-7 shadow-[0_24px_64px_rgba(15,23,42,0.24)]">
-            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-tossBlue">
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FBF3E7] text-[#CF3A27]">
                 <ShieldCheck size={25} strokeWidth={2.2}/>
             </div>
             <h2 id="interest-session-title" className="text-[21px] font-extrabold tracking-[-0.025em] text-tossGrey900">로그인 연결이 필요해요</h2>
@@ -26,7 +26,7 @@ export default function InterestSessionDialog({noticeId,api,onClose,onContinue})
                     <label htmlFor="interest-session-password" className="mt-6 block text-[13px] font-bold text-tossGrey700">비밀번호</label>
                     <input id="interest-session-password" type="password" autoComplete="current-password" autoFocus required disabled={busy}
                         value={password} onChange={e=>setPassword(e.target.value)} className="mt-2 h-[52px] w-full rounded-2xl border-0 bg-tossGrey100 px-4 text-base font-semibold text-tossGrey900 outline-none ring-0 transition-shadow placeholder:text-tossGrey400 focus:bg-white focus:shadow-[0_0_0_2px_#3182F6] disabled:opacity-50" />
-                    <button type="submit" disabled={busy} className="mt-4 h-[52px] w-full rounded-2xl bg-tossBlue text-[15px] font-bold text-white transition-colors hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50">{busy?'연결 확인 중…':'확인'}</button>
+                    <button type="submit" disabled={busy} className="mt-4 h-[52px] w-full rounded-2xl bg-[#CF3A27] text-[15px] font-bold text-white transition-colors hover:bg-[#B93223] active:bg-[#A42C20] disabled:opacity-50">{busy?'연결 확인 중…':'확인'}</button>
                 </>}
                 {state.phase==='checking' && <p role="status" className="mt-6 rounded-2xl bg-tossGrey100 px-4 py-3 text-sm font-semibold text-tossGrey600">기존 로그인 연결을 확인하고 있어요…</p>}
                 {state.error && <p role="alert" className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold leading-5 text-red-600">{state.error}</p>}

@@ -41,7 +41,13 @@ export function useDutyRoster(month, enabled = true) {
                     } catch { /* Keep the roster and use the standard avatar fallback. */ }
                 }
                 if (!active) return;
-                const roster = missingTable ? getSeedDutyRoster() : Object.fromEntries(assignments.map(row => [row.duty_date, row]));
+                // Keep the published legacy roster visible while the new duty table
+                // is being populated. Explicit database assignments (including OFF)
+                // always take precedence for the same date.
+                const roster = {
+                    ...getSeedDutyRoster(),
+                    ...Object.fromEntries(assignments.map(row => [row.duty_date, row])),
+                };
                 setState({ month, roster, loading: false, needsMigration: Boolean(missingTable), error: error && !missingTable ? '당직 정보를 불러오지 못했습니다.' : '' });
             }).catch(() => { if (active) setState({ month, roster: {}, loading: false, error: '당직 정보를 불러오지 못했습니다.', needsMigration: false }); });
         return () => { active = false; };

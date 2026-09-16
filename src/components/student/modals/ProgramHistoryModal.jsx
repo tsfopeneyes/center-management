@@ -26,7 +26,7 @@ const ProgramHistoryModal = ({ attendedProgramsList, setShowProgramHistory }) =>
                                     <X size={20} className="text-gray-400" />
                                 </button>
                             </div>
-                            <div className="px-8 pb-10 max-h-[60vh] overflow-y-auto">
+                            <div className="scrollbar-hide px-8 pb-10 max-h-[60vh] overflow-y-auto">
                                 {attendedProgramsList.length === 0 ? (
                                     <div className="text-center py-10">
                                         <p className="text-gray-400 font-bold">참여한 프로그램이 없습니다.</p>

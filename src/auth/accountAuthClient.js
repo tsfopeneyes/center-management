@@ -12,6 +12,7 @@ import {createRegistrationController} from './registrationController.js';
 import {createLoginCandidateTransport} from './loginCandidateTransport.js';
 import {createMediaUploadTransport} from './mediaUploadTransport.js';
 import {createMemberAdminTransport} from './memberAdminTransport.js';
+import {createTemporaryPasswordController} from './temporaryPasswordController.js';
 
 // Constructed only after server/database readiness is proven. Merely importing
 // this file does not change the current app, session, storage or navigation.
@@ -38,6 +39,7 @@ export function createAccountAuthClient({baseUrl,supabaseUrl,publishableKey,auth
         createSessionCoordinator:expectedProfileId=>createSessionCoordinator({auth,resolveSession,expectedProfileId}),
         login:createLoginController({auth,login,readProfile:profile,discardCreatedSession,exclusive}),
         password:createPasswordChangeController({auth,change:credentials,resolveSession,exclusive}),
+        temporaryPassword:createTemporaryPasswordController({credentials,exclusive}),
         adminReset:createAdminResetController({auth,credentials,exclusive}),profile,
         registration:createRegistrationController({register}),candidates,upload,members
     });

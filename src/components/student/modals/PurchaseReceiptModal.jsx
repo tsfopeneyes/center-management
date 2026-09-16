@@ -29,7 +29,7 @@ const PurchaseReceiptModal = ({ transaction, onClose }) => {
                     {transaction.image_url ? (
                         <img src={transaction.image_url} alt={itemName} className="w-full h-full object-cover" />
                     ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center">
+                        <div className="w-full h-full bg-gradient-to-br from-[#CF3A27] to-[#B93223] flex items-center justify-center">
                             <CheckCircle2 size={48} className="text-white opacity-40" />
                         </div>
                     )}
@@ -48,7 +48,7 @@ const PurchaseReceiptModal = ({ transaction, onClose }) => {
                     {/* Title Text over Image */}
                     <div className="absolute bottom-6 left-6 right-6 flex flex-col items-start text-left">
                         <div className="flex items-center gap-2 mb-2">
-                            <span className="inline-flex items-center px-2 py-1 bg-blue-500/80 text-white text-[10px] font-black rounded backdrop-blur-md uppercase tracking-widest border border-white/20">
+                            <span className="inline-flex items-center px-2 py-1 bg-[#CF3A27]/90 text-white text-[10px] font-black rounded backdrop-blur-md uppercase tracking-widest border border-white/20">
                                 🎟️ 스토어 교환권
                             </span>
                             <span className="inline-flex items-center px-2 py-1 bg-black/40 text-white text-[10px] font-black rounded backdrop-blur-md tracking-widest border border-white/10">
@@ -71,8 +71,8 @@ const PurchaseReceiptModal = ({ transaction, onClose }) => {
                     <div className="flex justify-between items-end mb-6">
                         <div>
                             <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">차감된 하이픈</p>
-                            <p className="text-3xl font-black text-blue-600 leading-none tracking-tighter">
-                                {Math.abs(transaction.amount)}<span className="text-lg text-blue-500 ml-1">H</span>
+                            <p className="text-3xl font-black text-[#CF3A27] leading-none tracking-tighter">
+                                {Math.abs(transaction.amount)}<span className="text-lg text-[#CF3A27] ml-1">H</span>
                             </p>
                         </div>
                         <div className="text-right">
@@ -89,7 +89,7 @@ const PurchaseReceiptModal = ({ transaction, onClose }) => {
                         <div className="text-center z-10 relative">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">결제 타임스탬프</p>
                             <p className="text-xl font-black text-gray-800 tracking-tighter">
-                                {dateStr} <span className="text-indigo-600 ml-1">{timeStr}</span>
+                                {dateStr} <span className="text-[#CF3A27] ml-1">{timeStr}</span>
                             </p>
                         </div>
                     </div>
