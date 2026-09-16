@@ -57,7 +57,7 @@ const HaifnHistoryModal = ({ user, onClose }) => {
                 <div className="overflow-y-auto w-full flex-1 p-5 bg-gray-50/50 custom-scrollbar">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-20 gap-3">
-                            <RefreshCw className="animate-spin text-blue-500" size={24} />
+                            <RefreshCw className="animate-spin text-[#CF3A27]" size={24} />
                             <p className="font-bold text-gray-400 text-sm">기록을 불러오는 중...</p>
                         </div>
                     ) : history.length === 0 ? (
@@ -83,7 +83,7 @@ const HaifnHistoryModal = ({ user, onClose }) => {
                                                 {item.status === 'APPROVED' ? '교환 완료' : item.status === 'REJECTED' ? '교환 반려' : '교환 신청'}
                                             </p>
                                         </div>
-                                        <div className="text-base font-black whitespace-nowrap text-[#E63946]">
+                                        <div className="text-base font-black whitespace-nowrap text-[#CF3A27]">
                                             {Math.abs(item.amount)} H
                                         </div>
                                     </div>

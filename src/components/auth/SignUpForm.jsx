@@ -53,7 +53,7 @@ const SignUpForm = ({ onSuccess, onCancel, isKiosk = false, prefilledData = null
                         formData.birth.length < 6 ||
                         formData.phone.replace(/[^0-9]/g, '').length < 11
                     }
-                    className={`w-full h-14 bg-[#E63946] hover:bg-[#D62839] text-white font-bold rounded-2xl transition shadow-md shadow-[#E63946]/25 active:scale-[0.98] disabled:opacity-50 mt-4 text-[16px] tracking-tight flex items-center justify-center ${isKiosk ? 'sm:h-16 sm:rounded-[2rem] sm:text-xl' : ''}`}
+                    className={`w-full h-14 bg-[#CF3A27] hover:bg-[#B93223] text-white font-bold rounded-2xl transition shadow-md shadow-[#CF3A27]/25 active:scale-[0.98] disabled:opacity-50 mt-4 text-[16px] tracking-tight flex items-center justify-center ${isKiosk ? 'sm:h-16 sm:rounded-[2rem] sm:text-xl' : ''}`}
                 >
                     {loading ? '가입 처리 중...' : '회원가입 완료'}
                 </button>

@@ -1491,7 +1491,7 @@ const StudentDashboard = () => {
 
     return (
         <div 
-            className="w-full md:max-w-lg mx-auto min-h-screen bg-tossGrey50 pb-20 font-sans transition-all duration-300 pt-[max(env(safe-area-inset-top),0px)]"
+            className="student-redesign w-full md:max-w-lg mx-auto min-h-screen bg-[#F7EFE2] font-sans transition-all duration-300 pt-[max(env(safe-area-inset-top),0px)]"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -1776,7 +1776,7 @@ const StudentDashboard = () => {
                                 <p className="text-xs text-tossGrey500 font-semibold mt-1">{isPreviewMode ? '정보를 입력해 센터 등록을 완료해 주세요.' : '나머지 정보를 입력해 하이픈 등록을 완료해 주세요.'}</p>
                             </div>
                             
-                        <SignUpForm 
+                        <SignUpForm
                                 onSuccess={({ under14 } = {}) => {
                                     setShowRegisterModal(false);
                                     setRegistrationSuccess({ under14: Boolean(under14) });
@@ -2452,7 +2452,7 @@ const StudentDashboard = () => {
             )}
 
             {/* Bottom Navigation */}
-            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white border-t border-tossGrey200 flex justify-around items-center px-4 py-3 z-[120] safe-area-bottom">
+            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-[#FFFDF9]/95 backdrop-blur-xl border-t border-[#E7D8C4] flex justify-around items-center px-4 py-2 z-[120] safe-area-bottom">
                 {navigationTabs.map((tab) => (
                             <motion.button
                                 key={tab.id}
@@ -2460,18 +2460,12 @@ const StudentDashboard = () => {
                                 data-tour-center={tab.id === TAB_NAMES.PROGRAMS ? 'nav-center' : undefined}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => handleTabNavigation(tab.id)}
-                                className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all duration-300 flex-1 relative btn-tactile ${activeTab === tab.id ? 'text-tossBlue' : 'text-tossGrey400'}`}
+                                className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all duration-300 flex-1 relative btn-tactile ${activeTab === tab.id ? 'text-[#CF3A27]' : 'text-[#9A8C7D]'}`}
                             >
                         <tab.icon size={22} strokeWidth={activeTab === tab.id ? 2.2 : 1.8} />
-                        <span className={`text-[11px] font-medium tracking-tight mt-1 ${activeTab === tab.id ? 'text-tossBlue' : 'text-tossGrey500'}`}>
+                        <span className={`text-[11px] font-bold tracking-tight mt-1 ${activeTab === tab.id ? 'text-[#CF3A27]' : 'text-[#71665C]'}`}>
                             {tab.label}
                         </span>
-                        {activeTab === tab.id && (
-                            <motion.div
-                                layoutId="activeTabPill"
-                                className="absolute -top-1 w-1.5 h-1.5 rounded-full bg-tossBlue"
-                            />
-                        )}
                     </motion.button>
                 ))}
             </div>

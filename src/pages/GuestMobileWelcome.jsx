@@ -1493,10 +1493,10 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                         transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
                         className="absolute right-10 top-[18%] h-5 w-5 rounded-full bg-[#E88AAC]"
                     />
-                    <motion.img src="/brand/center/particle-p03.png" alt="" animate={{ x: [0, -28, 16, 0], y: [0, 34, -12, 0], rotate: [-8, 18, -4, -8] }} transition={{ duration: 17, repeat: Infinity, ease: 'easeInOut' }} className="absolute right-12 top-[24%] h-9 w-9 object-contain" />
-                    <motion.img src="/brand/center/particle-p13.png" alt="" animate={{ x: [0, 34, 8, 0], y: [0, -26, 18, 0], rotate: [0, 18, -8, 0] }} transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }} className="absolute left-7 top-[39%] h-10 w-10 object-contain" />
-                    <motion.img src="/brand/center/particle-p15.png" alt="" animate={{ x: [0, -24, 12, 0], y: [0, 28, -20, 0], rotate: [6, -12, 10, 6] }} transition={{ duration: 19, repeat: Infinity, ease: 'easeInOut' }} className="absolute right-5 top-[52%] h-11 w-11 object-contain" />
-                    <motion.img src="/brand/center/particle-p17.png" alt="" animate={{ x: [0, 30, -12, 0], y: [0, 22, -16, 0], rotate: [-3, 9, -6, -3] }} transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }} className="absolute left-2 top-[62%] h-10 w-16 object-contain" />
+                    <motion.img src="/brand/center/particle-p03-r2.png" alt="" animate={{ x: [0, -28, 16, 0], y: [0, 34, -12, 0], rotate: [-8, 18, -4, -8] }} transition={{ duration: 17, repeat: Infinity, ease: 'easeInOut' }} className="absolute right-12 top-[24%] h-9 w-9 object-contain" />
+                    <motion.img src="/brand/center/particle-p13-r2.png" alt="" animate={{ x: [0, 34, 8, 0], y: [0, -26, 18, 0], rotate: [0, 18, -8, 0] }} transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }} className="absolute left-7 top-[39%] h-10 w-10 object-contain" />
+                    <motion.img src="/brand/center/particle-p15-r2.png" alt="" animate={{ x: [0, -24, 12, 0], y: [0, 28, -20, 0], rotate: [6, -12, 10, 6] }} transition={{ duration: 19, repeat: Infinity, ease: 'easeInOut' }} className="absolute right-5 top-[52%] h-11 w-11 object-contain" />
+                    <motion.img src="/brand/center/particle-p17-r2.png" alt="" animate={{ x: [0, 30, -12, 0], y: [0, 22, -16, 0], rotate: [-3, 9, -6, -3] }} transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }} className="absolute left-2 top-[62%] h-10 w-16 object-contain" />
                 </div>
             )}
 

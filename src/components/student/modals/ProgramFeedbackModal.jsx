@@ -298,7 +298,7 @@ const ProgramFeedbackModal = ({ program, existingFeedback, onClose, onSuccess })
                                                         onClick={() => handleCustomAnswerChange(qKey, opt)}
                                                         className={`px-4 py-2.5 rounded-toss-lg text-sm font-bold border transition-colors cursor-pointer ${
                                                             currentAns === opt
-                                                            ? 'bg-tossBlue border-tossBlue text-white shadow-xs' 
+                                                            ? 'bg-[#CF3A27] border-[#CF3A27] text-white shadow-xs' 
                                                             : 'bg-white border-tossGrey200 text-tossGrey700 hover:bg-tossGrey50'
                                                         }`}
                                                     >
@@ -349,7 +349,7 @@ const ProgramFeedbackModal = ({ program, existingFeedback, onClose, onSuccess })
                                             onClick={() => handleQ1Select(opt)}
                                             className={`px-4 py-2.5 rounded-toss-lg text-sm font-bold border transition-colors cursor-pointer ${
                                                 (isQ1Other && opt === '기타') || (!isQ1Other && q1 === opt)
-                                                ? 'bg-tossBlue border-tossBlue text-white shadow-xs' 
+                                                ? 'bg-[#CF3A27] border-[#CF3A27] text-white shadow-xs' 
                                                 : 'bg-white border-tossGrey200 text-tossGrey700 hover:bg-tossGrey50'
                                             }`}
                                         >
@@ -448,7 +448,7 @@ const ProgramFeedbackModal = ({ program, existingFeedback, onClose, onSuccess })
                     <button
                         onClick={handleSubmit}
                         disabled={submitting}
-                        className="w-full py-4 bg-tossBlue disabled:bg-tossGrey300 text-white rounded-toss-xl font-bold text-base transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center"
+                        className="w-full py-4 bg-[#CF3A27] hover:bg-[#B93223] disabled:bg-tossGrey300 text-white rounded-toss-xl font-bold text-base transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center"
                     >
                         {submitting ? '제출 중...' : (currentFeedback ? '수정하기' : '제출하기')}
                     </button>

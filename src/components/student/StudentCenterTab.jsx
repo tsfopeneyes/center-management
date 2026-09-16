@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import StudentProgramsTab from './StudentProgramsTab';
-import { Store, Calendar, MapPin, Check, Plus, Coffee, Gamepad2, Landmark, CheckCircle, Sparkles, BookOpen, Wrench } from 'lucide-react';
+import { Store, Calendar, MapPin, Check, Plus, Coffee, Gamepad2, Landmark, CheckCircle, Sparkles, BookOpen, Wrench, ChevronRight } from 'lucide-react';
 import RentalBookingModal from './modals/RentalBookingModal';
 import MyRentalsModal from './modals/MyRentalsModal';
 import ContentPostModal from './modals/ContentPostModal';
 import { parseContentPost, sortContentPosts } from '../../utils/contentPosts';
 import { isAdminOrStaff } from '../../utils/userUtils';
+import ContentImage from '../common/ContentImage';
 
 const StudentCenterTab = ({
     user,
@@ -157,24 +158,26 @@ const StudentCenterTab = ({
     };
 
     return (
-        <div className="w-full min-h-screen bg-tossGrey50 pb-28 relative">
+        <div className="w-full min-h-screen bg-[#F7EFE2] pb-24 relative">
             {/* Header Title */}
-            <div className="px-5 pt-5 pb-4 sticky top-0 bg-tossGrey50/95 backdrop-blur-xl z-20 border-b border-tossGrey200/50 mb-6">
-                <div className="flex flex-col gap-1">
-                    <h2 className="text-2xl font-bold text-tossGrey900 tracking-tight flex items-center gap-1.5">
+            <div className="relative overflow-hidden rounded-b-[30px] bg-[#CF3A27] px-5 pb-7 pt-6 text-white shadow-[0_8px_24px_rgba(207,58,39,0.18)] mb-5">
+                <div aria-hidden="true" className="absolute -right-7 -top-8 h-24 w-24 rounded-full bg-[#F8DF53]" />
+                <div aria-hidden="true" className="absolute -bottom-8 right-16 h-20 w-28 rounded-t-full bg-[#E88AAC]/85" />
+                <div className="relative z-10 flex flex-col gap-1">
+                    <h2 className="text-[24px] font-black tracking-[-0.04em] flex items-center gap-1.5">
                         센터 이용
                     </h2>
-                    <p className="text-tossGrey500 text-xs font-medium">센터에서 새로운 기독 청소년 라이프스타일을 누려보세요!</p>
+                    <p className="text-white/80 text-xs font-semibold">센터에서 새로운 기독 청소년 라이프스타일을 누려보세요!</p>
                 </div>
             </div>
 
-            <div className="px-5 space-y-6">
+            <div className="px-4 space-y-5">
 
             {/* 1. Programs Section */}
-            <div data-tour={tutorialMode ? 'tutorial-program-section' : undefined} className="bg-white p-5 rounded-toss-xl shadow-toss-standard">
+            <section data-tour={tutorialMode ? 'tutorial-program-section' : undefined} className="rounded-[24px] border border-[#E7D8C4] bg-white p-5 shadow-[0_5px_16px_rgba(82,55,33,0.07)]">
                 <div className="flex justify-between items-start mb-4 rounded-xl">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-tossBlueLight text-tossBlue flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#F4DDD4] text-[#CF3A27] flex items-center justify-center shrink-0">
                             <BookOpen size={18} />
                         </div>
                         <div>
@@ -196,13 +199,13 @@ const StudentCenterTab = ({
                         onTutorialProgramOpen={onTutorialProgramOpen}
                     />
                 </div>
-            </div>
+            </section>
 
             {/* 2. Contents Section */}
-            <div data-tour={tutorialMode ? 'tutorial-content-section' : undefined} className="bg-white p-5 rounded-toss-xl shadow-toss-standard">
+            <section data-tour={tutorialMode ? 'tutorial-content-section' : undefined} className="rounded-[24px] border border-[#E7D8C4] bg-[#FFFDF9] p-5 shadow-[0_5px_16px_rgba(82,55,33,0.07)]">
                 <div className="flex justify-between items-start mb-4 rounded-xl">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-tossWarning/10 text-tossWarning flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#F8E9B0] text-[#8A6510] flex items-center justify-center shrink-0">
                             <Store size={18} />
                         </div>
                         <div>
@@ -228,8 +231,8 @@ const StudentCenterTab = ({
                                         data-tour-label={categoryLabel}
                                         className="rounded-xl"
                                     >
-                                        <div className="grid grid-cols-1 gap-3 mb-4 last:mb-0 sm:grid-cols-2">
-                                            {items.map(item => {
+                                        <div className="grid grid-cols-2 gap-3 mb-4 last:mb-0">
+                                            {items.map((item, itemIndex) => {
                                                 let d = '';
                                                 try {
                                                     if (item.description && item.description.startsWith('{')) {
@@ -243,11 +246,11 @@ const StudentCenterTab = ({
                                                 }
 
                                                 return (
-                                                    <div key={item.id} onClick={()=>setSelectedContent(item)} className="group cursor-pointer overflow-hidden rounded-2xl bg-white shadow-toss-standard transition hover:shadow-toss-elevated active:scale-[0.98]">
-                                                        {item.image_url?<div className="aspect-[11/10] w-full overflow-hidden bg-tossGrey50"><img src={item.image_url} alt="" className="h-full w-full object-cover"/></div>:<div className="flex aspect-[11/10] items-center justify-center bg-blue-50 text-blue-500"><Store size={28}/></div>}
-                                                        <div className="p-4"><h4 className="font-extrabold text-tossGrey900 transition group-hover:text-tossBlue">{item.name}</h4>
-                                                        {item.short_description && <p className="mt-1 line-clamp-2 min-h-9 text-[11px] font-medium leading-relaxed text-tossGrey500">{item.short_description}</p>}<div className="mt-3 flex items-center gap-1.5 border-t border-tossGrey100 pt-3 text-[11px] font-bold text-tossGrey600"><MapPin size={13}/>{item.location}</div></div>
-                                                    </div>
+                                                    <article key={item.id} onClick={()=>setSelectedContent(item)} className={`group cursor-pointer overflow-hidden rounded-[20px] border border-[#E7D8C4] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-toss-elevated active:scale-[0.98] ${itemIndex === 0 ? 'col-span-2' : ''}`}>
+                                                        {item.image_url?<ContentImage src={item.image_url} alt={item.name} fit="cover" className={`${itemIndex === 0 ? 'aspect-[2/1]' : 'aspect-square'} w-full`} imageClassName="h-full"/>:<div className={`flex ${itemIndex === 0 ? 'aspect-[2/1]' : 'aspect-square'} items-center justify-center bg-[#F4DDD4] text-[#CF3A27]`}><Store size={28}/></div>}
+                                                        <div className="p-3.5"><h4 className="line-clamp-1 font-extrabold text-tossGrey900 transition group-hover:text-[#CF3A27]">{item.name}</h4>
+                                                        {item.short_description && <p className="mt-1 line-clamp-2 min-h-8 text-[11px] font-medium leading-relaxed text-tossGrey500">{item.short_description}</p>}<div className="mt-3 flex items-center gap-1.5 border-t border-tossGrey100 pt-2.5 text-[10px] font-bold text-tossGrey600"><MapPin size={12}/>{item.location}</div></div>
+                                                    </article>
                                                 );
                                             })}
                                         </div>
@@ -271,13 +274,13 @@ const StudentCenterTab = ({
                         })()
                     )}
                 </div>
-            </div>
+            </section>
 
             {/* 3. Rentals Section */}
-            <div data-tour={tutorialMode ? 'tutorial-rental-section' : undefined} className="bg-white p-5 rounded-toss-xl shadow-toss-standard">
+            <section data-tour={tutorialMode ? 'tutorial-rental-section' : undefined} className="rounded-[24px] border border-[#E7D8C4] bg-white p-5 shadow-[0_5px_16px_rgba(82,55,33,0.07)]">
                 <div className="flex justify-between items-start mb-4 rounded-xl">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#E7EFEA] text-[#3C7560] flex items-center justify-center shrink-0">
                             <Landmark size={18} />
                         </div>
                         <div>
@@ -288,10 +291,10 @@ const StudentCenterTab = ({
                     {/* My Bookings History Button */}
                     <button
                         onClick={() => setShowMyBookings(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 border border-tossGrey200 hover:bg-tossGrey50 text-tossGrey700 font-bold rounded-lg text-[11px] transition-colors shadow-sm shrink-0"
+                        className="flex shrink-0 items-center gap-0.5 py-1 text-[11px] font-extrabold text-[#CF3A27] transition-colors hover:text-[#B92F20]"
                     >
-                        <Calendar size={13} />
                         내 신청 내역
+                        <ChevronRight size={14} strokeWidth={2.5} />
                     </button>
                 </div>
                 {tutorialMode && tutorialStep === 'rentalSelect' && (
@@ -305,11 +308,12 @@ const StudentCenterTab = ({
                     ) : rentals.length === 0 ? (
                         <div className="text-center py-6 text-tossGrey400 text-xs font-bold">등록된 공간이 없습니다.</div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                             {rentals.map((rental, rentalIndex) => {
                                 let displayName = rental.name;
                                 let capacityText = '';
                                 let featuresText = '';
+                                let imageUrl = '';
                                 try {
                                     const trimmed = rental.name ? rental.name.trim() : '';
                                     if (trimmed.startsWith('{')) {
@@ -317,6 +321,7 @@ const StudentCenterTab = ({
                                         displayName = parsed.name || '';
                                         capacityText = parsed.capacity || '';
                                         featuresText = parsed.features || '';
+                                        imageUrl = parsed.image_url || '';
                                     }
                                 } catch (e) {
                                     displayName = rental.name;
@@ -329,42 +334,42 @@ const StudentCenterTab = ({
                                         key={rental.id}
                                         data-tour={tutorialMode ? `tutorial-rental-card-${rentalIndex}` : undefined}
                                         data-tour-label={displayName}
-                                        className="bg-tossGrey50 rounded-xl border border-tossGrey100 p-4 hover:bg-tossGrey100/50 transition-all flex flex-col justify-between gap-3.5"
+                                        className="flex min-h-[116px] overflow-hidden rounded-[18px] border border-[#E7D8C4] bg-white shadow-[0_3px_10px_rgba(82,55,33,0.05)] transition-shadow hover:shadow-[0_6px_16px_rgba(82,55,33,0.09)]"
                                     >
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-start gap-2">
-                                                <h4 className="font-extrabold text-tossGrey900 text-[13.5px] tracking-tight leading-tight">{displayName}</h4>
+                                        <div className="flex w-[30%] min-w-[92px] shrink-0 items-center justify-center overflow-hidden border-r border-[#E7D8C4] bg-[#FBF3E7] text-[#CF3A27]">
+                                            {imageUrl ? (
+                                                <ContentImage src={imageUrl} alt={displayName} fit="cover" className="h-full w-full" imageClassName="h-full" />
+                                            ) : (
+                                                <Landmark size={26} strokeWidth={1.8} />
+                                            )}
+                                        </div>
+                                        <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-3.5">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <h4 className="min-w-0 font-extrabold text-tossGrey900 text-[14px] tracking-tight leading-tight">{displayName}</h4>
                                                 {capacityText && (
-                                                    <span className="px-2 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 text-[9px] font-bold rounded shrink-0">
+                                                    <span className="shrink-0 rounded-md bg-[#F4DDD4] px-2 py-0.5 text-[9px] font-extrabold text-[#CF3A27]">
                                                         최대 {capacityText}
                                                     </span>
                                                 )}
                                             </div>
-                                            {featuresText && (
-                                                <div className="flex items-start gap-1.5 text-[10.5px] text-tossGrey500 font-medium leading-relaxed">
-                                                    <Wrench size={13} className="text-tossGrey400 shrink-0 mt-0.5" />
-                                                    <span>{featuresText}</span>
-                                                </div>
-                                            )}
-                                            {!featuresText && rental.description && (
-                                                <p className="text-[10.5px] text-tossGrey400 font-medium leading-relaxed">
-                                                    {rental.description}
-                                                </p>
-                                            )}
+                                            <div className="flex min-w-0 items-start gap-1.5 text-[10.5px] font-medium leading-relaxed text-tossGrey500">
+                                                <Wrench size={13} className="mt-0.5 shrink-0 text-tossGrey400" />
+                                                <span className="line-clamp-2">{featuresText || rental.description || '이용 가능한 시설 정보를 확인해보세요'}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => handleOpenBooking(rental)}
+                                                className="mt-auto flex w-full items-center justify-center rounded-lg bg-[#CF3A27] py-2 text-[11px] font-bold text-white shadow-sm transition-colors hover:bg-[#B83222]"
+                                            >
+                                                예약 신청
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => handleOpenBooking(rental)}
-                                            className="w-full py-2 bg-tossBlue text-white rounded-lg font-bold text-[11px] hover:bg-tossBlueDark transition-colors shadow-sm flex items-center justify-center gap-1"
-                                        >
-                                            예약 신청
-                                        </button>
                                     </div>
                                 );
                             })}
                         </div>
                     )}
                 </div>
-            </div>
+            </section>
 
             </div>
 

@@ -67,22 +67,24 @@ const StudentProgramsTab = ({
 
     return (
         <div className="animate-fade-in relative">
-            {/* Custom Tab Switcher (TDS Segmented 스타일) */}
+            {/* Program availability / participation history */}
             <div className="px-0">
-                <div className="flex bg-tossGrey100 p-1 rounded-[12px] mb-6 relative">
-                    <div
-                        className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-[10px] shadow-[0px_2px_4px_rgba(0,0,0,0.06)] transition-transform duration-300 ease-out"
-                        style={{ transform: subTab === 'AVAILABLE' ? 'translateX(0)' : 'translateX(calc(100% + 8px))' }}
-                    />
+                <div className="mb-6 flex border-b border-tossGrey200" role="tablist" aria-label="프로그램 보기">
                     <button
+                        type="button"
+                        role="tab"
+                        aria-selected={subTab === 'AVAILABLE'}
                         onClick={() => setSubTab('AVAILABLE')}
-                        className={`flex-1 relative z-10 py-2.5 text-sm font-bold transition-colors ${subTab === 'AVAILABLE' ? 'text-tossGrey900' : 'text-tossGrey500'}`}
+                        className={`relative flex-1 pb-3 pt-1 text-[13px] font-extrabold transition-colors after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:transition-transform ${subTab === 'AVAILABLE' ? 'text-[#CF3A27] after:scale-x-100 after:bg-[#CF3A27]' : 'text-tossGrey500 after:scale-x-0 after:bg-transparent hover:text-tossGrey700'}`}
                     >
-                        진행·모집 예정
+                        참여할 프로그램
                     </button>
                     <button
+                        type="button"
+                        role="tab"
+                        aria-selected={subTab === 'HISTORY'}
                         onClick={() => setSubTab('HISTORY')}
-                        className={`flex-1 relative z-10 py-2.5 text-sm font-bold transition-colors ${subTab === 'HISTORY' ? 'text-tossGrey900' : 'text-tossGrey500'}`}
+                        className={`relative flex-1 pb-3 pt-1 text-[13px] font-extrabold transition-colors after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:transition-transform ${subTab === 'HISTORY' ? 'text-[#CF3A27] after:scale-x-100 after:bg-[#CF3A27]' : 'text-tossGrey500 after:scale-x-0 after:bg-transparent hover:text-tossGrey700'}`}
                     >
                         나의 참여 내역
                     </button>
@@ -112,7 +114,7 @@ const StudentProgramsTab = ({
                                                     세 카드 중 관심 있는 프로그램 하나를 직접 눌러 상세 소개, 일정, 장소와 정원을 확인해 보세요.
                                                 </div>
                                             )}
-                                            <div className="grid grid-cols-2 gap-3">
+                                            <div className="grid grid-cols-1 gap-3">
                                                 {tutorialApplicationPrograms.slice(0, 1).map((program) => (
                                                     <ProgramCard
                                                         key={program.id}
@@ -131,7 +133,7 @@ const StudentProgramsTab = ({
                                                 <h3 className="text-sm font-black text-tossGrey900">오픈 프로그램</h3>
                                                 <p className="mt-0.5 text-[11px] font-semibold text-tossGrey500">신청 버튼 없이 일정과 장소를 확인하고 참여해요.</p>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3">
+                                            <div className="grid grid-cols-1 gap-3">
                                                 {tutorialOpenPrograms.map((program, index) => (
                                                     <ProgramCard
                                                         key={program.id}
@@ -150,7 +152,7 @@ const StudentProgramsTab = ({
                                                 <h3 className="text-sm font-black text-tossGrey900">챌린지</h3>
                                                 <p className="mt-0.5 text-[11px] font-semibold text-tossGrey500">상세 화면에서 미션과 인증 방법을 확인해요.</p>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3">
+                                            <div className="grid grid-cols-1 gap-3">
                                                 {tutorialChallenges.map((program, index) => (
                                                     <ProgramCard
                                                         key={program.id}
@@ -165,7 +167,7 @@ const StudentProgramsTab = ({
                                         </section>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 gap-3">
                                         {filteredPrograms.map(n => (
                                             <ProgramCard
                                                 key={n.id}
@@ -188,7 +190,7 @@ const StudentProgramsTab = ({
                                 {historyPrograms.length === 0 ? (
                                     <div className="text-center py-20 text-tossGrey400 font-bold">참여 완료된 내역이 없습니다.</div>
                                 ) : (
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 gap-3">
                                         {historyPrograms.map(n => {
                                             const hasReviewed = userFeedbacks.some(f => f.notice_id === n.id);
                                             const isFeedbackEnabled = (n.guest_properties?.enable_feedback ?? n.enable_feedback) === true;

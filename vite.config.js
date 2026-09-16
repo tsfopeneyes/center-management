@@ -10,6 +10,9 @@ export default defineConfig(({ mode, command }) => {
   define: mode === 'development'
     ? { 'import.meta.env.VITE_ACCOUNT_AUTH_BASE_URL': JSON.stringify('/account-auth-local') }
     : {},
+  // This worktree shares installed packages with the production worktree, but
+  // keeps Vite's optimized dependency output separate to prevent 504 stale-cache errors.
+  cacheDir: 'node_modules/.vite-frontend-redesign',
   plugins: [
     react(),
     command === 'build' && legacy({

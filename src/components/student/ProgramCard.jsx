@@ -6,6 +6,7 @@ import { parseDurationToMinutes, formatKoreanTimeRange } from '../../utils/dateU
 import { getRecruitment, getRecruitmentStart, formatRecruitmentStart } from '../../utils/programRecruitment';
 import { useCurrentTime } from '../../hooks/useCurrentTime';
 import RecruitmentBadge from './components/RecruitmentBadge';
+import ContentImage from '../common/ContentImage';
 import { usesDailySessionRsvp, isRecurringProgram, formatDailySessionSchedule } from '../../utils/dailyProgramSessions';
 
 const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel }) => {
@@ -98,16 +99,12 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
             data-tour={tourTarget}
             data-tour-label={tourLabel}
             onClick={isScheduled ? undefined : () => onClick(program)}
-            className={`group h-full bg-white overflow-hidden shadow-toss-standard transition-all duration-300 flex flex-col border border-tossGrey100 ${isScheduled ? 'cursor-default' : 'hover:shadow-toss-elevated active:scale-[0.98] cursor-pointer'} ${compact ? 'rounded-toss-lg' : 'rounded-toss-xl'}`}
+            className={`group h-full bg-white overflow-hidden shadow-toss-standard transition-all duration-300 flex border border-[#E7D8C4] ${compact ? 'min-h-[176px] flex-row rounded-2xl' : 'flex-col rounded-toss-xl'} ${isScheduled ? 'cursor-default' : 'hover:shadow-toss-elevated active:scale-[0.98] cursor-pointer'}`}
         >
             {/* Thumbnail Section */}
-            <div className={thumb ? `relative aspect-square overflow-hidden bg-tossGrey50 border-b border-tossGrey100/50 ${compact ? 'rounded-t-toss-lg' : 'rounded-t-toss-xl'}` : `${compact ? 'px-4 pt-4' : 'px-6 pt-6'}`}>
+            <div className={thumb ? `relative overflow-hidden bg-tossGrey50 ${compact ? 'w-[34%] min-w-[112px] shrink-0 border-r border-[#E7D8C4]' : 'aspect-square border-b border-tossGrey100/50 rounded-t-toss-xl'}` : `${compact ? 'w-0' : 'px-6 pt-6'}`}>
                 {thumb ? (
-                    <img
-                        src={thumb}
-                        alt={program.title}
-                        className={`absolute inset-0 w-full h-full object-cover transition-transform duration-500 ${isScheduled ? '' : 'group-hover:scale-110'}`}
-                    />
+                    <ContentImage src={thumb} alt={program.title} fit="cover" className="absolute inset-0 h-full w-full" imageClassName="h-full" />
                 ) : null}
 
                 {/* Status Badges Overlaid */}
@@ -129,7 +126,7 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
             </div>
 
             {/* Content Section */}
-            <div className={compact ? "p-4 flex flex-col flex-1" : "p-6 pb-4"}>
+            <div className={compact ? "min-w-0 p-4 flex flex-col flex-1" : "p-6 pb-4"}>
                 <h3 className={`font-bold text-tossGrey900 line-clamp-2 ${compact ? 'text-sm leading-snug ' + (description ? 'mb-1' : 'mb-3') : 'text-xl leading-tight ' + (description ? 'mb-2' : 'mb-4')}`}>
                     {program.title}
                 </h3>
@@ -144,7 +141,7 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                         <>
                             <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2' : 'gap-3'}`}>
                                 <Calendar size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
-                                <span className={`font-bold text-tossBlue ${compact ? 'text-[11px]' : 'text-sm'}`}>
+                                <span className={`font-bold text-[#CF3A27] ${compact ? 'text-[11px]' : 'text-sm'}`}>
                                     {(() => {
                                         const start = isDailySessionProgram ? program.today_session?.starts_at : (program.program_start_date || program.program_date);
                                         const end = isDailySessionProgram ? null : program.program_end_date;
@@ -204,14 +201,14 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                         <div className={`flex items-center text-tossGrey400 ${compact ? 'gap-2 mt-1' : 'gap-3'}`}>
                             <Users size={compact ? 14 : 18} className="shrink-0 text-tossGrey400" />
                             <span className={`font-medium text-tossGrey700 ${compact ? 'text-[11px] line-clamp-1' : 'text-sm'}`}>
-                                정원: <span className="text-tossBlue font-bold">{(program.today_session?.capacity ?? program.max_capacity) > 0 ? `${program.today_session?.capacity ?? program.max_capacity}명` : '제한 없음'}</span>
+                                정원: <span className="font-bold text-[#CF3A27]">{(program.today_session?.capacity ?? program.max_capacity) > 0 ? `${program.today_session?.capacity ?? program.max_capacity}명` : '제한 없음'}</span>
                             </span>
                         </div>
                     )}
                 </div>
 
                 {isDailySessionProgram ? (
-                    <button className={`${actionButtonClass} mt-auto ${program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey600 shadow-none' : program.responseStatus === 'WAITLIST' ? 'bg-amber-100 text-amber-700 shadow-none' : 'bg-tossBlue text-white'}`}>
+                    <button className={`${actionButtonClass} mt-auto ${program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey600 shadow-none' : program.responseStatus === 'WAITLIST' ? 'bg-amber-100 text-amber-700 shadow-none' : 'bg-[#CF3A27] text-white'}`}>
                         {program.responseStatus === 'JOIN' ? '신청 완료' : program.responseStatus === 'WAITLIST' ? '대기 중' : '신청하기'}
                     </button>
                 ) : !program.is_recruiting ? (
@@ -233,7 +230,7 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                                 }
                             }));
                         } : undefined}
-                        className={`${actionButtonClass} min-w-0 px-2 active:scale-95 ${isScheduled ? 'bg-tossBlue text-white hover:bg-tossBlueHover cursor-pointer' : program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none shadow-none' : (program.responseStatus === 'WAITLIST' ? 'bg-tossWarning/10 text-[#fe9800] pointer-events-none shadow-none' : 'bg-tossBlue text-white hover:bg-tossBlueHover')}`}
+                        className={`${actionButtonClass} min-w-0 px-2 active:scale-95 ${isScheduled ? 'bg-[#CF3A27] text-white hover:bg-[#B83222] cursor-pointer' : program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none shadow-none' : (program.responseStatus === 'WAITLIST' ? 'bg-tossWarning/10 text-[#fe9800] pointer-events-none shadow-none' : 'bg-[#CF3A27] text-white hover:bg-[#B83222]')}`}
                     >
                         {isScheduled ? '모집 예정' : !recruitment.canViewDetails ? recruitment.message : !recruitment.canApply ? '상세 보기' : program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '신청하기')}
                     </button>

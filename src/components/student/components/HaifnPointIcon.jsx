@@ -9,7 +9,7 @@ const sizeClasses = {
 const HaifnPointIcon = ({ size = 'md', className = '' }) => (
     <span
         aria-hidden="true"
-        className={`inline-flex shrink-0 items-center justify-center rounded-full bg-[#E63946] font-black leading-none text-white ${sizeClasses[size] || sizeClasses.md} ${className}`}
+        className={`inline-flex shrink-0 items-center justify-center rounded-full bg-[#CF3A27] font-black leading-none text-white ${sizeClasses[size] || sizeClasses.md} ${className}`}
     >
         <span className="translate-y-px">H</span>
     </span>

@@ -47,12 +47,11 @@ const seededShuffle = (array, seed) => {
     return shuffled;
 };
 
-const ONLINE_MISSION_CARD_STYLES = [
-    { card: 'border-blue-100 bg-gradient-to-br from-white to-blue-50/80', icon: 'bg-blue-600 text-white shadow-blue-100', label: 'text-blue-600' },
-    { card: 'border-violet-100 bg-gradient-to-br from-white to-violet-50/80', icon: 'bg-violet-600 text-white shadow-violet-100', label: 'text-violet-600' },
-    { card: 'border-emerald-100 bg-gradient-to-br from-white to-emerald-50/80', icon: 'bg-emerald-600 text-white shadow-emerald-100', label: 'text-emerald-600' },
-    { card: 'border-amber-100 bg-gradient-to-br from-white to-amber-50/80', icon: 'bg-amber-500 text-white shadow-amber-100', label: 'text-amber-600' },
-];
+const ONLINE_MISSION_CARD_STYLE = {
+    card: 'border-[#E7D8C4] bg-[#FFFDF9]',
+    icon: 'bg-[#CF3A27] text-white shadow-[#F4DDD4]',
+    label: 'text-[#CF3A27]',
+};
 
 import ProgramFeedbackModal from './modals/ProgramFeedbackModal';
 import AdminFeedbackListModal from '../admin/board/components/modals/AdminFeedbackListModal';
@@ -728,8 +727,8 @@ const NoticeModalContent = ({
                                                         type="button"
                                                         onClick={() => setSelectedSessionId(session.id)}
                                                         className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${selected
-                                                            ? 'border-tossBlue bg-tossBlue text-white shadow-blue-200'
-                                                            : 'border-tossGrey200 bg-white text-tossGrey700 hover:border-blue-300 hover:bg-blue-50'}`}
+                                                            ? 'border-[#CF3A27] bg-[#CF3A27] text-white shadow-[#F4DDD4]'
+                                                            : 'border-tossGrey200 bg-white text-tossGrey700 hover:border-[#CF3A27]/40 hover:bg-[#FBF3E7]'}`}
                                                     >
                                                         {formatDailySessionSchedule(session)}
                                                     </button>
@@ -739,7 +738,7 @@ const NoticeModalContent = ({
                                     )}
                                     <div className="flex text-sm leading-relaxed">
                                         <span className="w-16 text-tossGrey500 font-semibold shrink-0">일정</span>
-                                        <span className="text-tossBlue font-extrabold">{formattedSchedule}</span>
+                                        <span className="font-extrabold text-[#CF3A27]">{formattedSchedule}</span>
                                     </div>
                                     {!(notice.is_challenge && notice.challenge_format === 'ONLINE') && <div className="flex text-sm leading-relaxed">
                                         <span className="w-16 text-tossGrey500 font-semibold shrink-0">장소</span>
@@ -757,13 +756,13 @@ const NoticeModalContent = ({
                             {isDailySessionProgram && hostUsers.length > 0 && (
                                 <section className="mb-7">
                                     <div className="mb-3 flex items-center gap-2">
-                                        <div className="h-[14px] w-[3px] rounded-full bg-tossBlue" />
+                                        <div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]" />
                                         <h3 className="text-[15px] font-extrabold leading-none text-tossGrey900">프로그램 호스트</h3>
                                     </div>
                                     <div className="grid grid-cols-1 gap-3">
                                         {hostUsers.map(host => (
-                                            <div key={host.id} className="flex w-full items-center gap-3.5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                                                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-blue-600 shadow-sm">
+                                            <div key={host.id} className="flex w-full items-center gap-3.5 rounded-2xl border border-[#E7D8C4] bg-[#FBF3E7] p-4">
+                                                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-[#CF3A27] shadow-sm">
                                                     {host.profile_image_url ? <img src={host.profile_image_url} alt="" className="h-full w-full object-cover" /> : <User size={21}/>}
                                                 </div>
                                                 <div className="min-w-0">
@@ -779,7 +778,7 @@ const NoticeModalContent = ({
                             {isDailySessionProgram && todaySessionFields.length > 0 && (
                                 <section className="mb-8">
                                     <div className="flex items-center gap-2 mb-4">
-                                        <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
+                                        <div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"></div>
                                         <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">오늘의 내용</h3>
                                     </div>
                                     <div className="space-y-3 border-b border-tossGrey100 pb-6">
@@ -818,7 +817,7 @@ const NoticeModalContent = ({
                                     <button
                                         onClick={() => scrollToSection('intro')}
                                         className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
-                                            activeTab === 'intro' ? 'border-tossBlue text-tossBlue' : 'border-transparent text-tossGrey400 hover:text-tossGrey600'
+                                            activeTab === 'intro' ? 'border-[#CF3A27] text-[#CF3A27]' : 'border-transparent text-tossGrey400 hover:text-tossGrey600'
                                         }`}
                                     >
                                         소개
@@ -826,7 +825,7 @@ const NoticeModalContent = ({
                                     <button
                                         onClick={() => scrollToSection('host')}
                                         className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
-                                            activeTab === 'host' ? 'border-tossBlue text-tossBlue' : 'border-transparent text-tossGrey400 hover:text-tossGrey600'
+                                            activeTab === 'host' ? 'border-[#CF3A27] text-[#CF3A27]' : 'border-transparent text-tossGrey400 hover:text-tossGrey600'
                                         }`}
                                     >
                                         호스트
@@ -843,7 +842,7 @@ const NoticeModalContent = ({
                                             notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
                                         }`}
                                     >
-                                        <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
+                                        <div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"></div>
                                         <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
                                             소개
                                         </h3>
@@ -875,7 +874,7 @@ const NoticeModalContent = ({
                                 return (
                                     <>
                                         {isAllDone && (
-                                            <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-100/50 rounded-2xl p-5 flex flex-col items-center text-center shadow-sm animate-fade-in">
+                                            <div className="mt-6 rounded-2xl border border-[#E7D8C4] bg-[#FBF3E7] p-5 flex flex-col items-center text-center shadow-sm animate-fade-in">
                                                 <span className="text-3xl mb-2">🎉</span>
                                                 <h4 className="font-black text-slate-800 text-sm">챌린지 미션 달성 완료!</h4>
                                                 <p className="text-[11px] text-slate-505 font-semibold mt-1">모든 미션 인증에 성공하셨습니다.</p>
@@ -888,7 +887,7 @@ const NoticeModalContent = ({
                                                         });
                                                         setShowSuccessPopup(true);
                                                     }}
-                                                    className="mt-3 px-4 py-2 bg-tossBlue hover:bg-tossBlueHover text-white font-extrabold text-xs rounded-xl shadow-sm active:scale-[0.98] transition-all"
+                                                    className="mt-3 rounded-xl bg-[#CF3A27] px-4 py-2 text-xs font-extrabold text-white shadow-sm transition-all hover:bg-[#B93223] active:scale-[0.98]"
                                                 >
                                                     축하 메시지 다시보기
                                                 </button>
@@ -897,7 +896,7 @@ const NoticeModalContent = ({
                                         {/* Missions List */}
                                         <div data-tour={tutorialMode && tutorialStep === 'challengeDetail' ? 'tutorial-challenge-missions' : undefined} className={`mt-8 border-t border-tossGrey100 pt-8 ${tutorialMode && tutorialStep === 'challengeDetail' ? '-mx-6 w-[calc(100%+3rem)] overflow-hidden rounded-3xl' : ''}`}>
                                             <div className="flex items-center gap-2 mb-4">
-                                                <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
+                                                <div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"></div>
                                                 <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
                                                     미션 목록
                                                 </h3>
@@ -906,7 +905,7 @@ const NoticeModalContent = ({
                                             {isOnlineChallenge ? (
                                                 <div className="space-y-3">
                                                     {(notice.challenge_missions || []).map((mission, index) => {
-                                                        const style = ONLINE_MISSION_CARD_STYLES[index % ONLINE_MISSION_CARD_STYLES.length];
+                                                        const style = ONLINE_MISSION_CARD_STYLE;
                                                         return <div key={mission.id} className={`relative overflow-hidden rounded-[22px] border p-5 shadow-[0_8px_24px_rgba(15,23,42,0.035)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(15,23,42,0.07)] ${style.card}`}>
                                                             <div className="relative z-[1] flex items-start gap-4">
                                                                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-lg ${style.icon}`}><Sparkles size={18}/></span>
@@ -935,7 +934,7 @@ const NoticeModalContent = ({
                                                                     <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 transition-colors ${
                                                                         isDone
                                                                             ? 'bg-tossGrey200 text-tossGrey400'
-                                                                            : 'bg-tossBlueLight text-tossBlue group-hover:bg-tossBlue group-hover:text-white'
+                                                                            : 'bg-[#F4DDD4] text-[#CF3A27] group-hover:bg-[#CF3A27] group-hover:text-white'
                                                                     }`}>
                                                                         {isDone ? <Check size={14} /> : index + 1}
                                                                     </div>
@@ -970,10 +969,10 @@ const NoticeModalContent = ({
                                             <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSelectedMissionForDetail(null)}>
                                                 <div data-tour={tutorialMode ? 'tutorial-challenge-mission-detail' : undefined} className="bg-white rounded-3xl w-full max-w-sm overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.15)] animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                                                     {/* Card Header Banner */}
-                                                    <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/50 px-6 py-4 border-b border-tossGrey100 flex items-center justify-between">
+                                                    <div className="flex items-center justify-between border-b border-[#E7D8C4] bg-[#FBF3E7] px-6 py-4">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-black text-tossBlue tracking-wider uppercase">Mission Card</span>
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-tossBlue animate-pulse"></div>
+                                                            <span className="text-xs font-black text-[#CF3A27] tracking-wider uppercase">Mission Card</span>
+                                                            <div className="h-1.5 w-1.5 rounded-full bg-[#CF3A27] animate-pulse"></div>
                                                         </div>
                                                         <button 
                                                             onClick={() => setSelectedMissionForDetail(null)}
@@ -1013,7 +1012,7 @@ const NoticeModalContent = ({
                                                         </div>
                                                     {/* Verification Button */}
                                                     {tutorialMode ? (
-                                                        <button type="button" onClick={() => { setSelectedMissionForDetail(null); onTutorialAction?.('show-content'); }} className="w-full py-4 rounded-2xl bg-tossBlue text-white text-sm font-black">다음 튜토리얼</button>
+                                                        <button type="button" onClick={() => { setSelectedMissionForDetail(null); onTutorialAction?.('show-content'); }} className="w-full rounded-2xl bg-[#CF3A27] py-4 text-sm font-black text-white">다음 튜토리얼</button>
                                                     ) : hasJoined && (
                                                         isTextVerification ? (
                                                             <div className="space-y-3">
@@ -1030,7 +1029,7 @@ const NoticeModalContent = ({
                                                                         rows={5}
                                                                         maxLength={1000}
                                                                         placeholder="미션을 수행한 내용을 입력해주세요."
-                                                                        className="w-full px-4 py-3 bg-tossGrey50 border border-tossGrey200 rounded-2xl outline-none resize-none text-sm font-semibold text-tossGrey800 placeholder:text-tossGrey400 focus:border-tossBlue focus:bg-white transition-all"
+                                                                        className="w-full px-4 py-3 bg-tossGrey50 border border-tossGrey200 rounded-2xl outline-none resize-none text-sm font-semibold text-tossGrey800 placeholder:text-tossGrey400 focus:border-[#CF3A27] focus:bg-white transition-all"
                                                                     />
                                                                     <p className="mt-1 text-right text-[10px] font-semibold text-tossGrey400">
                                                                         {(missionTextInputs[mission.id] ?? mStatus.auth_text ?? '').length}/1000
@@ -1040,7 +1039,7 @@ const NoticeModalContent = ({
                                                                     type="button"
                                                                     onClick={() => handleSubmitMissionText(mission.id, mStatus.auth_text || '')}
                                                                     disabled={uploadingMissionId === mission.id}
-                                                                    className="w-full py-4 bg-tossBlue text-white font-black text-center rounded-2xl text-sm transition-all hover:bg-blue-600 active:scale-[0.98] disabled:bg-tossGrey300 flex items-center justify-center gap-1.5"
+                                                                    className="w-full py-4 bg-[#CF3A27] text-white font-black text-center rounded-2xl text-sm transition-all hover:bg-[#B93223] active:scale-[0.98] disabled:bg-tossGrey300 flex items-center justify-center gap-1.5"
                                                                 >
                                                                     <FileText size={16} />
                                                                     {uploadingMissionId === mission.id
@@ -1064,7 +1063,7 @@ const NoticeModalContent = ({
                                                                         document.getElementById(`modal-file-input-${mission.id}`).click();
                                                                     }}
                                                                     disabled={uploadingMissionId === mission.id}
-                                                                    className="flex-1 py-3 bg-tossBlue text-white font-extrabold text-center rounded-2xl text-xs transition hover:bg-blue-600 active:scale-[0.98]"
+                                                                    className="flex-1 py-3 bg-[#CF3A27] text-white font-extrabold text-center rounded-2xl text-xs transition hover:bg-[#B93223] active:scale-[0.98]"
                                                                 >
                                                                     {uploadingMissionId === mission.id ? '업로드 중...' : '수정 후 재등록'}
                                                                 </button>
@@ -1088,7 +1087,7 @@ const NoticeModalContent = ({
                                                                         document.getElementById(`modal-file-input-${mission.id}`).click();
                                                                     }}
                                                                     disabled={uploadingMissionId === mission.id}
-                                                                    className="w-full py-4 bg-tossBlue text-white font-black text-center rounded-2xl text-sm transition-all hover:bg-blue-600 active:scale-[0.98] flex items-center justify-center gap-1.5"
+                                                                    className="w-full py-4 bg-[#CF3A27] text-white font-black text-center rounded-2xl text-sm transition-all hover:bg-[#B93223] active:scale-[0.98] flex items-center justify-center gap-1.5"
                                                                 >
                                                                     {uploadingMissionId === mission.id ? (
                                                                         <span className="animate-pulse">업로드 중...</span>
@@ -1123,7 +1122,7 @@ const NoticeModalContent = ({
                                     {/* Challengers Status */}
                                     <div className="mt-8 border-t border-tossGrey100 pt-8">
                                         <div className="flex items-center gap-2 mb-4">
-                                            <div className="w-[3px] h-[14px] bg-tossBlue rounded-full"></div>
+                                            <div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"></div>
                                             <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
                                                 참여자 현황
                                             </h3>
@@ -1143,18 +1142,18 @@ const NoticeModalContent = ({
                                                         <button
                                                             key={challenger.user_id} 
                                                             type="button"
-                                                            className="w-full px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors border border-tossGrey200 rounded-2xl bg-white text-left hover:border-tossBlue hover:shadow-toss-subtle"
+                                                            className="w-full px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-[#FFFDF9] transition-colors border border-[#E7D8C4] rounded-2xl bg-white text-left hover:border-[#CF3A27]/40 hover:shadow-toss-subtle"
                                                             onClick={() => setSelectedParticipantForMissions(challenger)}
                                                         >
                                                             <span className="text-xs font-black text-tossGrey850 truncate w-20 shrink-0">
                                                                 {challenger.users?.name?.replace('(guest)', '')}
                                                             </span>
                                                             {totalMissions <= 20 ? <span className="flex flex-1 flex-wrap gap-1" aria-label={`${completedCount}/${totalMissions} 완료`}>
-                                                                {Array.from({ length: totalMissions }, (_, progressIndex) => <span key={progressIndex} className={`h-3 w-3 rounded-full border ${progressIndex < completedCount ? 'border-tossBlue bg-tossBlue' : 'border-tossGrey300 bg-white'}`}/>) }
-                                                            </span> : <span className="h-2 flex-1 overflow-hidden rounded-full bg-tossGrey100"><span className="block h-full rounded-full bg-tossBlue" style={{ width: `${totalMissions ? (completedCount / totalMissions) * 100 : 0}%` }}/></span>}
+                                                                {Array.from({ length: totalMissions }, (_, progressIndex) => <span key={progressIndex} className={`h-3 w-3 rounded-full border ${progressIndex < completedCount ? 'border-[#CF3A27] bg-[#CF3A27]' : 'border-[#D9C8B2] bg-white'}`}/>) }
+                                                            </span> : <span className="h-2 flex-1 overflow-hidden rounded-full bg-[#F4DDD4]"><span className="block h-full rounded-full bg-[#CF3A27]" style={{ width: `${totalMissions ? (completedCount / totalMissions) * 100 : 0}%` }}/></span>}
                                                             <span className={`text-[10px] font-black px-2 py-1 rounded-full whitespace-nowrap ${
                                                                 isSuccess 
-                                                                    ? 'bg-tossBlueLight text-tossBlue' 
+                                                                    ? 'bg-[#F8DF53] text-[#5A4610]' 
                                                                     : 'bg-tossGrey50 text-tossGrey500'
                                                             }`}>
                                                                 {completedCount}/{totalMissions} {isSuccess ? '성공' : '진행'}
@@ -1277,7 +1276,7 @@ const NoticeModalContent = ({
                                      <div className="bg-white p-6 rounded-toss-xl border border-tossGrey200/50 shadow-toss-standard mb-8">
                                          <div className="flex justify-between items-center mb-6">
                                              <div className="flex flex-col">
-                                                 <p className="text-sm font-bold text-tossBlue">참여 여부 선택</p>
+                                                 <p className="text-sm font-bold text-[#CF3A27]">참여 여부 선택</p>
                                                  {notice.recruitment_deadline && <p className="text-[11px] font-bold text-tossError">{timeLeft}</p>}
                                              </div>
                                              {notice.max_capacity > 0 && <div className="bg-tossSuccess/10 text-tossSuccess px-3 py-1.5 rounded-toss-md text-xs font-bold">{joinCount} / {notice.max_capacity}명</div>}
@@ -1286,7 +1285,7 @@ const NoticeModalContent = ({
                                              <div className="flex gap-2">
                                                  <button
                                                      onClick={() => onViewParticipants && onViewParticipants(notice, 'attendance')}
-                                                     className="flex-1 py-3.5 rounded-toss-xl font-bold text-white transition-all bg-tossBlue hover:bg-tossBlueHover flex items-center justify-center gap-2"
+                                                     className="flex-1 py-3.5 rounded-toss-xl font-bold text-white transition-all bg-[#CF3A27] hover:bg-[#B93223] flex items-center justify-center gap-2"
                                                  >
                                                      신청자 명단 ({joinCount}명)
                                                  </button>
@@ -1314,7 +1313,7 @@ const NoticeModalContent = ({
                                                          ? 'bg-red-50 text-tossError border border-red-200 hover:bg-red-100'
                                                          : (notice.max_capacity > 0 && joinCount >= notice.max_capacity
                                                              ? 'bg-tossWarning hover:bg-tossWarning/90 text-white'
-                                                             : 'bg-tossBlue hover:bg-tossBlueHover text-white')
+                                                             : 'bg-[#CF3A27] hover:bg-[#B93223] text-white')
                                                  }`}
                                              >
                                                  {responses[notice.id] ? (
@@ -1559,7 +1558,7 @@ const NoticeModalContent = ({
                                 {openSessions.length > 1 && !isAdmin && (
                                     <div className="mb-3 grid grid-cols-2 gap-2">
                                         {openSessions.map(session => (
-                                            <button key={session.id} type="button" onClick={() => setSelectedSessionId(session.id)} className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${activeSession?.id === session.id ? 'border-tossBlue bg-tossBlue text-white shadow-blue-200' : 'border-tossGrey200 bg-white text-tossGrey700'}`}>
+                                            <button key={session.id} type="button" onClick={() => setSelectedSessionId(session.id)} className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${activeSession?.id === session.id ? 'border-[#CF3A27] bg-[#CF3A27] text-white shadow-[#F4DDD4]' : 'border-tossGrey200 bg-white text-tossGrey700'}`}>
                                                 {formatDailySessionSchedule(session)}
                                             </button>
                                         ))}
@@ -1570,7 +1569,7 @@ const NoticeModalContent = ({
                                         {activeSession.my_response.status === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}
                                     </button>
                                 ) : (
-                                    <button onClick={() => onResponse(notice.id, 'JOIN', activeSession?.id)} className="w-full rounded-toss-xl bg-tossBlue py-3.5 text-base font-black text-white shadow-md shadow-blue-100">
+                                    <button onClick={() => onResponse(notice.id, 'JOIN', activeSession?.id)} className="w-full rounded-toss-xl bg-[#CF3A27] py-3.5 text-base font-black text-white shadow-md shadow-[#F4DDD4]">
                                         신청하기
                                     </button>
                                 )}
@@ -1590,7 +1589,7 @@ const NoticeModalContent = ({
                                         className={`flex-1 py-3.5 rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer ${
                                             hasReviewed 
                                             ? 'bg-tossGrey100 hover:bg-tossGrey200 text-tossGrey700 border border-tossGrey200' 
-                                            : 'bg-tossBlue hover:bg-tossBlueHover text-white shadow-md shadow-blue-100'
+                                            : 'bg-[#CF3A27] hover:bg-[#B83222] text-white shadow-md shadow-[#F4DDD4]'
                                         }`}
                                     >
                                         <Sparkles size={18} />
@@ -1609,14 +1608,14 @@ const NoticeModalContent = ({
                                     <button
                                         type="button"
                                         onClick={() => { setChallengeCommunityFilter(null); setShowChallengeCommunity(true); }}
-                                        className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-2 shadow-md shadow-blue-100 cursor-pointer"
+                                        className="w-full rounded-toss-xl bg-[#CF3A27] py-3.5 text-base font-black text-white shadow-md shadow-[#F4DDD4] transition hover:bg-[#B83222] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                                     >
                                         <span>챌린지 커뮤니티 입장하기</span>
                                     </button>
                                 ) : isStarted && hasCustomFeatures ? (
                                     <button
                                          onClick={() => setShowPostProgramPopup(true)}
-                                         className="w-full py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white rounded-toss-xl font-black text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer"
+                                         className="w-full rounded-toss-xl bg-[#CF3A27] py-3.5 text-base font-black text-white shadow-md shadow-[#F4DDD4] transition hover:bg-[#B83222] active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                                     >
                                         <Sparkles size={18} />
                                         <span>{customButtonName}</span>
@@ -1653,7 +1652,7 @@ const NoticeModalContent = ({
                                         className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer ${
                                             notice.max_capacity > 0 && joinCount >= notice.max_capacity 
                                                 ? 'bg-tossWarning hover:bg-tossWarning/90 text-white' 
-                                                : 'bg-tossBlue hover:bg-tossBlueHover text-white'
+                                                : 'bg-[#CF3A27] hover:bg-[#B83222] text-white'
                                         }`}
                                     >
                                         {notice.max_capacity > 0 && joinCount >= notice.max_capacity ? '대기 신청' : '신청하기'}
@@ -1700,7 +1699,7 @@ const NoticeModalContent = ({
              {showSuccessPopup && (
                  <div className="fixed inset-0 z-[210] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowSuccessPopup(false)}>
                      <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.25)] animate-in fade-in zoom-in-95 duration-200 p-6 flex flex-col items-center text-center" onClick={(e) => e.stopPropagation()}>
-                         <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center text-3xl mb-4 animate-bounce">
+                         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#FBF3E7] text-3xl animate-bounce">
                              🏆
                          </div>
                          <h3 className="text-xl font-black text-slate-800 mb-2">축하합니다! 챌린지 성공!</h3>
@@ -1714,15 +1713,15 @@ const NoticeModalContent = ({
                                          setShowSuccessPopup(false);
                                          if (onRegisterRegularUser) onRegisterRegularUser();
                                      }}
-                                     className="flex-1 py-3.5 bg-white border border-tossBlue text-tossBlue font-black rounded-2xl text-xs transition-all active:scale-[0.98] flex items-center justify-center gap-1.5"
+                                     className="flex-1 py-3.5 bg-white border border-[#CF3A27] text-[#CF3A27] font-black rounded-2xl text-xs transition-all active:scale-[0.98] flex items-center justify-center gap-1.5"
                                  >
-                                     <Sparkles size={12} className="text-indigo-500 shrink-0" />
+                                     <Sparkles size={12} className="shrink-0 text-[#CF3A27]" />
                                      <span>하이픈 등록</span>
                                  </button>
                              )}
                              <button
                                  onClick={() => setShowSuccessPopup(false)}
-                                 className="flex-1 py-3.5 bg-tossBlue hover:bg-tossBlueHover text-white font-black rounded-2xl text-xs transition-all active:scale-[0.98]"
+                                 className="flex-1 py-3.5 bg-[#CF3A27] hover:bg-[#B93223] text-white font-black rounded-2xl text-xs transition-all active:scale-[0.98]"
                              >
                                  확인
                              </button>
@@ -1741,10 +1740,10 @@ const NoticeModalContent = ({
                      <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSelectedParticipantForMissions(null)}>
                          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.15)] animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
                              {/* Header */}
-                             <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                             <div className="flex items-center justify-between border-b border-[#E7D8C4] bg-[#FBF3E7] px-6 py-4">
                                  <div className="flex items-center gap-2">
-                                     <span className="text-xs font-black text-tossBlue tracking-wider uppercase">Participant Missions</span>
-                                     <div className="w-1.5 h-1.5 rounded-full bg-tossBlue"></div>
+                                     <span className="text-xs font-black text-[#CF3A27] tracking-wider uppercase">Participant Missions</span>
+                                     <div className="h-1.5 w-1.5 rounded-full bg-[#CF3A27]"></div>
                                  </div>
                                  <button 
                                      onClick={() => setSelectedParticipantForMissions(null)}
@@ -1806,7 +1805,7 @@ const NoticeModalContent = ({
                                                      setSelectedParticipantForMissions(null);
                                                      setShowChallengeCommunity(true);
                                                  } : undefined}
-                                                 className={`bg-slate-50/60 border border-slate-200/50 rounded-2xl p-4 space-y-3 ${canOpenThread ? 'cursor-pointer transition hover:border-blue-200 hover:bg-blue-50/60 focus:outline-none focus:ring-2 focus:ring-blue-200' : ''}`}
+                                                 className={`bg-[#FFFDF9] border border-[#E7D8C4] rounded-2xl p-4 space-y-3 ${canOpenThread ? 'cursor-pointer transition hover:border-[#CF3A27]/40 hover:bg-[#FBF3E7] focus:outline-none focus:ring-2 focus:ring-[#F4DDD4]' : ''}`}
                                              >
                                                  <div className="flex items-center gap-3">
                                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
@@ -1817,7 +1816,7 @@ const NoticeModalContent = ({
                                                      <span className={`text-sm font-bold ${isDone ? 'text-slate-800' : 'text-slate-400'}`}>
                                                          {mission.title}
                                                      </span>
-                                                     {notice.challenge_format === 'ONLINE' && <span className="ml-auto text-[10px] font-black text-tossBlue">{missionSubmissions.length}/{missionTarget}</span>}
+                                                     {notice.challenge_format === 'ONLINE' && <span className="ml-auto text-[10px] font-black text-[#CF3A27]">{missionSubmissions.length}/{missionTarget}</span>}
                                                  </div>
                                                  
                                                   {isDone && authImg && (
@@ -1926,7 +1925,7 @@ const NoticeModalContent = ({
                                     href={(notice.guest_properties?.post_program_button_link ?? notice.post_program_button_link)}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="w-full py-3.5 bg-[#3182f6] hover:bg-[#1b64da] text-white font-extrabold rounded-2xl flex items-center justify-center gap-2 transition shadow-md shadow-blue-100 text-base mt-2 active:scale-[0.98] cursor-pointer"
+                                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#CF3A27] py-3.5 text-base font-extrabold text-white shadow-md shadow-[#F4DDD4] transition hover:bg-[#B83222] active:scale-[0.98] cursor-pointer"
                                 >
                                     <span>바로가기</span>
                                     <ExternalLink size={18} />
@@ -1934,7 +1933,7 @@ const NoticeModalContent = ({
                             ) : (
                                 <button
                                     onClick={() => setShowPostProgramPopup(false)}
-                                    className="w-full py-3.5 bg-[#3182f6] hover:bg-[#1b64da] text-white font-extrabold rounded-2xl transition shadow-md shadow-blue-100 text-base mt-2 active:scale-[0.98] cursor-pointer text-center"
+                                    className="mt-2 w-full rounded-2xl bg-[#CF3A27] py-3.5 text-center text-base font-extrabold text-white shadow-md shadow-[#F4DDD4] transition hover:bg-[#B83222] active:scale-[0.98] cursor-pointer"
                                 >
                                     확인
                                 </button>
@@ -1957,7 +1956,7 @@ const NoticeModalContent = ({
                         {/* Header */}
                         <div className="flex items-center justify-between pb-3 border-b border-tossGrey100 shrink-0 gap-2">
                             <h3 className="font-extrabold text-tossGrey900 text-sm sm:text-base flex items-center gap-1.5 min-w-0">
-                                <Users className="text-blue-600 shrink-0" size={18} />
+                                <Users className="shrink-0 text-[#CF3A27]" size={18} />
                                 <span className="truncate">팀 배치 현황 ({(notice.guest_properties?.group_count ?? notice.group_count) || 4}팀)</span>
                             </h3>
 
@@ -2004,7 +2003,7 @@ const NoticeModalContent = ({
                                             alert('팀 섞기 중 오류가 발생했습니다: ' + (err.message || err));
                                         }
                                     }}
-                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs shrink-0"
+                                    className="text-xs font-bold text-[#CF3A27] hover:text-[#B93223] bg-[#FBF3E7] hover:bg-[#F4DDD4] px-2.5 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs shrink-0"
                                 >
                                     <RefreshCw size={13} />
                                     <span>팀 랜덤 배치 🎲</span>
@@ -2032,8 +2031,8 @@ const NoticeModalContent = ({
                                     teamsList[teamIdx].members.push(member);
                                 });
                                 return teamsList.map(t => (
-                                    <div key={t.teamNum} className="bg-blue-50/40 border border-blue-100 rounded-2xl p-4 space-y-2.5">
-                                        <div className="text-blue-700 font-extrabold text-xs flex justify-between items-center">
+                                    <div key={t.teamNum} className="rounded-2xl border border-[#E7D8C4] bg-[#FFFDF9] p-4 space-y-2.5">
+                                        <div className="flex items-center justify-between text-xs font-extrabold text-[#CF3A27]">
                                             <span>{t.teamNum}팀 ({t.members.length}명)</span>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
