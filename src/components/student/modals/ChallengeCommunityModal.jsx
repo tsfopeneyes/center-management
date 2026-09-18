@@ -8,12 +8,13 @@ import { challengeCommunityApi } from '../../../api/challengeCommunityApi';
 import { commentReactionsApi } from '../../../api/commentReactionsApi';
 import { challengeMissionsApi } from '../../../api/challengeMissionsApi';
 import { compressImage } from '../../../utils/imageUtils';
-import { supabase } from '../../../supabaseClient';
+import { supabase, supabaseUrl } from '../../../supabaseClient';
 import { getKSTDateString } from '../../../utils/dateUtils';
 import { isAccountAuthEnabled } from '../../../auth/accountAuthRuntime';
 import { uploadAccountImage } from '../../../auth/accountMedia';
 import useCommentReactionLongPress from '../../../hooks/useCommentReactionLongPress';
 import { isAdminOrStaff } from '../../../utils/userUtils';
+import { communityImagePath } from '../../../utils/communityImageStorage';
 import { communityFeedApi, getUnreadBoundary, sortCommunityPosts } from '../../../api/communityFeedApi';
 import useCommunityUnread from '../../../hooks/useCommunityUnread';
 
@@ -37,7 +38,7 @@ const MISSION_BADGE_COLORS = [
     { backgroundColor: '#EEF1FF', color: '#4056B4' },
 ];
 
-const UnreadDivider = () => <div role="separator" aria-label="여기부터 읽지 않은 새 글" className="flex items-center gap-3 py-1"><span className="h-px flex-1 bg-[#CF3A27]/45"/><span className="shrink-0 text-[11px] font-black text-[#CF3A27]">새 글</span><span className="h-px flex-1 bg-[#CF3A27]/45"/></div>;
+const UnreadDivider = ({ anchorRef }) => <div ref={anchorRef} role="separator" aria-label="여기부터 읽지 않은 새 글" className="flex items-center gap-3 py-1"><span className="h-px flex-1 bg-[#CF3A27]/45"/><span className="shrink-0 text-[11px] font-black text-[#CF3A27]">새 글</span><span className="h-px flex-1 bg-[#CF3A27]/45"/></div>;
 
 export default function ChallengeCommunityModal({ notice, user, initialFilter = null, onClose, onMissionCompleted }) {
     const [posts, setPosts] = useState([]);
@@ -56,12 +57,19 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
     const [editingPostId, setEditingPostId] = useState(null);
     const [editingContent, setEditingContent] = useState('');
     const [editingMissionId, setEditingMissionId] = useState('');
+    const [editingImageFile, setEditingImageFile] = useState(null);
+    const [editingRemoveImage, setEditingRemoveImage] = useState(false);
     const [savingEdit, setSavingEdit] = useState(false);
     const [editingCommentId, setEditingCommentId] = useState(null);
     const [editingCommentContent, setEditingCommentContent] = useState('');
     const [savingComment, setSavingComment] = useState(false);
     const [showSessionDialog, setShowSessionDialog] = useState(false);
     const fileRef = useRef(null);
+    const editFileRef = useRef(null);
+    const feedRef = useRef(null);
+    const unreadDividerRef = useRef(null);
+    const autoScrolledRef = useRef(false);
+    const userMovedFeedRef = useRef(false);
     const categorySelectionTouchedRef = useRef(false);
     const submitLockRef = useRef(false);
     const pendingSessionActionRef = useRef(null);
@@ -111,6 +119,26 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
     const lastReadAt = useCommunityUnread(channelId, user.id, posts, !loading);
     const unreadBoundary = useMemo(() => activeFilter ? null : getUnreadBoundary(visiblePosts, lastReadAt, user.id),
         [activeFilter, lastReadAt, user.id, visiblePosts]);
+
+    useEffect(() => {
+        autoScrolledRef.current = false;
+        userMovedFeedRef.current = false;
+    }, [notice.id]);
+
+    useEffect(() => {
+        if (loading || !channelId || !unreadBoundary || activeFilter
+            || autoScrolledRef.current || userMovedFeedRef.current) return;
+        const frame = window.requestAnimationFrame(() => {
+            const feed = feedRef.current;
+            const divider = unreadDividerRef.current;
+            if (!feed || !divider || userMovedFeedRef.current) return;
+            const position = divider.getBoundingClientRect().top - feed.getBoundingClientRect().top
+                + feed.scrollTop - 12;
+            feed.scrollTo({ top: Math.max(0, position), behavior: 'auto' });
+            autoScrolledRef.current = true;
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [activeFilter, channelId, loading, unreadBoundary]);
 
     useEffect(() => {
         let active = true;
@@ -215,13 +243,14 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
         }
     };
 
-    const uploadImage = async () => {
-        if (!imageFile) return null;
-        const compressed = await compressImage(imageFile);
+    const uploadImage = async file => {
+        if (!file) return null;
+        const compressed = await compressImage(file);
         if (isAccountAuthEnabled()) {
-            return { path: null, url: await uploadAccountImage({ profileId: user.id, kind: 'mission', file: compressed }) };
+            const url = await uploadAccountImage({ profileId: user.id, kind: 'mission', file: compressed });
+            return { path: communityImagePath(url, user.id, notice.id, supabaseUrl), url };
         }
-        const extension = imageFile.name.split('.').pop() || 'jpg';
+        const extension = file.name.split('.').pop() || 'jpg';
         const path = `challenge-community/${notice.id}/${user.id}/${Date.now()}.${extension}`;
         const { error } = await supabase.storage.from('notice-images').upload(path, compressed);
         if (error) throw error;
@@ -236,7 +265,7 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
         const submittedContent = content.trim();
         const submittedMissionId = selectedMissionId || null;
         try {
-            uploaded = await uploadImage();
+            uploaded = await uploadImage(imageFile);
             const postId = await challengeCommunityApi.createPost({
                 challengeId: notice.id,
                 authorId: user.id,
@@ -260,6 +289,7 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
                 author_id: user.id,
                 author: user,
                 content: submittedContent,
+                image_url: uploaded?.url || null,
                 is_announcement: isAnnouncement,
                 announced_at: isAnnouncement ? new Date().toISOString() : null,
                 created_at: new Date().toISOString(),
@@ -432,19 +462,33 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
             return;
         }
         setSavingEdit(true);
+        let uploaded = null;
+        let contentSaved = false;
         try {
             await runWithSession(async () => {
+                const imageChanged = Boolean(editingImageFile || editingRemoveImage);
+                if (editingImageFile) uploaded = await uploadImage(editingImageFile);
                 const updated = await challengeCommunityApi.updatePost(post, nextContent, editingMissionId || null, notice.id, user.id);
-                setPosts(current => current.map(item => item.id === post.id ? { ...item, ...updated } : item));
+                contentSaved = true;
+                const media = imageChanged
+                    ? await challengeCommunityApi.replacePostImage(post, uploaded?.url || null, user.id, notice.id)
+                    : post.media;
+                setPosts(current => current.map(item => item.id === post.id ? { ...item, ...updated, media } : item));
                 await refresh();
                 setEditingPostId(null);
                 setEditingContent('');
                 setEditingMissionId('');
+                setEditingImageFile(null);
+                setEditingRemoveImage(false);
                 if (editingMissionId !== currentMissionId) onMissionCompleted?.();
             });
         } catch (error) {
             console.error(error);
-            alert(error.message || '글을 수정하지 못했습니다.');
+            if (uploaded?.path) await supabase.storage.from('notice-images').remove([uploaded.path]);
+            if (contentSaved) await refresh();
+            alert(contentSaved
+                ? `글 내용은 저장되었지만 사진을 변경하지 못했습니다.\n${error.message}`
+                : (error.message || '글을 수정하지 못했습니다.'));
         } finally {
             setSavingEdit(false);
         }
@@ -460,7 +504,7 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
                 <button onClick={onClose} className="ml-auto rounded-full p-2 hover:bg-tossGrey100"><X size={20}/></button>
             </div>
         </header>
-        <main className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#F7EFE2]">
+        <main ref={feedRef} onWheel={() => { userMovedFeedRef.current = true; }} onTouchMove={() => { userMovedFeedRef.current = true; }} onPointerDown={() => { userMovedFeedRef.current = true; }} className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#F7EFE2]">
             <div className="space-y-4 p-4">
                 {activeFilter && <section className="flex items-center gap-3 rounded-3xl border border-blue-100 bg-blue-50 px-4 py-3 shadow-sm">
                     <div className="min-w-0 flex-1">
@@ -494,20 +538,27 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
                     const isEditing = editingPostId === post.id;
                     const editingMissionOptions = isEditing ? missions.filter(item => item.id === post.submission?.mission_id || eligibleMissions.some(eligible => eligible.id === item.id)) : [];
                     return <React.Fragment key={post.id}>
-                        {unreadBoundary?.before === index && <UnreadDivider/>}
+                        {unreadBoundary?.before === index && <UnreadDivider anchorRef={unreadDividerRef}/>}
                         <article className={`rounded-3xl border bg-white p-4 shadow-sm ${post.is_announcement ? 'border-[#E9B6A8]' : 'border-tossGrey200'}`}>
-                        <div className="flex gap-3"><UserAvatar user={post.author} size="w-9 h-9"/><div><p className="text-sm font-black">{post.author?.name}</p><p className="text-[10px] text-tossGrey400">{new Date(post.created_at).toLocaleString('ko-KR')}{post.updated_at && post.updated_at !== post.created_at ? ' · 수정됨' : ''}</p></div>{(post.author_id === user.id || isAdminOrStaff(user)) && <div className="ml-auto flex items-center gap-1">{isAdmin && <button type="button" onClick={() => toggleAnnouncement(post)} aria-pressed={Boolean(post.is_announcement)} className={`rounded-full p-2 ${post.is_announcement ? 'text-[#CF3A27] hover:bg-[#FFF0E9]' : 'text-tossGrey400 hover:bg-tossGrey50 hover:text-[#CF3A27]'}`} aria-label={post.is_announcement ? '공지 해제' : '공지로 고정'}><Pin size={15}/></button>}{post.author_id === user.id && <button type="button" onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); setEditingMissionId(post.submission?.mission_id || ''); }} className="rounded-full p-2 text-tossGrey400 hover:bg-tossGrey50 hover:text-[#CF3A27]" aria-label="글 수정"><Pencil size={15}/></button>}<button type="button" onClick={() => deletePost(post)} className="rounded-full p-2 text-tossGrey400 hover:bg-red-50 hover:text-red-500" aria-label="글 삭제"><Trash2 size={16}/></button></div>}</div>
+                        <div className="flex gap-3"><UserAvatar user={post.author} size="w-9 h-9"/><div><p className="text-sm font-black">{post.author?.name}</p><p className="text-[10px] text-tossGrey400">{new Date(post.created_at).toLocaleString('ko-KR')}{post.updated_at && post.updated_at !== post.created_at ? ' · 수정됨' : ''}</p></div>{(post.author_id === user.id || isAdminOrStaff(user)) && <div className="ml-auto flex items-center gap-1">{isAdmin && <button type="button" onClick={() => toggleAnnouncement(post)} aria-pressed={Boolean(post.is_announcement)} className={`rounded-full p-2 ${post.is_announcement ? 'text-[#CF3A27] hover:bg-[#FFF0E9]' : 'text-tossGrey400 hover:bg-tossGrey50 hover:text-[#CF3A27]'}`} aria-label={post.is_announcement ? '공지 해제' : '공지로 고정'}><Pin size={15}/></button>}{post.author_id === user.id && <button type="button" onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); setEditingMissionId(post.submission?.mission_id || ''); setEditingImageFile(null); setEditingRemoveImage(false); }} className="rounded-full p-2 text-tossGrey400 hover:bg-tossGrey50 hover:text-[#CF3A27]" aria-label="글 수정"><Pencil size={15}/></button>}<button type="button" onClick={() => deletePost(post)} className="rounded-full p-2 text-tossGrey400 hover:bg-red-50 hover:text-red-500" aria-label="글 삭제"><Trash2 size={16}/></button></div>}</div>
                         {post.is_announcement && <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-[#FFF0E9] px-2.5 py-1 text-[10px] font-black text-[#B93223]"><Pin size={11}/>공지{lastReadAt && new Date(post.created_at).getTime() > new Date(lastReadAt).getTime() && post.author_id !== user.id ? ' · 새 글' : ''}</span>}
                         {mission && !isEditing && <span style={missionBadgeStyle} className="mt-3 inline-block rounded-full px-2.5 py-1 text-[10px] font-black">{mission.title}</span>}
-                        {isEditing ? <div className="mt-3 rounded-2xl bg-tossGrey50 p-3 ring-1 ring-inset ring-tossGrey100 focus-within:ring-2 focus-within:ring-[#CF3A27]/25"><div className="scrollbar-hide mb-3 flex gap-2 overflow-x-auto" role="group" aria-label="글 종류 수정">{editingMissionOptions.map(item => <button key={item.id} type="button" aria-pressed={editingMissionId === item.id} onClick={() => setEditingMissionId(item.id)} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-extrabold leading-5 ${editingMissionId === item.id ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#E7D8C4] bg-white text-[#544B43]'}`}>{item.title}</button>)}<button type="button" aria-pressed={!editingMissionId} onClick={() => setEditingMissionId('')} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-extrabold leading-5 ${!editingMissionId ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#E7D8C4] bg-white text-[#544B43]'}`}>자유 글</button></div><textarea value={editingContent} onChange={event => setEditingContent(event.target.value)} placeholder={editingMissionId ? '오늘 미션은 어땠나요?' : '커뮤니티에 나누고 싶은 이야기를 자유롭게 남겨주세요!'} className="min-h-24 w-full resize-none bg-transparent text-sm leading-6 text-tossGrey900 outline-none" autoFocus/><div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingPostId(null); setEditingContent(''); setEditingMissionId(''); }} className="rounded-xl px-3 py-2 text-xs font-bold text-tossGrey500 hover:bg-white">취소</button><button type="button" onClick={() => savePostEdit(post)} disabled={!editingContent.trim() || savingEdit} className="flex items-center gap-1 rounded-xl bg-[#CF3A27] px-3 py-2 text-xs font-black text-white disabled:opacity-40"><Check size={14}/>{savingEdit ? '저장 중...' : '저장'}</button></div></div> : <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-tossGrey850">{post.content}</p>}
-                        {imageUrl && <img src={imageUrl} alt="챌린지 기록" className="mt-3 max-h-[460px] w-full rounded-2xl object-cover"/>}
+                        {isEditing ? <div className="mt-3 rounded-2xl bg-tossGrey50 p-3 ring-1 ring-inset ring-tossGrey100 focus-within:ring-2 focus-within:ring-[#CF3A27]/25">
+                            <div className="scrollbar-hide mb-3 flex gap-2 overflow-x-auto" role="group" aria-label="글 종류 수정">{editingMissionOptions.map(item => <button key={item.id} type="button" aria-pressed={editingMissionId === item.id} onClick={() => setEditingMissionId(item.id)} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-extrabold leading-5 ${editingMissionId === item.id ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#E7D8C4] bg-white text-[#544B43]'}`}>{item.title}</button>)}<button type="button" aria-pressed={!editingMissionId} onClick={() => setEditingMissionId('')} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-extrabold leading-5 ${!editingMissionId ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#E7D8C4] bg-white text-[#544B43]'}`}>자유 글</button></div>
+                            <textarea value={editingContent} onChange={event => setEditingContent(event.target.value)} placeholder={editingMissionId ? '오늘 미션은 어땠나요?' : '커뮤니티에 나누고 싶은 이야기를 자유롭게 남겨주세요!'} className="min-h-24 w-full resize-none bg-transparent text-sm leading-6 text-tossGrey900 outline-none" autoFocus/>
+                            {imageUrl && !editingImageFile && !editingRemoveImage && <div className="relative mt-3"><img src={imageUrl} alt="현재 첨부된 사진" className="max-h-[460px] w-full rounded-2xl object-cover"/><button type="button" onClick={() => setEditingRemoveImage(true)} disabled={savingEdit} className="absolute right-2 top-2 rounded-xl bg-white/95 px-3 py-2 text-xs font-black text-red-600 shadow-sm disabled:opacity-50" aria-label="기존 사진 삭제">사진 삭제</button></div>}
+                            {editingImageFile && <div className="mt-3 flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs font-bold text-tossGrey700"><span className="truncate">새 사진: {editingImageFile.name}</span><button type="button" onClick={() => setEditingImageFile(null)} disabled={savingEdit} className="rounded-full p-1 text-tossGrey400" aria-label="선택한 사진 취소"><X size={15}/></button></div>}
+                            {editingRemoveImage && !editingImageFile && <p className="mt-3 text-xs font-bold text-red-600">저장하면 기존 사진 파일이 삭제됩니다.</p>}
+                            <div className="mt-3 flex items-center gap-2 border-t border-tossGrey200 pt-3"><input ref={editFileRef} type="file" accept="image/*" hidden onChange={event => { setEditingImageFile(event.target.files?.[0] || null); event.target.value = ''; }}/><button type="button" onClick={() => editFileRef.current?.click()} disabled={savingEdit} className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-tossGrey600 disabled:opacity-50"><Camera size={16}/>사진 {imageUrl ? '교체' : '추가'}</button><div className="ml-auto flex gap-2"><button type="button" onClick={() => { setEditingPostId(null); setEditingContent(''); setEditingMissionId(''); setEditingImageFile(null); setEditingRemoveImage(false); }} disabled={savingEdit} className="rounded-xl px-3 py-2 text-xs font-bold text-tossGrey500 hover:bg-white disabled:opacity-50">취소</button><button type="button" onClick={() => savePostEdit(post)} disabled={!editingContent.trim() || savingEdit} className="flex items-center gap-1 rounded-xl bg-[#CF3A27] px-3 py-2 text-xs font-black text-white disabled:opacity-40"><Check size={14}/>{savingEdit ? '저장 중...' : '저장'}</button></div></div>
+                        </div> : <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-tossGrey850">{post.content}</p>}
+                        {imageUrl && !isEditing && <img src={imageUrl} alt="챌린지 기록" className="mt-3 max-h-[460px] w-full rounded-2xl object-cover"/>}
                         <div className="mt-3"><NoticeReactions reactions={post.community_channel_reactions || []} currentUserId={user.id} onToggleReaction={emoji => toggleReaction(post.id, emoji)}/></div>
                         <div className="mt-3 space-y-3 border-t border-tossGrey100 pt-3">
                             {(post.community_channel_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(comment => <div key={comment.id} {...bindLongPress(comment.id)} className="group/comment flex select-none gap-3 py-1"><UserAvatar user={comment.author} size="w-8 h-8"/><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><div className="flex items-baseline gap-2"><p className="text-xs font-black text-tossGrey900">{comment.author?.name}</p><span className="text-[10px] text-tossGrey400">{new Date(comment.created_at).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>{comment.user_id === user.id && editingCommentId !== comment.id && <div className="flex shrink-0 opacity-100 md:opacity-0 md:group-hover/comment:opacity-100"><button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentContent(comment.content); }} className="rounded-lg p-1.5 text-tossGrey400 hover:bg-tossGrey50 hover:text-tossBlue" aria-label="댓글 수정"><Pencil size={13}/></button><button type="button" onClick={() => deleteComment(post.id, comment.id)} className="rounded-lg p-1.5 text-tossGrey400 hover:bg-red-50 hover:text-red-500" aria-label="댓글 삭제"><Trash2 size={13}/></button></div>}</div>{editingCommentId === comment.id ? <div className="mt-1"><input value={editingCommentContent} onChange={event => setEditingCommentContent(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') saveCommentEdit(post.id, comment.id); }} className="h-9 w-full rounded-xl border border-tossGrey200 bg-tossGrey50 px-3 text-sm outline-none focus:border-tossBlue" autoFocus/><div className="mt-1.5 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentContent(''); }} className="px-2 py-1 text-[11px] font-bold text-tossGrey500">취소</button><button type="button" onClick={() => saveCommentEdit(post.id, comment.id)} disabled={!editingCommentContent.trim() || savingComment} className="px-2 py-1 text-[11px] font-black text-tossBlue disabled:opacity-40">{savingComment ? '저장 중' : '저장'}</button></div></div> : <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-tossGrey700">{comment.content}</p>}<div className="mt-1 origin-left scale-90"><NoticeReactions reactions={comment.community_channel_comment_reactions || []} currentUserId={user.id} onToggleReaction={emoji => toggleCommentReaction(post.id, comment.id, emoji)} hideAddButtonOnMobile pickerOpenToken={commentPickerRequest.commentId === comment.id ? commentPickerRequest.token : 0}/></div></div></div>)}
                             <div className="flex items-center gap-2"><MessageCircle size={16} className="text-tossGrey400"/><input value={commentInputs[post.id] || ''} onChange={event => setCommentInputs(values => ({ ...values, [post.id]: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') submitComment(post.id); }} placeholder="댓글 남기기" className="flex-1 rounded-xl bg-tossGrey50 px-3 py-2 text-xs outline-none"/><button onClick={() => submitComment(post.id)} className="p-2 text-tossBlue"><Send size={16}/></button></div>
                         </div>
                         </article>
-                        {unreadBoundary?.after === index && <UnreadDivider/>}
+                        {unreadBoundary?.after === index && <UnreadDivider anchorRef={unreadDividerRef}/>}
                     </React.Fragment>;
                 })}
             </div>

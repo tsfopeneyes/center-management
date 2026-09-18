@@ -76,6 +76,8 @@ const NoticeModalContent = ({
     const missionsRef = React.useRef(null);
     const participantsRef = React.useRef(null);
     const hostRef = React.useRef(null);
+    const scrollContainerRef = React.useRef(null);
+    const sectionTabsRef = React.useRef(null);
     const [activeTab, setActiveTab] = useState('intro');
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [tutorialReactionEmoji, setTutorialReactionEmoji] = useState(null);
@@ -175,6 +177,45 @@ const NoticeModalContent = ({
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     };
+
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        const tabs = sectionTabsRef.current;
+        if (!container || !tabs) return;
+
+        let frame = 0;
+        const updateActiveTab = () => {
+            frame = 0;
+            const sections = [
+                ['intro', introRef.current],
+                ['missions', missionsRef.current],
+                ['participants', participantsRef.current],
+                ['host', hostRef.current],
+            ].filter(([, element]) => element);
+            if (!sections.length) return;
+
+            const activationLine = tabs.getBoundingClientRect().bottom + 12;
+            let visibleSection = sections[0][0];
+            for (const [section, element] of sections) {
+                if (element.getBoundingClientRect().top <= activationLine) visibleSection = section;
+            }
+            if (container.scrollTop + container.clientHeight >= container.scrollHeight - 4) {
+                visibleSection = sections[sections.length - 1][0];
+            }
+            setActiveTab(previous => previous === visibleSection ? previous : visibleSection);
+        };
+        const scheduleUpdate = () => {
+            if (!frame) frame = window.requestAnimationFrame(updateActiveTab);
+        };
+        container.addEventListener('scroll', scheduleUpdate, { passive: true });
+        window.addEventListener('resize', scheduleUpdate);
+        scheduleUpdate();
+        return () => {
+            container.removeEventListener('scroll', scheduleUpdate);
+            window.removeEventListener('resize', scheduleUpdate);
+            if (frame) window.cancelAnimationFrame(frame);
+        };
+    }, [notice?.id, notice?.category, notice?.program_type, notice?.is_challenge, hostUsers.length, isEditing]);
 
     useEffect(() => {
         const selectedSession = notice.open_sessions?.find(item => item.id === selectedSessionId) || notice.today_session;
@@ -689,7 +730,7 @@ const NoticeModalContent = ({
                 shareLocation={notice.program_location || location}
             />
 
-            <div data-tour={tutorialMode ? 'tutorial-program-detail' : undefined} className="flex-1 overflow-y-auto scrollbar-hide bg-white">
+            <div ref={scrollContainerRef} data-tour={tutorialMode ? 'tutorial-program-detail' : undefined} className="flex-1 overflow-y-auto scrollbar-hide bg-white">
                 <div className="px-6 pt-6 pb-1">
                     {!isEditing && (
                         <div className="-mx-6 -mt-6">
@@ -827,7 +868,7 @@ const NoticeModalContent = ({
 
                             {/* Program section navigation */}
                             {notice.category === 'PROGRAM' && !isDailySessionProgram && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
-                                <div className="flex border-b border-tossGrey100 sticky top-0 bg-white/95 backdrop-blur z-20 mb-6">
+                                <div ref={sectionTabsRef} className="flex border-b border-tossGrey100 sticky top-0 bg-white/95 backdrop-blur z-20 mb-6">
                                     {(notice.is_challenge
                                         ? [['intro', '소개'], ['missions', '미션'], ['participants', '참여자'], ['host', '호스트']]
                                         : [['intro', '소개'], ['host', '호스트']]

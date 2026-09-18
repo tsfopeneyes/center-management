@@ -1,6 +1,7 @@
-import { supabase } from '../supabaseClient';
+import { supabase, supabaseUrl } from '../supabaseClient';
 import { getKSTDateString } from '../utils/dateUtils';
 import { sortCommunityPosts } from './communityFeedApi';
+import { communityImagePath } from '../utils/communityImageStorage';
 
 const missingRpc = error => ['PGRST202', '42883'].includes(error?.code);
 
@@ -8,7 +9,7 @@ export const challengeCommunityApi = {
     async fetchPosts(challengeId) {
         const { data, error } = await supabase
             .from('community_channel_posts')
-            .select(`id,channel_id,author_id,content,is_hidden,is_announcement,announced_at,created_at,updated_at,
+            .select(`id,channel_id,author_id,content,image_url,is_hidden,is_announcement,announced_at,created_at,updated_at,
                 community_channels!inner(source_notice_id),
                 author:users!author_id(id,name,school,profile_image_url),
                 community_post_media(id,media_type,media_url,sort_order),
@@ -230,5 +231,81 @@ export const challengeCommunityApi = {
             throw categoryError;
         }
         return data;
+    },
+
+    async replacePostImage(post, imageUrl, authorId, challengeId) {
+        if (post.author_id !== authorId) throw new Error('본인 글의 사진만 수정할 수 있습니다.');
+        const { data: rows, error: readError } = await supabase.from('community_post_media')
+            .select('id,media_type,media_url,sort_order').eq('post_id', post.id)
+            .order('sort_order', { ascending: true });
+        if (readError) throw readError;
+        if (rows?.length > 1 || rows?.[0]?.media_url !== (post.media?.[0]?.media_url || undefined))
+            throw new Error('사진이 다른 곳에서 변경되었습니다. 다시 불러와 주세요.');
+        const previous = rows?.[0] || null;
+        const oldPath = previous && communityImagePath(previous.media_url, authorId, challengeId, supabaseUrl);
+        if (previous && !oldPath) throw new Error('이 사진의 저장 위치를 확인할 수 없어 삭제하지 않았습니다.');
+        if (imageUrl && !communityImagePath(imageUrl, authorId, challengeId, supabaseUrl))
+            throw new Error('새 사진의 저장 위치를 확인할 수 없습니다.');
+        if (previous) {
+            const { count, error } = await supabase.from('community_post_media')
+                .select('id', { count: 'exact', head: true }).eq('media_url', previous.media_url).neq('id', previous.id);
+            if (error) throw error;
+            if (count) throw new Error('다른 글에서도 사용하는 사진이라 파일을 삭제할 수 없습니다.');
+        }
+
+        let nextMedia = null;
+        try {
+            if (previous && imageUrl) {
+                const { data, error } = await supabase.from('community_post_media')
+                    .update({ media_url: imageUrl }).eq('id', previous.id).eq('post_id', post.id)
+                    .select('id,media_type,media_url,sort_order').single();
+                if (error) throw error;
+                nextMedia = data;
+            } else if (previous) {
+                const { data, error } = await supabase.from('community_post_media')
+                    .delete().eq('id', previous.id).eq('post_id', post.id).select('id');
+                if (error) throw error;
+                if (!data?.length) throw new Error('사진 삭제 권한을 확인하지 못했습니다.');
+            } else if (imageUrl) {
+                const { data, error } = await supabase.from('community_post_media')
+                    .insert({ post_id: post.id, media_url: imageUrl, sort_order: 0 })
+                    .select('id,media_type,media_url,sort_order').single();
+                if (error) throw error;
+                nextMedia = data;
+            }
+            if (post.image_url === previous?.media_url) {
+                const { data, error } = await supabase.from('community_channel_posts')
+                    .update({ image_url: imageUrl || null }).eq('id', post.id).eq('author_id', authorId)
+                    .select('id');
+                if (error) throw error;
+                if (!data?.length) throw new Error('게시글 사진 정보를 수정할 권한을 확인하지 못했습니다.');
+            }
+            if (oldPath) {
+                const { data, error } = await supabase.storage.from('notice-images').remove([oldPath]);
+                if (error) throw error;
+                if (!data?.length) throw new Error('저장된 사진 파일을 삭제하지 못했습니다. 다시 시도해 주세요.');
+            }
+            return nextMedia ? [nextMedia] : [];
+        } catch (error) {
+            if (previous && nextMedia) {
+                const { error: restoreError } = await supabase.from('community_post_media')
+                    .update({ media_url: previous.media_url }).eq('id', previous.id).eq('post_id', post.id);
+                if (restoreError) console.error('Failed to restore post image after edit:', restoreError);
+            } else if (previous && !imageUrl) {
+                const { error: restoreError } = await supabase.from('community_post_media')
+                    .insert({ post_id: post.id, media_url: previous.media_url, sort_order: previous.sort_order });
+                if (restoreError) console.error('Failed to restore deleted post image:', restoreError);
+            } else if (!previous && nextMedia) {
+                const { error: restoreError } = await supabase.from('community_post_media')
+                    .delete().eq('id', nextMedia.id).eq('post_id', post.id);
+                if (restoreError) console.error('Failed to undo new post image:', restoreError);
+            }
+            if (post.image_url === previous?.media_url) {
+                const { error: restoreError } = await supabase.from('community_channel_posts')
+                    .update({ image_url: previous?.media_url || null }).eq('id', post.id).eq('author_id', authorId);
+                if (restoreError) console.error('Failed to restore legacy post image:', restoreError);
+            }
+            throw error;
+        }
     },
 };

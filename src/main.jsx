@@ -4,6 +4,10 @@ import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 import { AuthProvider } from './auth/AuthProvider.jsx'
+import ChunkLoadBoundary from './components/ChunkLoadBoundary.jsx'
+import { installChunkRecovery } from './utils/chunkRecovery.js'
+
+installChunkRecovery();
 
 const container = document.getElementById('root');
 
@@ -11,15 +15,15 @@ if (container) {
     try {
         if (typeof createRoot === 'function') {
             const root = createRoot(container);
-            root.render(<AuthProvider><App /></AuthProvider>);
+            root.render(<ChunkLoadBoundary><AuthProvider><App /></AuthProvider></ChunkLoadBoundary>);
         } else if (ReactDOM.render) {
-            ReactDOM.render(<AuthProvider><App /></AuthProvider>, container);
+            ReactDOM.render(<ChunkLoadBoundary><AuthProvider><App /></AuthProvider></ChunkLoadBoundary>, container);
         }
     } catch (e) {
         console.warn('createRoot failed, attempting legacy render:', e);
         try {
             if (ReactDOM.render) {
-                ReactDOM.render(<AuthProvider><App /></AuthProvider>, container);
+                ReactDOM.render(<ChunkLoadBoundary><AuthProvider><App /></AuthProvider></ChunkLoadBoundary>, container);
             }
         } catch (err) {
             console.error('Legacy render failed:', err);
