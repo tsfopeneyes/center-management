@@ -94,8 +94,8 @@ const StudentCheckoutSurveyModal = ({ isOpen, onClose, onSurveySaved, onSurveySk
 
     if (!isOpen) return null;
     if (surveyLoading) return <div role="status" className="fixed inset-0 z-[1100] bg-black/50 flex items-center justify-center"><div className="rounded-2xl bg-white p-6">설문을 불러오는 중…</div></div>;
-    if (modernLink) return <SurveyRunner manageHistory={false} link={modernLink} userId={user?.id || user?.userId} onClose={handleSkipCheckoutSurvey} onComplete={async (_, summary) => {
-        await onSurveySavedRef.current?.({ feedbackText: summary.join('\n'), surveyQuestion: modernLink.version.definition.title, surveyAnswers: summary, surveySubmitted: true });
+    if (modernLink) return <SurveyRunner manageHistory={false} link={modernLink} userId={user?.id || user?.userId} onClose={handleSkipCheckoutSurvey} onComplete={async (_, summary, notificationSummary) => {
+        await onSurveySavedRef.current?.({ feedbackText: summary.join('\n'), surveyQuestion: modernLink.version.definition.title, surveyAnswers: notificationSummary, surveySubmitted: true });
         onCloseRef.current?.();
     }} />;
 

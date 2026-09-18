@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import SurveyFields from './SurveyFields';
 import { surveyHubApi } from '../../api/surveyHubApi';
-import { answerSummary, recommendationsFor, validateAnswers } from '../../utils/surveyModel';
+import { answerSummary, notificationAnswerSummary, recommendationsFor, validateAnswers } from '../../utils/surveyModel';
 import useModalClose from '../../hooks/useModalClose';
 
 export default function SurveyRunner({ link, userId, onComplete, onClose, initialEntry, locationId, visitId, onSubmit, inline = false, manageHistory = true, dismissible = true }) {
@@ -26,10 +26,12 @@ export default function SurveyRunner({ link, userId, onComplete, onClose, initia
         try {
             if (onSubmit) {
                 const result = await onSubmit(answers, answerSummary(definition, answers));
-                await onComplete?.(result, answerSummary(definition, answers));
+                await onComplete?.(result, answerSummary(definition, answers), notificationAnswerSummary(definition, answers));
             } else {
                 if (!saved.current) saved.current = await surveyHubApi.submit({ ...link, version: { ...link.version, definition } }, userId, answers, { locationId, visitId });
-                await onComplete?.(saved.current, answerSummary(saved.current.snapshot || definition, saved.current.answers || answers));
+                const savedDefinition = saved.current.snapshot || definition;
+                const savedAnswers = saved.current.answers || answers;
+                await onComplete?.(saved.current, answerSummary(savedDefinition, savedAnswers), notificationAnswerSummary(savedDefinition, savedAnswers));
             }
         } catch (e) { setError(e.code === '23505' ? '이미 제출한 설문입니다. 닫기를 눌러 계속해 주세요.' : e.message); }
         finally { lock.current = false; setBusy(false); }

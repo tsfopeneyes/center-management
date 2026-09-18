@@ -109,8 +109,8 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
 
     if (!isOpen) return null;
     if (surveyLoading) return <div role="status" className="fixed inset-0 z-[1100] bg-black/50 flex items-center justify-center"><div className="rounded-2xl bg-white p-6">설문을 불러오는 중…</div></div>;
-    if (modernLink) return <SurveyRunner manageHistory={false} link={modernLink} userId={user?.id} onClose={handleCloseWithoutSubmitting} onComplete={async (_, summary) => {
-        await dispatchPendingCheckinNotification({ purposes: summary, surveyQuestion: modernLink.version.definition.title, surveyAnswers: summary });
+    if (modernLink) return <SurveyRunner manageHistory={false} link={modernLink} userId={user?.id} onClose={handleCloseWithoutSubmitting} onComplete={async (_, summary, notificationSummary) => {
+        await dispatchPendingCheckinNotification({ purposes: summary, surveyQuestion: modernLink.version.definition.title, surveyAnswers: notificationSummary });
         sessionStorage.removeItem('pending_checkin_survey'); sessionStorage.removeItem('require_checkin_survey');
         onCloseRef.current(true);
     }} />;

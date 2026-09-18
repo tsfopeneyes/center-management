@@ -20,7 +20,7 @@ import { verifiedReturnProfile } from '../auth/verifiedReturnProfile';
 import { createAccountLoginAdapter } from '../auth/accountLoginAdapter';
 import { loadAssignedSurvey } from '../utils/surveyAssignments';
 import { surveyHubApi } from '../api/surveyHubApi';
-import { answerSummary } from '../utils/surveyModel';
+import { answerSummary, notificationAnswerSummary } from '../utils/surveyModel';
 import { userApi } from '../api/userApi';
 import { useAuth } from '../auth/AuthProvider';
 import SignUpForm from '../components/auth/SignUpForm';
@@ -1138,6 +1138,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
 
     // Complete Guest Check-in with Selected Survey Purposes
     const performGuestSurveyComplete = async (surveyPurposes, modernAnswers = null) => {
+        let notificationAnswers = surveyPurposes;
         if (!guestPendingInfo) return;
         setLoading(true);
         try {
@@ -1171,6 +1172,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
             if (modernSurveyLink && modernAnswers) {
                 const saved = await surveyHubApi.submit(modernSurveyLink, guestUserId, modernAnswers, { locationId: haifnLoc.id, visitId: checkinLogId });
                 surveyPurposes = answerSummary(saved.snapshot, saved.answers);
+                notificationAnswers = notificationAnswerSummary(saved.snapshot, saved.answers);
                 surveyPurposesStr = surveyPurposes.join(', ');
             }
 
@@ -1234,7 +1236,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                     referralPath: finalVisitReason,
                     purposes: surveyPurposes,
                     surveyQuestion,
-                    surveyAnswers: surveyPurposes
+                    surveyAnswers: notificationAnswers
                 });
             } catch (notifErr) {
                 console.error('Notification dispatch error:', notifErr);

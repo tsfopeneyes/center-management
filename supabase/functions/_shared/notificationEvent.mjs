@@ -39,7 +39,12 @@ const surveyLines = (question, answers, icon) => {
   const labeled = answers.map(labeledSurveyAnswer);
   if (labeled.length > 1 && labeled.every(Boolean)) {
     const lines = question ? [`${icon} ${question}`] : [];
-    labeled.forEach((item) => lines.push('', `▫ ${item.question}`, `▪ ${item.answer.replace(/\r?\n/g, '\n  ')}`));
+    let previousQuestion = '';
+    labeled.forEach((item) => {
+      if (item.question !== previousQuestion) lines.push('', `▫ ${item.question}`);
+      lines.push(`▪ ${item.answer.replace(/\r?\n/g, '\n  ')}`);
+      previousQuestion = item.question;
+    });
     return lines;
   }
   return [`${icon} ${question}`, ...answers.map((answer) => `▪ ${removeRepeatedQuestionPrefix(question, answer).replace(/\r?\n/g, '\n  ')}`)];

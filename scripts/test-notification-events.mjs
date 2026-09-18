@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { resolveNotificationEvent } from '../supabase/functions/_shared/notificationEvent.mjs';
+import { notificationAnswerSummary } from '../src/utils/surveyModel.js';
 
 const rows = {
   notices: [
@@ -76,6 +77,17 @@ const checkinWithMultipleQuestions = await resolveNotificationEvent({
 }, { readOne });
 assert.match(checkinWithMultipleQuestions.message, /🎯 체크인 설문\n\n▫ 센터에 어떤 것들이 있으면 좋을까요\?\n▪ Praise List/);
 assert.match(checkinWithMultipleQuestions.message, /\n\n▫ 오늘 나누고 싶은 이야기는\?\n▪ 첫 줄\n  둘째 줄/);
+
+const selectedOptions = notificationAnswerSummary({ questions: [{ id: 'wish', title: repeatedQuestion, type: 'multiple' }] }, {
+  wish: ['Name Tag - 하이픈의 멤버로서 우리를 나타내는 명찰', 'Praise List - 찬양으로 하나님과 연결되는 한 시간', '심야식당 - 한 가지 질문에 대해 생각을 나눠보는 식사 교제'],
+});
+const checkinWithSelectedOptions = await resolveNotificationEvent({
+  eventType: 'VISIT_CHECKIN',
+  logId: 'log-haifn',
+  details: { surveyQuestion: repeatedQuestion, surveyAnswers: selectedOptions },
+}, { readOne });
+assert.match(checkinWithSelectedOptions.message, /▫ 센터에 어떤 것들이 있으면 좋을까요\?\n▪ Name Tag[^\n]*\n▪ Praise List[^\n]*\n▪ 심야식당[^\n]*/);
+assert.equal((checkinWithSelectedOptions.message.match(/▫ 센터에 어떤 것들이 있으면 좋을까요\?/g) || []).length, 1);
 
 const checkout = await resolveNotificationEvent({ eventType: 'VISIT_CHECKOUT', logId: 'log-enough' }, { readOne });
 assert.deepEqual(checkout.centerCodes, ['ENOUGH_PLACE']);

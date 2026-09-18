@@ -67,6 +67,9 @@ export function validateAnswers(definition, answers) {
     return null;
 }
 export const answerSummary = (definition, answers) => (definition.questions || []).filter(q => answers[q.id] != null).map(q => `${q.title}: ${Array.isArray(answers[q.id]) ? answers[q.id].join(', ') : answers[q.id]}`);
+export const notificationAnswerSummary = (definition, answers) => (definition.questions || [])
+    .filter(q => answers[q.id] != null)
+    .flatMap(q => (Array.isArray(answers[q.id]) ? answers[q.id] : [answers[q.id]]).map(value => `${q.title}: ${value}`));
 // The signature intentionally includes wording and options: matching positions or
 // question IDs alone do not establish that two versions measure the same thing.
 export const questionSignature = q => JSON.stringify([q.id, q.title, q.type, optionsOf(q), q.metric || null]);
