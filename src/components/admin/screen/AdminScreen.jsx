@@ -29,6 +29,8 @@ export default function AdminScreen({ currentAdmin }) {
     const [dirty, setDirty] = useState(false);
     const [loginOpen, setLoginOpen] = useState(false);
     const [pendingFiles, setPendingFiles] = useState([]);
+    const [resumeProfileId, setResumeProfileId] = useState(null);
+    const [rejectedToken, setRejectedToken] = useState(null);
 
     useEffect(() => {
         loadScreenConfig().then(next => {
@@ -52,7 +54,7 @@ export default function AdminScreen({ currentAdmin }) {
         sets: next.sets.map(item => item.id === selectedSet.id ? updater(item) : item),
     }));
 
-    const uploadSelectedFiles = async (files, profileId = currentAdmin?.id, allowReauth = true) => {
+    const uploadSelectedFiles = async (files, profileId = currentAdmin?.id, allowReauth = true, sessionToken = auth.session?.access_token || null) => {
         if (!files.length) return;
         if (config.assets.length + files.length > MAX_SCREEN_ASSETS) {
             window.alert(`이미지 보관함에는 최대 ${MAX_SCREEN_ASSETS}장까지 등록할 수 있습니다.`);
@@ -66,7 +68,7 @@ export default function AdminScreen({ currentAdmin }) {
                 const optimized = await compressImage(file, 3840, 0.9);
                 let url;
                 if (isAccountAuthEnabled()) {
-                    url = await uploadAccountImage({ profileId, kind: 'notice', file: optimized });
+                    url = await uploadAccountImage({ profileId, kind: 'notice', file: optimized, sessionToken });
                 } else {
                     const path = `screen/${currentAdmin?.id || 'admin'}/${crypto.randomUUID()}.jpg`;
                     const { error } = await supabase.storage.from('notice-images').upload(path, optimized);
@@ -78,6 +80,7 @@ export default function AdminScreen({ currentAdmin }) {
         } catch (error) {
             if (error?.code === 'reauth_required' && allowReauth) {
                 setPendingFiles(files.slice(uploaded.length));
+                setRejectedToken(sessionToken);
                 setLoginOpen(true);
             } else {
                 window.alert(`이미지 업로드에 실패했습니다.\n${error.message}`);
@@ -98,15 +101,23 @@ export default function AdminScreen({ currentAdmin }) {
         setLoginOpen(false);
         if (!isAdminOrStaff(profile)) {
             setPendingFiles([]);
+            setRejectedToken(null);
             window.alert('전자칠판 이미지는 관리자 또는 스탭만 올릴 수 있습니다.');
             return;
         }
+        setResumeProfileId(profile.id);
+    };
+
+    useEffect(() => {
+        const token = auth.session?.access_token;
+        if (!resumeProfileId || auth.status !== 'authenticated' || auth.profile?.id !== resumeProfileId
+            || !token || token === rejectedToken) return;
         const files = pendingFiles;
         setPendingFiles([]);
-        void auth.refresh()
-            .then(() => uploadSelectedFiles(files, profile.id, false))
-            .catch(error => window.alert(`로그인 상태를 확인하지 못했습니다.\n${error.message}`));
-    };
+        setResumeProfileId(null);
+        setRejectedToken(null);
+        void uploadSelectedFiles(files, resumeProfileId, false, token);
+    }, [resumeProfileId, auth.status, auth.profile?.id, auth.session?.access_token, rejectedToken, pendingFiles]);
 
     const addSet = () => {
         if (config.sets.length >= MAX_SCREEN_SETS) return window.alert(`송출 세트는 최대 ${MAX_SCREEN_SETS}개까지 만들 수 있습니다.`);
@@ -171,7 +182,7 @@ export default function AdminScreen({ currentAdmin }) {
     if (loading || !config || !selectedSet) return <div className="py-20 text-center font-bold text-gray-400">전자칠판 설정을 불러오는 중...</div>;
 
     return <div className="w-full space-y-6 pb-12">
-        {loginOpen && <Suspense fallback={<div className="fixed inset-0 z-50 bg-white/80" aria-hidden="true" />}><GuestMobileWelcome isQRCheckin={false} loginOnly onLoginComplete={resumeUpload} onLoginCancel={() => { setLoginOpen(false); setPendingFiles([]); }} /></Suspense>}
+        {loginOpen && <Suspense fallback={<div className="fixed inset-0 z-50 bg-white/80" aria-hidden="true" />}><GuestMobileWelcome isQRCheckin={false} loginOnly onLoginComplete={resumeUpload} onLoginCancel={() => { setLoginOpen(false); setPendingFiles([]); setRejectedToken(null); }} /></Suspense>}
         <AdminPageHeader title="전자칠판" subtitle="이미지는 보관하고, 상황에 맞는 송출 세트를 골라 적용하세요." icon={<Monitor />} />
 
         <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-5 text-white shadow-lg shadow-blue-100 md:p-7">

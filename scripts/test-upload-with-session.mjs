@@ -3,32 +3,37 @@ import { uploadWithSession } from '../src/auth/uploadWithSession.js';
 
 const file = { name: 'board.png' };
 const profileId = crypto.randomUUID();
-const tokens = [];
-let refreshed = 0;
 const auth = {
-    getSession: async () => ({ data: { session: { access_token: 'old' } } }),
-    refreshSession: async () => { refreshed += 1; return { data: { session: { access_token: 'fresh' } } }; },
+    getSession: async () => { throw new Error('upload must use the already verified screen token'); },
+    refreshSession: async () => { throw new Error('upload must never force a refresh or sign out'); },
 };
-const upload = async (_input, { accessToken }) => {
-    tokens.push(accessToken);
-    if (accessToken === 'old') throw { code: 'invalid_login' };
-    return 'https://example.test/board.png';
-};
-assert.equal(await uploadWithSession({ auth, upload, profileId, kind: 'notice', file }), 'https://example.test/board.png');
-assert.deepEqual(tokens, ['old', 'fresh']);
-assert.equal(refreshed, 1);
+const options = { auth, profileId, kind: 'notice', file, sessionToken: 'verified-token' };
+let uploads = 0;
+assert.equal(await uploadWithSession({
+    ...options,
+    upload: async (_input, { accessToken }) => { uploads += 1; assert.equal(accessToken, 'verified-token'); return 'https://example.test/board.png'; },
+    verifySession: async () => { throw new Error('successful upload does not need another check'); },
+}), 'https://example.test/board.png');
+assert.equal(uploads, 1);
 
 await assert.rejects(
-    uploadWithSession({ auth, upload: async () => { throw { code: 'invalid_login' }; }, profileId, kind: 'notice', file }),
-    error => error.code === 'reauth_required' && /로그인/.test(error.message)
+    uploadWithSession({ ...options, upload: async () => { throw { code: 'invalid_login' }; },
+        verifySession: async token => { assert.equal(token, 'verified-token'); return { decision: 'retain' }; } }),
+    error => /로그인은 유지 중/.test(error.message) && error.code !== 'reauth_required'
 );
 await assert.rejects(
-    uploadWithSession({ auth: { getSession: async () => ({ data: { session: null } }) }, upload, profileId, kind: 'notice', file }),
+    uploadWithSession({ ...options, upload: async () => { throw { code: 'invalid_login' }; },
+        verifySession: async () => ({ decision: 'reauth' }) }),
     error => error.code === 'reauth_required'
 );
 await assert.rejects(
-    uploadWithSession({ auth, upload: async () => { throw { code: 'forbidden' }; }, profileId, kind: 'notice', file }),
+    uploadWithSession({ ...options, sessionToken: null,
+        upload: async () => { throw new Error('no upload without a token'); } }),
+    error => error.code === 'reauth_required'
+);
+await assert.rejects(
+    uploadWithSession({ ...options, upload: async () => { throw { code: 'forbidden' }; },
+        verifySession: async () => { throw new Error('permission denial is final'); } }),
     error => error.code === 'forbidden'
 );
-assert.equal(refreshed, 2, 'permission failures do not retry or change the session');
-console.log('Image upload refreshes one rejected token, then requests login only when needed.');
+console.log('Board upload uses the verified token without refreshing or signing out and distinguishes server rejection from an expired login.');
