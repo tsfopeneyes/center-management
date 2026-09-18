@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, ImagePlus, Loader2, Monitor, Plus, Radio, Save, Trash2 } from 'lucide-react';
 import AdminPageHeader from '../common/AdminPageHeader';
 import { supabase } from '../../../supabaseClient';
-import { cachedAccountProfileId, uploadAccountImage } from '../../../auth/accountMedia';
+import { uploadAccountImage } from '../../../auth/accountMedia';
 import { isAccountAuthEnabled } from '../../../auth/accountAuthRuntime';
+import { useAuth } from '../../../auth/AuthProvider';
+import { isAdminOrStaff } from '../../../utils/userUtils';
 import { compressImage } from '../../../utils/imageUtils';
 import {
     loadScreenConfig, MAX_SCREEN_ASSETS, MAX_SCREEN_SET_IMAGES, MAX_SCREEN_SETS,
@@ -15,14 +17,18 @@ const copyConfig = config => ({
     assets: config.assets.map(item => ({ ...item })),
     sets: config.sets.map(item => ({ ...item, imageIds: [...item.imageIds] })),
 });
+const GuestMobileWelcome = lazy(() => import('../../../pages/GuestMobileWelcome'));
 
 export default function AdminScreen({ currentAdmin }) {
+    const auth = useAuth();
     const [config, setConfig] = useState(null);
     const [selectedSetId, setSelectedSetId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
+    const [loginOpen, setLoginOpen] = useState(false);
+    const [pendingFiles, setPendingFiles] = useState([]);
 
     useEffect(() => {
         loadScreenConfig().then(next => {
@@ -46,23 +52,21 @@ export default function AdminScreen({ currentAdmin }) {
         sets: next.sets.map(item => item.id === selectedSet.id ? updater(item) : item),
     }));
 
-    const uploadFiles = async event => {
-        const files = [...(event.target.files || [])];
-        event.target.value = '';
+    const uploadSelectedFiles = async (files, profileId = currentAdmin?.id, allowReauth = true) => {
         if (!files.length) return;
         if (config.assets.length + files.length > MAX_SCREEN_ASSETS) {
             window.alert(`이미지 보관함에는 최대 ${MAX_SCREEN_ASSETS}장까지 등록할 수 있습니다.`);
             return;
         }
         setUploading(true);
+        const uploaded = [];
         try {
-            const uploaded = [];
             for (const file of files) {
                 if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('JPG, PNG, WebP 이미지만 올릴 수 있습니다.');
                 const optimized = await compressImage(file, 3840, 0.9);
                 let url;
                 if (isAccountAuthEnabled()) {
-                    url = await uploadAccountImage({ profileId: cachedAccountProfileId() || currentAdmin?.id, kind: 'notice', file: optimized });
+                    url = await uploadAccountImage({ profileId, kind: 'notice', file: optimized });
                 } else {
                     const path = `screen/${currentAdmin?.id || 'admin'}/${crypto.randomUUID()}.jpg`;
                     const { error } = await supabase.storage.from('notice-images').upload(path, optimized);
@@ -71,10 +75,37 @@ export default function AdminScreen({ currentAdmin }) {
                 }
                 uploaded.push({ id: crypto.randomUUID(), url, name: file.name });
             }
-            changeConfig(next => ({ ...next, assets: [...next.assets, ...uploaded] }));
         } catch (error) {
-            window.alert(`이미지 업로드에 실패했습니다.\n${error.message}`);
-        } finally { setUploading(false); }
+            if (error?.code === 'reauth_required' && allowReauth) {
+                setPendingFiles(files.slice(uploaded.length));
+                setLoginOpen(true);
+            } else {
+                window.alert(`이미지 업로드에 실패했습니다.\n${error.message}`);
+            }
+        } finally {
+            if (uploaded.length) changeConfig(next => ({ ...next, assets: [...next.assets, ...uploaded] }));
+            setUploading(false);
+        }
+    };
+
+    const uploadFiles = event => {
+        const files = [...(event.target.files || [])];
+        event.target.value = '';
+        void uploadSelectedFiles(files);
+    };
+
+    const resumeUpload = profile => {
+        setLoginOpen(false);
+        if (!isAdminOrStaff(profile)) {
+            setPendingFiles([]);
+            window.alert('전자칠판 이미지는 관리자 또는 스탭만 올릴 수 있습니다.');
+            return;
+        }
+        const files = pendingFiles;
+        setPendingFiles([]);
+        void auth.refresh()
+            .then(() => uploadSelectedFiles(files, profile.id, false))
+            .catch(error => window.alert(`로그인 상태를 확인하지 못했습니다.\n${error.message}`));
     };
 
     const addSet = () => {
@@ -140,6 +171,7 @@ export default function AdminScreen({ currentAdmin }) {
     if (loading || !config || !selectedSet) return <div className="py-20 text-center font-bold text-gray-400">전자칠판 설정을 불러오는 중...</div>;
 
     return <div className="w-full space-y-6 pb-12">
+        {loginOpen && <Suspense fallback={<div className="fixed inset-0 z-50 bg-white/80" aria-hidden="true" />}><GuestMobileWelcome isQRCheckin={false} loginOnly onLoginComplete={resumeUpload} onLoginCancel={() => { setLoginOpen(false); setPendingFiles([]); }} /></Suspense>}
         <AdminPageHeader title="전자칠판" subtitle="이미지는 보관하고, 상황에 맞는 송출 세트를 골라 적용하세요." icon={<Monitor />} />
 
         <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-5 text-white shadow-lg shadow-blue-100 md:p-7">

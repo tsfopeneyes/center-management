@@ -60,7 +60,7 @@ const getObjectParticle = (word = '') => {
     return hasFinalConsonant ? '을' : '를';
 };
 
-const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurveyLoginComplete, onSurveyLoginCancel, communityLoginId = '', onCommunityLoginComplete, onCommunityLoginCancel, loginOnly = false }) => {
+const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurveyLoginComplete, onSurveyLoginCancel, communityLoginId = '', onCommunityLoginComplete, onCommunityLoginCancel, onLoginComplete, onLoginCancel, loginOnly = false }) => {
     const auth = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -82,7 +82,11 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     const programLoginId = location.state?.programId
         || searchParams.get('programLogin')
         || localStorage.getItem('pendingProgramJoin');
-    const returnAfterLogin = () => {
+    const returnAfterLogin = profile => {
+        if (loginOnly && onLoginComplete) {
+            onLoginComplete(profile);
+            return true;
+        }
         if (isSurveyLoginFlow && surveyLoginId) {
             if (onSurveyLoginComplete) {
                 onSurveyLoginComplete();
@@ -111,6 +115,10 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
         return true;
     };
     const closeLogin = () => {
+        if (loginOnly && onLoginCancel) {
+            onLoginCancel();
+            return;
+        }
         if (isCommunityLoginFlow && onCommunityLoginCancel) {
             onCommunityLoginCancel();
             return;
@@ -873,7 +881,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                 localStorage.setItem('admin_user', JSON.stringify(matchedUser));
                 localStorage.setItem('user', JSON.stringify(matchedUser));
                 updateWebSessionPreferences(matchedUser).catch(() => {});
-                if (returnAfterLogin()) return true;
+                if (returnAfterLogin(matchedUser)) return true;
                 if (isMainEntry) navigate('/admin', { replace: true });
                 return true;
             }
@@ -885,7 +893,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                 await ensureCheckinLogAndNavigate(matchedUser);
             } else {
                 updateWebSessionPreferences(matchedUser).catch(() => {});
-                if (returnAfterLogin()) return true;
+                if (returnAfterLogin(matchedUser)) return true;
                 navigate('/student', { replace: true });
             }
             return true;

@@ -1,11 +1,10 @@
 import {supabase} from '../supabaseClient';
 import {getAccountAuthClient,isAccountAuthEnabled} from './accountAuthRuntime';
+import {uploadWithSession} from './uploadWithSession';
 
 export async function uploadAccountImage({profileId,kind,file}){
     if(!isAccountAuthEnabled())return null;
-    const current=await supabase.auth.getSession(),accessToken=current?.data?.session?.access_token;
-    if(current?.error||!accessToken)throw new Error('로그인 상태를 확인하지 못했습니다.');
-    return getAccountAuthClient().upload({profileId,kind,file},{accessToken});
+    return uploadWithSession({auth:supabase.auth,upload:getAccountAuthClient().upload,profileId,kind,file});
 }
 
 export function cachedAccountProfileId(){
