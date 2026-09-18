@@ -143,6 +143,11 @@ try {
         assert.equal(calls, 1, 'no retry loops');
     }
     assert.throws(() => createSessionTransport({endpoint: 'http://example.invalid/session'}));
+    const stalled = createSessionTransport({endpoint: 'https://example.invalid/session', timeoutMs: 1000,
+        fetcher: (_url, options) => new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => reject(new Error('aborted')), {once: true});
+        })});
+    await assert.rejects(stalled('fixture-token'), /aborted/, 'stalled verification must finish within its timeout');
     console.log('PASS: trusted continuity, missing/untrusted/revoked sessions, mapping conflicts, password-reset restriction, network recovery, bounded waits, stale responses, expiry, SDK events and no mutation/retry/signout.');
 } finally {
     for (const c of coordinators) c.stop();

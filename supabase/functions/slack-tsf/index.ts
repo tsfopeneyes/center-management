@@ -1,4 +1,5 @@
 import { isStaffProfile } from "../_shared/staffRoles.mjs";
+import { resolveVisitLocationKeyword } from "../_shared/visitScope.mjs";
 
 const NOTION_API_VERSION = "2026-03-11";
 const DEFAULT_OPENAI_MODEL = "gpt-5.6-terra";
@@ -971,10 +972,10 @@ export async function getVisitMetrics(args: JsonRecord): Promise<JsonRecord> {
       ["type", "in.(CHECKIN,CHECKOUT,MOVE)"],
       ["order", "created_at.asc"],
     ]),
-    supabaseSelectAll("users", [["select", "id,name"]], 10_000),
+    supabaseSelectAll("users", [["select", "id"]], 10_000),
     supabaseSelectAll("staff_directory", [["select", "id,role"]], 10_000),
-    optionalSupabaseSelect("locations", [["select", "id,name,group_id"], ["limit", "300"]]),
-    optionalSupabaseSelect("location_groups", [["select", "id,name"], ["limit", "100"]]),
+    supabaseSelect("locations", [["select", "id,name,group_id"], ["limit", "300"]]),
+    supabaseSelect("location_groups", [["select", "id,name"], ["limit", "100"]]),
   ]);
 
   const staffRoles = new Map(staffResult.rows.map((row) => [String(row.id), String(row.role || "admin")]));
@@ -999,6 +1000,9 @@ export async function getVisitMetrics(args: JsonRecord): Promise<JsonRecord> {
       )
       .map((row) => String(row.id)),
   );
+  if (locationKeyword && allowedLocationIds.size === 0) {
+    return { error: `웹앱에 '${locationKeyword}' 지점 또는 공간을 찾지 못해 방문 통계를 집계하지 않았습니다.` };
+  }
   const eligibleLogs = logs.filter((row) => {
     if (typeof row.user_id !== "string") return false;
     const user = users.get(row.user_id);
@@ -2377,10 +2381,13 @@ function openAIToolCalls(data: JsonRecord): OpenAIToolCall[] {
   });
 }
 
-async function executeTsfTool(name: string, args: JsonRecord): Promise<string> {
+async function executeTsfTool(name: string, args: JsonRecord, question = "", threadContext = ""): Promise<string> {
   try {
     let result: unknown;
-    if (name === "get_visit_metrics") result = await getVisitMetrics(args);
+    if (name === "get_visit_metrics") result = await getVisitMetrics({
+      ...args,
+      location_keyword: resolveVisitLocationKeyword(question, threadContext, args.location_keyword),
+    });
     else if (name === "get_member_overview") result = await buildUsersContext();
     else if (name === "get_program_overview") result = await getProgramMetrics(args);
     else if (name === "get_rental_metrics") result = await buildRentalsContext(parseToolDateRange(args));
@@ -2531,6 +2538,7 @@ async function answerQuestion(
     "당신은 더작은재단의 Slack AI 업무 비서 퐁퐁입니다.",
     `현재 한국 날짜는 ${today}입니다. '올해', '상반기', '지난달', 월 이름을 이 날짜 기준의 정확한 YYYY-MM-DD 범위로 바꾸세요.`,
     "재단·센터·웹앱·회원·방문·프로그램·대여·포인트·설문·회의·업무에 관한 사실 질문은 반드시 적절한 도구를 먼저 사용하세요.",
+    "단, 직전 답변의 오류 원인이나 '왜?'를 묻는 후속 질문은 이전 대화에 나온 오류를 먼저 설명하세요. 이전 메시지에 504가 있으면 조회 서버가 제한 시간 안에 응답하지 않았다는 뜻이며, 실제 병목의 세부 원인은 로그 없이 확정할 수 없다고 말하세요. 원인 설명만 요청했으면 동일한 조회를 반복하지 마세요. '다시 조회해봐'처럼 명시적으로 요청한 경우에만 재조회하세요.",
     "프로그램명, 참여자 수, 신청자 수, 출석 수 질문은 반드시 프로그램 도구를 사용하세요. 최근 목록으로 판단하지 마세요. 웹앱의 신청과 JOIN은 같은 뜻이므로 결과에는 '신청 인원'만 쓰고 JOIN을 따로 반복하지 마세요.",
     "질문 하나에 웹앱과 Notion이 모두 필요하면 여러 도구를 사용해 함께 확인하세요.",
     "이번 주·다음 주·오늘·특정 기간의 일정이나 스케줄을 물으면 get_task_schedule과 search_slack_messages를 반드시 함께 호출하세요. get_task_schedule로 Notion 할 일 DB의 날짜 속성을 조회하고, search_slack_messages로 같은 기간의 허용된 Slack 전 채널에서 일정·행사·회의·워크숍·마감 언급을 확인한 뒤 중복을 정리해 합치세요. 일정 질문에는 일반 문서 검색인 search_notion을 호출하지 말고, 관련 없는 Notion 페이지로 보충하지 마세요.",
@@ -2651,7 +2659,7 @@ async function answerQuestion(
       return {
         type: "function_call_output",
         call_id: call.call_id,
-        output: await executeTsfTool(call.name, args),
+        output: await executeTsfTool(call.name, args, question, threadContext),
       };
     }));
     input.push(...outputs);
@@ -2814,6 +2822,41 @@ async function getSlackThreadContext(channel: string, threadTs: string, requeste
       .join("\n");
   } catch (error) {
     console.warn("Slack thread context skipped", error);
+    return "";
+  }
+}
+
+async function getSlackDirectMessageContext(channel: string, currentTs: string, requesterId: string): Promise<string> {
+  const botToken = getSecret("SLACK_BOT_TOKEN");
+  if (!botToken || !channel || !currentTs) return "";
+  try {
+    const url = new URL("https://slack.com/api/conversations.history");
+    url.searchParams.set("channel", channel);
+    url.searchParams.set("latest", currentTs);
+    url.searchParams.set("inclusive", "false");
+    url.searchParams.set("limit", "30");
+    const response = await fetchWithTimeout(url.toString(), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${botToken}` },
+    });
+    const data = await response.json().catch(() => ({})) as JsonRecord;
+    if (!response.ok || data.ok !== true || !Array.isArray(data.messages)) return "";
+    return (data.messages as unknown[])
+      .flatMap((message) => {
+        if (!message || typeof message !== "object") return [];
+        const record = message as JsonRecord;
+        const messageText = typeof record.text === "string" ? record.text.trim() : "";
+        if (!messageText || (record.subtype && record.subtype !== "bot_message")) return [];
+        const user = typeof record.user === "string" ? record.user : "";
+        const fromBot = Boolean(record.bot_id) || record.subtype === "bot_message";
+        if (!fromBot && user !== requesterId) return [];
+        return [`${fromBot ? "퐁퐁" : "요청자"}: ${messageText.slice(0, 2_500)}`];
+      })
+      .slice(0, 12)
+      .reverse()
+      .join("\n");
+  } catch (error) {
+    console.warn("Slack DM context skipped", error);
     return "";
   }
 }
@@ -3374,7 +3417,9 @@ async function handleDirectMessage(event: SlackEvent, teamId: string): Promise<v
     statusTs = typeof status.ts === "string" ? status.ts : "";
     progress = startSlackProgress(event.channel, statusTs);
     await progress.update("1/3 질문과 대화 맥락을 확인하고 있습니다");
-    const threadContext = await getSlackThreadContext(event.channel, threadTs, event.user);
+    const threadContext = event.thread_ts
+      ? await getSlackThreadContext(event.channel, threadTs, event.user)
+      : await getSlackDirectMessageContext(event.channel, event.ts, event.user);
     const reportMode = wantsCrossChannelReport(question);
     const reportContext = reportMode ? await buildCrossChannelReportContext(question) : "";
     const webappContext = reportMode ? await buildReportWebappContext(question) : "";

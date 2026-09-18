@@ -99,6 +99,31 @@ export const programSessionsApi = {
         return data || [];
     },
 
+    async closePastSessions(noticeId, today = getKstDateString()) {
+        // A past occurrence has ended, even when nobody manually closed it.
+        // Keep the session and every response for historical rosters and stats.
+        const { data, error } = await supabase.from('daily_program_sessions')
+            .update({ status: 'CLOSED', updated_at: new Date().toISOString() })
+            .eq('notice_id', noticeId)
+            .lt('session_date', today)
+            .eq('status', 'OPEN')
+            .is('voided_at', null)
+            .select('id');
+        if (error) throw error;
+        return data?.length || 0;
+    },
+
+    async fetchManageable(noticeId, today = getKstDateString()) {
+        const { data, error } = await supabase.from('daily_program_sessions')
+            .select('*')
+            .eq('notice_id', noticeId)
+            .gte('session_date', today)
+            .is('voided_at', null)
+            .order('session_date', { ascending: true });
+        if (error) throw error;
+        return data || [];
+    },
+
     async fetchPublicToday(noticeId) {
         const { data, error } = await supabase.from('daily_program_sessions').select('*')
             .eq('notice_id', noticeId).eq('session_date', getKstDateString()).is('voided_at', null).maybeSingle();
@@ -121,6 +146,7 @@ export const programSessionsApi = {
     },
 
     async saveSession(notice, values, sessionDate = getKstDateString()) {
+        if (sessionDate < getKstDateString()) throw new Error('지난 날짜의 회차는 다시 열 수 없습니다.');
         const startTime = values.start_time || '12:00';
         const sessionFields = (Array.isArray(values.session_fields) ? values.session_fields : [])
             .map(field => ({ id: String(field.id), label: String(field.label).trim(), value: String(field.value || '').trim() }))
@@ -167,14 +193,17 @@ export const programSessionsApi = {
         if (!session) return { deleted: false };
 
         // Close first so no new applications can arrive while deciding whether
-        // this unused session can be safely removed.
-        const { count, error: countError } = await supabase
+        // this session should count as an operated occurrence.
+        const { data: responses, error: responsesError } = await supabase
             .from('daily_program_session_responses')
-            .select('*', { count: 'exact', head: true })
+            .select('status,is_attended')
             .eq('session_id', session.id);
-        if (countError) throw countError;
+        if (responsesError) throw responsesError;
 
-        if ((count || 0) === 0) {
+        const hasParticipant = (responses || []).some(response =>
+            response.status === 'JOIN' || response.status === 'WAITLIST' || response.is_attended
+        );
+        if (!hasParticipant) {
             const { error: voidError } = await supabase
                 .from('daily_program_sessions')
                 .update({ voided_at: new Date().toISOString(), updated_at: new Date().toISOString() })

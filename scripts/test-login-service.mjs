@@ -70,7 +70,9 @@ const gateway=createPasswordGateway({supabaseUrl:origin,publishableKey:'fixture-
 const verifyToken=createVerifiedSessionReader({supabaseUrl:origin,publishableKey:'fixture-key',fetcher:provider,
     loadLiveSession:createSessionReadStore(query).loadLiveSession});
 const legacyBridge={verify:async()=>false,providerPassword:async()=>{throw Error('standard fixture must not bridge');}};
-const deps={store,gateway,verifyToken,keyFor,legacyBridge,assuranceTtlMs:86400000,readiness:async()=>true};
+const deps={store,gateway,verifyToken,keyFor,legacyBridge,assuranceTtlMs:86400000,readiness:async()=>true,
+    verifyTemporary:async({profileId,authUserId,temporaryPassword})=>
+        profileId===p&&authUserId===a&&temporaryPassword==='1234'};
 const login=createLoginService(deps);
 const invoke=(input,overrides={})=>login(input,{clientKey:'fixture-trusted-client',...overrides});
 const reconfirm={action:'reconfirm',protocol:1,profileId:p,password};
@@ -108,6 +110,15 @@ try{
     assert.deepEqual(Object.keys(success).sort(),['authUserId','profileId','protocol','session']);
     const trusted=(await query('SELECT * FROM account_security.session_assurances')).rows;
     assert.equal(trusted.length,1);assert.equal(trusted[0].status,'trusted');
+    // A password replacement may receive another token for the same live Auth
+    // session id. Advancing the credential epoch must refresh that assurance
+    // instead of rejecting the successfully changed password.
+    await query('UPDATE account_security.accounts SET credential_version=2 WHERE profile_id=$1',[p]);
+    await store.grantAssurance({profileId:p,authUserId:a,credentialVersion:2,loginEmail:'first@example.invalid',
+        credentialMode:'supabase_password',legacyDigest:null},{sessionId:trusted[0].session_id,authUserId:a,live:true,
+        expiresAt:Date.now()+3600000},Date.now()+3600000);
+    assert.equal((await query('SELECT credential_version FROM account_security.session_assurances WHERE session_id=$1',
+        [trusted[0].session_id])).rows[0].credential_version,2);
     await assert.rejects(query('SELECT encrypted_password FROM auth.users'),/permission denied/);
     await assert.rejects(query("UPDATE public.users SET password='not-allowed'"),/permission denied/);
     await assert.rejects(query("UPDATE auth.users SET encrypted_password='not-allowed'"),/permission denied/);
@@ -139,7 +150,9 @@ try{
     await rejected(reconfirm);assert.equal(signIns,beforeSignIn,'legacy credentials are not silently accepted');
     await query("UPDATE account_security.login_identifiers SET credential_mode='supabase_password' WHERE profile_id=$1",[p]);
     await query('UPDATE account_security.accounts SET must_change_password=true WHERE profile_id=$1',[p]);
-    await rejected(reconfirm,'password_change_required');
+    await rejected(reconfirm);
+    await rejected(initial);
+    await rejected({...initial,password:'1234'},'password_change_required');
     await query('UPDATE account_security.accounts SET must_change_password=false WHERE profile_id=$1',[p]);
 
     await limits();

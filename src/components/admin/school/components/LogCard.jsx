@@ -141,7 +141,7 @@ const LogCard = ({
                             )}
                             {isEditing && fTerm && (
                                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-20 p-2 max-h-[160px] overflow-y-auto no-scrollbar">
-                                    {(staffList || []).filter(s => !(Array.isArray(school.metadata?.manager_ids) && school.metadata.manager_ids.includes(s.id)) && (s.name || '').toLowerCase().includes(fTerm.toLowerCase())).map(staff => (
+                                    {(staffList || []).filter(s => (s.name || '').toLocaleLowerCase('ko-KR').includes(fTerm.trim().toLocaleLowerCase('ko-KR'))).map(staff => (
                                         <button
                                             key={staff.id}
                                             onClick={() => {
@@ -151,6 +151,7 @@ const LogCard = ({
                                             className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg text-left text-sm font-bold text-gray-700"
                                         >
                                             <span>{staff.name}</span>
+                                            {Array.isArray(school.metadata?.manager_ids) && school.metadata.manager_ids.includes(staff.id) && <span className="ml-auto text-[10px] text-gray-400">학교 담당자</span>}
                                         </button>
                                     ))}
                                 </div>

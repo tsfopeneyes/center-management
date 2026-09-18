@@ -5,9 +5,10 @@ import { newQuestion, QUESTION_TYPES, validateDefinition } from '../../utils/sur
 const TYPE_ICONS = { short: Type, text: MessageSquareText, choice: Check, multiple: ListChecks, star: Star };
 
 // Keep the multi-question editor visually aligned with the legacy survey editor.
-export default function SurveyDefinitionEditor({ initial, onSave, onCancel, busy, allowTemplate = false, compact = false, connections = [] }) {
+export default function SurveyDefinitionEditor({ initial, onSave, onCancel, busy, allowTemplate = false, allowPublicAddress = false, initialPublicSlug = '', requirePublicSlug = false, compact = false, connections = [] }) {
     const [value, setValue] = useState(initial || { title: '', description: '', questions: [newQuestion()] });
     const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+    const [publicSlug, setPublicSlug] = useState(initialPublicSlug || '');
     const [linkPolicies, setLinkPolicies] = useState(() => Object.fromEntries(connections.map(link => [link.id, { frequency: link.frequency || 'EVERY_VISIT', is_default: !!link.is_default }])));
     const [error, setError] = useState('');
     const update = (id, patch) => setValue(current => ({ ...current, questions: current.questions.map(question => question.id === id ? { ...question, ...patch } : question) }));
@@ -31,14 +32,18 @@ export default function SurveyDefinitionEditor({ initial, onSave, onCancel, busy
         const clean = { ...value, title: value.title.trim(), description: (value.description || '').trim(), questions: value.questions.map(question => ({ ...question, title: question.title.trim(), options: (question.options || []).map(option => String(option).trim()).filter(Boolean), optionDetails: ['choice','multiple'].includes(question.type) ? (question.options || []).map((_, index) => question.optionDetails?.[index] || {}) : undefined })) };
         const message = validateDefinition(clean);
         if (message) return setError(message);
+        const normalizedSlug = publicSlug.trim().toLowerCase();
+        if (allowPublicAddress && !saveAsTemplate && (requirePublicSlug || normalizedSlug) && !/^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/.test(normalizedSlug)) return setError('공유 주소는 영문 소문자, 숫자, 하이픈으로 3~60자 입력해 주세요.');
         setError('');
-        try { await onSave(clean, { saveAsTemplate, linkPolicies }); } catch (saveError) { setError(saveError.message); }
+        try { await onSave(clean, { saveAsTemplate, linkPolicies, publicSlug: normalizedSlug || null }); } catch (saveError) { setError(saveError.message); }
     };
 
     return <div className={`space-y-7 rounded-[24px] border border-[#f2f4f6] bg-white p-5 ${compact ? '' : 'shadow-sm md:p-7'}`}>
         <div className="flex flex-col justify-between gap-3 border-b border-gray-100 pb-5 md:flex-row md:items-center"><div><p className="text-xs font-bold text-blue-600">{compact ? '프로그램 설문' : '통합 설문'}</p><h2 className="mt-1 text-xl font-bold text-gray-900">{initial ? '설문 편집' : '새 설문 만들기'}</h2><p className="mt-1 text-sm text-gray-500">질문을 추가하고 순서와 응답 유형을 설정합니다.</p></div><button type="button" onClick={onCancel} className="self-start rounded-xl px-3 py-2 text-sm font-bold text-gray-500 hover:bg-gray-50">취소</button></div>
 
         {allowTemplate && <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-violet-100 bg-violet-50 p-4"><span><strong className="block text-sm text-violet-900">설문 템플릿으로 저장</strong><span className="mt-1 block text-xs font-medium text-violet-600">프로그램을 만들 때 질문 구성을 불러와 사용할 수 있습니다.</span></span><input type="checkbox" checked={saveAsTemplate} onChange={event => setSaveAsTemplate(event.target.checked)} className="h-5 w-5 rounded border-violet-300 text-violet-600" /></label>}
+
+        {allowPublicAddress && !saveAsTemplate && <div><label className="mb-2 block text-sm font-bold text-gray-800">설문 공유 주소</label><div className="flex overflow-hidden rounded-xl border border-gray-200 bg-slate-50 transition focus-within:border-blue-500 focus-within:bg-white"><span className="flex items-center border-r border-gray-200 bg-gray-100 px-3 text-xs font-bold text-gray-500 sm:text-sm">app.schoolchurchimpact.org/survey/</span><input aria-label="설문 공유 주소" className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm font-bold text-gray-900 outline-none" value={publicSlug} maxLength={60} placeholder="예: 2026-satisfaction" onChange={event => setPublicSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} /></div><p className="mt-1.5 text-xs font-medium text-gray-400">영문 소문자, 숫자, 하이픈으로 3~60자 입력해 주세요. {initial ? '주소를 변경하면 기존 UUID 주소 대신 새 주소로 공유됩니다.' : '저장하면 바로 공유 주소가 만들어집니다.'}</p></div>}
 
         <div><label className="mb-2 block text-sm font-bold text-gray-800">설문 제목</label><input aria-label="설문 제목" className={field} value={value.title} placeholder="예: 센터 이용 만족도 조사" onChange={event => setValue({ ...value, title: event.target.value })} /><p className="mt-1.5 text-xs font-medium text-gray-400">설문 목록과 응답 결과의 제목으로 사용됩니다.</p></div>
         <div><label className="mb-2 block text-sm font-bold text-gray-800">설문 설명 <span className="font-medium text-gray-400">(선택)</span></label><textarea aria-label="설문 설명" rows={2} maxLength={300} className={`${field} resize-none`} value={value.description || ''} placeholder="응답 화면에 보여줄 안내 문구를 입력해 주세요" onChange={event => setValue({ ...value, description: event.target.value })} /><p className="mt-1.5 text-right text-xs font-medium text-gray-400">{(value.description || '').length}/300자</p></div>

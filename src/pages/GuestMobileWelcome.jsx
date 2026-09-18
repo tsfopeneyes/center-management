@@ -15,6 +15,8 @@ import { isKioskQrAccessError, requiresRotatingQrAccess } from '../utils/kioskQr
 import { markTodayProgramAttendance } from '../utils/programAttendance';
 import { buildGuestPrivacyPreferences, parseGuestBirthDate } from '../utils/guestBirthUtils';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../auth/accountAuthRuntime';
+import { resolveTemporaryPasswordCandidate } from '../auth/temporaryPasswordCandidate';
+import { verifiedReturnProfile } from '../auth/verifiedReturnProfile';
 import { createAccountLoginAdapter } from '../auth/accountLoginAdapter';
 import { loadAssignedSurvey } from '../utils/surveyAssignments';
 import { surveyHubApi } from '../api/surveyHubApi';
@@ -58,7 +60,7 @@ const getObjectParticle = (word = '') => {
     return hasFinalConsonant ? '을' : '를';
 };
 
-const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurveyLoginComplete, onSurveyLoginCancel, loginOnly = false }) => {
+const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurveyLoginComplete, onSurveyLoginCancel, communityLoginId = '', onCommunityLoginComplete, onCommunityLoginCancel, loginOnly = false }) => {
     const auth = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -72,7 +74,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     const isProgramLoginFlow = Boolean(
         location.state?.fromProgram || searchParams.get('programLogin')
     );
-    const communityInviteId = location.state?.communityId || searchParams.get('communityInvite');
+    const communityInviteId = communityLoginId || location.state?.communityId || searchParams.get('communityInvite');
     const isCommunityLoginFlow = Boolean(communityInviteId);
     const surveyLoginId = surveyLoginToken || searchParams.get('surveyLogin');
     const isSurveyLoginFlow = Boolean(surveyLoginId);
@@ -90,6 +92,10 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
             return true;
         }
         if (isCommunityLoginFlow && communityInviteId) {
+            if (onCommunityLoginComplete) {
+                onCommunityLoginComplete();
+                return true;
+            }
             navigate(`/community/${encodeURIComponent(communityInviteId)}`, {
                 replace: true,
                 state: { fromCommunityLogin: true }
@@ -105,6 +111,10 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
         return true;
     };
     const closeLogin = () => {
+        if (isCommunityLoginFlow && onCommunityLoginCancel) {
+            onCommunityLoginCancel();
+            return;
+        }
         if (isSurveyLoginFlow && onSurveyLoginCancel) {
             onSurveyLoginCancel();
             return;
@@ -231,7 +241,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     const [frequentGuestData, setFrequentGuestData] = useState(null);
 
     // Login Modal States
-    const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showLoginModal, setShowLoginModal] = useState(loginOnly);
     const [loginName, setLoginName] = useState('');
     const [loginPassword, setLoginPassword] = useState('');
     const [loginLoading, setLoginLoading] = useState(false);
@@ -395,6 +405,10 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     const handlePasswordReset = async (event) => {
         event.preventDefault();
         if (!resetCandidate || isAdminAccount(resetCandidate)) return;
+        if (isAccountAuthEnabled() && !/^[0-9]{4}$/.test(resetPhoneBack4.trim())) {
+            alert('임시 비밀번호 4자리를 입력해주세요.');
+            return;
+        }
         if (resetPassword.length < 6) {
             alert('새 비밀번호는 6자리 이상으로 설정해주세요.');
             return;
@@ -407,8 +421,9 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
         setResetLoading(true);
         try {
             if (isAccountAuthEnabled()) {
+                const candidate = await resolveTemporaryPasswordCandidate(resetCandidate, findLoginCandidates);
                 await getAccountAuthClient().temporaryPassword({
-                    profileId: resetCandidate.id,
+                    profileId: candidate.id,
                     temporaryPassword: resetPhoneBack4.trim(),
                     newPassword: resetPassword,
                 });
@@ -428,7 +443,14 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
             alert('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.');
         } catch (error) {
             console.error('Password reset error:', error);
-            alert(error.message || '비밀번호 초기화 중 오류가 발생했습니다.');
+            const message = isAccountAuthEnabled() ? ({
+                invalid_request: '비밀번호 변경 요청을 확인하지 못했습니다. 화면을 닫고 로그인부터 다시 시도해주세요.',
+                invalid_login: '임시 비밀번호가 일치하지 않거나 만료되었습니다. 관리자에게 다시 초기화를 요청해주세요.',
+                password_policy: '새 비밀번호가 보안 기준에 맞지 않습니다. 다른 비밀번호를 입력해주세요.',
+                account_changed: '계정 상태가 변경되었습니다. 처음부터 다시 시도해주세요.',
+                try_later: '시도 횟수가 많습니다. 잠시 후 다시 시도해주세요.',
+            })[error?.code] : null;
+            alert(message || error.message || '비밀번호 초기화 중 오류가 발생했습니다.');
         } finally {
             setResetLoading(false);
         }
@@ -641,18 +663,19 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
 
     // On mount effect
     useEffect(() => {
+        // In an embedded login, the submit handler owns completion. Auth state
+        // can become verified before that handler finishes profile setup.
+        if (loginOnly) return;
         if (requiresRotatingQr && qrAccess.status !== 'VALID') return;
-        if (isMainEntry && ['initializing', 'restoring', 'refreshing'].includes(auth.status)) return;
+        const verifiedReturn=verifiedReturnProfile(auth);
+        if ((isMainEntry || isProgramLoginFlow || isCommunityLoginFlow || isSurveyLoginFlow) && verifiedReturn.settling) return;
         const querySearch = location.search || '';
 
         // The landing page is public. Never route away from it merely because
         // an old profile remains in localStorage; only a provider session that
         // has completed server verification may trigger automatic entry.
-        const hasVerifiedAuth = auth.status === 'authenticated'
-            && Boolean(auth.profile?.id);
-        const savedUser = hasVerifiedAuth
-            ? JSON.stringify(auth.profile)
-            : (!isMainEntry ? localStorage.getItem('user') : null);
+        const hasVerifiedAuth = Boolean(verifiedReturn.profile);
+        const savedUser = hasVerifiedAuth ? JSON.stringify(verifiedReturn.profile) : null;
         if (savedUser) {
             try {
                 const parsedUser = JSON.parse(savedUser);
@@ -680,9 +703,9 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
             }
         }
 
-        const savedAdmin = isMainEntry && !hasVerifiedAuth
-            ? null
-            : localStorage.getItem('admin_user');
+        const savedAdmin = hasVerifiedAuth && isAdminOrStaff(verifiedReturn.profile)
+            ? JSON.stringify(verifiedReturn.profile)
+            : null;
         if (savedAdmin) {
             try {
                 const parsedAdmin = JSON.parse(savedAdmin);
@@ -730,7 +753,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                 console.error('Failed to parse guest active session', e);
             }
         }
-    }, [isQRCheckin, locParam, navigate, ensureCheckinLogAndNavigate, getActiveVisitSession, qrAccess.status, requiresRotatingQr, isMainEntry, auth.status, auth.profile]);
+    }, [isQRCheckin, locParam, navigate, ensureCheckinLogAndNavigate, getActiveVisitSession, qrAccess.status, requiresRotatingQr, isMainEntry, auth.status, auth.profile, loginOnly]);
 
     // Trigger confetti on guest success
     useEffect(() => {
@@ -876,9 +899,12 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
             // Some gateways preserve the explicit server code while others
             // surface the same restricted password-change flow as a 403.
             if(isAccountAuthEnabled()&&['password_change_required','confirmation_required'].includes(err?.code)){
-                setResetCandidate(userCandidate);
+                const resolvedCandidate=await resolveTemporaryPasswordCandidate(userCandidate,findLoginCandidates);
+                setResetCandidate(resolvedCandidate);
                 setResetBirth('');
-                setResetPhoneBack4(rawPassword);
+                // Login only reports that a change is required; it has not
+                // verified the password typed on the login screen.
+                setResetPhoneBack4('');
                 setResetPassword('');
                 setResetPasswordConfirm('');
                 setShowPasswordResetModal(true);
@@ -1454,7 +1480,8 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     // Do not paint the public/login landing page while a durable login is being
     // restored. Apart from causing a visible flash, its login button can start
     // a second auth flow that races the valid saved session.
-    if (isMainEntry && ['initializing', 'restoring', 'refreshing'].includes(auth.status)) {
+    if (!loginOnly && (isMainEntry || isProgramLoginFlow || isCommunityLoginFlow || isSurveyLoginFlow)
+        && ['initializing', 'restoring', 'refreshing'].includes(auth.status)) {
         return <div className="min-h-screen bg-[#F8F9FA]" aria-hidden="true" />;
     }
 

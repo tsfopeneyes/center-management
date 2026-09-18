@@ -49,12 +49,12 @@ const AppAlertDialog = () => {
     if (confirmation) return (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" role="presentation">
             <div className="w-full max-w-sm rounded-3xl border border-tossGrey100 bg-white p-6 text-center shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="app-confirm-title" aria-describedby="app-confirm-description">
-                <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full text-2xl ${confirmation.tone === 'danger' ? 'bg-red-50' : 'bg-tossBlue/10'}`}>💬</div>
+                <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full text-2xl ${confirmation.tone === 'danger' ? 'bg-red-50' : 'bg-[#F8E8E4]'}`}>💬</div>
                 <h2 id="app-confirm-title" className="mt-4 break-keep text-lg font-black text-tossGrey900">{confirmation.title}</h2>
                 <p id="app-confirm-description" className="mt-2 whitespace-pre-line break-keep text-sm font-semibold leading-relaxed text-tossGrey600">{confirmation.text}</p>
                 <div className="mt-5 grid grid-cols-2 gap-2.5">
                     <button type="button" onClick={() => finishConfirmation(false)} className="rounded-xl bg-tossGrey100 py-3 text-sm font-bold text-tossGrey700">{confirmation.cancelText}</button>
-                    <button type="button" onClick={() => finishConfirmation(true)} autoFocus className={`rounded-xl py-3 text-sm font-bold text-white ${confirmation.tone === 'danger' ? 'bg-red-500' : 'bg-tossBlue'}`}>{confirmation.confirmText}</button>
+                    <button type="button" onClick={() => finishConfirmation(true)} autoFocus className={`rounded-xl py-3 text-sm font-bold text-white transition-colors ${confirmation.tone === 'danger' ? 'bg-red-500 hover:bg-red-600' : 'bg-haifnRed hover:bg-haifnRedHover'}`}>{confirmation.confirmText}</button>
                 </div>
             </div>
         </div>
@@ -67,15 +67,15 @@ const AppAlertDialog = () => {
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" onClick={close}>
             <div className="w-full max-w-sm rounded-3xl border border-tossGrey100 bg-white p-6 text-center shadow-2xl" onClick={(event) => event.stopPropagation()}>
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-tossBlue/10 text-2xl">💬</div>
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F8E8E4] text-2xl">💬</div>
                 <h2 className="mt-4 break-keep text-lg font-black text-tossGrey900">{activeMessage.title}</h2>
                 <p className="mt-2 whitespace-pre-line break-keep text-sm font-semibold leading-relaxed text-tossGrey600">{activeMessage.text}</p>
                 {activeMessage.highlight && (
-                    <p className="mt-4 rounded-xl bg-tossBlueLight px-4 py-3 text-sm font-black text-tossBlue">
+                    <p className="mt-4 rounded-xl bg-[#F8E8E4] px-4 py-3 text-sm font-black text-haifnRed">
                         {activeMessage.highlight}
                     </p>
                 )}
-                <button type="button" onClick={close} className="mt-5 w-full rounded-xl bg-tossBlue py-3 text-sm font-bold text-white">
+                <button type="button" onClick={close} className="mt-5 w-full rounded-xl bg-haifnRed py-3 text-sm font-bold text-white transition-colors hover:bg-haifnRedHover">
                     확인
                 </button>
             </div>

@@ -50,7 +50,7 @@
         ]
       },
       {
-        "source": "/@(admin|student|dashboard|kiosk|screen|checkin|guest|welcome|live-chat|chat|chat2|tv|signage|view|display)",
+        "source": "/@(admin|student|dashboard|kiosk|screen|checkin|guest|welcome|live-chat|chat|chat2|chat3|tv|signage|view|display)",
         "headers": [
           {
             "key": "Cache-Control",
@@ -59,7 +59,16 @@
         ]
       },
       {
-        "source": "/@(p|community|live-chat|chat|chat2|tv|signage)/**",
+        "source": "/@(p|community|live-chat|chat|chat2|chat3|tv|signage)/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/survey/**",
         "headers": [
           {
             "key": "Cache-Control",

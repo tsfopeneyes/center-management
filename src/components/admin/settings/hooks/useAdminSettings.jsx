@@ -7,6 +7,7 @@ import { uploadSummaryToNotion, performFullSyncToGoogleSheets } from '../../../.
 import { processAnalyticsData, processUserAnalytics, processProgramAnalytics } from '../../../../utils/analyticsUtils';
 import { aggregateVisitSessions } from '../../../../utils/visitUtils';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../../auth/accountAuthRuntime';
+import { recoverCredentialSession } from '../../../../auth/credentialSessionRecovery';
 import {DEFAULT_ADMIN_SIDEBAR_CONFIG} from '../../../../constants/adminSidebarMenu';
 import { normalizeNotificationRouteConfig } from '../../../../utils/notificationRouteConfig';
 
@@ -442,6 +443,10 @@ const useAdminSettings = ({ currentAdmin, locations, locationGroups, fetchData, 
             window.location.reload();
         } catch (err) {
             console.error(err);
+            if(await recoverCredentialSession(err,{auth:supabase.auth})){
+                alert('비밀번호 변경 후 로그인 세션이 만료되었습니다. 방금 설정한 비밀번호로 다시 로그인해주세요.');
+                window.location.href='/';return;
+            }
             alert('저장 실패: ' + err.message);
         } finally {
             setProfileLoading(false);

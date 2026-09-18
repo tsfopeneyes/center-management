@@ -1,0 +1,21 @@
+import React from 'react';
+import { Printer, X } from 'lucide-react';
+import { optionsOf } from '../../utils/surveyModel';
+
+const selectedOption = (question, answer, option) => question.type === 'multiple'
+    ? (answer || []).includes(option)
+    : answer === option;
+
+export default function PrintableSurveyResponse({ entry, onClose }) {
+    const definition = entry.snapshot || { title: '설문 응답', questions: [] };
+    const answers = entry.answers || {};
+    const respondent = entry.users?.name || '응답자';
+
+    return <div role="dialog" aria-modal="true" aria-label={`${respondent} 설문 응답 인쇄`} className="fixed inset-0 z-[1400] overflow-y-auto bg-black/55 p-4 sm:p-8">
+        <div className="mx-auto mb-4 flex max-w-[760px] justify-end gap-2 print:hidden"><button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-gray-600 shadow-lg"><X size={16} />닫기</button><button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-xl bg-[#CF3A27] px-4 py-2.5 text-sm font-bold text-white shadow-lg"><Printer size={16} />인쇄</button></div>
+        <article id="survey-print-root" className="mx-auto min-h-[1000px] max-w-[760px] bg-white px-8 py-10 shadow-2xl sm:px-14 sm:py-14 print:min-h-0 print:max-w-none print:p-0 print:shadow-none">
+            <header className="mb-10 border-b border-tossGrey100 pb-8"><div className="mb-5 h-1.5 w-12 rounded-full bg-haifnRed" /><p className="mb-2 text-xs font-black text-haifnRed">하이픈 설문</p><h1 className="text-3xl font-black leading-tight tracking-[-0.025em] text-tossGrey900">{definition.title}</h1>{definition.description && <p className="mt-4 whitespace-pre-wrap text-sm font-medium leading-6 text-tossGrey600">{definition.description}</p>}<div className="mt-6 flex flex-wrap gap-x-6 gap-y-1 rounded-2xl bg-tossGrey50 px-4 py-3 text-sm"><span><strong className="text-tossGrey500">응답자</strong> <b className="ml-2 text-tossGrey900">{respondent}</b></span>{entry.users?.school && <span><strong className="text-tossGrey500">소속</strong> <b className="ml-2 text-tossGrey900">{entry.users.school}</b></span>}<span><strong className="text-tossGrey500">응답 일시</strong> <b className="ml-2 text-tossGrey900">{new Date(entry.created_at).toLocaleString('ko-KR')}</b></span></div></header>
+            <div className="space-y-9">{(definition.questions || []).map((question, index) => { const answer = answers[question.id]; return <section key={question.id} className="break-inside-avoid space-y-3"><h2 className="text-[15px] font-black leading-6 text-tossGrey900"><span className="mr-2 text-haifnRed">{String(index + 1).padStart(2, '0')}</span>{question.title} {question.required && <span className="text-haifnRed">*</span>}</h2>{['short', 'text'].includes(question.type) ? <div className={`whitespace-pre-wrap rounded-2xl border border-tossGrey200 bg-white px-4 py-3.5 text-sm font-medium leading-6 text-tossGrey900 ${question.type === 'text' ? 'min-h-28' : 'min-h-12'}`}>{answer || <span className="text-tossGrey400">응답 없음</span>}</div> : question.type === 'star' ? <div className="grid grid-cols-5 gap-1.5">{[1,2,3,4,5].map(score => <div key={score} className={`rounded-xl border px-1 py-3 text-center text-sm font-bold ${Number(answer) === score ? 'border-haifnRed bg-haifnRed text-white' : 'border-tossGrey200 bg-white text-tossGrey500'}`}>★ {score}</div>)}</div> : <div className="space-y-2.5">{optionsOf(question).map((option, optionIndex) => { const selected = selectedOption(question, answer, option); return <div key={option} className={`flex items-center gap-3 rounded-2xl border p-4 text-sm font-semibold ${selected ? 'border-haifnRed bg-[#FFF8F6] text-tossGrey900 ring-1 ring-haifnRed' : 'border-tossGrey200 bg-white text-tossGrey500'}`}><span className={`flex h-4 w-4 shrink-0 items-center justify-center border ${question.type === 'multiple' ? 'rounded' : 'rounded-full'} ${selected ? 'border-haifnRed bg-haifnRed text-white' : 'border-tossGrey300'}`}>{selected && <span className="text-[10px] leading-none">✓</span>}</span>{question.optionDetails?.[optionIndex]?.emoji && <span className="text-lg">{question.optionDetails[optionIndex].emoji}</span>}<span>{option}</span></div>; })}</div>}</section>; })}</div>
+        </article>
+    </div>;
+}

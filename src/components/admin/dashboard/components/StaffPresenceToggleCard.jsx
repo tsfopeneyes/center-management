@@ -7,7 +7,7 @@ import StaffPresenceSettings from '../../settings/components/StaffPresenceSettin
 import CheckinSurveySettings from '../../settings/components/CheckinSurveySettings';
 import AdminPageHeader from '../../common/AdminPageHeader';
 import { isAdminOrStaff } from '../../../../utils/userUtils';
-import { hasActiveStaff, resetStaffPresence, updateStaffPresence } from '../../../../utils/staffPresence';
+import { reconcileStaffPresence, updateStaffPresence } from '../../../../utils/staffPresence';
 
 const StaffPresenceToggleCard = ({ users }) => {
     const [staffConfig, setStaffConfig] = useState({ "하이픈": [], "이높플레이스": [] });
@@ -60,36 +60,31 @@ const StaffPresenceToggleCard = ({ users }) => {
 
                 if (statusNotice?.content) {
                     try {
-                        let parsedStatus = JSON.parse(statusNotice.content) || {};
-                        
-                        const now = new Date();
-                        const todayStr = now.toLocaleDateString('sv');
-                        const currentHour = now.getHours();
-                        const isAfter6PM = currentHour >= 18;
-                        
-                        let needsReset = false;
-                        
-                        if (parsedStatus.date && parsedStatus.date !== todayStr) {
-                            needsReset = true;
-                        }
-                        
-                        if (needsReset || isAfter6PM) {
-                            const resetStatus = resetStaffPresence(todayStr);
-                            setPresenceStatus(resetStatus);
-                            
-                            // Silently update the database to reset values
-                            await supabase
+                        const { status, changed } = reconcileStaffPresence(JSON.parse(statusNotice.content));
+                        if (changed) {
+                            // Only reset the version we read. A concurrent manual
+                            // toggle must never be overwritten by this refresh.
+                            const { data: saved, error: resetError } = await supabase
                                 .from('notices')
-                                .update({ content: JSON.stringify(resetStatus) })
-                                .eq('id', statusNotice.id);
+                                .update({ content: JSON.stringify(status) })
+                                .eq('id', statusNotice.id)
+                                .eq('content', statusNotice.content)
+                                .select('id');
+                            if (resetError) throw resetError;
+                            if (!saved?.length) {
+                                const { data: latest, error: latestError } = await supabase
+                                    .from('notices').select('content').eq('id', statusNotice.id).single();
+                                if (latestError) throw latestError;
+                                setPresenceStatus(reconcileStaffPresence(JSON.parse(latest.content)).status);
+                            } else {
+                                setPresenceStatus(status);
+                            }
                         } else {
-                            setPresenceStatus(parsedStatus);
+                            setPresenceStatus(status);
                         }
                     } catch (e) { console.error('Failed to parse staff status', e); }
                 } else {
-                    const now = new Date();
-                    const todayStr = now.toLocaleDateString('sv');
-                    setPresenceStatus({ date: todayStr });
+                    setPresenceStatus(reconcileStaffPresence({}).status);
                 }
 
                 if (dutyNotice?.content) {
@@ -134,7 +129,7 @@ const StaffPresenceToggleCard = ({ users }) => {
                     } else if (title === 'STAFF_PRESENCE_STATUS') {
                         try {
                             const parsedStatus = JSON.parse(content);
-                            setPresenceStatus(parsedStatus || {});
+                            setPresenceStatus(reconcileStaffPresence(parsedStatus).status);
                         } catch (e) { console.error(e); }
                     } else if (title === 'DAILY_DUTY_STAFF') {
                         try {
@@ -157,17 +152,10 @@ const StaffPresenceToggleCard = ({ users }) => {
     }, []);
 
     useEffect(() => {
-        // Periodic check every 30 seconds for 6 PM reset and day change
+        // Refresh at the 18:00 and 22:00 cutoffs and on the next day.
         const interval = setInterval(() => {
             const now = new Date();
-            const currentHour = now.getHours();
-            
-            // Check if day changed or it's after 6 PM with active presence
-            const todayStr = now.toLocaleDateString('sv');
-            const hasActive = hasActiveStaff(presenceStatus);
-            const differentDay = presenceStatus.date && presenceStatus.date !== todayStr;
-            
-            if (differentDay || (currentHour >= 18 && hasActive)) {
+            if (reconcileStaffPresence(presenceStatus, now).changed) {
                 fetchConfigAndStatus();
             }
         }, 30000);
@@ -178,7 +166,6 @@ const StaffPresenceToggleCard = ({ users }) => {
     const handleTogglePresence = async (userId) => {
         setUpdatingId(userId);
         const now = new Date();
-        const todayStr = now.toLocaleDateString('sv');
         
         try {
             // Find existing record
@@ -194,12 +181,8 @@ const StaffPresenceToggleCard = ({ users }) => {
                 try { latestStatus = JSON.parse(existing.content) || presenceStatus; }
                 catch { latestStatus = presenceStatus; }
             }
-            const latestPresent = latestStatus[userId] === true;
-            const nextStatus = updateStaffPresence(
-                { ...latestStatus, date: todayStr },
-                userId,
-                !latestPresent,
-            );
+            const baseline = reconcileStaffPresence(latestStatus, now).status;
+            const nextStatus = updateStaffPresence(baseline, userId, !baseline[userId]);
 
             const payload = {
                 title: 'STAFF_PRESENCE_STATUS',
@@ -210,14 +193,20 @@ const StaffPresenceToggleCard = ({ users }) => {
             };
 
             if (existing) {
-                await supabase.from('notices').update(payload).eq('id', existing.id);
+                const { data: saved, error } = await supabase.from('notices')
+                    .update(payload).eq('id', existing.id)
+                    .eq('content', existing.content).select('id');
+                if (error) throw error;
+                if (!saved?.length) throw new Error('다른 화면에서 근무 상태가 변경되었습니다.');
             } else {
-                await supabase.from('notices').insert([payload]);
+                const { error } = await supabase.from('notices').insert([payload]);
+                if (error) throw error;
             }
             setPresenceStatus(nextStatus);
         } catch (err) {
             console.error('Failed to update staff status', err);
             alert('상태 업데이트 실패');
+            await fetchConfigAndStatus();
         } finally {
             setUpdatingId(null);
         }

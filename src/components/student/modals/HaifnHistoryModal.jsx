@@ -3,11 +3,13 @@ import { supabase } from '../../../supabaseClient';
 import { X, RefreshCw, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
 import useModalClose from '../../../hooks/useModalClose';
+import { haifnApi } from '../../../api/haifnApi';
 
 const HaifnHistoryModal = ({ user, onClose }) => {
     useModalClose(!!user, onClose);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [cancellingId, setCancellingId] = useState(null);
     const fetchHistory = async () => {
         setLoading(true);
         try {
@@ -29,6 +31,26 @@ const HaifnHistoryModal = ({ user, onClose }) => {
     useEffect(() => {
         if (user) fetchHistory();
     }, [user?.id]);
+
+    const handleCancel = async item => {
+        if (!window.confirm(`'${item.haifn_items?.name || '교환 상품'}' 신청을 취소할까요?`)) return;
+
+        setCancellingId(item.id);
+        try {
+            await haifnApi.cancelOwnStoreOrder(item.id, user.id);
+            setHistory(current => current.map(order => (
+                order.id === item.id
+                    ? { ...order, status: 'REJECTED', completed_at: new Date().toISOString() }
+                    : order
+            )));
+        } catch (err) {
+            console.error('Failed to cancel store order:', err);
+            alert(`신청 취소 실패: ${err.message}`);
+            await fetchHistory();
+        } finally {
+            setCancellingId(null);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4">
@@ -71,7 +93,8 @@ const HaifnHistoryModal = ({ user, onClose }) => {
                     ) : (
                         <div className="space-y-3">
                             {history.map(item => (
-                                <div key={item.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
+                                <div key={item.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                                  <div className="flex items-center gap-3">
                                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
                                         {item.haifn_items?.image_url ? <img src={item.haifn_items.image_url} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center"><ShoppingBag size={22} className="text-gray-300" /></div>}
                                     </div>
@@ -80,13 +103,24 @@ const HaifnHistoryModal = ({ user, onClose }) => {
                                             <p className="font-black text-gray-800 text-sm mb-1 truncate">{item.haifn_items?.name || '교환 상품'}</p>
                                             <p className="text-[10px] text-gray-400 font-medium">{new Date(item.created_at).toLocaleString()}</p>
                                             <p className={`mt-1 text-[11px] font-bold ${item.status === 'APPROVED' ? 'text-emerald-600' : item.status === 'REJECTED' ? 'text-red-500' : 'text-amber-600'}`}>
-                                                {item.status === 'APPROVED' ? '교환 완료' : item.status === 'REJECTED' ? '교환 반려' : '교환 신청'}
+                                                {item.status === 'APPROVED' ? '교환 완료' : item.status === 'REJECTED' ? '신청 취소' : '교환 신청'}
                                             </p>
                                         </div>
                                         <div className="text-base font-black whitespace-nowrap text-[#CF3A27]">
                                             {Math.abs(item.amount)} H
                                         </div>
                                     </div>
+                                  </div>
+                                  {item.status === 'PENDING' && (
+                                      <button
+                                          type="button"
+                                          onClick={() => handleCancel(item)}
+                                          disabled={cancellingId === item.id}
+                                          className="mt-3 w-full rounded-xl border border-gray-200 bg-white py-2.5 text-xs font-black text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-wait disabled:opacity-60"
+                                      >
+                                          {cancellingId === item.id ? '취소하는 중...' : '신청 취소'}
+                                      </button>
+                                  )}
                                 </div>
                             ))}
                         </div>

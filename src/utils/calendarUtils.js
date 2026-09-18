@@ -50,6 +50,18 @@ export const buildCalendarEvents = ({ programs = [], schedules = [], categories 
     const space = region === '강동' ? 'HAIFN' : region === '강서' ? 'ENOUGH_PLACE' : null;
     for (const program of programs) {
         if (program.category !== 'PROGRAM') continue;
+        if (program.is_challenge) {
+            const start = kstDateKey(program.program_start_date || program.program_date);
+            if (start && events[start]) {
+                events[start].push({
+                    id: `program-${program.id}-${start}`,
+                    type: 'PROGRAM',
+                    title: program.title,
+                    raw: program,
+                });
+            }
+            continue;
+        }
         if (usesDailySessionRsvp(program)) {
             for (const session of (program.daily_program_sessions || [])) {
                 const day = session.session_date || kstDateKey(session.starts_at);

@@ -114,7 +114,13 @@ export function createLoginStore(pool) {
                 const saved = await client.query(`INSERT INTO account_security.session_assurances
                     (session_id,auth_user_id,profile_id,credential_version,status,valid_until)
                     VALUES($1::uuid,$2::uuid,$3::uuid,$4,'trusted',to_timestamp($5::double precision/1000))
-                    ON CONFLICT(session_id) DO NOTHING RETURNING session_id`,
+                    ON CONFLICT(session_id) DO UPDATE SET
+                        credential_version=EXCLUDED.credential_version,
+                        status='trusted',valid_until=EXCLUDED.valid_until
+                    WHERE session_assurances.auth_user_id=EXCLUDED.auth_user_id
+                      AND session_assurances.profile_id=EXCLUDED.profile_id
+                      AND session_assurances.credential_version<EXCLUDED.credential_version
+                    RETURNING session_id`,
                     [principal.sessionId,principal.authUserId,current.profileId,current.credentialVersion,validUntil]);
                 if (saved.rows.length !== 1) throw new LoginError('account_changed',409);
                 if (signal?.aborted) throw new LoginError('temporarily_unavailable',503);

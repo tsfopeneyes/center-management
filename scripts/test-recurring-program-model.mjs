@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import {
     countProgramOccurrences,
     getNextProgramOccurrence,
+    getKstDateString,
     isProgramOccurrenceDate,
+    listProgramOccurrences,
     usesDailySessionRsvp,
 } from '../src/utils/dailyProgramSessions.js';
 
@@ -22,6 +24,9 @@ assert.equal(isProgramOccurrenceDate(recurring, '2026-09-03'), true);
 assert.equal(isProgramOccurrenceDate(recurring, '2026-09-04'), false);
 assert.equal(getNextProgramOccurrence(recurring, new Date('2026-09-10T00:00:00+09:00')), '2026-09-10');
 assert.equal(getNextProgramOccurrence(recurring, new Date('2026-10-01T00:00:00+09:00')), null);
+assert.equal(getKstDateString(new Date('2026-09-16T14:59:00Z')), '2026-09-16');
+assert.equal(getKstDateString(new Date('2026-09-16T15:00:00Z')), '2026-09-17');
+assert.deepEqual(listProgramOccurrences(recurring, new Date('2026-09-16T15:00:00Z')), ['2026-09-17', '2026-09-24']);
 
 const open = { ...recurring, is_recruiting: false, guest_properties: { schedule_mode: 'RECURRING', application_scope: 'NONE' } };
 assert.equal(usesDailySessionRsvp(open), false);

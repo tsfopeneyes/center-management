@@ -92,8 +92,13 @@ const SessionDateCalendar = ({ dates, value, openedDates, onChange }) => {
 };
 
 export default function TodaySessionModal({ notice, initialView = 'overview', onClose, onChanged, onViewParticipants }) {
-    const occurrenceDates = listProgramOccurrences(notice);
-    const [sessionDate, setSessionDate] = useState(notice.today_session?.session_date || getNextProgramOccurrence(notice) || getKstDateString());
+    const today = getKstDateString();
+    const occurrenceDates = listProgramOccurrences(notice).filter(date => date >= today);
+    const [sessionDate, setSessionDate] = useState(
+        notice.today_session?.session_date >= today
+            ? notice.today_session.session_date
+            : occurrenceDates[0] || getNextProgramOccurrence(notice) || today
+    );
     const configuredFields = getDailySessionFields(notice);
     const emptyFields = () => configuredFields.map(field => ({ ...field, value: '' }));
     const [session, setSession] = useState(notice.today_session || null);
@@ -107,6 +112,7 @@ export default function TodaySessionModal({ notice, initialView = 'overview', on
     const [view, setView] = useState(initialView);
     const [sessions, setSessions] = useState([]);
     const [sessionsLoaded, setSessionsLoaded] = useState(false);
+    const [sessionCloseError, setSessionCloseError] = useState(false);
     const [staff, setStaff] = useState([]);
 
     useEffect(() => {
@@ -114,10 +120,22 @@ export default function TodaySessionModal({ notice, initialView = 'overview', on
     }, []);
 
     const loadSessions = async () => {
-        const rows = await programSessionsApi.fetchAll(notice.id);
+        let closedCount = 0;
+        try {
+            closedCount = await programSessionsApi.closePastSessions(notice.id);
+            setSessionCloseError(false);
+        } catch (error) {
+            console.error('지난 회차를 종료하지 못했습니다:', error);
+            setSessionCloseError(true);
+        }
+        const rows = await programSessionsApi.fetchManageable(notice.id);
         setSessions(rows);
         setSessionsLoaded(true);
-        if (initialView === 'overview' && rows.length === 0) setView('edit');
+        if (initialView === 'overview' && rows.length === 0 && occurrenceDates.length > 0) setView('edit');
+        if (closedCount) {
+            try { await onChanged?.(); }
+            catch (refreshError) { console.error('지난 회차 종료 후 화면을 갱신하지 못했습니다:', refreshError); }
+        }
         return rows;
     };
     useEffect(() => { loadSessions().catch(console.error); }, [notice.id]);
@@ -143,6 +161,7 @@ export default function TodaySessionModal({ notice, initialView = 'overview', on
     useEffect(() => { load().catch(console.error); }, [notice.id, sessionDate]);
 
     const save = async () => {
+        if (sessionDate < getKstDateString()) return alert('지난 날짜의 회차는 다시 열 수 없습니다.');
         const missing = form.session_fields.find(field => field.required && !String(field.value || '').trim());
         if (missing) return alert(`${missing.label} 항목을 입력해주세요.`);
         setSaving(true);
@@ -168,10 +187,13 @@ export default function TodaySessionModal({ notice, initialView = 'overview', on
         }
     };
     const closeToday = async () => {
-        const responseCount = (session?.daily_program_session_responses || []).length;
-        const confirmationMessage = responseCount === 0
-            ? '신청자가 없는 오늘 회차를 닫을까요?\n\n무효 회차로 처리되어 캘린더·날짜별 명단·운영 횟수에서 제외됩니다.'
-            : `오늘 회차의 신청 기록 ${responseCount}건이 있습니다. 오늘 프로그램을 닫을까요?\n\n회차와 신청 기록은 보존됩니다.`;
+        const responses = session?.daily_program_session_responses || [];
+        const hasParticipant = responses.some(response =>
+            response.status === 'JOIN' || response.status === 'WAITLIST' || response.is_attended
+        );
+        const confirmationMessage = !hasParticipant
+            ? `오늘 회차를 닫을까요?${responses.length ? `\n\n취소된 신청 기록 ${responses.length}건은 보존됩니다.` : ''}\n\n참석자가 없는 회차로 처리되어 캘린더·날짜별 명단·운영 횟수에서 제외됩니다.`
+            : `오늘 회차의 신청 기록 ${responses.length}건이 있습니다. 오늘 프로그램을 닫을까요?\n\n회차와 신청 기록은 보존됩니다.`;
         if (!window.confirm(confirmationMessage)) return;
         setSaving(true);
         try {
@@ -196,7 +218,8 @@ export default function TodaySessionModal({ notice, initialView = 'overview', on
 
     const openNewSession = () => {
         const used = new Set(sessions.map(item => item.session_date));
-        const nextDate = occurrenceDates.find(date => !used.has(date)) || occurrenceDates[0] || sessionDate;
+        const nextDate = occurrenceDates.find(date => !used.has(date));
+        if (!nextDate) return;
         setSessionDate(nextDate);
         setView('edit');
     };
@@ -210,6 +233,7 @@ export default function TodaySessionModal({ notice, initialView = 'overview', on
             <div className="mb-5 flex items-start justify-between"><div><p className="text-xs font-bold text-blue-600">{showOverview ? '회차 관리' : showParticipants ? '회차 신청자' : `${sessionDate} 회차`}</p><h2 className="mt-1 text-xl font-black text-slate-900">{notice.title}</h2></div><button onClick={onClose} className="rounded-full bg-slate-100 p-2 text-slate-500"><X size={18}/></button></div>
             <div className="space-y-4">
                 {showOverview && sessionsLoaded && <>
+                    {sessionCloseError && <p role="alert" className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">지난 회차의 종료 상태를 저장하지 못했습니다. 잠시 후 다시 열어 확인해주세요.</p>}
                     <div className="space-y-3">
                         {sessions.map(item => (
                             <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
@@ -227,7 +251,8 @@ export default function TodaySessionModal({ notice, initialView = 'overview', on
                             </div>
                         ))}
                     </div>
-                    <button type="button" onClick={openNewSession} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 py-3.5 text-sm font-black text-blue-700"><Plus size={17}/>새 회차 열기</button>
+                    {sessions.length === 0 && occurrenceDates.length === 0 && <p className="rounded-xl bg-slate-50 py-6 text-center text-sm font-bold text-slate-500">예정된 회차가 없습니다.</p>}
+                    {occurrenceDates.some(date => !sessions.some(item => item.session_date === date)) && <button type="button" onClick={openNewSession} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 py-3.5 text-sm font-black text-blue-700"><Plus size={17}/>새 회차 열기</button>}
                 </>}
                 {!showOverview && !showParticipants && occurrenceDates.length > 1 && (
                     <div>

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import {createSelfPasswordService} from '../supabase/functions/_shared/selfPasswordService.mjs';
 
 const profileId=crypto.randomUUID(),authUserId=crypto.randomUUID(),actorProfileId=profileId,sessionId=crypto.randomUUID();
-const account={profileId,authUserId,credentialVersion:2,loginEmail:'fixture@example.invalid'};
+const account={profileId,authUserId,credentialVersion:2,loginEmail:'fixture@example.invalid',credentialMode:'supabase_password',legacyDigest:null};
 let nativePassword='old-password',reserved=0,completed=0,assurances=0,discarded=0,policy=true,authorized=true,failUpdate=false,failAssurance=false;
 const deps={
-    store:{async readActive(){return account;},async reserve(input){assert.equal(input.kind,'self_change');reserved++;return {...input,profileId,authUserId,credentialVersion:3};},async complete(){completed++;}},
+    store:{async readActive(){return account;},async reserve(input){assert.equal(input.kind,'self_change');reserved++;return {...input,profileId,authUserId,credentialVersion:3};},async complete(){completed++;return {credentialVersion:3,credentialMode:'supabase_password'};}},
     limits:{async consumeLimit(){return true;}},keyFor:async()=> 'a'.repeat(64),
     async authorize(){return authorized?{actorProfileId,authUserId,sessionId:crypto.randomUUID()}:null;},
     async passwordPolicy(){return policy;},

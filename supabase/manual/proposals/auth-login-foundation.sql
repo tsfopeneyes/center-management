@@ -60,7 +60,7 @@ CREATE POLICY login_candidate_read_guard ON public.users AS RESTRICTIVE FOR SELE
     EXISTS(SELECT 1 FROM account_security.accounts a JOIN account_security.login_identifiers i USING(profile_id)
         WHERE a.profile_id=public.users.id AND a.mapping_verified AND a.status='active' AND i.enabled));
 GRANT SELECT,INSERT,UPDATE ON account_security.login_limits TO account_login_worker;
-GRANT INSERT ON account_security.session_assurances TO account_login_worker;
+GRANT INSERT,UPDATE(credential_version,status,valid_until) ON account_security.session_assurances TO account_login_worker;
 -- PostgreSQL row locking requires UPDATE privilege on at least one column.
 -- This trusted server role can lock accounts but has no grants on profile/auth writes.
 GRANT UPDATE(credential_version) ON account_security.accounts TO account_login_worker;
@@ -68,6 +68,8 @@ CREATE POLICY login_identifier_read ON account_security.login_identifiers FOR SE
 CREATE POLICY legacy_credential_read ON account_security.legacy_credentials FOR SELECT TO account_login_worker USING(true);
 CREATE POLICY login_limit_access ON account_security.login_limits FOR ALL TO account_login_worker USING(true) WITH CHECK(true);
 CREATE POLICY login_assurance_insert ON account_security.session_assurances FOR INSERT TO account_login_worker WITH CHECK(true);
+CREATE POLICY login_assurance_refresh ON account_security.session_assurances FOR UPDATE TO account_login_worker
+    USING(true) WITH CHECK(status='trusted');
 CREATE POLICY login_account_lock ON account_security.accounts FOR UPDATE TO account_login_worker USING(true) WITH CHECK(true);
 -- No LOGIN role is attached, no protected accounts seeded, no public access added.
 COMMIT;

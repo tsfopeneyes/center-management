@@ -81,7 +81,7 @@ const CoffeeChatModal = ({ staff, student, onClose, onSuccess, tutorialMode = fa
                         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><span className="text-3xl">✓</span></div>
                         <h3 className="mt-5 text-xl font-black text-tossGrey900">커피챗 신청이 완료됐어요</h3>
                         <p className="mt-2 text-sm font-semibold leading-6 text-tossGrey600">튜토리얼 체험이라 실제 신청으로 저장되지는 않아요.</p>
-                        <button type="button" onClick={onSuccess} className="mt-6 w-full rounded-2xl bg-tossBlue py-4 text-sm font-black text-white">다음으로</button>
+                        <button type="button" onClick={onSuccess} className="mt-6 w-full rounded-2xl bg-haifnRed py-4 text-sm font-black text-white">다음으로</button>
                     </div>
                 </div>
             )}
@@ -108,7 +108,7 @@ const CoffeeChatModal = ({ staff, student, onClose, onSuccess, tutorialMode = fa
                         {staff.profile_image_url ? (
                             <img src={staff.profile_image_url} alt={staff.name} decoding="async" className="w-20 h-20 rounded-full object-cover border border-tossGrey200 shadow-sm" />
                         ) : (
-                            <div className="w-20 h-20 rounded-full bg-tossBlue/10 flex items-center justify-center text-tossBlue font-bold text-2xl">
+                            <div className="w-20 h-20 rounded-full bg-[#F8E8E4] flex items-center justify-center text-haifnRed font-bold text-2xl">
                                 {staff.name?.substring(0, 1)}
                             </div>
                         )}
@@ -147,7 +147,7 @@ const CoffeeChatModal = ({ staff, student, onClose, onSuccess, tutorialMode = fa
                                             isLast ? 'col-span-2' : ''
                                         } ${
                                             isSelected
-                                                ? 'bg-tossBlue border-tossBlue text-white shadow-sm'
+                                                ? 'bg-haifnRed border-haifnRed text-white shadow-sm'
                                                 : 'bg-white border-tossGrey200 text-tossGrey600 hover:bg-tossGrey50'
                                         }`}
                                     >
@@ -172,7 +172,7 @@ const CoffeeChatModal = ({ staff, student, onClose, onSuccess, tutorialMode = fa
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             placeholder="메시지를 적어보세요! (예: 요즘 진로 고민이 많아요, 쌤 근황 궁금해요 등)"
-                            className="w-full p-3.5 bg-white border border-tossGrey200 rounded-xl text-xs font-semibold text-tossGrey950 placeholder-tossGrey300 focus:border-tossBlue focus:ring-4 focus:ring-tossBlue/10 outline-none resize-none transition-all duration-200 h-20"
+                            className="w-full p-3.5 bg-white border border-tossGrey200 rounded-xl text-xs font-semibold text-tossGrey950 placeholder-tossGrey300 focus:border-haifnRed focus:ring-4 focus:ring-[#CF3A27]/10 outline-none resize-none transition-all duration-200 h-20"
                         />
                     </div>
                 </div>
@@ -182,7 +182,7 @@ const CoffeeChatModal = ({ staff, student, onClose, onSuccess, tutorialMode = fa
                     <button
                         onClick={handleSubmit}
                         disabled={submitting}
-                        className="w-full py-3.5 bg-tossBlue disabled:bg-tossGrey300 text-white rounded-xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center shadow-sm"
+                        className="w-full py-3.5 bg-haifnRed hover:bg-haifnRedHover disabled:bg-tossGrey300 text-white rounded-xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center shadow-sm"
                     >
                         {submitting ? '신청 중...' : '커피챗 신청하기'}
                     </button>

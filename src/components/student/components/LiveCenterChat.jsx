@@ -547,7 +547,7 @@ const LiveCenterChat = ({ currentUser, studentRegion, initialCenter, isStandalon
             {/* Header - Fixed Top Flex Block */}
             <div className={`flex justify-between items-center bg-white opacity-100 shrink-0 ${isStandalone ? 'px-8 py-4 border-b-2 border-tossGrey100 shadow-xs' : 'mb-3 pb-3 border-b border-tossGrey100'}`}>
                 <div className="flex items-center gap-3.5 min-w-0">
-                    <div className={`${isStandalone ? 'w-12 h-12 rounded-2xl bg-tossBlue/10 text-tossBlue border border-tossBlue/20' : 'w-10 h-10 rounded-2xl bg-tossBlue/10 text-tossBlue'} flex items-center justify-center shrink-0`}>
+                    <div className={`${isStandalone ? 'w-12 h-12 rounded-2xl border border-[#E7B7AD]' : 'w-10 h-10 rounded-full'} flex items-center justify-center shrink-0 bg-[#F4DDD4] text-[#CF3A27]`}>
                         <MessageSquare size={isStandalone ? 22 : 18} />
                     </div>
                     <div className="min-w-0 pr-3.5">

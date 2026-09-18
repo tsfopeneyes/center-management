@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Camera, Check, MessageCircle, Pencil, Send, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Camera, Check, MessageCircle, Pencil, Pin, Send, Trash2, X } from 'lucide-react';
 import NoticeReactions from '../NoticeReactions';
 import UserAvatar from '../../common/UserAvatar';
 import InterestSessionDialog from './InterestSessionDialog';
@@ -13,6 +13,9 @@ import { getKSTDateString } from '../../../utils/dateUtils';
 import { isAccountAuthEnabled } from '../../../auth/accountAuthRuntime';
 import { uploadAccountImage } from '../../../auth/accountMedia';
 import useCommentReactionLongPress from '../../../hooks/useCommentReactionLongPress';
+import { isAdminOrStaff } from '../../../utils/userUtils';
+import { communityFeedApi, getUnreadBoundary, sortCommunityPosts } from '../../../api/communityFeedApi';
+import useCommunityUnread from '../../../hooks/useCommunityUnread';
 
 const requiredCount = (mission, notice) => {
     if (mission.schedule_type === 'DAILY') {
@@ -34,6 +37,8 @@ const MISSION_BADGE_COLORS = [
     { backgroundColor: '#EEF1FF', color: '#4056B4' },
 ];
 
+const UnreadDivider = () => <div role="separator" aria-label="여기부터 읽지 않은 새 글" className="flex items-center gap-3 py-1"><span className="h-px flex-1 bg-[#CF3A27]/45"/><span className="shrink-0 text-[11px] font-black text-[#CF3A27]">새 글</span><span className="h-px flex-1 bg-[#CF3A27]/45"/></div>;
+
 export default function ChallengeCommunityModal({ notice, user, initialFilter = null, onClose, onMissionCompleted }) {
     const [posts, setPosts] = useState([]);
     const [submissions, setSubmissions] = useState([]);
@@ -41,21 +46,28 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
     const [content, setContent] = useState('');
     const [imageFile, setImageFile] = useState(null);
     const [selectedMissionId, setSelectedMissionId] = useState('');
+    const [isAnnouncement, setIsAnnouncement] = useState(false);
+    const [channelId, setChannelId] = useState(null);
+    const [applicantCount, setApplicantCount] = useState(null);
+    const [adminHasJoined, setAdminHasJoined] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [commentInputs, setCommentInputs] = useState({});
     const [activeFilter, setActiveFilter] = useState(initialFilter);
     const [editingPostId, setEditingPostId] = useState(null);
     const [editingContent, setEditingContent] = useState('');
+    const [editingMissionId, setEditingMissionId] = useState('');
     const [savingEdit, setSavingEdit] = useState(false);
     const [editingCommentId, setEditingCommentId] = useState(null);
     const [editingCommentContent, setEditingCommentContent] = useState('');
     const [savingComment, setSavingComment] = useState(false);
     const [showSessionDialog, setShowSessionDialog] = useState(false);
     const fileRef = useRef(null);
+    const categorySelectionTouchedRef = useRef(false);
     const submitLockRef = useRef(false);
     const pendingSessionActionRef = useRef(null);
     const { pickerRequest: commentPickerRequest, bindLongPress } = useCommentReactionLongPress();
     const missions = notice.challenge_missions || [];
+    const isAdmin = isAdminOrStaff(user);
     const today = getKSTDateString(new Date());
     const isBeforeStart = Boolean(notice.program_start_date && today < notice.program_start_date);
     const isAfterEnd = Boolean(notice.program_end_date && today > notice.program_end_date);
@@ -85,17 +97,29 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
         [submissions, user.id]
     );
     const eligibleMissions = useMemo(() => missions.filter(mission => {
-        if (!canWrite) return false;
+        if (!canWrite || (isAdmin && !adminHasJoined)) return false;
         const mine = mySubmissions.filter(item => item.mission_id === mission.id);
         if (mission.schedule_type === 'DAILY') return !mine.some(item => item.completion_date === today);
         if (mission.schedule_type === 'FIXED_DATE') return mission.fixed_date === today && mine.length === 0;
         return mine.length < requiredCount(mission, notice);
-    }), [canWrite, missions, mySubmissions, notice, today]);
+    }), [adminHasJoined, canWrite, isAdmin, missions, mySubmissions, notice, today]);
     const visiblePosts = useMemo(() => {
-        if (!activeFilter) return posts;
-        return posts.filter(post => post.author_id === activeFilter.participantId
-            && post.submission?.mission_id === activeFilter.missionId);
+        if (!activeFilter) return sortCommunityPosts(posts);
+        return sortCommunityPosts(posts.filter(post => post.author_id === activeFilter.participantId
+            && post.submission?.mission_id === activeFilter.missionId));
     }, [activeFilter, posts]);
+    const lastReadAt = useCommunityUnread(channelId, user.id, posts, !loading);
+    const unreadBoundary = useMemo(() => activeFilter ? null : getUnreadBoundary(visiblePosts, lastReadAt, user.id),
+        [activeFilter, lastReadAt, user.id, visiblePosts]);
+
+    useEffect(() => {
+        let active = true;
+        setChannelId(null);
+        communityFeedApi.fetchChallengeChannelId(notice.id)
+            .then(id => { if (active) setChannelId(id); })
+            .catch(error => console.error('Failed to locate challenge community:', error));
+        return () => { active = false; };
+    }, [notice.id]);
 
     useEffect(() => {
         setActiveFilter(initialFilter);
@@ -104,9 +128,41 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
     useEffect(() => {
         setSelectedMissionId(current => {
             if (eligibleMissions.some(mission => mission.id === current)) return current;
-            return eligibleMissions.length === 1 ? eligibleMissions[0].id : '';
+            return categorySelectionTouchedRef.current ? '' : (eligibleMissions[0]?.id || '');
         });
     }, [eligibleMissions]);
+
+    useEffect(() => {
+        let active = true;
+        setApplicantCount(null);
+        supabase.from('notice_responses')
+            .select('*', { count: 'exact', head: true })
+            .eq('notice_id', notice.id)
+            .eq('status', 'JOIN')
+            .then(({ count, error }) => {
+                if (error) {
+                    console.error('Failed to fetch challenge applicant count:', error);
+                    return;
+                }
+                if (active) setApplicantCount(count);
+            });
+        return () => { active = false; };
+    }, [notice.id]);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        let active = true;
+        setAdminHasJoined(false);
+        supabase.from('notice_responses')
+            .select('user_id')
+            .eq('notice_id', notice.id).eq('user_id', user.id).eq('status', 'JOIN')
+            .maybeSingle()
+            .then(({ data, error }) => {
+                if (error) console.error('Failed to check admin challenge application:', error);
+                if (active) setAdminHasJoined(Boolean(data) && !error);
+            });
+        return () => { active = false; };
+    }, [isAdmin, notice.id, user.id]);
 
     const refresh = async () => {
         try {
@@ -173,7 +229,7 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
     };
 
     const submitPost = async () => {
-        if (!canWrite || !content.trim() || submitting || submitLockRef.current) return;
+        if (!canWrite || !content.trim() || submitting || submitLockRef.current || (isAnnouncement && !isAdmin) || (selectedMissionId && !eligibleMissions.some(mission => mission.id === selectedMissionId))) return;
         submitLockRef.current = true;
         setSubmitting(true);
         let uploaded = null;
@@ -187,6 +243,7 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
                 content: submittedContent,
                 imageUrl: uploaded?.url || null,
                 missionId: submittedMissionId,
+                isAnnouncement,
             });
             const completedMission = missions.find(mission => mission.id === submittedMissionId) || null;
             const optimisticSubmission = completedMission ? {
@@ -203,6 +260,8 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
                 author_id: user.id,
                 author: user,
                 content: submittedContent,
+                is_announcement: isAnnouncement,
+                announced_at: isAnnouncement ? new Date().toISOString() : null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
                 media: uploaded?.url ? [{ id: `local-media-${postId}`, media_url: uploaded.url, media_type: 'IMAGE', sort_order: 0 }] : [],
@@ -218,6 +277,7 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
             }
             setContent('');
             setImageFile(null);
+            setIsAnnouncement(false);
             setSelectedMissionId('');
             if (submittedMissionId) onMissionCompleted?.();
             void refresh();
@@ -350,17 +410,37 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
         }
     };
 
-    const savePostEdit = async postId => {
+    const toggleAnnouncement = async post => {
+        if (!isAdmin) return;
+        try {
+            await runWithSession(async () => {
+                const updated = await communityFeedApi.setAnnouncement(post.id, !post.is_announcement);
+                setPosts(current => sortCommunityPosts(current.map(item => item.id === post.id ? { ...item, ...updated } : item)));
+            });
+        } catch (error) {
+            console.error(error);
+            alert(error.message || '공지 상태를 변경하지 못했습니다.');
+        }
+    };
+
+    const savePostEdit = async post => {
         const nextContent = editingContent.trim();
         if (!nextContent || savingEdit) return;
+        const currentMissionId = post.submission?.mission_id || '';
+        if (editingMissionId && editingMissionId !== currentMissionId && !eligibleMissions.some(mission => mission.id === editingMissionId)) {
+            alert('지금 완료할 수 없는 미션입니다. 다른 미션이나 자유 글을 선택해 주세요.');
+            return;
+        }
         setSavingEdit(true);
         try {
             await runWithSession(async () => {
-                const updated = await challengeCommunityApi.updatePost(postId, nextContent);
-                setPosts(current => current.map(post => post.id === postId ? { ...post, ...updated } : post));
+                const updated = await challengeCommunityApi.updatePost(post, nextContent, editingMissionId || null, notice.id, user.id);
+                setPosts(current => current.map(item => item.id === post.id ? { ...item, ...updated } : item));
+                await refresh();
                 setEditingPostId(null);
                 setEditingContent('');
-                void refresh();
+                setEditingMissionId('');
+                if (editingMissionId !== currentMissionId) onMissionCompleted?.();
             });
         } catch (error) {
             console.error(error);
@@ -376,11 +456,11 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
         <header className="shrink-0 border-b border-tossGrey100 bg-white/95 backdrop-blur">
             <div className="flex w-full items-center gap-3 px-4 py-3">
                 <button onClick={onClose} className="rounded-full p-2 hover:bg-tossGrey100"><ArrowLeft size={21}/></button>
-                <div className="min-w-0"><h2 className="truncate font-black text-tossGrey900">{notice.title}</h2><p className="text-[11px] font-bold text-tossGrey500">참여자 전용 챌린지 커뮤니티</p></div>
+                <div className="min-w-0"><h2 className="truncate font-black text-tossGrey900">{notice.title}</h2><p className="text-[11px] font-bold text-tossGrey500">{applicantCount === null ? '챌린지 신청 인원을 불러오는 중이에요.' : `${applicantCount}명이 챌린지에 도전 중이에요!`}</p></div>
                 <button onClick={onClose} className="ml-auto rounded-full p-2 hover:bg-tossGrey100"><X size={20}/></button>
             </div>
         </header>
-        <main className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain bg-tossGrey50/70">
+        <main className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#F7EFE2]">
             <div className="space-y-4 p-4">
                 {activeFilter && <section className="flex items-center gap-3 rounded-3xl border border-blue-100 bg-blue-50 px-4 py-3 shadow-sm">
                     <div className="min-w-0 flex-1">
@@ -390,38 +470,45 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
                     {!activeFilter.locked && <button type="button" onClick={() => setActiveFilter(null)} className="shrink-0 rounded-xl bg-white px-3 py-2 text-[11px] font-black text-tossBlue shadow-sm">전체 글 보기</button>}
                 </section>}
                 {!activeFilter && <section className="rounded-[28px] border border-tossGrey100 bg-white px-5 pb-4 pt-5 shadow-[0_6px_24px_rgba(0,0,0,0.035)]">
-                    {!canWrite ? <div className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">{periodMessage}</div> : eligibleMissions.length > 0 ? <label className="mb-4 block">
-                        <span className="mb-2 block text-xs font-extrabold text-tossGrey600">미션 선택</span>
-                        <select value={selectedMissionId} onChange={event => setSelectedMissionId(event.target.value)} className="h-12 w-full rounded-2xl border-0 bg-tossGrey50 px-4 text-sm font-extrabold text-tossGrey900 outline-none ring-1 ring-inset ring-tossGrey100 focus:ring-2 focus:ring-tossBlue/30">
-                            {eligibleMissions.length > 1 && <option value="">미션을 선택해주세요</option>}
-                            {eligibleMissions.map(mission => <option key={mission.id} value={mission.id}>{mission.title}</option>)}
-                        </select>
-                    </label> : <div className="mb-4 rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">오늘 완료할 수 있는 미션을 모두 마쳤어요. 자유롭게 이야기를 남길 수 있습니다.</div>}
-                    <textarea value={content} onChange={event => setContent(event.target.value)} disabled={!canWrite} placeholder={canWrite ? '오늘의 기록을 남겨주세요' : '챌린지 수행 기간에 작성할 수 있어요'} className="min-h-28 w-full resize-none bg-transparent text-sm leading-6 text-tossGrey900 outline-none placeholder:text-tossGrey400 disabled:text-tossGrey400" />
+                    {!canWrite ? <div className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">{periodMessage}</div> : <div className="mb-4">
+                        <div className="scrollbar-hide flex gap-2 overflow-x-auto" role="group" aria-label="글 종류 선택">
+                            {eligibleMissions.map(mission => <button key={mission.id} type="button" aria-pressed={selectedMissionId === mission.id} onClick={() => { categorySelectionTouchedRef.current = true; setSelectedMissionId(mission.id); }} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-center text-xs font-extrabold leading-5 transition-colors ${selectedMissionId === mission.id ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#E7D8C4] bg-[#FFFDF9] text-[#544B43] hover:border-[#CF3A27]'}`}>{mission.title}</button>)}
+                            <button type="button" aria-pressed={!selectedMissionId} onClick={() => { categorySelectionTouchedRef.current = true; setSelectedMissionId(''); }} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-center text-xs font-extrabold leading-5 transition-colors ${!selectedMissionId ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#E7D8C4] bg-[#FFFDF9] text-[#544B43] hover:border-[#CF3A27]'}`}>자유 글</button>
+                        </div>
+                        {eligibleMissions.length === 0 && <p className="mt-2 text-xs font-semibold text-tossGrey500">{isAdmin && !adminHasJoined ? '관리자 글은 챌린지 미션 완료 현황에 포함되지 않아요.' : '오늘 완료할 수 있는 미션을 모두 마쳤어요. 자유롭게 이야기를 남겨주세요.'}</p>}
+                    </div>}
+                    <textarea value={content} onChange={event => setContent(event.target.value)} disabled={!canWrite} placeholder={canWrite ? selectedMissionId ? '오늘 미션은 어땠나요?' : '커뮤니티에 나누고 싶은 이야기를 자유롭게 남겨주세요!' : '챌린지 수행 기간에 작성할 수 있어요'} className="min-h-28 w-full resize-none bg-transparent text-sm leading-6 text-tossGrey900 outline-none placeholder:text-tossGrey400 disabled:text-tossGrey400" />
+                    {isAdmin && <label className="mt-1 inline-flex cursor-pointer items-center gap-2 rounded-xl px-1 py-2 text-xs font-extrabold text-[#544B43]"><input type="checkbox" checked={isAnnouncement} onChange={event => setIsAnnouncement(event.target.checked)} disabled={!canWrite} className="h-4 w-4 accent-[#CF3A27]"/>공지로 보내기</label>}
                     {imageFile && <div className="mt-2 flex items-center justify-between rounded-2xl bg-tossGrey50 px-3 py-2.5 text-xs font-bold text-tossGrey700"><span className="truncate">{imageFile.name}</span><button type="button" onClick={() => setImageFile(null)} className="rounded-full p-1 text-tossGrey400 hover:bg-tossGrey100"><X size={15}/></button></div>}
                     <div className="mt-3 flex items-center gap-2 border-t border-tossGrey100 pt-3">
                         <input ref={fileRef} type="file" accept="image/*" hidden onChange={event => setImageFile(event.target.files?.[0] || null)}/>
                         <button type="button" onClick={() => fileRef.current?.click()} disabled={!canWrite} className="flex items-center gap-1.5 rounded-xl bg-tossGrey50 px-3 py-2.5 text-xs font-extrabold text-tossGrey600 hover:bg-tossGrey100 disabled:opacity-40" title="사진 첨부"><Camera size={18}/><span>사진</span></button>
-                        <button onClick={submitPost} disabled={!canWrite || submitting || !content.trim() || (eligibleMissions.length > 0 && !selectedMissionId)} className="ml-auto rounded-xl bg-[#CF3A27] px-5 py-2.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-[#B93223] disabled:shadow-none disabled:opacity-40">{submitting ? '등록 중...' : '게시하기'}</button>
+                        <button onClick={submitPost} disabled={!canWrite || submitting || !content.trim()} className="ml-auto rounded-xl bg-[#CF3A27] px-5 py-2.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-[#B93223] disabled:shadow-none disabled:opacity-40">{submitting ? '등록 중...' : '게시하기'}</button>
                     </div>
                 </section>}
-                {loading ? <p className="py-12 text-center text-sm text-tossGrey400">불러오는 중...</p> : visiblePosts.length === 0 ? <p className="py-12 text-center text-sm font-bold text-tossGrey400">{activeFilter ? '이 미션으로 작성한 기록이 아직 없어요.' : '첫 번째 기록을 남겨보세요.'}</p> : visiblePosts.map(post => {
+                {loading ? <p className="py-12 text-center text-sm text-tossGrey400">불러오는 중...</p> : visiblePosts.length === 0 ? <p className="py-12 text-center text-sm font-bold text-tossGrey400">{activeFilter ? '이 미션으로 작성한 기록이 아직 없어요.' : '첫 번째 기록을 남겨보세요.'}</p> : visiblePosts.map((post, index) => {
                     const imageUrl = post.media?.[0]?.media_url;
                     const mission = post.submission?.online_challenge_missions;
                     const missionIndex = Math.max(0, missions.findIndex(item => item.id === mission?.id));
                     const missionBadgeStyle = MISSION_BADGE_COLORS[missionIndex % MISSION_BADGE_COLORS.length];
                     const isEditing = editingPostId === post.id;
-                    return <article key={post.id} className="rounded-3xl border border-tossGrey200 bg-white p-4 shadow-sm">
-                        <div className="flex gap-3"><UserAvatar user={post.author} size="w-9 h-9"/><div><p className="text-sm font-black">{post.author?.name}</p><p className="text-[10px] text-tossGrey400">{new Date(post.created_at).toLocaleString('ko-KR')}{post.updated_at && post.updated_at !== post.created_at ? ' · 수정됨' : ''}</p></div>{post.author_id === user.id && <div className="ml-auto flex items-center gap-1"><button type="button" onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); }} className="rounded-full p-2 text-tossGrey400 hover:bg-tossGrey50 hover:text-tossBlue" aria-label="글 수정"><Pencil size={15}/></button><button type="button" onClick={() => deletePost(post)} className="rounded-full p-2 text-tossGrey400 hover:bg-red-50 hover:text-red-500" aria-label="글 삭제"><Trash2 size={16}/></button></div>}</div>
-                        {mission && <span style={missionBadgeStyle} className="mt-3 inline-block rounded-full px-2.5 py-1 text-[10px] font-black">{mission.title}</span>}
-                        {isEditing ? <div className="mt-3 rounded-2xl bg-tossGrey50 p-3 ring-1 ring-inset ring-tossGrey100 focus-within:ring-2 focus-within:ring-[#CF3A27]/25"><textarea value={editingContent} onChange={event => setEditingContent(event.target.value)} className="min-h-24 w-full resize-none bg-transparent text-sm leading-6 text-tossGrey900 outline-none" autoFocus/><div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingPostId(null); setEditingContent(''); }} className="rounded-xl px-3 py-2 text-xs font-bold text-tossGrey500 hover:bg-white">취소</button><button type="button" onClick={() => savePostEdit(post.id)} disabled={!editingContent.trim() || savingEdit} className="flex items-center gap-1 rounded-xl bg-[#CF3A27] px-3 py-2 text-xs font-black text-white disabled:opacity-40"><Check size={14}/>{savingEdit ? '저장 중...' : '저장'}</button></div></div> : <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-tossGrey850">{post.content}</p>}
+                    const editingMissionOptions = isEditing ? missions.filter(item => item.id === post.submission?.mission_id || eligibleMissions.some(eligible => eligible.id === item.id)) : [];
+                    return <React.Fragment key={post.id}>
+                        {unreadBoundary?.before === index && <UnreadDivider/>}
+                        <article className={`rounded-3xl border bg-white p-4 shadow-sm ${post.is_announcement ? 'border-[#E9B6A8]' : 'border-tossGrey200'}`}>
+                        <div className="flex gap-3"><UserAvatar user={post.author} size="w-9 h-9"/><div><p className="text-sm font-black">{post.author?.name}</p><p className="text-[10px] text-tossGrey400">{new Date(post.created_at).toLocaleString('ko-KR')}{post.updated_at && post.updated_at !== post.created_at ? ' · 수정됨' : ''}</p></div>{(post.author_id === user.id || isAdminOrStaff(user)) && <div className="ml-auto flex items-center gap-1">{isAdmin && <button type="button" onClick={() => toggleAnnouncement(post)} aria-pressed={Boolean(post.is_announcement)} className={`rounded-full p-2 ${post.is_announcement ? 'text-[#CF3A27] hover:bg-[#FFF0E9]' : 'text-tossGrey400 hover:bg-tossGrey50 hover:text-[#CF3A27]'}`} aria-label={post.is_announcement ? '공지 해제' : '공지로 고정'}><Pin size={15}/></button>}{post.author_id === user.id && <button type="button" onClick={() => { setEditingPostId(post.id); setEditingContent(post.content); setEditingMissionId(post.submission?.mission_id || ''); }} className="rounded-full p-2 text-tossGrey400 hover:bg-tossGrey50 hover:text-[#CF3A27]" aria-label="글 수정"><Pencil size={15}/></button>}<button type="button" onClick={() => deletePost(post)} className="rounded-full p-2 text-tossGrey400 hover:bg-red-50 hover:text-red-500" aria-label="글 삭제"><Trash2 size={16}/></button></div>}</div>
+                        {post.is_announcement && <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-[#FFF0E9] px-2.5 py-1 text-[10px] font-black text-[#B93223]"><Pin size={11}/>공지{lastReadAt && new Date(post.created_at).getTime() > new Date(lastReadAt).getTime() && post.author_id !== user.id ? ' · 새 글' : ''}</span>}
+                        {mission && !isEditing && <span style={missionBadgeStyle} className="mt-3 inline-block rounded-full px-2.5 py-1 text-[10px] font-black">{mission.title}</span>}
+                        {isEditing ? <div className="mt-3 rounded-2xl bg-tossGrey50 p-3 ring-1 ring-inset ring-tossGrey100 focus-within:ring-2 focus-within:ring-[#CF3A27]/25"><div className="scrollbar-hide mb-3 flex gap-2 overflow-x-auto" role="group" aria-label="글 종류 수정">{editingMissionOptions.map(item => <button key={item.id} type="button" aria-pressed={editingMissionId === item.id} onClick={() => setEditingMissionId(item.id)} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-extrabold leading-5 ${editingMissionId === item.id ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#E7D8C4] bg-white text-[#544B43]'}`}>{item.title}</button>)}<button type="button" aria-pressed={!editingMissionId} onClick={() => setEditingMissionId('')} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-extrabold leading-5 ${!editingMissionId ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#E7D8C4] bg-white text-[#544B43]'}`}>자유 글</button></div><textarea value={editingContent} onChange={event => setEditingContent(event.target.value)} placeholder={editingMissionId ? '오늘 미션은 어땠나요?' : '커뮤니티에 나누고 싶은 이야기를 자유롭게 남겨주세요!'} className="min-h-24 w-full resize-none bg-transparent text-sm leading-6 text-tossGrey900 outline-none" autoFocus/><div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingPostId(null); setEditingContent(''); setEditingMissionId(''); }} className="rounded-xl px-3 py-2 text-xs font-bold text-tossGrey500 hover:bg-white">취소</button><button type="button" onClick={() => savePostEdit(post)} disabled={!editingContent.trim() || savingEdit} className="flex items-center gap-1 rounded-xl bg-[#CF3A27] px-3 py-2 text-xs font-black text-white disabled:opacity-40"><Check size={14}/>{savingEdit ? '저장 중...' : '저장'}</button></div></div> : <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-tossGrey850">{post.content}</p>}
                         {imageUrl && <img src={imageUrl} alt="챌린지 기록" className="mt-3 max-h-[460px] w-full rounded-2xl object-cover"/>}
                         <div className="mt-3"><NoticeReactions reactions={post.community_channel_reactions || []} currentUserId={user.id} onToggleReaction={emoji => toggleReaction(post.id, emoji)}/></div>
                         <div className="mt-3 space-y-3 border-t border-tossGrey100 pt-3">
                             {(post.community_channel_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(comment => <div key={comment.id} {...bindLongPress(comment.id)} className="group/comment flex select-none gap-3 py-1"><UserAvatar user={comment.author} size="w-8 h-8"/><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><div className="flex items-baseline gap-2"><p className="text-xs font-black text-tossGrey900">{comment.author?.name}</p><span className="text-[10px] text-tossGrey400">{new Date(comment.created_at).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>{comment.user_id === user.id && editingCommentId !== comment.id && <div className="flex shrink-0 opacity-100 md:opacity-0 md:group-hover/comment:opacity-100"><button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentContent(comment.content); }} className="rounded-lg p-1.5 text-tossGrey400 hover:bg-tossGrey50 hover:text-tossBlue" aria-label="댓글 수정"><Pencil size={13}/></button><button type="button" onClick={() => deleteComment(post.id, comment.id)} className="rounded-lg p-1.5 text-tossGrey400 hover:bg-red-50 hover:text-red-500" aria-label="댓글 삭제"><Trash2 size={13}/></button></div>}</div>{editingCommentId === comment.id ? <div className="mt-1"><input value={editingCommentContent} onChange={event => setEditingCommentContent(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') saveCommentEdit(post.id, comment.id); }} className="h-9 w-full rounded-xl border border-tossGrey200 bg-tossGrey50 px-3 text-sm outline-none focus:border-tossBlue" autoFocus/><div className="mt-1.5 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentContent(''); }} className="px-2 py-1 text-[11px] font-bold text-tossGrey500">취소</button><button type="button" onClick={() => saveCommentEdit(post.id, comment.id)} disabled={!editingCommentContent.trim() || savingComment} className="px-2 py-1 text-[11px] font-black text-tossBlue disabled:opacity-40">{savingComment ? '저장 중' : '저장'}</button></div></div> : <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-tossGrey700">{comment.content}</p>}<div className="mt-1 origin-left scale-90"><NoticeReactions reactions={comment.community_channel_comment_reactions || []} currentUserId={user.id} onToggleReaction={emoji => toggleCommentReaction(post.id, comment.id, emoji)} hideAddButtonOnMobile pickerOpenToken={commentPickerRequest.commentId === comment.id ? commentPickerRequest.token : 0}/></div></div></div>)}
                             <div className="flex items-center gap-2"><MessageCircle size={16} className="text-tossGrey400"/><input value={commentInputs[post.id] || ''} onChange={event => setCommentInputs(values => ({ ...values, [post.id]: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') submitComment(post.id); }} placeholder="댓글 남기기" className="flex-1 rounded-xl bg-tossGrey50 px-3 py-2 text-xs outline-none"/><button onClick={() => submitComment(post.id)} className="p-2 text-tossBlue"><Send size={16}/></button></div>
                         </div>
-                    </article>;
+                        </article>
+                        {unreadBoundary?.after === index && <UnreadDivider/>}
+                    </React.Fragment>;
                 })}
             </div>
         </main>

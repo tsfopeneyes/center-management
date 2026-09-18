@@ -233,3 +233,27 @@
     0% { background-position: 0% 50%; }
     100% { background-position: 300% 50%; }
 }
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  #survey-print-root,
+  #survey-print-root * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #survey-print-root {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: white;
+  }
+}

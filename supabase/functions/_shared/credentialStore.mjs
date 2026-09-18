@@ -97,6 +97,14 @@ export function createCredentialStore(pool) {
                 }
                 await query(`UPDATE account_security.credential_operations SET state='completed',completed_at=clock_timestamp()
                     WHERE id=$1`, [operation.id]);
+                const final=(await query(`SELECT a.credential_version AS "credentialVersion",
+                    i.credential_mode AS "credentialMode"
+                    FROM account_security.accounts a JOIN account_security.login_identifiers i USING(profile_id)
+                    WHERE a.profile_id=$1`,[operation.profileId])).rows[0];
+                if(!final||!Number.isSafeInteger(final.credentialVersion)||
+                    !['legacy_pending','legacy_bridge','supabase_password'].includes(final.credentialMode))
+                    throw new LoginError('account_changed',409);
+                return final;
             });
         }
     };

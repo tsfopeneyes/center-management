@@ -23,5 +23,6 @@ export function createCredentialBundle({credentialPool,confirmationPool,limits,k
         limits,keyFor,authorize,readiness,lifetimeMs:confirmationTtlMs});
     const changeSelf=createSelfPasswordService({store,limits,keyFor,authorize,passwordPolicy,adminAuth,gateway,verifyToken,
         grantAssurance,discardSession,readiness,assuranceTtlMs,now});
-    return Object.freeze({confirmReset,reset:credentials.reset,changeTemporary:credentials.changeTemporary,changeSelf});
+    return Object.freeze({confirmReset,reset:credentials.reset,changeTemporary:credentials.changeTemporary,
+        verifyTemporary:credentials.verifyTemporary,changeSelf});
 }

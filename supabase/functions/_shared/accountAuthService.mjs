@@ -35,6 +35,7 @@ export async function createAccountAuthService({readerPool, loginPool, supabaseU
     const verifyToken = createVerifiedSessionReader({supabaseUrl,publishableKey,fetcher,loadLiveSession:read.loadLiveSession});
     const loginStore=createLoginStore(loginPool),keyFor=await createLoginKey(lookupSecret);
     const login = createLoginService({store:loginStore,gateway,verifyToken,legacyBridge,
+        verifyTemporary:credentialService?.verifyTemporary,
         keyFor,readiness,assuranceTtlMs});
     const loginHttp = createLoginHandler({login,resolveClientKey,allowedOrigins});
     const candidateHttp=createLoginCandidateHandler({candidates:createLoginCandidateService({store:loginStore,keyFor,readiness}),resolveClientKey,allowedOrigins});

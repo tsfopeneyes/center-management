@@ -94,6 +94,24 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
         : (isRecurringProgram(program) ? program.program_end_date : program.program_date);
     const isPast = pastReference && new Date(pastReference) < startOfDay(new Date());
 
+    const statusBadges = (
+        <div className={`flex flex-wrap items-start gap-2 ${thumb ? 'flex-col' : ''}`}>
+            <RecruitmentBadge program={program} now={now} />
+
+            {recruitment.canApply && isClosingSoon && !isPast && (
+                <div className={`flex items-center bg-tossError text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
+                    <CheckCircle2 size={compact ? 10 : 12} strokeWidth={2.5} /> 마감임박
+                </div>
+            )}
+            {recruitment.canViewDetails && program.is_leader_only && (
+                <div className={`flex items-center bg-tossCaution text-tossGrey800 font-bold shadow-toss-subtle border border-tossCaution/20 w-fit ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width={compact ? "10" : "12"} height={compact ? "10" : "12"} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                    리더전용
+                </div>
+            )}
+        </div>
+    );
+
     return (
         <div
             data-tour={tourTarget}
@@ -102,31 +120,18 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
             className={`group h-full bg-white overflow-hidden shadow-toss-standard transition-all duration-300 flex border border-[#E7D8C4] ${compact ? 'min-h-[176px] flex-row rounded-2xl' : 'flex-col rounded-toss-xl'} ${isScheduled ? 'cursor-default' : 'hover:shadow-toss-elevated active:scale-[0.98] cursor-pointer'}`}
         >
             {/* Thumbnail Section */}
-            <div className={thumb ? `relative overflow-hidden bg-tossGrey50 ${compact ? 'w-[34%] min-w-[112px] shrink-0 border-r border-[#E7D8C4]' : 'aspect-square border-b border-tossGrey100/50 rounded-t-toss-xl'}` : `${compact ? 'w-0' : 'px-6 pt-6'}`}>
-                {thumb ? (
+            {thumb && (
+                <div className={`relative overflow-hidden bg-tossGrey50 ${compact ? 'w-[34%] min-w-[112px] shrink-0 border-r border-[#E7D8C4]' : 'aspect-square border-b border-tossGrey100/50 rounded-t-toss-xl'}`}>
                     <ContentImage src={thumb} alt={program.title} fit="cover" className="absolute inset-0 h-full w-full" imageClassName="h-full" />
-                ) : null}
-
-                {/* Status Badges Overlaid */}
-                <div className={`flex flex-wrap items-start gap-2 ${thumb ? `absolute flex-col ${compact ? 'top-2.5 left-2.5' : 'top-4 left-4'}` : ''}`}>
-                    <RecruitmentBadge program={program} now={now} />
-
-                    {recruitment.canApply && isClosingSoon && !isPast && (
-                        <div className={`flex items-center bg-tossError text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
-                            <CheckCircle2 size={compact ? 10 : 12} strokeWidth={2.5} /> 마감임박
-                        </div>
-                    )}
-                    {recruitment.canViewDetails && program.is_leader_only && (
-                        <div className={`flex items-center bg-tossCaution text-tossGrey800 font-bold shadow-toss-subtle border border-tossCaution/20 w-fit ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width={compact ? "10" : "12"} height={compact ? "10" : "12"} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-                            리더전용
-                        </div>
-                    )}
+                    <div className={`absolute ${compact ? 'left-2.5 top-2.5' : 'left-4 top-4'}`}>
+                        {statusBadges}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Content Section */}
             <div className={compact ? "min-w-0 p-4 flex flex-col flex-1" : "p-6 pb-4"}>
+                {!thumb && <div className={compact ? 'mb-3' : 'mb-4'}>{statusBadges}</div>}
                 <h3 className={`font-bold text-tossGrey900 line-clamp-2 ${compact ? 'text-sm leading-snug ' + (description ? 'mb-1' : 'mb-3') : 'text-xl leading-tight ' + (description ? 'mb-2' : 'mb-4')}`}>
                     {program.title}
                 </h3>

@@ -176,7 +176,7 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
                                 {/* Search Results Dropdown */}
                                 {facilitatorSearchTerm && (
                                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-20 p-2 max-h-[160px] overflow-y-auto no-scrollbar">
-                                        {staffList?.filter(s => !school.metadata?.manager_ids?.includes(s.id) && s.name.toLowerCase().includes(facilitatorSearchTerm.toLowerCase())).map(staff => (
+                                        {staffList?.filter(s => (s.name || '').toLocaleLowerCase('ko-KR').includes(facilitatorSearchTerm.trim().toLocaleLowerCase('ko-KR'))).map(staff => (
                                             <button
                                                 key={staff.id}
                                                 onClick={() => {
@@ -194,10 +194,11 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
                                                     {staff.profile_image_url ? <img src={staff.profile_image_url} className="w-full h-full object-cover" /> : <User size={12} className="text-gray-400 group-hover:text-indigo-500 py-0.5" />}
                                                 </div>
                                                 <span className="text-xs font-bold text-gray-600 group-hover:text-indigo-600">{staff.name}</span>
+                                                {school.metadata?.manager_ids?.includes(staff.id) && <span className="ml-auto text-[10px] text-gray-400">학교 담당자</span>}
                                                 {formData.facilitator_ids?.includes(staff.id) && <span className="ml-auto text-[10px] text-indigo-500 font-bold">선택됨</span>}
                                             </button>
                                         ))}
-                                        {staffList?.filter(s => !school.metadata?.manager_ids?.includes(s.id) && s.name.toLowerCase().includes(facilitatorSearchTerm.toLowerCase())).length === 0 && (
+                                        {staffList?.filter(s => (s.name || '').toLocaleLowerCase('ko-KR').includes(facilitatorSearchTerm.trim().toLocaleLowerCase('ko-KR'))).length === 0 && (
                                             <div className="text-center py-2 text-xs text-gray-400">검색 결과가 없습니다.</div>
                                         )}
                                     </div>

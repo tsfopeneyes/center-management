@@ -4,7 +4,7 @@ import {LoginError, invalidLogin, validateLogin, isProfileId} from './loginSecur
 // No production wiring: readiness must confirm the legacy paths are closed and
 // all protected operations enforce the private account/assurance contract.
 export function createLoginService({store, gateway, verifyToken, keyFor, legacyBridge, readiness = async () => false,
-    assuranceTtlMs, now = Date.now}) {
+    verifyTemporary, assuranceTtlMs, now = Date.now}) {
     if (!legacyBridge?.verify || !legacyBridge?.providerPassword || !Number.isFinite(assuranceTtlMs) || assuranceTtlMs < 300000 || assuranceTtlMs > 90 * 86400000) {
         throw new Error('An explicit assurance lifetime is required');
     }
@@ -49,7 +49,14 @@ export function createLoginService({store, gateway, verifyToken, keyFor, legacyB
         // An administrator reset stores a separate one-use credential. Route
         // the browser to that restricted change flow before attempting either
         // the legacy bridge or the permanent provider password.
-        if (account.mustChangePassword !== false) throw new LoginError('password_change_required',403);
+        if (account.mustChangePassword !== false) {
+            // The reset flag alone does not prove that the submitted password is
+            // the current one-use credential. Verify before showing its form.
+            if(input.action!=='login'||typeof verifyTemporary!=='function'||
+                !await verifyTemporary({profileId:account.profileId,authUserId:account.authUserId,
+                    credentialVersion:account.credentialVersion,temporaryPassword:input.password}))throw invalidLogin();
+            throw new LoginError('password_change_required',403);
+        }
         let providerPassword=input.password;
         if(account.credentialMode==='legacy_bridge'){
             if(!await legacyBridge.verify(input.password,account.legacyDigest))throw invalidLogin();

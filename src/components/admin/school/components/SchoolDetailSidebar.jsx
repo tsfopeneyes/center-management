@@ -1,5 +1,5 @@
-import React from 'react';
-import { Settings, FileText, ChevronRight, MapPin, User, Users, Plus, Star, Save } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, FileText, ChevronRight, MapPin, User, Users, Plus, Star, Save, Search } from 'lucide-react';
 import { SCHOOL_REGIONS, CLUB_TYPES } from '../../../../constants/appConstants';
 import { calculateAge } from '../../../../utils/dateUtils';
 import { motion } from 'framer-motion';
@@ -13,6 +13,10 @@ const SchoolDetailSidebar = ({
     onToggleLeader,
     hookData
 }) => {
+    const [managerSearchTerm, setManagerSearchTerm] = useState('');
+    const matchingStaff = staffList.filter(staff =>
+        (staff.name || '').toLocaleLowerCase('ko-KR').includes(managerSearchTerm.trim().toLocaleLowerCase('ko-KR'))
+    );
     const {
         isInfoCollapsed, setIsInfoCollapsed,
         editData, setEditData,
@@ -122,8 +126,18 @@ const SchoolDetailSidebar = ({
 
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">담당 매니저 (STAFF)</label>
+                                <div className="relative">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="search"
+                                        value={managerSearchTerm}
+                                        onChange={e => setManagerSearchTerm(e.target.value)}
+                                        placeholder="담당자 이름 검색"
+                                        className="w-full rounded-xl border border-gray-100 bg-white py-2 pl-9 pr-3 text-xs font-bold outline-none focus:border-indigo-500"
+                                    />
+                                </div>
                                 <div className="grid grid-cols-1 gap-1 max-h-[160px] overflow-y-auto no-scrollbar p-1">
-                                    {staffList.map(staff => (
+                                    {matchingStaff.map(staff => (
                                         <button
                                             key={staff.id}
                                             onClick={() => {
@@ -138,6 +152,9 @@ const SchoolDetailSidebar = ({
                                             <span className="truncate">{staff.name}</span>
                                         </button>
                                     ))}
+                                    {matchingStaff.length === 0 && (
+                                        <p className="p-2 text-center text-xs text-gray-400">검색 결과가 없습니다.</p>
+                                    )}
                                 </div>
                             </div>
                         </div>

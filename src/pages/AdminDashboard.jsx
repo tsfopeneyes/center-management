@@ -42,6 +42,7 @@ import { Menu, X as CloseIcon } from 'lucide-react';
 import { subscribeToPush } from '../utils/pushUtils';
 import { useFCM } from '../hooks/useFCM';
 import { useAuth } from '../auth/AuthProvider';
+import { logoutFromDevice } from '../auth/logoutFromDevice';
 
 const mergeRealtimeRow = (rows, payload) => {
     const id = payload?.new?.id || payload?.old?.id;
@@ -711,11 +712,13 @@ const AdminDashboard = () => {
 
     const handleLogout = async () => {
         if (confirm("로그아웃 하시겠습니까?")) {
-            await removeFirebaseToken(currentAdmin?.id);
-            await supabase.auth.signOut();
-            localStorage.removeItem('admin_user');
-            localStorage.removeItem('user');
-            navigate('/');
+            await logoutFromDevice({
+                userId: currentAdmin?.id,
+                unregister: removeFirebaseToken,
+                signOut: () => supabase.auth.signOut({ scope: 'local' }),
+                storage: localStorage,
+                redirect: () => window.location.replace('/'),
+            });
         }
     };
 

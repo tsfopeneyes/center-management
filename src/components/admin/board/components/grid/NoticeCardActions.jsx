@@ -8,14 +8,16 @@ export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isAc
     const hasFeedback=(noticeStats[notice.id]?.feedbackCount || 0)>0;
     const usesTodaySession = usesDailySessionRsvp(notice);
     const managesOpenAttendance = notice.is_recruiting === false && isRecurringProgram(notice);
-    const recruitingSessionCount = Array.isArray(notice.open_sessions)
-        ? notice.open_sessions.filter(session => session.status === 'OPEN').length
-        : (notice.today_session?.status === 'OPEN' ? 1 : 0);
-    const nearestSession = usesTodaySession
-        ? (notice.open_sessions?.[0] || notice.today_session || null)
-        : null;
-    const displayedStats = nearestSession
-        ? { JOIN: nearestSession.join_count || 0, WAITLIST: nearestSession.waitlist_count || 0 }
+    const sessionCandidates = notice.open_sessions?.length
+        ? notice.open_sessions
+        : (notice.today_session ? [notice.today_session] : []);
+    const upcomingSessions = sessionCandidates
+        .filter(session => session.status === 'OPEN' && new Date(session.starts_at).getTime() > Date.now())
+        .sort((first, second) => new Date(first.starts_at) - new Date(second.starts_at));
+    const recruitingSessionCount = upcomingSessions.length;
+    const nearestSession = usesTodaySession ? upcomingSessions[0] || null : null;
+    const displayedStats = usesTodaySession
+        ? { JOIN: nearestSession?.join_count || 0, WAITLIST: nearestSession?.waitlist_count || 0 }
         : noticeStats[notice.id];
     const todaySessionLabel = `회차 관리 · ${recruitingSessionCount}개 모집 중`;
     const participantButtonClass = 'text-[9px] md:text-[10px] px-3 py-1.5 rounded-xl font-semibold transition-all bg-[#e8f3ff] text-[#1b64da] hover:bg-[#d0e6ff] hover:scale-[1.02] active:scale-[0.98]';

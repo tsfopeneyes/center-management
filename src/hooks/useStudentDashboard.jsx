@@ -50,6 +50,7 @@ import { useDashboardBadges } from './dashboard/useDashboardBadges';
 import { useDashboardCalendar } from './dashboard/useDashboardCalendar';
 import { resolveSchoolRegion } from '../utils/schoolRegionUtils';
 import { useAuth } from '../auth/AuthProvider';
+import { logoutFromDevice } from '../auth/logoutFromDevice';
 
 export const useStudentDashboard = () => {
     const navigate = useNavigate();
@@ -624,11 +625,13 @@ export const useStudentDashboard = () => {
     };
     const handleLogout = async () => {
         if (window.confirm("로그아웃 하시겠습니까?")) {
-            await removeFirebaseToken(effectiveUser?.id || user?.id);
-            await supabase.auth.signOut();
-            localStorage.removeItem('user');
-            localStorage.removeItem('admin_user');
-            navigate('/');
+            await logoutFromDevice({
+                userId: effectiveUser?.id || user?.id,
+                unregister: removeFirebaseToken,
+                signOut: () => supabase.auth.signOut({ scope: 'local' }),
+                storage: localStorage,
+                redirect: () => window.location.replace('/'),
+            });
         }
     };
 

@@ -59,11 +59,15 @@ try {
   assert.equal(nativePassword,'original-password');assert.equal(writes,0);
   assert.equal((await state()).must_change_password,true);
   const epoch=(await state()).credential_version;
+  const proof=temporaryPassword=>service.verifyTemporary({profileId,authUserId,credentialVersion:epoch,temporaryPassword});
+  assert.equal(await proof('1234'),true);
+  assert.equal(await proof('9999'),false);
   const temp=(await query('SELECT * FROM account_security.temporary_credentials')).rows[0];
   assert.equal(temp.password_digest,fixtureDigest);assert.ok(!JSON.stringify(temp).includes('1234'));
   await assert.rejects(reset(confirmation));assert.equal(writes,0);assert.equal(hashes,2);assert.equal((await state()).credential_version,epoch);
   await reject(()=>change('9999'),'invalid_login');assert.equal(writes,0);
   await query("UPDATE account_security.temporary_credentials SET valid_until=clock_timestamp()-interval '1 second'");
+  assert.equal(await proof('1234'),false);
   await reject(change,'invalid_login');assert.equal(writes,0);
   await query("UPDATE account_security.temporary_credentials SET valid_until=clock_timestamp()+interval '10 minutes'");
   await reject(()=>change('1234','12345'),'invalid_request');
@@ -74,7 +78,8 @@ try {
   await reject(change,'invalid_login');
   const selfAccount=await store.readActive(profileId);assert.equal(selfAccount.credentialVersion,epoch+1);
   const selfOperation=await store.reserve({id:crypto.randomUUID(),account:selfAccount,kind:'self_change',actorId:profileId});
-  await store.complete(selfOperation);assert.equal((await state()).credential_version,epoch+2);assert.equal((await state()).must_change_password,false);
+  const selfCompleted=await store.complete(selfOperation);assert.equal((await state()).credential_version,epoch+2);assert.equal((await state()).must_change_password,false);
+  assert.deepEqual(selfCompleted,{credentialVersion:epoch+2,credentialMode:'supabase_password'});
   await db.exec('RESET ROLE');
   await query("UPDATE account_security.login_identifiers SET credential_mode='legacy_bridge' WHERE profile_id=$1",[profileId]);
   await query("INSERT INTO account_security.legacy_credentials(profile_id,password_digest) VALUES($1,$2)",[profileId,'b'.repeat(64)]);

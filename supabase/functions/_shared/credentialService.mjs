@@ -27,6 +27,14 @@ export function createCredentialService({store,limits,keyFor,passwordHasher,admi
             Object.keys(input).some(key=>!keys.includes(key)))throw new LoginError('invalid_request',400);
     };
     return {
+        async verifyTemporary({profileId,authUserId,credentialVersion,temporaryPassword}){
+            if(!isProfileId(profileId)||!isProfileId(authUserId)||!Number.isSafeInteger(credentialVersion)||
+                typeof temporaryPassword!=='string'||!/^[0-9]{4}$/.test(temporaryPassword))return false;
+            const account=await store.readTemporary(profileId);
+            if(!account||account.authUserId!==authUserId||account.credentialVersion!==credentialVersion)return false;
+            return await passwordHasher.verify(temporaryPassword,account.temporaryDigest,
+                {purpose:'temporary',profileId})===true;
+        },
         async reset(input,context={}){
             exact(input,['protocol','profileId','confirmationId']);
             if(!isProfileId(input.confirmationId))throw new LoginError('invalid_request',400);

@@ -1,16 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Copy, Eye, EyeOff, Hash, Link2, MessageCircle, MessageSquare, Pencil, Plus, Search, Send, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Copy, Hash, Link2, MessageCircle, MessageSquare, Pencil, Pin, Plus, Search, Send, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { communityChannelsApi } from '../../../api/communityChannelsApi';
 import { challengeCommunityApi } from '../../../api/challengeCommunityApi';
 import { commentReactionsApi } from '../../../api/commentReactionsApi';
-import { supabase } from '../../../supabaseClient';
 import NoticeReactions from '../../student/NoticeReactions';
 import UserAvatar from '../../common/UserAvatar';
 import useCommentReactionLongPress from '../../../hooks/useCommentReactionLongPress';
 import { isAdminOrStaff } from '../../../utils/userUtils';
 import AdminPageHeader from '../common/AdminPageHeader';
+import { communityFeedApi, sortCommunityPosts } from '../../../api/communityFeedApi';
 
-const countOf = value => value?.[0]?.count || 0;
 const sourceLabel = channel => channel.source_notice?.title || null;
 const CHANNEL_STATUSES = [
     { value: 'SCHEDULED', label: '운영 예정', activeClass: 'border-amber-200 bg-amber-50 text-amber-700' },
@@ -49,6 +48,9 @@ export default function AdminCommunity() {
     const [programQuery, setProgramQuery] = useState('');
     const [showEdit, setShowEdit] = useState(false);
     const [commentInputs, setCommentInputs] = useState({});
+    const [editingPostId, setEditingPostId] = useState(null);
+    const [editingPostContent, setEditingPostContent] = useState('');
+    const [postSaving, setPostSaving] = useState(false);
     const adminUser = useMemo(() => {
         try { return JSON.parse(localStorage.getItem('admin_user') || 'null'); }
         catch { return null; }
@@ -65,6 +67,7 @@ export default function AdminCommunity() {
 
     const openChannel = async channel => {
         setActiveChannel(channel);
+        setEditingPostId(null);
         setPostsLoading(true);
         setQuery('');
         setMemberQuery('');
@@ -110,7 +113,7 @@ export default function AdminCommunity() {
     };
 
     const addMember = async userId => {
-        if (!userId || !activeChannel || saving) return;
+        if (!userId || !activeChannel || activeChannel.source_notice_id || saving) return;
         setSaving(true);
         try {
             await communityChannelsApi.addMember(activeChannel.id, userId);
@@ -186,10 +189,42 @@ export default function AdminCommunity() {
         catch { window.prompt('초대 링크를 복사해주세요.', url); }
     };
 
-    const toggleHidden = async post => {
-        const { error } = await supabase.from('community_channel_posts').update({ is_hidden: !post.is_hidden }).eq('id', post.id);
-        if (error) return alert('게시글 상태를 변경하지 못했습니다.');
-        setPosts(current => current.map(item => item.id === post.id ? { ...item, is_hidden: !item.is_hidden } : item));
+    const deletePost = async post => {
+        if (postSaving || !confirm('이 게시글을 삭제할까요? 게시글과 댓글이 목록에서 사라집니다.')) return;
+        setPostSaving(true);
+        try {
+            await challengeCommunityApi.deletePost(post.id);
+            setPosts(current => current.filter(item => item.id !== post.id));
+            if (editingPostId === post.id) setEditingPostId(null);
+            await loadChannels();
+        } catch (error) {
+            alert(error.message || '게시글을 삭제하지 못했습니다.');
+        } finally { setPostSaving(false); }
+    };
+
+    const savePost = async post => {
+        const content = editingPostContent.trim();
+        if (postSaving || post.author_id !== adminUser?.id || !content) return;
+        setPostSaving(true);
+        try {
+            const updated = post.submission
+                ? await challengeCommunityApi.updatePost(post, content, post.submission.mission_id, activeChannel.source_notice_id, adminUser.id)
+                : await communityChannelsApi.updatePost(post.id, adminUser.id, content);
+            setPosts(current => current.map(item => item.id === post.id ? { ...item, content: updated?.content || content, updated_at: updated?.updated_at || new Date().toISOString() } : item));
+            setEditingPostId(null);
+        } catch (error) {
+            alert(error.message || '게시글을 수정하지 못했습니다.');
+        } finally { setPostSaving(false); }
+    };
+
+    const toggleAnnouncement = async post => {
+        try {
+            const updated = await communityFeedApi.setAnnouncement(post.id, !post.is_announcement);
+            setPosts(current => sortCommunityPosts(current.map(item => item.id === post.id ? { ...item, ...updated } : item)));
+        } catch (error) {
+            console.error(error);
+            alert(error.message || '공지 상태를 변경하지 못했습니다.');
+        }
     };
 
     const toggleReaction = async (postId, emoji) => {
@@ -259,7 +294,7 @@ export default function AdminCommunity() {
         {!activeChannel ? <>
             <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm md:rounded-3xl">
                 <div className="border-b border-slate-100 p-4"><label className="relative block"><Search size={17} className="absolute left-3 top-3 text-slate-400"/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="커뮤니티 이름 또는 연결 프로그램 검색" className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-blue-500"/></label></div>
-                {loading ? <p className="p-12 text-center text-slate-400">불러오는 중...</p> : filteredChannels.length === 0 ? <p className="p-12 text-center text-slate-400">커뮤니티가 없습니다.</p> : <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">{filteredChannels.map(channel => <button key={channel.id} type="button" onClick={() => openChannel(channel)} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 text-left transition hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-sm"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm"><Hash size={19}/></span><div className="min-w-0 flex-1"><h2 className="truncate font-black text-slate-900">{channel.name}</h2><p className="mt-1 text-xs font-bold text-slate-400">{channel.source_notice_id ? '연결 커뮤니티' : '독립 커뮤니티'}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusInfo(channel.status).activeClass}`}>{statusInfo(channel.status).label}</span></div>{channel.description && <p className="mt-3 line-clamp-2 text-xs font-medium leading-5 text-slate-500">{channel.description}</p>}{sourceLabel(channel) && <span className="mt-4 inline-flex max-w-full items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-[11px] font-black text-blue-600"><Link2 size={12}/><span className="truncate">{sourceLabel(channel)}</span></span>}<div className="mt-4 flex gap-4 border-t border-slate-200/70 pt-3 text-[11px] font-bold text-slate-400"><span className="flex items-center gap-1"><MessageCircle size={13}/>{countOf(channel.community_channel_posts)}개 글</span><span className="flex items-center gap-1"><Users size={13}/>{channel.participant_count || 0}명</span></div></button>)}</div>}
+                {loading ? <p className="p-12 text-center text-slate-400">불러오는 중...</p> : filteredChannels.length === 0 ? <p className="p-12 text-center text-slate-400">커뮤니티가 없습니다.</p> : <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">{filteredChannels.map(channel => <button key={channel.id} type="button" onClick={() => openChannel(channel)} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 text-left transition hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-sm"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm"><Hash size={19}/></span><div className="min-w-0 flex-1"><h2 className="truncate font-black text-slate-900">{channel.name}</h2><p className="mt-1 text-xs font-bold text-slate-400">{channel.source_notice_id ? '연결 커뮤니티' : '독립 커뮤니티'}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusInfo(channel.status).activeClass}`}>{statusInfo(channel.status).label}</span></div>{channel.description && <p className="mt-3 line-clamp-2 text-xs font-medium leading-5 text-slate-500">{channel.description}</p>}{sourceLabel(channel) && <span className="mt-4 inline-flex max-w-full items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-[11px] font-black text-blue-600"><Link2 size={12}/><span className="truncate">{sourceLabel(channel)}</span></span>}<div className="mt-4 flex gap-4 border-t border-slate-200/70 pt-3 text-[11px] font-bold text-slate-400"><span className="flex items-center gap-1"><MessageCircle size={13}/>{channel.post_count || 0}개 글</span><span className="flex items-center gap-1"><Users size={13}/>{channel.participant_count || 0}명</span></div></button>)}</div>}
             </section>
         </> : <>
             <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
@@ -276,7 +311,7 @@ export default function AdminCommunity() {
                 <div className="grid border-t border-slate-100 px-5 py-6 md:px-6 lg:grid-cols-2 lg:gap-0">
                     <div className="pb-6 lg:pr-7 lg:pb-0">
                         <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-sm font-black text-slate-800"><Users size={16} className="text-blue-600"/>참여자 {members.length}명</h2></div>
-                        <div className="relative mt-3">
+                        {activeChannel.source_notice_id ? <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-xs font-medium text-slate-500">연결된 프로그램의 신청 완료 인원을 보여줍니다. 참여자 변경은 프로그램 신청 내역에서 관리해 주세요.</p> : <div className="relative mt-3">
                             <Search size={15} className="pointer-events-none absolute left-3 top-3 text-slate-400"/>
                             <input value={memberQuery} onChange={event => setMemberQuery(event.target.value)} placeholder="추가할 이용자 이름 또는 학교 검색" className="h-10 w-full rounded-xl border border-slate-200 pl-9 pr-3 text-xs outline-none focus:border-blue-500"/>
                             {normalizedMemberQuery && <div className="absolute left-0 right-0 top-12 z-20 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -285,7 +320,7 @@ export default function AdminCommunity() {
                                     return <button key={user.id} type="button" onClick={() => addMember(user.id)} disabled={saving} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left hover:bg-slate-50 disabled:opacity-40"><span><span className="flex items-center gap-1.5"><strong className="block text-xs text-slate-800">{user.name || '이름 없음'}</strong>{isStaff && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-black text-violet-600">스탭</span>}</span>{user.school && <span className="mt-0.5 block text-[11px] font-medium text-slate-400">{user.school}</span>}</span><span className="flex items-center gap-1 text-[11px] font-black text-blue-600"><UserPlus size={13}/>추가</span></button>;
                                 })}
                             </div>}
-                        </div>
+                        </div>}
                         <div className="mt-3 flex min-h-8 max-h-32 flex-wrap gap-2 overflow-y-auto">{members.length === 0 ? <span className="text-xs font-medium text-slate-400">아직 참여자가 없습니다.</span> : members.map(member => <span key={member.user_id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">{member.user?.name || '이름 없음'}{member.user?.school && <span className="font-medium text-slate-400">· {member.user.school}</span>}{member.source === 'DIRECT' && <button onClick={() => removeMember(member)} className="ml-1 text-slate-400 hover:text-red-500" aria-label="멤버 제외"><X size={12}/></button>}</span>)}</div>
                     </div>
                     <div className="border-t border-slate-100 pt-6 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-0">
@@ -306,9 +341,18 @@ export default function AdminCommunity() {
                 {postsLoading ? <p className="p-12 text-center text-slate-400">게시글을 불러오는 중...</p> : filteredPosts.length === 0 ? <p className="p-12 text-center text-slate-400">게시글이 없습니다.</p> : <div className="divide-y divide-slate-100 px-4 md:px-5">{filteredPosts.map(post => {
                     const mission = post.submission?.online_challenge_missions;
                     return <article key={post.id} className={`w-full py-5 md:py-6 ${post.is_hidden ? 'opacity-60' : ''}`}>
-                        <div className="flex items-start gap-3"><UserAvatar user={post.author} size="w-9 h-9"/><div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-900">{post.author?.name}</p><p className="text-[10px] text-slate-400">{new Date(post.created_at).toLocaleString('ko-KR')}</p></div><button onClick={() => toggleHidden(post)} className="rounded-xl border border-slate-200 p-2 text-slate-500" title={post.is_hidden ? '숨김 해제' : '게시글 숨기기'}>{post.is_hidden ? <Eye size={17}/> : <EyeOff size={17}/>}</button></div>
-                        {mission && <span className={`mt-3 inline-block rounded-full px-2.5 py-1 text-[10px] font-black ${missionColor(mission)}`}>{mission.title}</span>}
-                        <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">{post.content}</p>
+                        <div className="flex items-start gap-3">
+                            <UserAvatar user={post.author} size="w-9 h-9"/>
+                            <div className="min-w-0 flex-1"><p className="text-sm font-black text-slate-900">{post.author?.name}</p><p className="text-[10px] text-slate-400">{new Date(post.created_at).toLocaleString('ko-KR')}</p></div>
+                            {post.author_id === adminUser?.id && <button type="button" onClick={() => { setEditingPostId(post.id); setEditingPostContent(post.content); }} disabled={postSaving} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-40" title="내 글 수정" aria-label="내 글 수정"><Pencil size={17}/></button>}
+                            <button type="button" onClick={() => toggleAnnouncement(post)} aria-pressed={Boolean(post.is_announcement)} className={`rounded-xl border p-2 ${post.is_announcement ? 'border-[#E9B6A8] bg-[#FFF0E9] text-[#CF3A27]' : 'border-slate-200 text-slate-500'}`} title={post.is_announcement ? '공지 해제' : '공지로 고정'}><Pin size={17}/></button>
+                            <button type="button" onClick={() => deletePost(post)} disabled={postSaving} className="rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50 disabled:opacity-40" title="게시글 삭제" aria-label="게시글 삭제"><Trash2 size={17}/></button>
+                        </div>
+                        {post.is_announcement && <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-[#FFF0E9] px-2.5 py-1 text-[10px] font-black text-[#B93223]"><Pin size={11}/>공지</span>}{mission && <span className={`mt-3 inline-block rounded-full px-2.5 py-1 text-[10px] font-black ${missionColor(mission)}`}>{mission.title}</span>}
+                        {editingPostId === post.id ? <div className="mt-3 space-y-2">
+                            <textarea autoFocus value={editingPostContent} onChange={event => setEditingPostContent(event.target.value)} rows={4} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm leading-6 outline-none focus:border-blue-500" aria-label="게시글 내용 수정"/>
+                            <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingPostId(null)} disabled={postSaving} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 disabled:opacity-40">취소</button><button type="button" onClick={() => savePost(post)} disabled={postSaving || !editingPostContent.trim()} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">{postSaving ? '저장 중...' : '저장'}</button></div>
+                        </div> : <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">{post.content}</p>}
                         {post.media?.[0]?.media_url && <img src={post.media[0].media_url} alt="커뮤니티 첨부" className="mt-3 max-h-[460px] w-full rounded-2xl object-cover"/>}
                         <div className="mt-3"><NoticeReactions reactions={post.community_channel_reactions || []} currentUserId={adminUser?.id} onToggleReaction={emoji => toggleReaction(post.id, emoji)}/></div>
                         <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">

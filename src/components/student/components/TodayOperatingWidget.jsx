@@ -9,7 +9,7 @@ import { useDutyRoster } from '../../../hooks/useDutyRoster';
 import { useSeoulDate } from '../../../hooks/useSeoulDate';
 import { useCurrentTime } from '../../../hooks/useCurrentTime';
 import { isDutyDisplayTime } from '../../../utils/dutyRoster';
-import { hasActiveStaff, resetStaffPresence, sortPresentStaffByStart } from '../../../utils/staffPresence';
+import { reconcileStaffPresence, sortPresentStaffByStart } from '../../../utils/staffPresence';
 
 const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCategories = [], onStaffClick, tutorialMode = false, tutorialStep = null }) => {
     const todayDate = useSeoulDate();
@@ -64,46 +64,10 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
 
                 if (presenceStatusNotice?.content) {
                     try {
-                        let parsedStatus = JSON.parse(presenceStatusNotice.content) || {};
-                        
-                        const now = new Date();
-                        const todayStr = now.toLocaleDateString('sv');
-                        const currentHour = now.getHours();
-                        const isAfter6PM = currentHour >= 18;
-                        
-                        let needsReset = false;
-                        
-                        if (parsedStatus.date && parsedStatus.date !== todayStr) {
-                            needsReset = true;
-                        }
-                        
-                        const hasActive = hasActiveStaff(parsedStatus);
-                        if (isAfter6PM && hasActive) {
-                            needsReset = true;
-                        }
-                        
-                        if (needsReset) {
-                            parsedStatus = resetStaffPresence(todayStr);
-                            const payload = {
-                                title: 'STAFF_PRESENCE_STATUS',
-                                content: JSON.stringify(parsedStatus),
-                                category: 'SYSTEM',
-                                is_sticky: false,
-                                is_recruiting: false
-                            };
-                            if (presenceStatusNotice.id) {
-                                await supabase.from('notices').update(payload).eq('id', presenceStatusNotice.id);
-                            } else {
-                                await supabase.from('notices').insert([payload]);
-                            }
-                        }
-                        
-                        setPresenceStatus(parsedStatus);
+                        setPresenceStatus(reconcileStaffPresence(JSON.parse(presenceStatusNotice.content)).status);
                     } catch (e) { console.error('Failed to parse staff status config', e); }
                 } else {
-                    const now = new Date();
-                    const todayStr = now.toLocaleDateString('sv');
-                    setPresenceStatus({ date: todayStr });
+                    setPresenceStatus(reconcileStaffPresence({}).status);
                 }
 
                 if (dutyNotice?.content) {
@@ -134,7 +98,7 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
                     if (title === 'STAFF_PRESENCE_STATUS') {
                         try {
                             const parsedStatus = JSON.parse(content);
-                            setPresenceStatus(parsedStatus || {});
+                            setPresenceStatus(reconcileStaffPresence(parsedStatus).status);
                         } catch (e) { console.error(e); }
                     } else if (title === 'DAILY_DUTY_STAFF') {
                         try {
@@ -154,17 +118,10 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
     }, []);
 
     useEffect(() => {
-        // Periodic check every 30 seconds for 6 PM reset and day change
+        // Refresh at the 18:00 and 22:00 cutoffs and on the next day.
         const interval = setInterval(() => {
             const now = new Date();
-            const currentHour = now.getHours();
-            
-            // Check if day changed or it's after 6 PM with active presence
-            const todayStr = now.toLocaleDateString('sv');
-            const hasActive = hasActiveStaff(presenceStatus);
-            const differentDay = presenceStatus.date && presenceStatus.date !== todayStr;
-            
-            if (differentDay || (currentHour >= 18 && hasActive)) {
+            if (reconcileStaffPresence(presenceStatus, now).changed) {
                 fetchHoursAndStaffConfig();
             }
         }, 30000);
@@ -311,9 +268,8 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
     const closeTime = todayConfig ? todayConfig.close : '18:00';
 
     const now = new Date(currentTime);
-    const currentHour = now.getHours();
-    const isAfter6PM = currentHour >= 18;
     const isDutyTime = isDutyDisplayTime(now);
+    const visiblePresenceStatus = reconcileStaffPresence(presenceStatus, now).status;
 
     // Undated legacy HAIFN settings are no longer a second duty source: an
     // unassigned day stays empty and OFF never falls back to yesterday's staff.
@@ -331,13 +287,11 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
         return member;
     })();
 
-    // Present (non-duty) staff: after 6 PM all are absent
-    const presentStaff = tutorialMode ? [] : (isAfter6PM 
-        ? [] 
-        : sortPresentStaffByStart(
-            staffList.filter(u => !!presenceStatus[u.id] && (!isDutyTime || u.id !== dutyStaffId)),
-            presenceStatus,
-        ));
+    // A manual presence change after 18:00 remains visible until 22:00.
+    const presentStaff = tutorialMode ? [] : sortPresentStaffByStart(
+            staffList.filter(u => !!visiblePresenceStatus[u.id] && (!isDutyTime || u.id !== dutyStaffId)),
+            visiblePresenceStatus,
+        );
 
     const isCoffeeChatStep = tutorialMode && tutorialStep === 'homeCoffeeChat';
     const tutorialStaff = { id: 'tutorial-staff', name: '스처', user_group: 'STAFF', role: 'staff', isBusy: false };
@@ -511,7 +465,7 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
             {hasAnyone && (
                 <div data-tour={tutorialMode ? 'home-coffee-chat' : undefined} className="-mx-5 px-5 w-[calc(100%+2.5rem)] flex flex-col gap-3 mt-5 pt-5 border-t border-tossGrey100 rounded-xl overflow-hidden animate-fade-in">
                     <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-[11px] font-bold text-tossGrey500 tracking-tight">{hasPresent ? '지금 센터에서 만나요!' : '오늘의 당직이에요'}</span>
+                        <span className="text-[11px] font-bold text-tossGrey500 tracking-tight">지금 센터에서 만나요!</span>
                         <span className="text-[11px] font-bold text-tossBlue tracking-tight shrink-0">(스처쌤을 클릭하면 대화를 신청할 수 있어요)</span>
                     </div>
                     <div className={`flex items-center ${containerGap} pl-0.5`}>

@@ -259,6 +259,15 @@ export const haifnApi = {
     },
 
     async deleteStoreOrder(order) {
+        if (order.source === 'ORDER') {
+            const { error: rpcError } = await supabase.rpc('delete_store_exchange_order', {
+                p_order_id: order.id,
+            });
+
+            if (!rpcError) return;
+            if (rpcError.code !== 'PGRST202' && rpcError.code !== '42883') throw rpcError;
+        }
+
         const requiresPointRestore = !['PENDING', 'REJECTED'].includes(order.displayStatus || order.status);
 
         if (requiresPointRestore) {
@@ -292,18 +301,23 @@ export const haifnApi = {
             const { error: transactionError } = await supabase
                 .from('haifn_transactions')
                 .delete()
-                .eq('id', transactionId);
+                .eq('id', transactionId)
+                .select('id')
+                .single();
 
             if (transactionError) throw transactionError;
         }
 
         if (order.source === 'ORDER') {
-            const { error: orderError } = await supabase
+            const { data: deletedOrder, error: orderError } = await supabase
                 .from('store_orders')
                 .delete()
-                .eq('id', order.id);
+                .eq('id', order.id)
+                .select('id')
+                .single();
 
             if (orderError) throw orderError;
+            if (!deletedOrder) throw new Error('주문 내역이 삭제되지 않았습니다.');
         }
     },
 
@@ -342,6 +356,28 @@ export const haifnApi = {
             
             if (txErr) throw txErr;
         }
+    },
+
+    async cancelOwnStoreOrder(orderId, userId) {
+        const { error: rpcError } = await supabase.rpc('cancel_own_store_exchange', {
+            p_order_id: orderId,
+        });
+
+        if (!rpcError) return;
+        if (rpcError.code !== 'PGRST202' && rpcError.code !== '42883') throw rpcError;
+
+        // Fallback for deployments where the cancellation RPC has not been installed yet.
+        const { data, error } = await supabase
+            .from('store_orders')
+            .update({ status: 'REJECTED', completed_at: new Date().toISOString() })
+            .eq('id', orderId)
+            .eq('user_id', userId)
+            .eq('status', 'PENDING')
+            .select('id')
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) throw new Error('이미 처리되었거나 취소할 수 없는 교환 신청입니다.');
     },
 
     // ---- Store Items ----

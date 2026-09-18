@@ -13,6 +13,7 @@ export const missingSurveySchema = error => ['42P01', 'PGRST205'].includes(error
 // survey_links references a version through the composite (version_id,form_id)
 // key, so PostgREST requires the generated composite-constraint name here.
 const linkSelect = '*,version:survey_versions!survey_links_version_id_form_id_fkey(*),form:survey_forms!survey_links_form_id_fkey(*)';
+const publicSlugPattern = /^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/;
 async function receipt(userId, event, visitId, locationId) {
     if (visitId) return String(visitId);
     let query = supabase.from('logs').select('id').eq('user_id', userId).gte('created_at', new Date(Date.now() - 86400000).toISOString()).order('created_at', { ascending: false }).limit(1);
@@ -32,10 +33,18 @@ export const surveyHubApi = {
         const surveys = checked(await supabase.from('surveys').select('id,survey_type,is_legacy'));
         return countLegacySurveyResponses({ surveys, responses, visitNotes, users, notices });
     },
-    async create(definition, kind = 'SURVEY') {
+    async create(definition, kind = 'SURVEY', publicSlug = null) {
         const error = validateDefinition(definition); if (error) throw new Error(error);
+        const normalizedSlug = publicSlug?.trim().toLowerCase() || null;
+        if (kind !== 'TEMPLATE' && !publicSlugPattern.test(normalizedSlug || '')) throw new Error('공유 주소는 영문 소문자, 숫자, 하이픈으로 3~60자 입력해 주세요.');
+        if (normalizedSlug) {
+            const duplicate = checked(await supabase.from('survey_links').select('id').eq('public_slug', normalizedSlug).maybeSingle());
+            if (duplicate) throw new Error('이미 사용 중인 설문 주소입니다. 다른 주소를 입력해 주세요.');
+        }
         const form = checked(await supabase.from('survey_forms').insert({ title: definition.title, kind }).select().single());
-        return this.publish(form.id, definition);
+        const version = await this.publish(form.id, definition);
+        if (kind !== 'TEMPLATE') await this.createPublicLink({ ...form, survey_versions: [version] }, normalizedSlug);
+        return version;
     },
     async publish(formId, definition) {
         const error = validateDefinition(definition); if (error) throw new Error(error);
@@ -45,17 +54,46 @@ export const surveyHubApi = {
     async updateLink(id, values) { return checked(await supabase.from('survey_links').update(values).eq('id', id).select().single()); },
     async connect(values) { return checked(await supabase.from('survey_links').insert(values).select().single()); },
     async publicLink(token) {
-        const result = await supabase.from('survey_links').select(linkSelect).eq('event', 'PUBLIC').eq('public_token', token).eq('enabled', true).maybeSingle();
+        const normalizedToken = token?.trim().toLowerCase();
+        let result = await supabase.from('survey_links').select(linkSelect).eq('event', 'PUBLIC').eq('public_slug', normalizedToken).eq('enabled', true).maybeSingle();
+        if (!result.error && !result.data && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token || '')) {
+            result = await supabase.from('survey_links').select(linkSelect).eq('event', 'PUBLIC').eq('public_token', token).eq('enabled', true).maybeSingle();
+        }
         if (missingSurveySchema(result.error) || result.error?.code === '42703') return undefined;
         return checked(result);
     },
-    async createPublicLink(form) {
+    async createPublicLink(form, publicSlug = null) {
         if (form.kind === 'TEMPLATE') throw new Error('템플릿은 공유할 수 없습니다. 템플릿으로 새 설문을 만들어 주세요.');
+        const normalizedSlug = publicSlug?.trim().toLowerCase() || null;
         const existing = checked(await supabase.from('survey_links').select(linkSelect).eq('form_id', form.id).eq('event', 'PUBLIC').order('created_at', { ascending: false }).limit(1).maybeSingle());
         const version = [...(form.survey_versions || [])].sort((a,b) => b.created_at.localeCompare(a.created_at))[0];
         if (!version) throw new Error('공유할 질문이 없습니다.');
-        if (existing) return this.updateLink(existing.id, { enabled: true, version_id: version.id, frequency: 'ONCE', opens_at: null, closes_at: null });
-        return this.connect({ form_id: form.id, version_id: version.id, event: 'PUBLIC', public_token: crypto.randomUUID(), frequency: 'ONCE', priority: 100, is_default: false });
+        if (existing) return this.updateLink(existing.id, { enabled: true, version_id: version.id, public_slug: normalizedSlug || existing.public_slug, frequency: 'ONCE', opens_at: null, closes_at: null });
+        return this.connect({ form_id: form.id, version_id: version.id, event: 'PUBLIC', public_token: normalizedSlug ? null : crypto.randomUUID(), public_slug: normalizedSlug, frequency: 'ONCE', priority: 100, is_default: false });
+    },
+    async replacePublicLink(form, previousLink, publicSlug, version) {
+        const normalizedSlug = publicSlug?.trim().toLowerCase();
+        if (!publicSlugPattern.test(normalizedSlug || '')) throw new Error('공유 주소는 영문 소문자, 숫자, 하이픈으로 3~60자 입력해 주세요.');
+        const duplicate = checked(await supabase.from('survey_links').select('id').eq('public_slug', normalizedSlug).neq('id', previousLink.id).maybeSingle());
+        if (duplicate) throw new Error('이미 사용 중인 설문 주소입니다. 다른 주소를 입력해 주세요.');
+
+        await this.updateLink(previousLink.id, { enabled: false });
+        try {
+            return await this.connect({
+                form_id: form.id,
+                version_id: version.id,
+                event: 'PUBLIC',
+                public_token: null,
+                public_slug: normalizedSlug,
+                frequency: 'ONCE',
+                priority: previousLink.priority ?? 100,
+                is_default: false,
+            });
+        } catch (error) {
+            // Keep the previous address usable if creating its replacement fails.
+            await this.updateLink(previousLink.id, { enabled: true }).catch(() => undefined);
+            throw error;
+        }
     },
     async saveProgramSurvey(noticeId, formId, templateId, definition) {
         const validation = validateDefinition(definition); if (validation) throw new Error(validation);
@@ -84,7 +122,23 @@ export const surveyHubApi = {
             : await this.connect({ form_id: targetFormId, version_id: version.id, event: 'PROGRAM', center_code: null, notice_id: noticeId, frequency: 'ONCE', audience: 'ATTENDED', timing: 'AFTER_END' });
         return { form_id: targetFormId, version_id: version.id, link_id: link.id };
     },
-    async archive(id, archived) { checked(await supabase.from('survey_forms').update({ archived }).eq('id', id)); },
+    async deleteForm(id) {
+        const rpc = await supabase.rpc('delete_survey_form', { p_form_id: id });
+        if (!rpc.error) return;
+        if (!['PGRST202', '42883'].includes(rpc.error.code)) throw rpc.error;
+
+        // Direct-table fallback for deployments where the RPC is not in the API cache yet.
+        // Delete children first because these references intentionally do not cascade.
+        const oldest = checked(await supabase.from('survey_versions').select('definition').eq('form_id', id).order('created_at').limit(1));
+        if (oldest?.[0]?.definition?.legacySource?.table === 'surveys') {
+            throw new Error('이전 설문 기록을 함께 삭제하려면 데이터베이스 변경이 먼저 필요합니다.');
+        }
+        for (const table of ['survey_entries', 'survey_links', 'survey_versions']) {
+            checked(await supabase.from(table).delete().eq('form_id', id));
+        }
+        const removed = checked(await supabase.from('survey_forms').delete().eq('id', id).select('id'));
+        if (removed?.length !== 1) throw new Error('설문 삭제를 완료하지 못했습니다. 새로고침 후 다시 확인해 주세요.');
+    },
     async entries(formId, legacyContext = null) {
         const entries = await fetchAllPages(() => { let query = supabase.from('survey_entries').select('*,users(name,school)').order('created_at', { ascending: false }).order('id'); return formId ? query.eq('form_id', formId) : query; });
         if (!formId) return entries;

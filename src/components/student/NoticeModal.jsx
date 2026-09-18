@@ -73,6 +73,8 @@ const NoticeModalContent = ({
     const [zoomedImage, setZoomedImage] = useState(null);
     const [hostUsers, setHostUsers] = useState([]);
     const introRef = React.useRef(null);
+    const missionsRef = React.useRef(null);
+    const participantsRef = React.useRef(null);
     const hostRef = React.useRef(null);
     const [activeTab, setActiveTab] = useState('intro');
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -163,7 +165,12 @@ const NoticeModalContent = ({
 
     const scrollToSection = (section) => {
         setActiveTab(section);
-        const target = section === 'intro' ? introRef.current : hostRef.current;
+        const target = {
+            intro: introRef.current,
+            missions: missionsRef.current,
+            participants: participantsRef.current,
+            host: hostRef.current,
+        }[section];
         if (target) {
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
@@ -706,8 +713,15 @@ const NoticeModalContent = ({
                         </div>
                     ) : (
                         <>
-                            <div className="flex items-center justify-between gap-3 mb-4">
-                                <h1 className="text-2xl font-bold text-tossGrey900 leading-tight">{tutorialMode && notice.is_challenge ? 'HAIFN CHALLENGE' : notice.title}</h1>
+                            <div className="flex items-start justify-between gap-3 mb-4">
+                                <div className="min-w-0 flex-1">
+                                    <h1 className="text-2xl font-bold text-tossGrey900 leading-tight">{tutorialMode && notice.is_challenge ? 'HAIFN CHALLENGE' : notice.title}</h1>
+                                    {notice.category === 'PROGRAM' && notice.short_description?.trim() && (
+                                        <p className="mt-2 whitespace-pre-wrap break-words text-sm font-medium leading-6 text-tossGrey600">
+                                            {notice.short_description.trim()}
+                                        </p>
+                                    )}
+                                </div>
                                 {(fromAdmin || isAdminOrStaff(user)) && (
                                     <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-extrabold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full">
                                         <Eye size={14} className="text-gray-500" />
@@ -811,25 +825,25 @@ const NoticeModalContent = ({
                                 </section>
                             )}
 
-                            {/* Sticky Section Tabs: Only show when both Introduction and Host sections are active */}
+                            {/* Program section navigation */}
                             {notice.category === 'PROGRAM' && !isDailySessionProgram && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
                                 <div className="flex border-b border-tossGrey100 sticky top-0 bg-white/95 backdrop-blur z-20 mb-6">
-                                    <button
-                                        onClick={() => scrollToSection('intro')}
-                                        className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
-                                            activeTab === 'intro' ? 'border-[#CF3A27] text-[#CF3A27]' : 'border-transparent text-tossGrey400 hover:text-tossGrey600'
-                                        }`}
-                                    >
-                                        소개
-                                    </button>
-                                    <button
-                                        onClick={() => scrollToSection('host')}
-                                        className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
-                                            activeTab === 'host' ? 'border-[#CF3A27] text-[#CF3A27]' : 'border-transparent text-tossGrey400 hover:text-tossGrey600'
-                                        }`}
-                                    >
-                                        호스트
-                                    </button>
+                                    {(notice.is_challenge
+                                        ? [['intro', '소개'], ['missions', '미션'], ['participants', '참여자'], ['host', '호스트']]
+                                        : [['intro', '소개'], ['host', '호스트']]
+                                    ).map(([section, label]) => (
+                                        <button
+                                            key={section}
+                                            type="button"
+                                            onClick={() => scrollToSection(section)}
+                                            aria-current={activeTab === section ? 'true' : undefined}
+                                            className={`min-w-0 flex-1 border-b-2 py-3 text-center text-sm font-extrabold transition-colors ${
+                                                activeTab === section ? 'border-[#CF3A27] text-[#CF3A27]' : 'border-transparent text-tossGrey400 hover:text-tossGrey600'
+                                            }`}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
                                 </div>
                             )}
 
@@ -894,7 +908,7 @@ const NoticeModalContent = ({
                                             </div>
                                         )}
                                         {/* Missions List */}
-                                        <div data-tour={tutorialMode && tutorialStep === 'challengeDetail' ? 'tutorial-challenge-missions' : undefined} className={`mt-8 border-t border-tossGrey100 pt-8 ${tutorialMode && tutorialStep === 'challengeDetail' ? '-mx-6 w-[calc(100%+3rem)] overflow-hidden rounded-3xl' : ''}`}>
+                                        <div ref={missionsRef} data-tour={tutorialMode && tutorialStep === 'challengeDetail' ? 'tutorial-challenge-missions' : undefined} className={`mt-8 scroll-mt-20 border-t border-tossGrey100 pt-8 ${tutorialMode && tutorialStep === 'challengeDetail' ? '-mx-6 w-[calc(100%+3rem)] overflow-hidden rounded-3xl' : ''}`}>
                                             <div className="flex items-center gap-2 mb-4">
                                                 <div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"></div>
                                                 <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
@@ -1120,7 +1134,7 @@ const NoticeModalContent = ({
                                 })()}
 
                                     {/* Challengers Status */}
-                                    <div className="mt-8 border-t border-tossGrey100 pt-8">
+                                    <div ref={participantsRef} className="mt-8 scroll-mt-20 border-t border-tossGrey100 pt-8">
                                         <div className="flex items-center gap-2 mb-4">
                                             <div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"></div>
                                             <h3 className="font-extrabold text-[15px] leading-none text-tossGrey900">
@@ -1168,7 +1182,7 @@ const NoticeModalContent = ({
                             )})()}
 
                             {notice.category === 'PROGRAM' && !isDailySessionProgram && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
-                                <div ref={hostRef} className="mb-6 scroll-mt-20 flex flex-col gap-3">
+                                <div ref={hostRef} className={`${notice.is_challenge ? 'mt-10' : ''} mb-6 scroll-mt-20 flex flex-col gap-3`}>
                                     {/* Hosts with one-liners: rendered individually */}
                                     {hostUsers.filter(h => h.one_liner && h.one_liner.trim() !== '').map(host => (
                                         <div key={host.id} className="flex items-center gap-3.5 bg-tossGrey50/85 border border-tossGrey100/40 rounded-toss-xl p-4 shadow-toss-subtle">
@@ -1602,16 +1616,26 @@ const NoticeModalContent = ({
                                 )}
                             </div>
                         ) : responses[notice.id] === 'JOIN' ? (
-                            /* 2. 신청 완료 학생: 버튼 활성화 시점(isStarted/offset) 경과 시 customButtonName 버튼으로 전환, 전이면 신청 취소 */
+                            /* 신청한 학생은 모집 중에도 챌린지 커뮤니티에 입장할 수 있습니다. */
                             <div className="p-4 flex gap-3">
-                                {notice.is_challenge && notice.challenge_format === 'ONLINE' && notice.community_enabled && !recruitment.canApply ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => { setChallengeCommunityFilter(null); setShowChallengeCommunity(true); }}
-                                        className="w-full rounded-toss-xl bg-[#CF3A27] py-3.5 text-base font-black text-white shadow-md shadow-[#F4DDD4] transition hover:bg-[#B83222] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
-                                    >
-                                        <span>챌린지 커뮤니티 입장하기</span>
-                                    </button>
+                                {notice.is_challenge && notice.challenge_format === 'ONLINE' && notice.community_enabled ? (
+                                    <div className="flex w-full gap-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setChallengeCommunityFilter(null); setShowChallengeCommunity(true); }}
+                                            className="min-w-0 flex-[2] rounded-toss-xl bg-[#CF3A27] px-2 py-3.5 text-sm font-black text-white shadow-md shadow-[#F4DDD4] transition hover:bg-[#B83222] active:scale-[0.98]"
+                                        >
+                                            커뮤니티
+                                        </button>
+                                        {recruitment.canApply && <button
+                                            data-tour={tutorialMode ? 'tutorial-program-response' : undefined}
+                                            type="button"
+                                            onClick={() => onResponse(notice.id, 'CANCEL')}
+                                            className="min-w-0 flex-1 rounded-toss-xl border border-red-200 bg-red-50 px-2 py-3.5 text-sm font-bold text-tossError transition hover:bg-red-100 active:scale-[0.98]"
+                                        >
+                                            신청 취소
+                                        </button>}
+                                    </div>
                                 ) : isStarted && hasCustomFeatures ? (
                                     <button
                                          onClick={() => setShowPostProgramPopup(true)}

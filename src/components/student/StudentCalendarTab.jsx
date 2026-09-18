@@ -192,11 +192,13 @@ const StudentCalendarTab = ({
                 {selectedEvents.map(({ event, date }) => {
                     const recruitment = getRecruitment(event.raw, now);
                     const isProgram = event.type === 'PROGRAM';
+                    const isPastEvent = date < today;
                     const isCompletedProgram = isProgram && (
-                        date < today
+                        isPastEvent
                         || event.raw.program_status === 'COMPLETED'
                         || (event.raw.guest_properties?.is_ended ?? event.raw.is_ended) === true
                     );
+                    const isMutedEvent = isPastEvent || isCompletedProgram;
                     const canOpen = isProgram && recruitment.status !== 'SCHEDULED';
                     const theme = getCalendarEventTheme(event, calendarCategories);
                     const open = () => {
@@ -206,15 +208,15 @@ const StudentCalendarTab = ({
                     };
                     return <button key={event.id} type="button" onClick={open} disabled={!canOpen}
                         data-tour={event.raw.tutorial_mode ? 'tutorial-calendar-event' : undefined} data-tour-label={event.raw.tutorial_mode ? event.title : undefined}
-                        className={`group flex w-full items-center gap-4 sm:gap-6 rounded-[22px] border px-5 sm:px-6 text-left transition-shadow disabled:cursor-default ${isProgram ? 'border-l-4 py-5 shadow-toss-subtle' : 'border-[#E7D8C4] bg-white py-4'} ${isCompletedProgram ? 'border-slate-200 border-l-slate-300 bg-slate-50/90' : isProgram ? 'border-[#E7D8C4] border-l-[#CF3A27] bg-white' : ''} ${canOpen ? 'hover:shadow-toss-standard' : ''}`}>
+                        className={`group flex w-full items-center gap-4 sm:gap-6 rounded-[22px] border px-5 sm:px-6 text-left transition-shadow disabled:cursor-default ${isProgram ? 'border-l-4 py-5 shadow-toss-subtle' : 'py-4'} ${isMutedEvent ? 'border-slate-200 border-l-slate-300 bg-slate-50/90' : isProgram ? 'border-[#E7D8C4] border-l-[#CF3A27] bg-white' : 'border-[#E7D8C4] bg-white'} ${canOpen ? 'hover:shadow-toss-standard' : ''}`}>
                         <span className="w-12 sm:w-14 shrink-0">
                             <span className="block text-xs font-bold text-tossGrey500">{Number(date.slice(5, 7))}월</span>
-                            <span className={`text-xl font-extrabold ${isCompletedProgram ? 'text-slate-500' : isClosedDay(date) ? 'text-red-500' : 'text-tossGrey900'}`}>{Number(date.slice(8))}<span className="ml-0.5 text-[11px] font-bold text-tossGrey500">({weekdayLabels[calendarWeekday(date)]})</span></span>
+                            <span className={`text-xl font-extrabold ${isMutedEvent ? 'text-slate-500' : isClosedDay(date) ? 'text-red-500' : 'text-tossGrey900'}`}>{Number(date.slice(8))}<span className="ml-0.5 text-[11px] font-bold text-tossGrey500">({weekdayLabels[calendarWeekday(date)]})</span></span>
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-2">
                             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className={`text-sm break-words ${isProgram ? 'font-bold' : 'font-semibold'} ${isCompletedProgram ? 'text-slate-600' : 'text-tossGrey900'}`}>{event.title}</span>
-                                <span className={`rounded-md px-2 py-1 text-[10px] font-bold whitespace-nowrap ${isProgram ? isCompletedProgram ? 'bg-slate-200 text-slate-600' : 'bg-[#191F28] text-white' : `${theme.background} text-tossGrey900`}`}>{isProgram ? '프로그램' : event.type === 'RENTAL' ? '대관' : '센터 일정'}</span>
+                                <span className={`text-sm break-words ${isProgram ? 'font-bold' : 'font-semibold'} ${isMutedEvent ? 'text-slate-600' : 'text-tossGrey900'}`}>{event.title}</span>
+                                <span className={`rounded-md px-2 py-1 text-[10px] font-bold whitespace-nowrap ${isMutedEvent ? 'bg-slate-200 text-slate-600' : isProgram ? 'bg-[#191F28] text-white' : `${theme.background} text-tossGrey900`}`}>{isProgram ? '프로그램' : event.type === 'RENTAL' ? '대관' : '센터 일정'}</span>
                                 {isCompletedProgram
                                     ? <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-500"><CheckCircle2 size={11} />진행 완료</span>
                                     : isProgram && <RecruitmentBadge program={event.raw} now={now} />}

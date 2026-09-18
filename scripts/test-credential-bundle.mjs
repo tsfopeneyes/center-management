@@ -7,7 +7,7 @@ const bundle=createCredentialBundle({credentialPool:pool,confirmationPool:pool,l
     grantAssurance:async()=>{},discardSession:async()=>{},readiness:async()=>false,passwordPolicy:async()=>false,
     pepper:new Uint8Array(32).fill(1),kdfIterations:210000,temporaryTtlMs:600000,confirmationTtlMs:300000,
     assuranceTtlMs:600000});
-assert.deepEqual(Object.keys(bundle),['confirmReset','reset','changeTemporary','changeSelf']);
+assert.deepEqual(Object.keys(bundle),['confirmReset','reset','changeTemporary','verifyTemporary','changeSelf']);
 for(const method of Object.values(bundle))assert.equal(typeof method,'function');
 assert.throws(()=>createCredentialBundle({credentialPool:pool,confirmationPool:pool,pepper:new Uint8Array(4)}));
 console.log('PASS credential composition: confirmation, temporary reset, self change and shared security dependencies wired together');

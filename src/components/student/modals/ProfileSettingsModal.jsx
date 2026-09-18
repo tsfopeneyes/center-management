@@ -6,6 +6,8 @@ import getCroppedImg from '../../../utils/imageUtils';
 import { hashPassword } from '../../../utils/hashUtils';
 import useModalClose from '../../../hooks/useModalClose';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../auth/accountAuthRuntime';
+import { recoverCredentialSession } from '../../../auth/credentialSessionRecovery';
+import { supabase } from '../../../supabaseClient';
 import { isAdminOrStaff } from '../../../utils/userUtils';
 
 const ProfileSettingsModal = ({ 
@@ -101,7 +103,13 @@ const ProfileSettingsModal = ({
             }
             if(isAccountAuthEnabled()){
                 try{await getAccountAuthClient().password({profileId:user.id,newPassword});}
-                catch(error){alert('비밀번호 변경 실패: '+(error.message||'잠시 후 다시 시도해주세요.'));return;}
+                catch(error){
+                    if(await recoverCredentialSession(error,{auth:supabase.auth})){
+                        alert('비밀번호 변경 후 로그인 세션이 만료되었습니다. 방금 설정한 비밀번호로 다시 로그인해주세요.');
+                        window.location.href='/';return;
+                    }
+                    alert('비밀번호 변경 실패: '+(error.message||'잠시 후 다시 시도해주세요.'));return;
+                }
             } else {
                 const hashedPassword = await hashPassword(newPassword);
                 updates.password = hashedPassword;

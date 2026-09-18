@@ -38,8 +38,11 @@ export function createSelfPasswordService({store,limits,keyFor,authorize,passwor
             if(!replacement||replacement.authUserId!==account.authUserId||!isProfileId(replacement.sessionId)||
                 replacement.live!==true||replacement.isAnonymous!==false||!Number.isFinite(replacement.expiresAt)||replacement.expiresAt<=now()+30000)
                 throw unavailable();
-            abort(context.signal);await store.complete(operation);
-            const expected={...account,credentialVersion:operation.credentialVersion};
+            abort(context.signal);const completed=await store.complete(operation);
+            if(!completed||!Number.isSafeInteger(completed.credentialVersion)||
+                completed.credentialVersion<operation.credentialVersion||completed.credentialMode!=='supabase_password')throw unavailable();
+            const expected={...account,credentialVersion:completed.credentialVersion,
+                credentialMode:completed.credentialMode,legacyDigest:null};
             await grantAssurance(expected,replacement,Math.min(replacement.expiresAt,now()+assuranceTtlMs),{signal:context.signal});
             assured=true;
             return {protocol:1,status:'session_replaced',profileId:input.profileId,authUserId:account.authUserId,
