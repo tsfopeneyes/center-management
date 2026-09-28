@@ -1,7 +1,7 @@
 import {LoginError} from './loginSecurity.mjs';
 
 export function createProfileHandler({profiles,allowedOrigins=[],timeoutMs=10000,schedule=setTimeout,cancelTimer=clearTimeout}){
-    if(!profiles||typeof profiles.read!=='function'||typeof profiles.update!=='function'||allowedOrigins.includes('*')||
+    if(!profiles||typeof profiles.read!=='function'||typeof profiles.update!=='function'||typeof profiles.acceptTerms!=='function'||allowedOrigins.includes('*')||
         !Number.isFinite(timeoutMs)||timeoutMs<1000||timeoutMs>30000)
         throw new Error('Trusted profile HTTP configuration required');
     const origins=new Set(allowedOrigins);
@@ -24,9 +24,11 @@ export function createProfileHandler({profiles,allowedOrigins=[],timeoutMs=10000
             if(abort.signal.aborted)return response(503,{error:'temporarily_unavailable'});
             const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
             let input;try{input=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{return response(400,{error:'invalid_request'});}
-            if(!input||typeof input!=='object'||Array.isArray(input)||!['read','update'].includes(input.action))return response(400,{error:'invalid_request'});
+            if(!input||typeof input!=='object'||Array.isArray(input)||!['read','update','accept_terms'].includes(input.action))return response(400,{error:'invalid_request'});
             const {action,...payload}=input,requestInput={...payload,accessToken:authorization.slice(7)};
-            const result=action==='read'?await profiles.read(requestInput,{signal:abort.signal}):await profiles.update(requestInput,{signal:abort.signal});
+            const result=action==='read'?await profiles.read(requestInput,{signal:abort.signal})
+                :action==='accept_terms'?await profiles.acceptTerms(requestInput,{signal:abort.signal})
+                :await profiles.update(requestInput,{signal:abort.signal});
             return response(200,result);
         };
         try{return await Promise.race([work(),deadline]);}catch(error){

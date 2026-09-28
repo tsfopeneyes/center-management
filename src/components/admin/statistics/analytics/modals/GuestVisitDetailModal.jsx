@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Award, MapPin, Users } from 'lucide-react';
 import { format, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
+import useModalClose from '../../../../../hooks/useModalClose';
 
 const GuestVisitDetailModal = ({ spaceData, year, month, day, periodType, onClose }) => {
+    useModalClose(true, onClose);
     const guests = useMemo(() => {
         const guestMap = new Map();
         spaceData.roomAnalysis.forEach(room => {

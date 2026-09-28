@@ -10,7 +10,12 @@ export function createMemberAdminTransport({endpoint,publishableKey,auth,fetcher
         try{const response=await fetcher(url.href,{method:'POST',credentials:'omit',cache:'no-store',redirect:'error',
             headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(publishableKey?{apikey:publishableKey}:{})},
             body:JSON.stringify({protocol:1,...input})});
-            if(!response.ok)throw new AuthOperationError(({400:'invalid_request',401:'invalid_login',403:'forbidden',409:'account_changed'})[response.status]||'temporarily_unavailable');
+            if(!response.ok){const body=await response.json().catch(()=>null);
+                const serverCode=typeof body?.error==='string'?body.error:'';
+                const code=response.status===409&&input.action==='merge'&&serverCode==='merge_requires_review'
+                    ?'merge_requires_review':response.status===403&&['cannot_withdraw_self','protected_staff_account','last_master_account','staff_access_changed'].includes(serverCode)
+                        ?serverCode:({400:'invalid_request',401:'invalid_login',403:'forbidden',409:'account_changed'})[response.status]||'temporarily_unavailable';
+                throw new AuthOperationError(code);}
             const result=await response.json();if(result?.protocol!==1||!['saved','merged','ok','withdrawn'].includes(result.status))throw new AuthOperationError('temporarily_unavailable');return result;
         }catch(error){if(error instanceof AuthOperationError)throw error;throw new AuthOperationError('temporarily_unavailable');}
     };

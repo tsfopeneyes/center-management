@@ -2,8 +2,9 @@ import React, { useMemo } from 'react';
 import { LayoutDashboard, LogOut, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {ADMIN_SIDEBAR_GROUPS} from '../../constants/adminSidebarMenu';
+import { isMasterStaff } from '../../utils/userUtils';
 
-const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, isPinned, setIsPinned, notices = [] }) => {
+const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, isPinned, setIsPinned, notices = [], currentAdmin }) => {
     const navigate = useNavigate();
     const [winWidth, setWinWidth] = React.useState(window.innerWidth);
 
@@ -102,6 +103,7 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
                 groups.get(baseGroup.id).items.push({ ...item, order });
             }));
             return [...groups.values()]
+                .map(group => ({ ...group, items: group.items.filter(item => !item.masterOnly || isMasterStaff(currentAdmin)) }))
                 .map(group => ({ ...group, items: group.items.sort((a, b) => a.order - b.order) }))
                 .filter(group => group.items.length > 0)
                 .sort((a, b) => a.order - b.order);
@@ -111,6 +113,7 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
         return baseMenuGroups.map(group => ({
             ...group,
             items: group.items
+                .filter(item => !item.masterOnly || isMasterStaff(currentAdmin))
                 .map(item => ({ ...item, label: configMap[item.id]?.label || item.label, isVisible: configMap[item.id]?.isVisible !== false }))
                 .filter(item => item.isVisible)
                 .sort((a, b) => {
@@ -122,7 +125,7 @@ const AdminSidebar = ({ activeMenu, setActiveMenu, onLogout, isOpen, setIsOpen, 
                     return indexA - indexB;
                 })
         })).filter(group => group.items.length > 0);
-    }, [notices]);
+    }, [notices, currentAdmin]);
 
     // Helper to handle menu click and auto-close if in overlay mode
     const handleMenuClick = (menuId) => {

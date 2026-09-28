@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Award, CheckCircle, Clock, FileText, Check, X as XIcon } from 'lucide-react';
 import { supabase } from '../../../../../supabaseClient';
-import { haifnApi } from '../../../../../api/haifnApi';
 
 const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClick, onOpenMissionPosts }) => {
     const [previewImage, setPreviewImage] = useState(null);
@@ -23,21 +22,9 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
 
             if (updateErr) throw updateErr;
 
-            // 3. If approved, check if all missions are completed to grant haifn reward
+            // The configured challenge reward is settled when the program closes.
             if (approve) {
-                const student = challengers.find(item => item.id === studentId);
-                const completedIds = new Set((student?.challenge_submissions || []).filter(item => item.status === 'COMPLETED').map(item => item.mission_id));
-                completedIds.add(missionId);
-                const isAllCompleted = missions.every(mission => completedIds.has(mission.id));
-                if (isAllCompleted && notice.haifn_reward > 0) {
-                    const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    const adminId = admin?.id || null;
-                    // Grant haifn reward
-                    await haifnApi.grantProgramReward(studentId, notice.id, notice.haifn_reward, adminId, notice.title);
-                    alert(`${challengers.find(c => c.id === studentId)?.name || '학생'}님이 모든 미션을 완료하여 ${notice.haifn_reward} 하이픈 보상이 수여되었습니다!`);
-                } else {
-                    alert('미션이 승인되었습니다.');
-                }
+                alert('미션이 승인되었습니다. 하이픈은 프로그램 종료 처리 시 지급됩니다.');
             } else {
                 alert('미션 인증이 반려되었습니다. (학생이 다시 등록할 수 있습니다)');
             }
@@ -84,11 +71,14 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                             {challengers.map((student) => {
                                 const allSubmissions = student.challenge_submissions || [];
                                 const submissions = allSubmissions.filter(item => isOnline ? item.is_valid !== false : item.status === 'COMPLETED');
-                                const completedCount = isOnline ? submissions.length : missions.filter(mission => submissions.some(item => item.mission_id === mission.id)).length;
-                                const requiredCount = isOnline ? missions.reduce((sum, mission) => {
-                                    if (mission.schedule_type === 'DAILY') return sum + Math.max(1, Math.round((new Date(`${notice.program_end_date}T00:00:00+09:00`) - new Date(`${notice.program_start_date}T00:00:00+09:00`)) / 86400000) + 1);
-                                    return sum + (mission.schedule_type === 'FLEXIBLE' ? Math.max(1, Number(mission.target_count) || 1) : 1);
-                                }, 0) : missions.length;
+                                const requiredForMission = mission => {
+                                    if (!isOnline) return 1;
+                                    if (mission.schedule_type === 'DAILY') return Math.max(1, Math.round((new Date(`${notice.program_end_date}T00:00:00+09:00`) - new Date(`${notice.program_start_date}T00:00:00+09:00`)) / 86400000) + 1);
+                                    return mission.schedule_type === 'FLEXIBLE' ? Math.max(1, Number(mission.target_count) || 1) : 1;
+                                };
+                                const requiredCount = missions.reduce((sum, mission) => sum + requiredForMission(mission), 0);
+                                const completedCount = missions.reduce((sum, mission) => sum + Math.min(
+                                    requiredForMission(mission), submissions.filter(item => item.mission_id === mission.id).length), 0);
                                 const isAllCompleted = completedCount >= requiredCount && requiredCount > 0;
 
                                 return (

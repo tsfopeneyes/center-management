@@ -56,6 +56,7 @@ export const useSchoolDetail = ({ school, refreshLogs, refreshDashboardData }) =
             const { error } = await supabase.from('users').insert([{
                 name: newTempStudentName.trim(),
                 school: school.name,
+                school_id: school.metadata?.id || null,
                 user_group: '청소년',
                 phone: phoneVal,
                 phone_back4: phoneBack4Val,

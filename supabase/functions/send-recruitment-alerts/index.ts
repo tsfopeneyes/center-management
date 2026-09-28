@@ -4,6 +4,7 @@ import webpush from 'npm:web-push@3.6.7';
 import { deliverRecruitmentAlerts,recruitmentMessage } from './worker.mjs';
 import { saveRecruitmentBell } from './bell.mjs';
 import { deliverProgramPushPlans } from './plan-worker.mjs';
+import { deliverCommunityPostPush } from './community-post-worker.mjs';
 
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
 const equal=(a:string,b:string)=>{let diff=a.length^b.length;for(let i=0;i<Math.max(a.length,b.length);i++)diff|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return diff===0;};
@@ -80,7 +81,20 @@ Deno.serve(async request=>{
             const successCount=results.filter((item:any)=>item.ok).length;const failureCount=results.length-successCount;
             return {state:results.some((item:any)=>item.uncertain)?'UNCERTAIN':successCount?'SENT':'FAILED',deviceCount:results.length,successCount,failureCount,code:failureCount?'partial_device_failure':null};
         };
-        const [legacy,plans]=await Promise.all([deliverRecruitmentAlerts({store,send}),deliverProgramPushPlans({db,sendUser})]);
-        return json({legacy,plans});
+        const [legacy,plans,community]=await Promise.all([
+            deliverRecruitmentAlerts({store,send}),
+            deliverProgramPushPlans({db,sendUser}),
+            deliverCommunityPostPush({db,webpush,origin,getFirebaseAccess:async()=>{
+                firebaseAccess??=(async()=>{
+                    const credentials=JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')||'{}');
+                    if(!credentials.project_id)throw new Error('firebase_auth_unavailable');
+                    const access=await new GoogleAuth({credentials,scopes:['https://www.googleapis.com/auth/firebase.messaging']}).getAccessToken();
+                    if(!access)throw new Error('firebase_auth_unavailable');
+                    return {projectId:credentials.project_id,access};
+                })();
+                return firebaseAccess;
+            }}),
+        ]);
+        return json({legacy,plans,community});
     } catch {return json({error:'worker_failed'},500);}
 });

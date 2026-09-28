@@ -3,6 +3,7 @@ import TermsConsentModal from './TermsConsentModal';
 import SignUpBasicInfo from './components/SignUpBasicInfo';
 import SignUpSecurityInfo from './components/SignUpSecurityInfo';
 import { useSignUp } from './hooks/useSignUp';
+import { normalizePersonName } from '../../utils/userUtils';
 
 const SignUpForm = ({ onSuccess, onCancel, isKiosk = false, prefilledData = null, guestUserId = null }) => {
     const {
@@ -16,7 +17,8 @@ const SignUpForm = ({ onSuccess, onCancel, isKiosk = false, prefilledData = null
         if (prefilledData) {
             setFormData(prev => ({
                 ...prev,
-                ...prefilledData
+                ...prefilledData,
+                ...(typeof prefilledData.name === 'string' ? {name: normalizePersonName(prefilledData.name)} : {})
             }));
         }
     }, [prefilledData, setFormData]);

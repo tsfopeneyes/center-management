@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Share2, Bell, ShieldCheck, Settings, LogOut, AlertCircle, ChevronRight, User, Image as ImageIcon, Pin, QrCode, Home, Trophy, Calendar as LucideCalendar, Users, Sparkles, Coffee, X, CheckCircle2, Clock3, MapPin, Store } from 'lucide-react';
+import { Share2, Bell, MessageCircle, ShieldCheck, Settings, LogOut, AlertCircle, ChevronRight, User, Image as ImageIcon, Pin, QrCode, Home, Trophy, Calendar as LucideCalendar, Users, Sparkles, Coffee, X, CheckCircle2, Clock3, MapPin, Store } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import UserAvatar from '../common/UserAvatar';
 import ProgramCard from './ProgramCard';
@@ -21,6 +22,9 @@ import ContentImage from '../common/ContentImage';
 const StudentHomeTab = ({
     user,
     unreadNotificationCount,
+    unreadDmCount = 0,
+    highlightDmIntro = false,
+    onOpenMessages,
     setShowProfileSettings,
     setShowNotificationsModal,
     handleShare,
@@ -63,6 +67,26 @@ const StudentHomeTab = ({
     tutorialMode = false,
     tutorialStep = null
 }) => {
+    const dmButtonRef = useRef(null);
+    const [dmHighlightRect, setDmHighlightRect] = useState(null);
+
+    useEffect(() => {
+        if (!highlightDmIntro) {
+            setDmHighlightRect(null);
+            return undefined;
+        }
+        const updatePosition = () => {
+            const rect = dmButtonRef.current?.getBoundingClientRect();
+            if (rect) setDmHighlightRect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+        };
+        updatePosition();
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition, true);
+        return () => {
+            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('scroll', updatePosition, true);
+        };
+    }, [highlightDmIntro]);
     // 뱃지 관련 로직 제거됨
     const isGuest = user?.user_group === '게스트';
     const [coffeeChatClock, setCoffeeChatClock] = useState(() => Date.now());
@@ -269,6 +293,33 @@ const StudentHomeTab = ({
                                         </span>
                                     )}
                                 </button>}
+
+                                {!isPreviewMode && <button
+                                    ref={dmButtonRef}
+                                    type="button"
+                                    onClick={onOpenMessages}
+                                    aria-label={unreadDmCount > 0 ? `읽지 않은 메시지 ${unreadDmCount}건 확인` : '메시지 열기'}
+                                    className={`relative p-1.5 transition-colors rounded-full border text-white shadow-sm ${highlightDmIntro ? 'z-[10026] border-[#F8DF53] bg-[#F8DF53] text-[#6E2A20] ring-4 ring-[#F8DF53]/45 animate-pulse' : 'border-white/10 bg-white/10 text-white/90 hover:bg-white/20'}`}
+                                >
+                                    <MessageCircle size={16} />
+                                    {unreadDmCount > 0 && (
+                                        <span className="absolute -right-1 -top-1 flex min-w-[16px] h-4 items-center justify-center rounded-full border-2 border-[#CF3A27] bg-[#F8DF53] px-1 text-[9px] font-black leading-none text-[#6E2A20]">
+                                            {unreadDmCount > 99 ? '99+' : unreadDmCount}
+                                        </span>
+                                    )}
+                                </button>}
+
+                                {highlightDmIntro && dmHighlightRect && createPortal(
+                                    <div
+                                        aria-hidden="true"
+                                        className="pointer-events-none fixed z-[10027] flex items-center justify-center rounded-full border border-[#F8DF53] bg-[#F8DF53] text-[#6E2A20] shadow-[0_0_0_6px_rgba(248,223,83,0.38),0_8px_24px_rgba(55,35,20,0.32)]"
+                                        style={{ left: dmHighlightRect.left, top: dmHighlightRect.top, width: dmHighlightRect.width, height: dmHighlightRect.height }}
+                                    >
+                                        <MessageCircle size={16} />
+                                        <span className="absolute right-0 top-[calc(100%+9px)] whitespace-nowrap rounded-full bg-[#F8DF53] px-2.5 py-1 text-[10px] font-black text-[#6E2A20] shadow-md">새로운 DM</span>
+                                    </div>,
+                                    document.body,
+                                )}
                                 
                                 {/* Settings Icon */}
                                 <button 

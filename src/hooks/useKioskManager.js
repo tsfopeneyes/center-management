@@ -6,6 +6,9 @@ import { TERMS_VERSION } from '../constants/appConstants';
 import { dispatchNotificationEvent } from '../utils/serverIntegration';
 import { getTodayVisitState, recordVisitEvent } from '../utils/visitLifecycle';
 import { loadAssignedSurvey } from '../utils/surveyAssignments';
+import { requiresCurrentTermsConsent } from '../utils/termsConsent';
+
+const VISIT_NOTIFICATION_GRACE_MS = 60 * 1000;
 
 const sendRealtimeNotification = async (_user, type, _location, metadata = {}) => {
     if (!['CHECKIN', 'CHECKOUT'].includes(type)) return { skipped: true };
@@ -147,6 +150,26 @@ export const useKioskManager = (navigate) => {
         return () => { cancelled = true; };
     }, [selectedLocation?.name]);
 
+    // Wait briefly for optional survey details, then fall back to a basic
+    // visit alert. Server-side delivery is idempotent by the visit log ID.
+    useEffect(() => {
+        const pendingType = status === 'SHOW_SURVEY' && pendingKioskUser
+            ? 'CHECKIN'
+            : status === 'REQUIRE_PURPOSE' && pendingCheckoutUser
+                ? 'CHECKOUT'
+                : null;
+        const pendingUser = pendingType === 'CHECKIN' ? pendingKioskUser : pendingCheckoutUser;
+        if (!pendingType || !pendingUser || !selectedLocation || !pendingNotificationLogId) return undefined;
+
+        const timeoutId = window.setTimeout(() => {
+            void sendRealtimeNotification(pendingUser, pendingType, selectedLocation, {
+                logId: pendingNotificationLogId,
+            }).catch(error => console.error(`Kiosk ${pendingType.toLowerCase()} fallback notification failed:`, error));
+        }, VISIT_NOTIFICATION_GRACE_MS);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [status, pendingKioskUser, pendingCheckoutUser, selectedLocation, pendingNotificationLogId]);
+
     const handleSetLocation = (loc) => {
         setSelectedLocation(loc);
         localStorage.setItem('kiosk_location', JSON.stringify(loc));
@@ -185,7 +208,7 @@ export const useKioskManager = (navigate) => {
 
         // Check for terms agreement
         const isGuest = user.user_group === '게스트';
-        if (!isGuest && (!user.preferences?.terms_agreed || user.preferences?.terms_version !== TERMS_VERSION)) {
+        if (!isGuest && requiresCurrentTermsConsent(user)) {
             setPendingKioskUser(user);
             setStatus('REQUIRE_TERMS_AGREEMENT');
             return;
@@ -511,23 +534,32 @@ export const useKioskManager = (navigate) => {
         }
     };
 
-    const handleKioskTermsAgree = async () => {
+    const handleKioskTermsAgree = async (agreements) => {
         if (!pendingKioskUser) return;
 
         try {
+            if (!['art1', 'art2', 'art3', 'art4'].every(key => agreements?.[key] === true)) {
+                throw new Error('모든 필수 약관에 동의해 주세요.');
+            }
             const updatedPreferences = {
                 ...(pendingKioskUser.preferences || {}),
                 terms_agreed: true,
-                terms_version: TERMS_VERSION
+                terms_version: TERMS_VERSION,
+                terms_agreed_at: new Date().toISOString(),
+                terms_consent_source: 'KIOSK'
             };
-            const { error } = await supabase
-                .from('users')
-                .update({ preferences: updatedPreferences })
-                .eq('id', pendingKioskUser.id);
+            const { data, error } = await supabase.rpc('accept_kiosk_member_terms', {
+                p_profile_id: pendingKioskUser.id,
+                p_terms_version: TERMS_VERSION
+            });
+            if (error && !['PGRST202', '42883'].includes(error.code)) throw error;
+            if (error) {
+                const { error: fallbackError } = await supabase.from('users')
+                    .update({ preferences: updatedPreferences }).eq('id', pendingKioskUser.id);
+                if (fallbackError) throw fallbackError;
+            }
 
-            if (error) throw error;
-
-            const userWithTerms = { ...pendingKioskUser, preferences: updatedPreferences };
+            const userWithTerms = { ...pendingKioskUser, preferences: data || updatedPreferences };
             setPendingKioskUser(null);
             await processKioskAction(userWithTerms);
         } catch (err) {

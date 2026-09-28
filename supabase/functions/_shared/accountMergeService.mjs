@@ -14,7 +14,7 @@ const columns=Object.freeze([
     ['rental_bookings','user_id'],['store_orders','user_id'],['user_notification_reads','user_id'],['center_daily_chats','user_id'],
     ['admin_templates','user_id'],['app_notifications','user_id'],['app_notifications','sender_id'],
     ['messages','sender_id'],['messages','receiver_id'],['coffee_chats','student_id'],
-    ['calling_forest_progress','student_id']
+    ['calling_forest_progress','student_id'],['push_dispatch_recipients','user_id'],['program_push_recipients','user_id']
 ]);
 const ident=value=>'"'+String(value).replaceAll('"','""')+'"';
 
@@ -48,20 +48,56 @@ export function createAccountMergeService({pool,authorize,readiness=async()=>fal
                 WHERE a.profile_id=$1 AND a.mapping_verified AND a.status='active' AND r.enabled`,[targetProfileId])).rows.length;
             if(sourceMapped||targetMapped!==1)throw new LoginError('account_changed',409);
             const reviewed=new Set(columns.map(([table,column])=>`${table}:${column}`));
-            const references=(await client.query(`SELECT c.relname AS table_name,a.attname AS column_name
+            const references=(await client.query(`SELECT c.relname AS table_name,a.attname AS column_name,
+                has_table_privilege(current_user,c.oid,'SELECT') AS can_select,
+                has_column_privilege(current_user,c.oid,a.attnum,'UPDATE') AS can_update
                 FROM pg_constraint fk JOIN pg_class c ON c.oid=fk.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace
                 JOIN pg_attribute a ON a.attrelid=fk.conrelid AND a.attnum=fk.conkey[1]
                 WHERE fk.contype='f' AND fk.confrelid='public.users'::regclass AND n.nspname='public'
                 AND cardinality(fk.conkey)=1 AND cardinality(fk.confkey)=1`)).rows;
-            for(const reference of references){if(reviewed.has(`${reference.table_name}:${reference.column_name}`))continue;
+            const readOnlyReviewed=new Set();
+            for(const reference of references){if(reference.can_select===false)throw new LoginError('merge_requires_review',409);
+                const key=`${reference.table_name}:${reference.column_name}`;
+                if(reviewed.has(key)&&reference.can_update!==false)continue;
                 const affected=(await client.query(`SELECT 1 FROM public.${ident(reference.table_name)}
                     WHERE ${ident(reference.column_name)}=$1 LIMIT 1`,[sourceProfileId])).rows.length;
-                if(affected)throw new LoginError('account_changed',409);
+                if(affected)throw new LoginError('merge_requires_review',409);
+                if(reviewed.has(key))readOnlyReviewed.add(key);
             }
             await client.query(`UPDATE public.users SET current_haifn=COALESCE(current_haifn,0)+GREATEST($2::numeric,0),
                 school=CASE WHEN COALESCE(school,'')='' THEN $3 ELSE school END WHERE id=$1`,
                 [targetProfileId,Number(source.current_haifn)||0,source.school||null]);
+            if(references.some(reference=>reference.table_name==='push_dispatch_recipients'&&reference.column_name==='user_id'))
+                await client.query(`DELETE FROM public.push_dispatch_recipients source
+                    USING public.push_dispatch_recipients target
+                    WHERE source.user_id=$1 AND target.user_id=$2 AND target.dispatch_id=source.dispatch_id`,
+                    [sourceProfileId,targetProfileId]);
+            if(references.some(reference=>reference.table_name==='program_push_recipients'&&reference.column_name==='user_id'))
+                await client.query(`DELETE FROM public.program_push_recipients source
+                    USING public.program_push_recipients target
+                    WHERE source.user_id=$1 AND target.user_id=$2 AND target.job_id=source.job_id`,
+                    [sourceProfileId,targetProfileId]);
+            if(references.some(reference=>reference.table_name==='visit_notes'&&reference.column_name==='user_id')){
+                await client.query(`UPDATE public.visit_notes target SET
+                    purpose=CASE WHEN NULLIF(BTRIM(source.purpose),'') IS NULL THEN target.purpose
+                        WHEN NULLIF(BTRIM(target.purpose),'') IS NULL THEN source.purpose
+                        WHEN target.purpose=source.purpose THEN target.purpose ELSE target.purpose||E'\n'||source.purpose END,
+                    remarks=CASE WHEN NULLIF(BTRIM(source.remarks),'') IS NULL THEN target.remarks
+                        WHEN NULLIF(BTRIM(target.remarks),'') IS NULL THEN source.remarks
+                        WHEN target.remarks=source.remarks THEN target.remarks ELSE target.remarks||E'\n'||source.remarks END,
+                    checkout_feedback=CASE WHEN NULLIF(BTRIM(source.checkout_feedback),'') IS NULL THEN target.checkout_feedback
+                        WHEN NULLIF(BTRIM(target.checkout_feedback),'') IS NULL THEN source.checkout_feedback
+                        WHEN target.checkout_feedback=source.checkout_feedback THEN target.checkout_feedback
+                        ELSE target.checkout_feedback||E'\n'||source.checkout_feedback END,
+                    updated_at=GREATEST(target.updated_at,source.updated_at)
+                    FROM public.visit_notes source WHERE source.user_id=$1 AND target.user_id=$2
+                    AND source.visit_date=target.visit_date`,[sourceProfileId,targetProfileId]);
+                await client.query(`DELETE FROM public.visit_notes source USING public.visit_notes target
+                    WHERE source.user_id=$1 AND target.user_id=$2 AND source.visit_date=target.visit_date`,
+                    [sourceProfileId,targetProfileId]);
+            }
             for(const [table,column] of columns){
+                if(readOnlyReviewed.has(`${table}:${column}`))continue;
                 const present=(await client.query(`SELECT EXISTS(SELECT 1 FROM information_schema.columns
                     WHERE table_schema='public' AND table_name=$1 AND column_name=$2) AS present`,[table,column])).rows[0]?.present;
                 if(!present)continue;
@@ -70,8 +106,9 @@ export function createAccountMergeService({pool,authorize,readiness=async()=>fal
                     await client.query('SAVEPOINT merge_row');
                     try{await client.query(`UPDATE public.${ident(table)} SET ${ident(column)}=$1 WHERE ctid=$2::tid`,[targetProfileId,row.tid]);
                         await client.query('RELEASE SAVEPOINT merge_row');}
-                    catch(error){await client.query('ROLLBACK TO SAVEPOINT merge_row');if(error?.code!=='23505'||table==='survey_entries')throw error;
-                        await client.query(`DELETE FROM public.${ident(table)} WHERE ctid=$1::tid`,[row.tid]);await client.query('RELEASE SAVEPOINT merge_row');}
+                    catch(error){await client.query('ROLLBACK TO SAVEPOINT merge_row');
+                        if(error?.code==='23505')throw new LoginError('merge_requires_review',409);
+                        throw error;}
                 }
             }
             const schoolLogs=(await client.query(`SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public'

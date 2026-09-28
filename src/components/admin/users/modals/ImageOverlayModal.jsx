@@ -1,7 +1,9 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const ImageOverlayModal = ({ viewerImage, setViewerImage }) => {
+    useModalClose(Boolean(viewerImage), () => setViewerImage(null));
     if (!viewerImage) return null;
 
     return (

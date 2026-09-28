@@ -42,6 +42,8 @@ const INITIAL_NOTICE_STATE = {
     poll_deadline: '',
     poll_options: [],
     haifn_reward: 0,
+    challenge_reward_criterion: 'ALL',
+    challenge_reward_percent: 100,
     program_start_date: '',
     program_end_date: '',
     program_days: [],

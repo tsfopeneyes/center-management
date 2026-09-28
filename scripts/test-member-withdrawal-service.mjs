@@ -4,11 +4,12 @@ import {createMemberWithdrawalService} from '../supabase/functions/_shared/membe
 const actor='10000000-0000-4000-8000-000000000001';
 const target='10000000-0000-4000-8000-000000000002';
 const queries=[];
+let actorRole='master',targetRole='member';
 const client={
     async query(text,values=[]){
         queries.push({text:String(text).replace(/\s+/g,' ').trim(),values});
-        if(String(text).includes('account_security.account_roles')&&String(text).includes("role IN ('admin','master')"))return {rows:[{ok:1}]};
-        if(String(text).includes('FROM public.users u'))return {rows:[{id:target,account_profile_id:target,account_role:'member',role_enabled:true}]};
+        if(String(text).includes('account_security.account_roles')&&String(text).includes("role IN ('admin','master')"))return {rows:[{role:actorRole}]};
+        if(String(text).includes('FROM public.users u'))return {rows:[{id:target,account_profile_id:target,account_role:targetRole,role_enabled:true}]};
         if(String(text).includes('UPDATE public.users SET'))return {rows:[{id:target}]};
         return {rows:[]};
     },
@@ -21,9 +22,14 @@ const sql=queries.map(item=>item.text).join('\n');
 assert.match(sql,/login_identifiers SET enabled=false/);
 assert.match(sql,/session_assurances SET status='revoked'/);
 assert.match(sql,/accounts SET status='blocked'/);
+assert.match(sql,/set_config\('app.actor_profile_id'/);
 assert.match(sql,/name=\$2,gender=NULL,school=NULL/);
 assert.match(sql,/phone='',phone_back4=''/);
 assert.match(sql,/status='withdrawn'/);
 assert.doesNotMatch(sql,/DELETE FROM (public\.)?(logs|notice_responses|haifn_transactions)/i);
 assert.equal(queries.at(-1).text,'COMMIT');
-console.log('PASS member withdrawal: login revoked, personal profile anonymized, historical records untouched');
+targetRole='master';
+assert.equal((await withdraw({accessToken:'token',profileId:target})).status,'withdrawn');
+actorRole='admin';targetRole='admin';
+await assert.rejects(withdraw({accessToken:'token',profileId:target}),error=>error.code==='protected_staff_account');
+console.log('PASS member withdrawal: login revoked, personal profile anonymized, master can remove another staff account, historical records untouched');

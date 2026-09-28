@@ -47,6 +47,9 @@ const profileMatchesSession = (profile, session) => Boolean(
     && (profile.id === session.user.id || profile.auth_user_id === session.user.id)
 );
 
+const sessionIsFresh = session => Number.isFinite(session?.expires_at)
+    && session.expires_at * 1000 > Date.now() + 60000;
+
 export function AuthProvider({ children }) {
     const [state, setState] = useState(() => {
         const session = readPersistedSession();
@@ -76,7 +79,10 @@ export function AuthProvider({ children }) {
         }
 
         setState(current => ({
-            status: ['authenticated', 'restoring', 'refreshing'].includes(current.status)
+            // A cached profile plus an unverified persisted token is still an
+            // initial restore. Protected screens must wait until this resolve
+            // succeeds instead of treating it as an in-runtime refresh.
+            status: ['authenticated', 'refreshing'].includes(current.status)
                 ? 'refreshing'
                 : 'initializing',
             session,
@@ -126,11 +132,16 @@ export function AuthProvider({ children }) {
 
     const refresh = useCallback(async () => {
         const persisted = readPersistedSession();
-        if (persisted) {
+        if (sessionIsFresh(persisted)) {
             await resolve(persisted, 'manual-persisted');
             return;
         }
-        const { data, error } = await supabase.auth.getSession();
+        // Mobile browsers suspend refresh timers in the background. Never
+        // revalidate an expired localStorage snapshot; ask Auth to exchange
+        // its refresh token first.
+        const { data, error } = persisted
+            ? await supabase.auth.refreshSession()
+            : await supabase.auth.getSession();
         if (error) {
             setState(current => ({
                 ...current,
@@ -147,15 +158,38 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         let active = true;
         let subscription = null;
+        // A stalled SDK initialization or session check must not leave the
+        // public entry screen blank indefinitely on mobile browsers.
+        const startupTimer = window.setTimeout(() => {
+            if (!active) return;
+            setState(current => {
+                if (!['initializing', 'restoring'].includes(current.status)) return current;
+                return { ...current, status: current.session ? 'offline' : 'anonymous', error: 'startup_timeout' };
+            });
+        }, 6000);
         const persisted = readPersistedSession();
         const persistedAccessToken = persisted?.access_token || null;
+        const persistedIsFresh = sessionIsFresh(persisted);
 
         // If durable storage yielded a session, validate it immediately. When
         // it did not, stay in `initializing` until Supabase emits
         // INITIAL_SESSION. Resolving a null value here used to publish
         // `anonymous` just before the SDK restored its session, briefly
         // exposing the login screen to an already signed-in user.
-        if (persisted) void resolve(persisted, 'initial-persisted');
+        if (persistedIsFresh) {
+            void resolve(persisted, 'initial-persisted');
+        } else if (persisted) {
+            // Samsung Internet commonly resumes after Auth's background timer
+            // was suspended. Refresh before any protected screen is enabled.
+            void supabase.auth.refreshSession().then(({ data, error }) => {
+                if (!active) return;
+                if (error) {
+                    setState(current => ({ ...current, status: 'offline', error: error.code || error.message }));
+                    return;
+                }
+                void resolve(data?.session || null, 'initial-refresh');
+            });
+        }
         subscription = supabase.auth.onAuthStateChange((event, session) => {
             if (!active) return;
             // We already started boot validation from durable storage above.
@@ -165,18 +199,27 @@ export function AuthProvider({ children }) {
             // the boot candidate when the SDK actually found a different one.
             if (event === 'INITIAL_SESSION'
                 && persistedAccessToken
+                && persistedIsFresh
                 && (!session?.access_token || session.access_token === persistedAccessToken)) {
                 return;
             }
             // Auth callbacks must return before account-service I/O starts.
             window.setTimeout(() => { if (active) void resolve(session, event); }, 0);
         }).data.subscription;
+        const refreshAfterResume = () => {
+            if (document.visibilityState === 'visible') void refresh();
+        };
         window.addEventListener('online', refresh);
+        window.addEventListener('pageshow', refreshAfterResume);
+        document.addEventListener('visibilitychange', refreshAfterResume);
         return () => {
             active = false;
+            window.clearTimeout(startupTimer);
             revision.current += 1;
             subscription?.unsubscribe();
             window.removeEventListener('online', refresh);
+            window.removeEventListener('pageshow', refreshAfterResume);
+            document.removeEventListener('visibilitychange', refreshAfterResume);
         };
     }, [refresh, resolve]);
 

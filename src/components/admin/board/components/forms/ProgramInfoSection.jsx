@@ -1369,6 +1369,17 @@ const ProgramInfoSection = ({ formData, updateField, flat = false }) => {
             {/* 6. 챌린지 미션 설정 카드 */}
             {formData.is_challenge && (
                 <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                    <label className="block text-sm font-bold text-slate-800">종료 시 하이픈 지급 기준
+                        <select value={formData.challenge_reward_criterion || 'ALL'} onChange={event => updateField('challenge_reward_criterion', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
+                            <option value="FIRST_MISSION">첫 미션 인증만 해도 지급</option>
+                            <option value="PERCENT">미션 목표 달성률로 지급</option>
+                            <option value="ALL">모든 미션 달성 시 지급</option>
+                        </select>
+                    </label>
+                    {formData.challenge_reward_criterion === 'PERCENT' && <label className="mt-3 block text-xs font-bold text-slate-600">성공 기준 (%)<input type="number" min="1" max="100" value={formData.challenge_reward_percent ?? 100} onChange={event => updateField('challenge_reward_percent', Math.min(100, Math.max(1, Number(event.target.value) || 1)))} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold"/></label>}
+                    <p className="mt-3 text-xs leading-5 text-slate-500">조건을 일찍 채워도 프로그램을 종료 처리할 때 설정된 하이픈을 한 번 지급합니다.</p>
+                </div>
                 {formData.challenge_format === 'ONLINE' && (
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
                     <div className="flex items-center justify-between gap-4">

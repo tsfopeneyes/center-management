@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Search, Calendar, ChevronRight, X, Filter } from 'lucide-react';
+import useModalClose from '../../../hooks/useModalClose';
 
 const LogSelectorModal = ({ student, schoolLogs, onClose, onSelect }) => {
+    useModalClose(true, onClose);
     const [searchTerm, setSearchTerm] = useState('');
 
     // Filter logs where the student is a participant

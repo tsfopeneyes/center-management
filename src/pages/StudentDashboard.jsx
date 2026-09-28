@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import confetti from 'canvas-confetti';
-import { Home, Calendar, BookOpen, Award, Store, Menu, X, Settings, ShieldCheck, LogOut, Bell, Share2, QrCode, Clock3 } from 'lucide-react';
+import { Home, Calendar, BookOpen, Award, Store, Menu, X, Settings, ShieldCheck, LogOut, Bell, Share2, QrCode, Clock3, MessageCircle } from 'lucide-react';
 import { TAB_NAMES } from '../constants/appConstants';
 import { useStudentDashboard } from '../hooks/useStudentDashboard';
 import { formatProgramSchedule } from '../utils/dateUtils';
 import { getRecruitmentStart } from '../utils/programRecruitment';
 import { extractProgramInfo } from '../utils/textUtils';
 import { isAdminOrStaff } from '../utils/userUtils';
+import useModalClose from '../hooks/useModalClose';
 
 // Tabs
 import StudentHomeTab from '../components/student/StudentHomeTab';
@@ -42,6 +43,8 @@ import { requestSupabaseFunction } from '../utils/supabaseRest';
 import { buildTutorialNotice, buildTutorialPrograms, isTutorialNotice, isTutorialProgram } from '../components/student/studentTutorialData';
 import { getTodayVisitState } from '../utils/visitLifecycle';
 import PushPermissionPrompt from '../components/student/modals/PushPermissionPrompt';
+import DirectMessagesModal from '../components/student/DirectMessagesModal';
+import { useDirectMessages } from '../hooks/useDirectMessages';
 
 const createInitialTutorialSession = () => ({
     step: 'start',
@@ -135,6 +138,9 @@ const StudentDashboard = () => {
     const [activeParticipantNotice, setActiveParticipantNotice] = useState(null);
     const [selectedStaffForChat, setSelectedStaffForChat] = useState(null);
     const [showMembershipPrompt, setShowMembershipPrompt] = useState(false);
+    const [showDirectMessages, setShowDirectMessages] = useState(false);
+    const [showDmIntroduction, setShowDmIntroduction] = useState(false);
+    const [dmConversationToOpen, setDmConversationToOpen] = useState(() => new URLSearchParams(window.location.search).get('dm'));
     const [showOnboardingTutorial, setShowOnboardingTutorial] = useState(false);
     const [tutorialSession, setTutorialSession] = useState(createInitialTutorialSession);
 
@@ -167,6 +173,45 @@ const StudentDashboard = () => {
     const [checkinLocationName, setCheckinLocationName] = useState('');
     const [visitStatus, setVisitStatus] = useState(null);
     const isAdminUser = isAdminOrStaff(user);
+    const { unreadCount: unreadDmCount } = useDirectMessages(isPreviewMode ? null : user?.id);
+    const dmIntroductionStorageKey = user?.id
+        ? `${isAdminUser ? 'dm_staff_introduction_v1' : 'dm_introduction_v1'}_${user.id}`
+        : null;
+
+    const finishDmIntroduction = (openMessages = false) => {
+        if (dmIntroductionStorageKey) localStorage.setItem(dmIntroductionStorageKey, 'seen');
+        setShowDmIntroduction(false);
+        if (openMessages) window.setTimeout(() => setShowDirectMessages(true), 180);
+    };
+
+    useEffect(() => {
+        if (dmIntroductionStorageKey && (dmConversationToOpen || showDirectMessages)) {
+            localStorage.setItem(dmIntroductionStorageKey, 'seen');
+            setShowDmIntroduction(false);
+            return undefined;
+        }
+        if (!dmIntroductionStorageKey || isPreviewMode || showOnboardingTutorial
+            || activeTab !== TAB_NAMES.HOME
+            || localStorage.getItem(dmIntroductionStorageKey) === 'seen') {
+            setShowDmIntroduction(false);
+            return undefined;
+        }
+        const timer = window.setTimeout(() => setShowDmIntroduction(true), 700);
+        return () => window.clearTimeout(timer);
+    }, [activeTab, dmConversationToOpen, dmIntroductionStorageKey, isPreviewMode, showDirectMessages, showOnboardingTutorial]);
+
+    useModalClose(showDmIntroduction, () => finishDmIntroduction(false));
+
+    useEffect(() => {
+        if (user?.id && dmConversationToOpen && !isPreviewMode) setShowDirectMessages(true);
+    }, [dmConversationToOpen, isPreviewMode, user?.id]);
+
+    const closeDirectMessages = () => {
+        setShowDirectMessages(false);
+        setDmConversationToOpen(null);
+        const params = new URLSearchParams(window.location.search);
+        if (params.delete('dm')) { const query = params.toString(); window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`); }
+    };
 
     useEffect(() => {
         if (!STUDENT_ONBOARDING_TUTORIAL_ENABLED) {
@@ -397,6 +442,15 @@ const StudentDashboard = () => {
     const [rejectionReason, setRejectionReason] = useState('');
     const [statusAlert, setStatusAlert] = useState(null);
     const [appNotice, setAppNotice] = useState(null);
+    useModalClose(Boolean(recruitmentSavedPreview), () => setRecruitmentSavedPreview(null));
+    useModalClose(showRegisterModal, () => setShowRegisterModal(false));
+    useModalClose(Boolean(registrationSuccess), () => setRegistrationSuccess(null));
+    useModalClose(showPendingRequestList, () => setShowPendingRequestList(false));
+    useModalClose(Boolean(incomingRequest), () => setIncomingRequest(null));
+    useModalClose(Boolean(appNotice), () => setAppNotice(null));
+    useModalClose(Boolean(statusAlert), () => setStatusAlert(null));
+    useModalClose(showMenuDrawer, () => setShowMenuDrawer(false));
+    useModalClose(showMembershipPrompt, () => setShowMembershipPrompt(false));
     const [pendingCount, setPendingCount] = useState(0);
     const [studentChatStatus, setStudentChatStatus] = useState(null);
     const [activeChat, setActiveChat] = useState(null);
@@ -722,7 +776,7 @@ const StudentDashboard = () => {
     // B안: 뒤로가기 시 이전 탭으로 화면 전환을 위해 History API 연동 (학생용)
     useEffect(() => {
         // 첫 진입 시 현재 상태를 히스토리에 기재
-        window.history.replaceState({ tab: activeTab }, '');
+        window.history.replaceState({ ...window.history.state, tab: activeTab }, '');
 
         const handlePopState = (event) => {
             if (event.state && event.state.tab) {
@@ -737,7 +791,7 @@ const StudentDashboard = () => {
     // activeTab이 변경될 때마다 새로운 히스토리 항목 추가 (동일한 탭 연속 중복 추가 방지)
     useEffect(() => {
         if (window.history.state?.tab !== activeTab) {
-            window.history.pushState({ tab: activeTab }, '');
+            window.history.pushState({ ...window.history.state, tab: activeTab }, '');
         }
     }, [activeTab]);
 
@@ -1814,6 +1868,43 @@ const StudentDashboard = () => {
                     />
                 )}
 
+                <AnimatePresence>
+                    {showDmIntroduction && (
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[10025] flex items-center justify-center bg-[#211711]/45 p-5 backdrop-blur-[2px]"
+                            role="presentation"
+                        >
+                            <motion.div
+                                initial={{ y: 18, scale: 0.96, opacity: 0 }}
+                                animate={{ y: 0, scale: 1, opacity: 1 }}
+                                exit={{ y: 10, scale: 0.98, opacity: 0 }}
+                                transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+                                role="dialog" aria-modal="true" aria-labelledby="dm-introduction-title"
+                                className="w-full max-w-sm rounded-[28px] bg-[#FFFDF9] p-6 text-center shadow-2xl"
+                            >
+                                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F8E7DE] text-[#CF3A27]">
+                                    <MessageCircle size={27} strokeWidth={2.2} />
+                                </div>
+                                <h2 id="dm-introduction-title" className="mt-4 text-xl font-black tracking-tight text-[#332821]">DM 기능이 새롭게 추가됐어요!</h2>
+                                <p className="mt-2 break-keep text-sm font-semibold leading-6 text-[#71665C]">{isAdminUser ? '학생들과 스처쌤에게 편하게 이야기를 건네보세요🙋‍♂️🙋‍♀️' : '스처쌤과 편하게 이야기를 나누어보세요🙋‍♂️🙋‍♀️'}</p>
+                                <div className="mt-6 grid grid-cols-2 gap-2.5">
+                                    <button type="button" onClick={() => finishDmIntroduction(false)} className="rounded-2xl bg-[#F1ECE7] py-3.5 text-sm font-extrabold text-[#71665C]">나중에 하기</button>
+                                    <button type="button" onClick={() => finishDmIntroduction(true)} autoFocus className="rounded-2xl bg-[#CF3A27] py-3.5 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(207,58,39,0.24)]">사용해보기</button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {showDirectMessages && !isPreviewMode && (
+                    <DirectMessagesModal
+                        currentUser={user}
+                        initialConversationId={dmConversationToOpen}
+                        onClose={closeDirectMessages}
+                    />
+                )}
+
                 {showProgramHistory && (
                     <ProgramHistoryModal 
                         attendedProgramsList={attendedProgramsList}
@@ -2288,6 +2379,9 @@ const StudentDashboard = () => {
                 <StudentHomeTab
                     user={user}
                     unreadNotificationCount={unreadNotificationCount}
+                    unreadDmCount={unreadDmCount}
+                    highlightDmIntro={showDmIntroduction}
+                    onOpenMessages={() => setShowDirectMessages(true)}
                     setShowProfileSettings={(open) => isPreviewMode && open ? setShowMembershipPrompt(true) : setShowProfileSettings(open)}
                     setShowNotificationsModal={(open) => isPreviewMode && open ? setShowMembershipPrompt(true) : setShowNotificationsModal(open)}
                     handleShare={handleShare}

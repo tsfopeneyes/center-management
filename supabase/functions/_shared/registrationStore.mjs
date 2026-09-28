@@ -14,17 +14,16 @@ export function createRegistrationStore(pool) {
                 ON CONFLICT DO NOTHING`,[id,requestKey,identityKey,detailsKey,loginEmail,lifetimeMs]);
             let {rows}=await pool.query(`SELECT ${projection} FROM account_security.registration_operations WHERE request_key=$1`,[requestKey]);
             let row=rows[0];
-            // A mobile browser can lose its in-memory request secret after Auth
-            // creation but before membership finalization. Recover only the exact
-            // still-valid submission; the service still requires a fresh proof of
-            // the password for the already-bound Auth user before finalizing it.
+            // A mobile browser can lose its request secret after Auth creation.
+            // An expired auth_ready operation can also be recovered, but only
+            // after the service verifies the existing Auth user's password.
             if(!row) {
                 ({rows}=await pool.query(`SELECT ${projection} FROM account_security.registration_operations
-                    WHERE identity_key=$1 AND details_key=$2 AND state='auth_ready'
-                    AND valid_until>clock_timestamp()`,[identityKey,detailsKey]));
+                    WHERE identity_key=$1 AND details_key=$2 AND state='auth_ready'`,[identityKey,detailsKey]));
                 row=rows.length===1?rows[0]:null;
             }
-            if(!row || row.identityKey!==identityKey || row.detailsKey!==detailsKey || !row.usable) {
+            if(!row || row.identityKey!==identityKey || row.detailsKey!==detailsKey ||
+                (!row.usable && row.state!=='auth_ready')) {
                 throw new LoginError('registration_review_required',409);
             }
             return row;
@@ -35,14 +34,19 @@ export function createRegistrationStore(pool) {
                 [operation.id,operation.requestKey]);
             return rows.length===1;
         },
-        async markReady(operation,authUserId) {
+        async markReady(operation,authUserId,lifetimeMs) {
             // Recheck the authoritative binding in the write itself. No email-only
             // adoption, metadata from public users, or account/profile linking.
+            // Extend an expired auth_ready operation only after fresh password
+            // and live-session proof; never re-run Auth create for it.
             const {rows}=await pool.query(`UPDATE account_security.registration_operations o
-                SET state='auth_ready',auth_user_id=$3,ready_at=COALESCE(ready_at,clock_timestamp())
-                WHERE o.id=$1 AND o.request_key=$2 AND o.valid_until>clock_timestamp()
-                AND (o.state='creating' OR (o.state='auth_ready' AND o.auth_user_id=$3))
-                RETURNING o.id`,[operation.id,operation.requestKey,authUserId]);
+                SET state='auth_ready',auth_user_id=$3,ready_at=COALESCE(ready_at,clock_timestamp()),
+                    valid_until=CASE WHEN o.state='auth_ready' AND o.valid_until<=clock_timestamp()
+                        THEN clock_timestamp()+($4 * interval '1 millisecond') ELSE o.valid_until END
+                WHERE o.id=$1 AND o.request_key=$2
+                AND ((o.state='creating' AND o.valid_until>clock_timestamp())
+                    OR (o.state='auth_ready' AND o.auth_user_id=$3))
+                RETURNING o.id`,[operation.id,operation.requestKey,authUserId,lifetimeMs]);
             if(rows.length!==1)throw new LoginError('registration_review_required',409);
         }
     };

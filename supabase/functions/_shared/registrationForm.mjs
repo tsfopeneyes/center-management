@@ -14,6 +14,11 @@ const text=(value,max,required=false)=>{
     if(required && !result)fail();
     return result;
 };
+const personName=(value,required=false)=>{
+    const normalized=text(value,80,required).normalize('NFC').replace(/[\s\u200B]+/gu,' ').trim();
+    if(required&&!normalized)fail();
+    return /^[가-힣 ]+$/u.test(normalized)?normalized.replaceAll(' ',''):normalized;
+};
 const phone=(value)=>{
     const digits=text(value,24,true).replace(/-/g,'');
     if(!/^\d{11}$/.test(digits))fail();
@@ -65,11 +70,11 @@ export function createRegistrationFormValidator({termsVersion,now=Date.now}) {
         const formattedPhone=phone(formData.phone);
         // Check bounded input even for hidden stale guardian fields; do not persist
         // those fields for members aged 14+ (same as the existing hook).
-        const guardianName=text(formData.guardianName,80,under14);
+        const guardianName=personName(formData.guardianName,under14);
         const guardianRelation=text(formData.guardianRelation,80,under14);
         text(formData.guardianPhone,24,under14);
         const profile=Object.freeze({
-            name:text(formData.name,80,true),gender:formData.gender,
+            name:personName(formData.name,true),gender:formData.gender,
             school:normalizeProfileSchool(text(formData.school,200,true)),church:text(formData.church,200),
             birth,phone:formattedPhone,phone_back4:formattedPhone.slice(-4),user_group:formData.user_group,
             role:'user',status:under14?'pending':'approved',

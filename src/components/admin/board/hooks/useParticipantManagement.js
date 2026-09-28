@@ -1,9 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import { noticesApi } from '../../../../api/noticesApi';
-import { haifnApi } from '../../../../api/haifnApi';
 import { startOfDay } from 'date-fns';
-import { MAX_PROGRAM_HAIFN_REWARD } from '../utils/constants';
 import { getKstDateString, usesDailySessionRsvp } from '../../../../utils/dailyProgramSessions';
 import { challengeMissionsApi } from '../../../../api/challengeMissionsApi';
 import { programSessionsApi } from '../../../../api/programSessionsApi';
@@ -54,13 +52,15 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             if (notice.is_recruiting !== false) return;
 
             const descPattern = `[오픈 프로그램 참여] ${notice.title}%`;
-            const { data, error } = await supabase
+            const [{ data, error }, { data: attendance, error: attendanceError }] = await Promise.all([supabase
                 .from('haifn_transactions')
                 .select('source_description')
                 .eq('transaction_type', 'EARN')
-                .like('source_description', descPattern);
+                .like('source_description', descPattern),
+                supabase.from('open_program_attendance').select('attendance_date').eq('notice_id', notice.id)]);
             
             if (error) throw error;
+            if (attendanceError) throw attendanceError;
             
             const uniqueDates = new Set();
 
@@ -86,6 +86,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     uniqueDates.add(match[1]);
                 }
             });
+            attendance?.forEach(item => uniqueDates.add(item.attendance_date));
             
             const sorted = Array.from(uniqueDates).sort();
             setAvailableDates(sorted);
@@ -179,22 +180,27 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const dateStr = selectedDate;
                 const descMatch = `[오픈 프로그램 참여] ${notice.title} (${dateStr})`;
                 
-                const { data, error } = await supabase
+                const [{ data, error }, { data: attendance, error: attendanceError }] = await Promise.all([supabase
                     .from('haifn_transactions')
                     .select('user_id, users(id, name, school, phone, phone_back4, is_leader)')
                     .eq('source_description', descMatch)
                     .eq('transaction_type', 'EARN')
-                    .order('created_at', { ascending: true });
+                    .order('created_at', { ascending: true }),
+                    supabase.from('open_program_attendance')
+                        .select('user_id,users(id,name,school,phone,phone_back4,is_leader)')
+                        .eq('notice_id', notice.id).eq('attendance_date', dateStr)]);
                     
                 if (latestQueryDateRef.current !== dateQuerying) {
                     // Stale query, ignore results to prevent race conditions
                     return;
                 }
                 if (error) throw error;
+                if (attendanceError) throw attendanceError;
                 
                 const list = { JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] };
-                data?.forEach(tx => {
+                [...(data || []), ...(attendance || [])].forEach(tx => {
                     if (tx.users) {
+                        if (list.JOIN.some(item => item.id === tx.users.id)) return;
                         list.JOIN.push({ 
                             ...tx.users, 
                             is_attended: true, 
@@ -276,29 +282,18 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             } else if (selectedNotice.is_recruiting === false) {
                 const dateStr = selectedDate;
                 if (currentAttended) {
-                    await haifnApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
+                    const { error } = await supabase.from('open_program_attendance').delete()
+                        .eq('notice_id', selectedNotice.id).eq('user_id', userId).eq('attendance_date', dateStr);
+                    if (error) throw error;
                 } else {
-                    const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    const adminId = admin?.id || null;
-                    await haifnApi.grantOpenProgramReward(userId, selectedNotice.id, Math.min(MAX_PROGRAM_HAIFN_REWARD, Number(selectedNotice.haifn_reward) || 0), adminId, selectedNotice.title, dateStr);
+                    const { error } = await supabase.from('open_program_attendance')
+                        .upsert({ notice_id: selectedNotice.id, user_id: userId, attendance_date: dateStr });
+                    if (error) throw error;
                 }
                 await fetchParticipants(selectedNotice);
             } else {
                 await noticesApi.updateAttendance(selectedNotice.id, userId, !currentAttended);
                 
-                // Haifn Reward Logic
-                if (selectedNotice.haifn_reward && selectedNotice.haifn_reward > 0) {
-                    const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    const adminId = admin?.id || null;
-                    if (!currentAttended) {
-                        if (!selectedNotice.is_review_required) {
-                            await haifnApi.grantProgramReward(userId, selectedNotice.id, selectedNotice.haifn_reward, adminId, selectedNotice.title);
-                        }
-                    } else {
-                        await haifnApi.revokeProgramReward(userId, selectedNotice.title);
-                    }
-                }
-
                 setParticipantList(prev => {
                     const next = { ...prev };
                     next.JOIN = next.JOIN.map(u => u.id === userId ? { ...u, is_attended: !currentAttended } : u);
@@ -343,7 +338,9 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 throw new Error('먼저 선택한 날짜의 회차를 열어주세요.');
             } else if (selectedNotice.is_recruiting === false) {
                 const dateStr = selectedDate;
-                await haifnApi.revokeOpenProgramReward(userId, selectedNotice.title, dateStr);
+                const { error } = await supabase.from('open_program_attendance').delete()
+                    .eq('notice_id', selectedNotice.id).eq('user_id', userId).eq('attendance_date', dateStr);
+                if (error) throw error;
                 await fetchParticipants(selectedNotice);
             } else {
                 await noticesApi.deleteResponse(selectedNotice.id, userId);
@@ -385,22 +382,6 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             }
 
             await noticesApi.markAllAttended(selectedNotice.id);
-
-            // Haifn Reward Logic (Bulk)
-            if (selectedNotice.haifn_reward && selectedNotice.haifn_reward > 0 && !selectedNotice.is_review_required) {
-                const admin = JSON.parse(localStorage.getItem('admin_user'));
-                const adminId = admin?.id || null;
-                const newlyAttendedUsers = participantList.JOIN.filter(u => !u.is_attended);
-                
-                // Process sequentially to avoid slamming the DB
-                for (const u of newlyAttendedUsers) {
-                    try {
-                        await haifnApi.grantProgramReward(u.id, selectedNotice.id, selectedNotice.haifn_reward, adminId, selectedNotice.title);
-                    } catch (e) {
-                        console.error('Bulk reward error for user', u.id, e);
-                    }
-                }
-            }
 
             setParticipantList(prev => {
                 const next = { ...prev };
@@ -453,9 +434,9 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 throw new Error('먼저 선택한 날짜의 회차를 열어주세요.');
             } else if (selectedNotice.is_recruiting === false) {
                 const dateStr = selectedDate;
-                const admin = JSON.parse(localStorage.getItem('admin_user'));
-                const adminId = admin?.id || null;
-                await haifnApi.grantOpenProgramReward(user.id, selectedNotice.id, Math.min(MAX_PROGRAM_HAIFN_REWARD, Number(selectedNotice.haifn_reward) || 0), adminId, selectedNotice.title, dateStr);
+                const { error } = await supabase.from('open_program_attendance')
+                    .upsert({ notice_id: selectedNotice.id, user_id: user.id, attendance_date: dateStr });
+                if (error) throw error;
                 
                 // Optimistic Update & Immediate Feedback
                 const newUser = { ...user, is_attended: true, is_staff: false };
@@ -465,13 +446,6 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             } else {
                 await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
                 await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
-
-                // Haifn Reward Logic (Walk-in)
-                if (selectedNotice.haifn_reward && selectedNotice.haifn_reward > 0 && !selectedNotice.is_review_required) {
-                    const admin = JSON.parse(localStorage.getItem('admin_user'));
-                    const adminId = admin?.id || null;
-                    await haifnApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.haifn_reward, adminId, selectedNotice.title);
-                }
 
                 // Optimistic Update & Immediate Feedback
                 const newUser = { ...user, is_attended: true };
@@ -513,15 +487,10 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 throw new Error('먼저 선택한 날짜의 회차를 열어주세요.');
             } else if (selectedNotice.is_recruiting === false) {
                 const dateStr = selectedDate;
-                const admin = JSON.parse(localStorage.getItem('admin_user'));
-                const adminId = admin?.id || null;
-                for (const user of users) {
-                    try {
-                        await haifnApi.grantOpenProgramReward(user.id, selectedNotice.id, Math.min(MAX_PROGRAM_HAIFN_REWARD, Number(selectedNotice.haifn_reward) || 0), adminId, selectedNotice.title, dateStr);
-                    } catch (e) {
-                         console.error('Walk-in reward error for user', user.id, e);
-                    }
-                }
+                const { error } = await supabase.from('open_program_attendance').upsert(users.map(user => ({
+                    notice_id: selectedNotice.id, user_id: user.id, attendance_date: dateStr,
+                })));
+                if (error) throw error;
 
                 setParticipantList(prev => {
                     const next = { ...prev };
@@ -539,15 +508,6 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
                     await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
                     
-                    if (selectedNotice.haifn_reward && selectedNotice.haifn_reward > 0 && !selectedNotice.is_review_required) {
-                        const admin = JSON.parse(localStorage.getItem('admin_user'));
-                        const adminId = admin?.id || null;
-                        try {
-                            await haifnApi.grantProgramReward(user.id, selectedNotice.id, selectedNotice.haifn_reward, adminId, selectedNotice.title);
-                        } catch (e) {
-                             console.error('Walk-in reward error for user', user.id, e);
-                        }
-                    }
                 }
 
                 setParticipantList(prev => {

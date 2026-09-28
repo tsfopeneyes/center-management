@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, isValid, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import useModalClose from '../../hooks/useModalClose';
 
 const parseDate = value => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
@@ -19,6 +20,7 @@ export default function DatePicker({ label = '날짜', value = '', onChange, req
     const panelRef = useRef(null);
     const focusDayRef = useRef(false);
     const [open, setOpen] = useState(false);
+    useModalClose(open, () => setOpen(false), { handleEscape: false });
     const [month, setMonth] = useState(() => startOfMonth(parseDate(value) || todayInSeoul()));
     const [focusedDate, setFocusedDate] = useState(() => value || dateKey(todayInSeoul()));
     const [position, setPosition] = useState(null);

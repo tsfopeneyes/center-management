@@ -7,6 +7,7 @@ import { isAdminOrStaff } from './utils/userUtils'
 import { serverIntegrationsEnabled } from './utils/serverIntegration'
 import { trackUserWebActivity } from './utils/userActivityUtils'
 import AppAlertDialog from './components/common/AppAlertDialog'
+import AuthenticatedTermsGate from './components/auth/AuthenticatedTermsGate'
 
 // Keep the initial module graph small. Previously every admin, analytics,
 // kiosk, student and signage dependency was transformed before the landing
@@ -39,7 +40,7 @@ function HomeEntry() {
         return <Navigate to={`/${destination}${location.search}`} replace />
     }
     if (destination === 'waiting') {
-        return <div className="min-h-screen bg-[#F8F9FA]" aria-label="로그인 상태 확인 중" />
+        return <main className="flex min-h-screen items-center justify-center bg-[#F8F9FA] px-6 text-center font-bold text-gray-700" aria-label="로그인 상태 확인 중">접속을 준비하고 있습니다...</main>
     }
     if (destination === 'retry') {
         return <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#F8F9FA] px-6 text-center">
@@ -94,8 +95,9 @@ function App() {
     return (
         <>
             {window.location.pathname.toLowerCase() !== '/screen' && <AppAlertDialog />}
+            <AuthenticatedTermsGate />
             <BrowserRouter>
-                <Suspense fallback={<div className="min-h-screen bg-[#F8F9FA]" aria-hidden="true" />}>
+                <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] px-6 text-center font-bold text-gray-700">화면을 불러오고 있습니다...</div>}>
                     <Routes>
                         <Route path="/" element={<HomeEntry />} />
                         <Route path="/checkin" element={<GuestMobileWelcome />} />

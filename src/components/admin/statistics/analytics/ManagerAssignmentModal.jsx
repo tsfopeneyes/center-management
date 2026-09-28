@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, CheckCircle2, Save, MapPin } from 'lucide-react';
 import { userApi } from '../../../../api/userApi';
 import { isAdminOrStaff } from '../../../../utils/userUtils';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const ManagerAssignmentModal = ({ isOpen, onClose, selectedRegion, users, onSave }) => {
+    useModalClose(isOpen && Boolean(selectedRegion), onClose);
     const [staffList, setStaffList] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);

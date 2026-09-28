@@ -419,6 +419,12 @@ enabled = true
 # Only the dedicated cron secret is accepted by this handler; user JWTs are not.
 verify_jwt = false
 entrypoint = "./functions/send-recruitment-alerts/index.ts"
+
+[functions.send-dm-push]
+enabled = true
+# Only the dedicated server secret is accepted inside the handler.
+verify_jwt = false
+entrypoint = "./functions/send-dm-push/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/send-push/*.html" ]

@@ -1,25 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Trash2, X, Save, School, KeyRound, MessageSquare, Star } from 'lucide-react';
+import { RefreshCw, Trash2, X, Save, School, KeyRound, MessageSquare, Star, ShieldMinus } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
 import { feedbackApi } from '../../../../api/feedbackApi';
 import { extractProgramInfo } from '../../../../utils/textUtils';
 import UserAvatar from '../../../common/UserAvatar';
 import { aggregateVisitSessions } from '../../../../utils/visitUtils';
-import { isAdminOrStaff, normalizeSchoolName } from '../../../../utils/userUtils';
+import { getAccountRole, isAdminOrStaff, isMasterStaff, normalizeSchoolName } from '../../../../utils/userUtils';
 import useModalClose from '../../../../hooks/useModalClose';
+import { getTermsConsentStatus } from '../../../../utils/termsConsent';
 
 const isAdministrator = isAdminOrStaff;
 
 const UserEditModal = ({
     editingUser, setEditingUser,
-    handleDeleteUser, handleResetPassword, handleApproveUser,
-    userStats, fetchData, setIsMergeModalOpen, setViewerImage, locations
+    handleDeleteUser, handleRemoveAdminRole, handleResetPassword, handleApproveUser,
+    userStats, fetchData, setIsMergeModalOpen, setViewerImage, locations, adminUser
 }) => {
     useModalClose(!!editingUser, () => setEditingUser(null));
     const [editFormData, setEditFormData] = useState({
         name: '', school: '', church: '', phone: '', user_group: '재학생', memo: '',
         status: 'approved', guardian_name: '', guardian_phone: '', guardian_relation: '',
-        is_leader: false, terms_agreed: false, is_school_church: false
+        is_leader: false, is_school_church: false
     });
     
     const [activeTab, setActiveTab] = useState('INFO');
@@ -241,7 +242,6 @@ const UserEditModal = ({
                 guardian_phone: editingUser.guardian_phone || '',
                 guardian_relation: editingUser.guardian_relation || '',
                 is_leader: editingUser.is_leader || false,
-                terms_agreed: editingUser.preferences?.terms_agreed || false,
                 is_school_church: editingUser.preferences?.is_school_church || false
             });
         }
@@ -258,7 +258,7 @@ const UserEditModal = ({
                 user_group: editFormData.user_group,
                 memo: editFormData.memo,
                 is_leader: editFormData.is_leader,
-                preferences: { ...(editingUser.preferences || {}), terms_agreed: editFormData.terms_agreed, is_school_church: editFormData.is_school_church }
+                preferences: { ...(editingUser.preferences || {}), is_school_church: editFormData.is_school_church }
             }).eq('id', editingUser.id);
             if (error) throw error;
             alert('회원 정보가 수정되었습니다.');
@@ -268,8 +268,10 @@ const UserEditModal = ({
     };
 
     if (!editingUser) return null;
-    const adminUser = JSON.parse(localStorage.getItem('admin_user')) || {};
     const canResetPassword = isAdministrator(adminUser) && !isAdministrator(editingUser);
+    const canRemoveAdminRole = isMasterStaff(adminUser)
+        && adminUser.id !== editingUser.id
+        && ['admin', 'master'].includes(getAccountRole(editingUser));
 
     return (
         <div onClick={handleBackdropClick} className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 animate-fade-in">
@@ -347,19 +349,22 @@ const UserEditModal = ({
 
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-100 rounded-xl">
-                                <input
-                                    type="checkbox"
-                                    id="terms_agreed"
-                                    checked={editFormData.terms_agreed}
-                                    onChange={(e) => setEditFormData({ ...editFormData, terms_agreed: e.target.checked })}
-                                    className="w-4 h-4 text-blue-500 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                                />
-                                <label htmlFor="terms_agreed" className="text-xs font-bold text-gray-700 cursor-pointer flex items-center gap-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                    가입 약관 동의
-                                </label>
-                            </div>
+                            {(() => {
+                                const consentStatus = getTermsConsentStatus(editingUser);
+                                const labels = {
+                                    CURRENT: ['동의 완료', 'bg-blue-50 border-blue-100 text-blue-700'],
+                                    OUTDATED: ['재동의 필요 · 이전 약관', 'bg-amber-50 border-amber-100 text-amber-700'],
+                                    REQUIRED: ['재동의 필요 · 기록 없음', 'bg-amber-50 border-amber-100 text-amber-700'],
+                                    NOT_APPLICABLE: ['정식 가입 전', 'bg-gray-50 border-gray-200 text-gray-600'],
+                                    UNAVAILABLE: ['확인 불가', 'bg-gray-50 border-gray-200 text-gray-600']
+                                };
+                                const [label, colors] = labels[consentStatus];
+                                return <div className={`p-2.5 border rounded-xl ${colors}`}>
+                                    <p className="text-xs font-black">가입 약관 · {label}</p>
+                                    {consentStatus === 'CURRENT' && <p className="mt-1 text-[10px] font-semibold">버전 {editingUser.preferences?.terms_version}{editingUser.preferences?.terms_agreed_at ? ` · ${new Date(editingUser.preferences.terms_agreed_at).toLocaleString('ko-KR')}` : ' · 기존 동의 기록'}</p>}
+                                    {['REQUIRED', 'OUTDATED'].includes(consentStatus) && <p className="mt-1 text-[10px] font-semibold">다음 로그인 또는 키오스크 이용 시 본인이 직접 동의합니다.</p>}
+                                </div>;
+                            })()}
 
                             <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl">
                                 <input
@@ -487,6 +492,15 @@ const UserEditModal = ({
                         </div>
                     </div>
                     <div className="p-6 pt-0 space-y-3 mt-4">
+                        {canRemoveAdminRole && (
+                            <button
+                                type="button"
+                                onClick={() => handleRemoveAdminRole(editingUser)}
+                                className="w-full py-3 bg-violet-50 text-violet-700 border border-violet-200 rounded-xl font-bold hover:bg-violet-100 transition flex items-center justify-center gap-2 shadow-sm"
+                            >
+                                <ShieldMinus size={18} /> 관리자 권한 해제
+                            </button>
+                        )}
                         {editingUser.status === 'pending' && (
                             <button
                                 onClick={async () => {

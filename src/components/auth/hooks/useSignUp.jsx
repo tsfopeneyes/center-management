@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { TERMS_VERSION } from '../../../constants/appConstants';
 import { hashPassword } from '../../../utils/hashUtils';
-import { normalizeSchoolName } from '../../../utils/userUtils';
+import { normalizePersonName, normalizeSchoolName } from '../../../utils/userUtils';
 import { isVisitorOrTemporary } from '../../../utils/memberAccountType';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../auth/accountAuthRuntime';
 
@@ -60,6 +60,10 @@ export const useSignUp = (onSuccess, guestUserId = null) => {
 
     const handleSignUp = async (e) => {
         e.preventDefault();
+        const cleanName = normalizePersonName(formData.name);
+        if (!cleanName) {
+            alert('이름을 입력해 주세요.'); return;
+        }
         const under14 = isUnder14(formData.birth);
 
         if (!agreements.art1 || !agreements.art2 || !agreements.art3 || !agreements.art4) {
@@ -91,7 +95,7 @@ export const useSignUp = (onSuccess, guestUserId = null) => {
                 await getAccountAuthClient().registration.submit({
                     password: formData.password,
                     details: {
-                        formData,
+                        formData: { ...formData, name: cleanName },
                         agreements,
                         termsVersion: TERMS_VERSION,
                         ...(guestUserId ? { guestUserId } : {})
@@ -156,7 +160,7 @@ export const useSignUp = (onSuccess, guestUserId = null) => {
             const hashedPassword = await hashPassword(formData.password);
 
             const userData = {
-                name: formData.name, gender: formData.gender, school: normalizeSchoolName(formData.school), church: formData.church,
+                name: cleanName, gender: formData.gender, school: normalizeSchoolName(formData.school), church: formData.church,
                 birth: formData.birth, phone: formData.phone, phone_back4: back4,
                 user_group: formData.user_group, password: hashedPassword,
                 role: 'user', status: under14 ? 'pending' : 'approved',
@@ -164,7 +168,7 @@ export const useSignUp = (onSuccess, guestUserId = null) => {
                 guardian_phone: under14 ? formData.guardianPhone : null,
                 guardian_relation: under14 ? formData.guardianRelation : null,
                 memo: isAutoMerge ? (existingMemo ? `${existingMemo}\n[자동병합: ${new Date().toLocaleDateString()}]` : `[자동병합: ${new Date().toLocaleDateString()}]`) : null,
-                preferences: { terms_agreed: true, terms_version: TERMS_VERSION, is_school_church: formData.isSchoolChurch }
+                preferences: { terms_agreed: true, terms_version: TERMS_VERSION, terms_agreed_at: new Date().toISOString(), terms_consent_source: 'SIGNUP_LEGACY', is_school_church: formData.isSchoolChurch }
             };
 
             if (isAutoMerge) {

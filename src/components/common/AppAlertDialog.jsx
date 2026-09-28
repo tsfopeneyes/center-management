@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import useModalClose from '../../hooks/useModalClose';
 
 // Central replacement for browser alert() calls. Existing screens can keep
 // their validation code while users receive one consistent in-app dialog.
@@ -46,8 +47,11 @@ const AppAlertDialog = () => {
         setConfirmation(null);
     };
 
+    useModalClose(Boolean(activeMessage) && !confirmation, () => setMessages((current) => current.slice(1)));
+    useModalClose(Boolean(confirmation), () => finishConfirmation(false));
+
     if (confirmation) return (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" role="presentation">
+        <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" role="presentation">
             <div className="w-full max-w-sm rounded-3xl border border-tossGrey100 bg-white p-6 text-center shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="app-confirm-title" aria-describedby="app-confirm-description">
                 <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full text-2xl ${confirmation.tone === 'danger' ? 'bg-red-50' : 'bg-[#F8E8E4]'}`}>💬</div>
                 <h2 id="app-confirm-title" className="mt-4 break-keep text-lg font-black text-tossGrey900">{confirmation.title}</h2>
@@ -65,7 +69,7 @@ const AppAlertDialog = () => {
     const close = () => setMessages((current) => current.slice(1));
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" onClick={close}>
+        <div className="fixed inset-0 z-[10999] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" onClick={close}>
             <div className="w-full max-w-sm rounded-3xl border border-tossGrey100 bg-white p-6 text-center shadow-2xl" onClick={(event) => event.stopPropagation()}>
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F8E8E4] text-2xl">💬</div>
                 <h2 className="mt-4 break-keep text-lg font-black text-tossGrey900">{activeMessage.title}</h2>

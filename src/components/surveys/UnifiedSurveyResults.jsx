@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowLeft, EyeOff, Printer, RotateCcw, Star, Users } from 'lucide-react';
-import { optionsOf } from '../../utils/surveyModel';
+import { hasSurveyAnswerValue, optionsOf, surveyEntryHasAnswers } from '../../utils/surveyModel';
 import { summarizeSurveyEntries } from '../../utils/unifiedSurveySummary';
 import PrintableSurveyResponse from './PrintableSurveyResponse';
 
-const hasAnswer = value => value != null && value !== '' && (!Array.isArray(value) || value.length > 0);
+const hasAnswer = hasSurveyAnswerValue;
 const textValue = value => Array.isArray(value) ? value.join(', ') : String(value ?? '');
 
 function ResultCard({ group, number }) {
@@ -18,16 +18,17 @@ function ResultCard({ group, number }) {
 
 export default function UnifiedSurveyResults({ form, entries, formLinks, label, filter, setFilter, versionFilter, setVersionFilter, showExcluded, setShowExcluded, busy, onBack, onToggleExclude }) {
     const [printEntry, setPrintEntry] = useState(null);
-    const filtered = entries.filter(entry => (filter === 'ALL' || entry.link_id === filter) && (versionFilter === 'ALL' || entry.version_id === versionFilter));
+    const answeredEntries = entries.filter(surveyEntryHasAnswers);
+    const filtered = answeredEntries.filter(entry => (filter === 'ALL' || entry.link_id === filter) && (versionFilter === 'ALL' || entry.version_id === versionFilter));
     const included = filtered.filter(entry => !entry.aggregation_excluded);
     const displayed = filtered.filter(entry => showExcluded ? entry.aggregation_excluded : !entry.aggregation_excluded);
     const excludedCount = filtered.length - included.length;
     const groups = summarizeSurveyEntries(included);
-    const filterItems = [{ id: 'ALL', name: '전체' }, ...(entries.some(entry => entry.legacy) ? [{ id: 'LEGACY', name: '이전 응답' }] : []), ...formLinks.map(link => ({ id: link.id, name: label(link) }))];
+    const filterItems = [{ id: 'ALL', name: '전체' }, ...(answeredEntries.some(entry => entry.legacy) ? [{ id: 'LEGACY', name: '이전 응답' }] : []), ...formLinks.map(link => ({ id: link.id, name: label(link) }))];
     // The list, result header, filters, and charts all show the same
     // aggregation-included response set. Excluded rows remain available
     // through the separate excluded-response control.
-    const countFor = id => entries.filter(entry => !entry.aggregation_excluded && (id === 'ALL' || entry.link_id === id)).length;
+    const countFor = id => answeredEntries.filter(entry => !entry.aggregation_excluded && (id === 'ALL' || entry.link_id === id)).length;
     return <div className="space-y-6">
         <section className="flex flex-col justify-between gap-4 rounded-[24px] border border-gray-100 bg-white p-5 shadow-sm md:flex-row md:items-center"><div className="flex items-center gap-3"><button onClick={onBack} className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-600 hover:bg-gray-50" title="설문 목록으로"><ArrowLeft size={18} /></button><div><p className="text-xs font-bold text-blue-600">설문 결과</p><h2 className="mt-0.5 text-xl font-black text-gray-900">{form.title}</h2></div></div><div className="flex flex-wrap items-center gap-3"><span className="flex items-center gap-2 text-sm font-bold text-gray-600"><Users size={17} />집계 {included.length}건</span><button type="button" onClick={() => setShowExcluded(current => !current)} className={`rounded-xl border px-3 py-2 text-xs font-bold ${showExcluded ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>{showExcluded ? '집계 응답 보기' : `제외된 응답 보기 (${excludedCount})`}</button></div></section>
         <section className="space-y-3 rounded-[24px] border border-gray-100 bg-white p-4 shadow-sm"><div className="flex flex-wrap gap-2">{filterItems.map(item => <button key={item.id} onClick={() => setFilter(item.id)} className={`rounded-xl px-4 py-2.5 text-sm font-bold ${filter === item.id ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>{item.name} <span className={filter === item.id ? 'text-white/70' : 'text-gray-400'}>{countFor(item.id)}건</span></button>)}</div>{form.survey_versions.length > 1 && <select className="w-full max-w-md rounded-xl border border-gray-200 bg-slate-50 px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-500" aria-label="응답 버전 필터" value={versionFilter} onChange={event => setVersionFilter(event.target.value)}><option value="ALL">모든 질문 버전</option>{form.survey_versions.map(version => <option key={version.id} value={version.id}>{new Date(version.created_at).toLocaleString('ko-KR')} · {version.definition.title}</option>)}</select>}</section>

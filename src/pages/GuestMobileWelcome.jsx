@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { supabase } from '../supabaseClient';
 import { verifiedProfileLogin } from '../utils/verifiedProfileLogin';
 import { requestSupabaseFunction } from '../utils/supabaseRest';
-import { findMatchingGuestAccount, isAdminOrStaff, normalizeSchoolName } from '../utils/userUtils';
+import { findMatchingGuestAccount, isAdminOrStaff, normalizePersonName, normalizeSchoolName } from '../utils/userUtils';
 import { hashPassword } from '../utils/hashUtils';
 import { sendCheckinNotification, sendCheckoutNotification } from '../utils/integrationUtils';
 import { requestSupabaseRest } from '../utils/supabaseRest';
@@ -577,6 +577,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
 
             sessionStorage.setItem('pending_checkin_notif', JSON.stringify({
                 logId: (checkinResult.event || checkinResult.state?.lastEvent)?.id || null,
+                createdAt: (checkinResult.event || checkinResult.state?.lastEvent)?.created_at || new Date().toISOString(),
             }));
 
             const insertedLog = checkinResult.event || checkinResult.state?.lastEvent;
@@ -941,7 +942,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     const handleGuestCheckinSubmit = async (e) => {
         e.preventDefault();
         const birthInfo = parseGuestBirthDate(guestBirthDate);
-        if (!name.trim() || !school.trim() || !birthInfo) {
+        if (!normalizePersonName(name) || !school.trim() || !birthInfo) {
             alert('이름, 학교명, 생년월일을 정확히 입력해주세요.');
             return;
         }
@@ -960,7 +961,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
 
         setLoading(true);
         try {
-            const cleanName = name.trim();
+            const cleanName = normalizePersonName(name);
             const cleanSchool = normalizeSchoolName(school.trim());
             const reasonBase = selectedReasons.length > 0 ? selectedReasons.join(', ') : '기타';
             const finalVisitReason = customReason.trim()
@@ -1672,8 +1673,10 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                                         <input
                                             type="text"
                                             required
+                                            maxLength={80}
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
+                                            onBlur={() => setName(current => normalizePersonName(current))}
                                             placeholder="이름을 입력해주세요"
                                             className="w-full pl-9 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#CF3A27] font-bold text-sm"
                                         />

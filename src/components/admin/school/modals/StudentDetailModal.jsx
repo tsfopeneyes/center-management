@@ -3,8 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Trash2, Edit2, Download, Copy, ExternalLink, Calendar, MapPin, CheckCircle, RefreshCw, Eye, MessageCircle, FileText, X, School, Flame, LayoutGrid, LayoutList, CheckCircle2, User, Users, ChevronRight, ChevronLeft, Grid, List, Star, Heart, Columns, Settings, ClipboardList, Save, Clock, Cookie } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
 import { mergeUserStats } from '../../../../api/userMergeApi';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const StudentDetailModal = ({ student, onClose, onSave, onMergeComplete, allUsers }) => {
+    useModalClose(Boolean(student), onClose);
     const [memo, setMemo] = useState(student.memo || '');
     const [isLeader, setIsLeader] = useState(student.is_leader || false);
 

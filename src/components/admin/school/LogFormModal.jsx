@@ -3,8 +3,10 @@ import { motion } from 'framer-motion';
 import { Plus, X, Calendar, Clock, Users, Search, MapPin as LocationIcon, FileText, Save } from 'lucide-react';
 import { MINISTRY_LOG_TEMPLATE } from '../../../constants/appConstants';
 import TemplateManager from '../TemplateManager';
+import useModalClose from '../../../hooks/useModalClose';
 
 const LogFormModal = ({ school, onClose, onSave }) => {
+    useModalClose(true, onClose);
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         start_time: '17:00',

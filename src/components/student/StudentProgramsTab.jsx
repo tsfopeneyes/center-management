@@ -227,7 +227,7 @@ const StudentProgramsTab = ({
                                                                 onClick={() => setSelectedFeedbackProgram(n)}
                                                                 className="w-full py-2 rounded-toss-lg text-white text-xs font-bold bg-tossBlue hover:bg-tossBlueHover transition-all flex items-center justify-center gap-1 cursor-pointer"
                                                             >
-                                                                피드백 작성 {n.haifn_reward && n.haifn_reward > 0 ? `(${n.haifn_reward}H)` : ''}
+                                                                피드백 작성
                                                             </button>
                                                         )
                                                     ) : (

@@ -1,8 +1,8 @@
 import React from 'react';
 
-const AdminPageHeader = ({ title, subtitle, icon, actions }) => {
+const AdminPageHeader = ({ title, subtitle, icon, actions, compact = false }) => {
     return (
-        <div className="p-4 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center justify-between bg-gradient-to-r from-white to-blue-50/10">
+        <div className={`${compact ? 'p-4 md:px-6 md:py-5 rounded-[24px]' : 'p-4 md:p-8 rounded-3xl'} bg-white border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center justify-between bg-gradient-to-r from-white to-blue-50/10`}>
             <div className="flex items-center justify-between w-full md:w-auto">
                 <div className="flex items-center gap-3">
                     {icon && (
@@ -13,7 +13,7 @@ const AdminPageHeader = ({ title, subtitle, icon, actions }) => {
                         </div>
                     )}
                     <div>
-                        <h2 className="text-xl md:text-3xl font-black text-gray-800 tracking-tighter">
+                        <h2 className={`${compact ? 'text-xl md:text-2xl' : 'text-xl md:text-3xl'} font-black text-gray-800 tracking-tighter`}>
                             {title}
                         </h2>
                         {subtitle && (

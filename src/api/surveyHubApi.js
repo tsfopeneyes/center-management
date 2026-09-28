@@ -189,9 +189,16 @@ export const surveyHubApi = {
         // when the schema itself is unavailable; otherwise the caller could
         // revive an old SYSTEM survey after an admin disconnects it.
         if (!links.length) return null;
-        for (const link of links) {
-            const now = Date.now();
-            if (!link.enabled || link.form?.archived || (link.opens_at && Date.parse(link.opens_at) > now) || (link.closes_at && Date.parse(link.closes_at) < now)) continue;
+        const now = Date.now();
+        const activeLinks = links.filter(link => link.enabled && !link.form?.archived
+            && (!link.opens_at || Date.parse(link.opens_at) <= now)
+            && (!link.closes_at || Date.parse(link.closes_at) >= now));
+        const normalLinks = activeLinks.filter(link => !link.is_default);
+        // A default survey is a fallback for a visit point that has no active
+        // normal survey. Completing the normal survey must not reveal a second
+        // default survey afterward.
+        const candidates = normalLinks.length ? normalLinks : activeLinks.filter(link => link.is_default);
+        for (const link of candidates) {
             if (!noticeId && link.frequency === 'ONCE' && userId) {
                 const visitId = await receipt(userId);
                 const prior = await scopedEntries(`survey_completions?select=link_id&link_id=eq.${link.id}&user_id=eq.${userId}&limit=1`, userId, visitId);

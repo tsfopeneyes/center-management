@@ -153,6 +153,8 @@ export const prepareNoticeForEdit = (notice) => {
         poll_deadline: notice.poll_deadline ? formatToLocalISO(notice.poll_deadline) : '',
         poll_options: notice.poll_options || [],
         haifn_reward: notice.haifn_reward || 0,
+        challenge_reward_criterion: notice.guest_properties?.challenge_reward_criterion || 'ALL',
+        challenge_reward_percent: Number(notice.guest_properties?.challenge_reward_percent) || 100,
         is_review_required: notice.is_review_required || false,
         program_start_date: notice.program_start_date ? formatToLocalISO(notice.program_start_date).split('T')[0] : '',
         program_end_date: notice.program_end_date ? formatToLocalISO(notice.program_end_date).split('T')[0] : '',

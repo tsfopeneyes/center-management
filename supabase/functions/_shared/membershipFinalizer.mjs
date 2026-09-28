@@ -90,7 +90,8 @@ export function createMembershipFinalizer({pool,keyFor,validateForm,verifyToken,
             abort(signal);
             if(guestUserId)await query(`UPDATE public.users SET auth_user_id=$2,name=$3,gender=$4,school=$5,church=$6,birth=$7,
                 phone=$8,phone_back4=$9,user_group=$10,role='user',status=$11,guardian_name=$12,guardian_phone=$13,
-                guardian_relation=$14,preferences=COALESCE(preferences,'{}'::jsonb)||$15::jsonb,password=NULL,
+                guardian_relation=$14,preferences=COALESCE(preferences,'{}'::jsonb)||$15::jsonb||jsonb_build_object(
+                    'terms_agreed_at',clock_timestamp(),'terms_consent_source','SIGNUP'),password=NULL,
                 memo=CASE WHEN memo IS NULL OR memo='' THEN '[자동병합: '||current_date::text||']'
                     ELSE memo||E'\n[자동병합: '||current_date::text||']' END WHERE id=$1`,
                 [guestUserId,principal.authUserId,profile.name,profile.gender,profile.school,profile.church,profile.birth,
@@ -99,13 +100,21 @@ export function createMembershipFinalizer({pool,keyFor,validateForm,verifyToken,
             else await query(`INSERT INTO public.users
                 (id,auth_user_id,name,gender,school,church,birth,phone,phone_back4,user_group,role,status,
                     guardian_name,guardian_phone,guardian_relation,preferences)
-                VALUES($1,$1,$2,$3,$4,$5,$6,$7,$8,$9,'user',$10,$11,$12,$13,$14)`,
+                VALUES($1,$1,$2,$3,$4,$5,$6,$7,$8,$9,'user',$10,$11,$12,$13,
+                    $14::jsonb||jsonb_build_object('terms_agreed_at',clock_timestamp(),'terms_consent_source','SIGNUP'))`,
                 [principal.authUserId,profile.name,profile.gender,profile.school,profile.church,profile.birth,
                     profile.phone,profile.phone_back4,profile.user_group,profile.status,profile.guardian_name,
                     profile.guardian_phone,profile.guardian_relation,profile.preferences]);
             await query(`INSERT INTO account_security.accounts
                 (profile_id,auth_user_id,mapping_verified,status,credential_version,must_change_password)
                 VALUES($1,$2,true,'active',1,false)`,[targetProfileId,principal.authUserId]);
+            await query(`INSERT INTO account_security.account_roles(profile_id,role,enabled)
+                VALUES($1,'member',true)`,[targetProfileId]);
+            await query(`INSERT INTO account_security.member_terms_consents(
+                profile_id,auth_user_id,session_id,terms_version,source,art1,art2,art3,art4,accepted_at)
+                VALUES($1,$2,$3,$4,'SIGNUP',true,true,true,true,clock_timestamp())
+                ON CONFLICT(profile_id,terms_version) DO NOTHING`,
+                [targetProfileId,principal.authUserId,principal.sessionId,submission.termsVersion]);
             await query(`INSERT INTO account_security.login_identifiers
                 (profile_id,login_email,name_key,phone_key,credential_mode,enabled)
                 VALUES($1,$2,$3,$4,'supabase_password',$5)`,

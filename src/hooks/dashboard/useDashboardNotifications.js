@@ -144,7 +144,7 @@ export const useDashboardNotifications = (user) => {
                             try {
                                 new Notification('새 알림', {
                                     body: payload.new?.content || '새로운 알림이 도착했습니다.',
-                                    icon: '/favicon.ico'
+                                    icon: '/icon-512.png'
                                 });
                             } catch (e) {
                                 console.error('Failed to display browser notification:', e);

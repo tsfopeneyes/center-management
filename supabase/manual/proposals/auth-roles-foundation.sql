@@ -19,6 +19,7 @@ CREATE POLICY credential_confirmation_write ON account_security.credential_confi
             AND r.enabled AND r.role='admin')
         AND EXISTS(SELECT 1 FROM account_security.accounts a WHERE a.profile_id=profile_id
             AND a.mapping_verified AND a.status='active'));
--- Assignment/revocation needs a separately audited server workflow. No client,
--- login worker or membership worker can write this table. No default admin.
+-- Assignment/revocation needs a separately audited server workflow. No client
+-- or login worker can write this table. Membership registration receives a
+-- separate insert-only policy restricted to enabled member rows.
 COMMIT;

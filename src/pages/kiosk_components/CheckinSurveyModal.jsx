@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HelpCircle, ChevronRight, X, Sparkles, Clock, CheckCircle } from 'lucide-react';
 import SurveyRunner from '../../components/surveys/SurveyRunner';
+import useModalClose from '../../hooks/useModalClose';
 
 const CheckinSurveyModal = ({
     isOpen,
@@ -13,6 +14,7 @@ const CheckinSurveyModal = ({
     onBack,
     user
 }) => {
+    useModalClose(isOpen && !surveyConfig?._surveyLink, onClose);
     const [selectedIds, setSelectedIds] = useState([]);
     const [countdown, setCountdown] = useState(10);
     const [customText, setCustomText] = useState('');

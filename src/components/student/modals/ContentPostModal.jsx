@@ -1,15 +1,10 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { MapPin, Pencil, Trash2, X } from "lucide-react";
 import ContentImage from "../../common/ContentImage";
+import useModalClose from '../../../hooks/useModalClose';
 
 export default function ContentPostModal({ post, onClose, onEdit, onDelete }) {
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  useModalClose(Boolean(post), onClose);
 
   return (
     <div className="fixed inset-0 z-[500] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5" onClick={onClose}>

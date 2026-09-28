@@ -97,7 +97,7 @@ const EMOJI_CATEGORIES = [
     }
 ];
 
-export default function NoticeReactions({ reactions = [], currentUserId, onToggleReaction, hideAddButtonOnMobile = false, pickerOpenToken = 0 }) {
+export default function NoticeReactions({ reactions = [], currentUserId, onToggleReaction, hideAddButtonOnMobile = false, hideAddButton = false, pickerOpenToken = 0 }) {
     const [showModal, setShowModal] = useState(false);
     const [detailEmoji, setDetailEmoji] = useState(null); // For "Who Reacted" Modal
     const [searchQuery, setSearchQuery] = useState('');
@@ -219,12 +219,10 @@ export default function NoticeReactions({ reactions = [], currentUserId, onToggl
                         <button
                             key={emoji}
                             type="button"
-                            onMouseDown={() => handlePressStart(emoji)}
-                            onMouseUp={() => handlePressEnd(emoji)}
-                            onMouseLeave={handlePressCancel}
-                            onTouchStart={() => handlePressStart(emoji)}
-                            onTouchEnd={() => handlePressEnd(emoji)}
-                            onTouchCancel={handlePressCancel}
+                            onPointerDown={() => handlePressStart(emoji)}
+                            onPointerUp={() => handlePressEnd(emoji)}
+                            onPointerLeave={handlePressCancel}
+                            onPointerCancel={handlePressCancel}
                             onContextMenu={(e) => {
                                 e.preventDefault();
                                 setDetailEmoji(emoji);
@@ -250,20 +248,20 @@ export default function NoticeReactions({ reactions = [], currentUserId, onToggl
                 })}
 
                 {/* Slack-style Face Line Add Button */}
-                <button
+                {!hideAddButton && <button
                     type="button"
                     onClick={() => setShowModal(true)}
                     className={`${hideAddButtonOnMobile ? 'hidden md:flex' : 'flex'} items-center justify-center w-8 h-8 rounded-full bg-tossGrey50 hover:bg-tossGrey100 text-tossGrey500 border border-tossGrey200 hover:border-tossGrey300 transition-all active:scale-95 shrink-0`}
                     title="이모지 반응 추가"
                 >
                     <SmilePlus size={16} strokeWidth={2} />
-                </button>
+                </button>}
             </div>
 
             {/* Slack-Style Who Reacted Bottom Sheet Modal */}
             {detailEmoji && createPortal(
                 <div 
-                    className="fixed inset-0 z-[300] bg-black/50 backdrop-blur-2xs flex items-end sm:items-center justify-center p-0 sm:p-4 select-none"
+                    className="fixed inset-0 z-[11010] bg-black/50 backdrop-blur-2xs flex items-end sm:items-center justify-center p-0 sm:p-4 select-none"
                     style={{
                         WebkitUserSelect: 'none',
                         userSelect: 'none',
@@ -362,9 +360,9 @@ export default function NoticeReactions({ reactions = [], currentUserId, onToggl
             )}
 
             {/* Slack-Style Comprehensive Emoji Picker Modal */}
-            <AnimatePresence>
+            {createPortal(<AnimatePresence>
                 {showModal && (
-                    <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 md:p-4">
+                    <div className="fixed inset-0 z-[11010] bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 md:p-4">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 15 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -498,7 +496,7 @@ export default function NoticeReactions({ reactions = [], currentUserId, onToggl
                         </motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence>, document.body)}
         </div>
     );
 }

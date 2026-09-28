@@ -17,6 +17,9 @@ export const useFCM = (user) => {
         setupFCM();
         const stopForegroundMessages = listenForForegroundMessages(async (payload) => {
             if (window.Notification.permission !== 'granted') return;
+            const dmConversationId = payload?.data?.dmConversationId;
+            if (dmConversationId && document.visibilityState === 'visible'
+                && sessionStorage.getItem('sci_active_dm_conversation') === dmConversationId) return;
             const title = payload?.notification?.title || payload?.data?.title || '새 알림';
             const body = payload?.notification?.body || payload?.data?.body || '새로운 알림이 도착했습니다.';
             try {
@@ -25,6 +28,7 @@ export const useFCM = (user) => {
                     body,
                     icon: '/icon-512.png',
                     badge: '/icon-512.png',
+                    tag: payload?.data?.tag || undefined,
                     data: payload?.data,
                 });
                 await reportPushReceipt(payload?.data?.receiptToken, 'DISPLAYED');

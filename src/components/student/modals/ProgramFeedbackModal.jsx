@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Star } from 'lucide-react';
 import { feedbackApi } from '../../../api/feedbackApi';
-import { haifnApi } from '../../../api/haifnApi';
 import { supabase } from '../../../supabaseClient';
 import useModalClose from '../../../hooks/useModalClose';
 import ProgramSurveyGate from '../../surveys/ProgramSurveyGate';
@@ -185,21 +184,7 @@ const ProgramFeedbackModal = ({ program, existingFeedback, onClose, onSuccess })
 
             const data = await feedbackApi.upsertFeedback(payload);
 
-            if (!currentFeedback && program.is_review_required && program.haifn_reward > 0) {
-                try {
-                    await haifnApi.grantProgramReward(
-                        user.id, 
-                        program.id, 
-                        program.haifn_reward, 
-                        'System',
-                        program.title + ' (리뷰 작성 완료)'
-                    );
-                    alert(`피드백 제출 완료! ${program.haifn_reward}H가 지급되었습니다.`);
-                } catch (rErr) {
-                    console.error('Reward error:', rErr);
-                    alert('피드백이 저장되었으나 포인트 지급 중 오류가 발생했습니다.');
-                }
-            } else if (!currentFeedback) {
+            if (!currentFeedback) {
                 alert('피드백이 정상적으로 제출되었습니다.');
             } else {
                 alert('피드백이 수정되었습니다.');

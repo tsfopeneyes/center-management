@@ -2,29 +2,53 @@
 // Plain fetch avoids the Supabase client's internally aborted signal in that window.
 import { supabase } from '../supabaseClient';
 
-const getRequestToken = async () => {
-    const { data } = await supabase.auth.getSession();
-    return data?.session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY;
+let sessionProbePromise = null;
+let refreshPromise = null;
+
+const refreshRequiredSession = async () => {
+    if (!refreshPromise) {
+        refreshPromise = supabase.auth.refreshSession().finally(() => { refreshPromise = null; });
+    }
+    const { data, error } = await refreshPromise;
+    const token = data?.session?.access_token;
+    if (error || !token) throw new Error('관리자 로그인 세션을 갱신하지 못했습니다.');
+    return token;
+};
+
+const getRequestToken = async ({ requireAuth = false, forceRefresh = false } = {}) => {
+    if (forceRefresh) return refreshRequiredSession();
+    if (!sessionProbePromise) {
+        sessionProbePromise = supabase.auth.getSession().finally(() => { sessionProbePromise = null; });
+    }
+    const { data, error } = await sessionProbePromise;
+    const token = data?.session?.access_token;
+    if (token) return token;
+    if (requireAuth) return refreshRequiredSession();
+    if (error) console.warn('Unable to read the optional Supabase session:', error);
+    return import.meta.env.VITE_SUPABASE_ANON_KEY;
 };
 
 export const requestSupabaseRest = async (path, options = {}, attempts = 2, timeoutMs = 8000) => {
     let lastError;
     const method = (options.method || 'GET').toUpperCase();
+    const { requireAuth = false, ...fetchOptions } = options;
     // Retrying a write after an aborted response can create a second row even
     // when the first request was committed successfully. Writes are reconciled
     // by the visit lifecycle instead of being sent a second time.
     const allowedAttempts = ['GET', 'HEAD'].includes(method) ? attempts : 1;
+    let forceRefresh = false;
 
     for (let attempt = 0; attempt < allowedAttempts; attempt += 1) {
         let timeoutId;
         try {
             const controller = new AbortController();
-            const token = await getRequestToken();
+            const token = await getRequestToken({ requireAuth, forceRefresh });
+            forceRefresh = false;
             timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
             const response = await fetch(
                 `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/${path}`,
                 {
-                    ...options,
+                    ...fetchOptions,
                     headers: {
                         apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
                         Authorization: `Bearer ${token}`,
@@ -35,7 +59,9 @@ export const requestSupabaseRest = async (path, options = {}, attempts = 2, time
             );
 
             if (!response.ok) {
-                throw new Error(`요청을 처리하지 못했습니다. (${response.status})`);
+                const error = new Error(`요청을 처리하지 못했습니다. (${response.status})`);
+                error.status = response.status;
+                throw error;
             }
 
             // POST/DELETE requests without `Prefer: return=representation` can
@@ -46,7 +72,10 @@ export const requestSupabaseRest = async (path, options = {}, attempts = 2, time
             return body ? JSON.parse(body) : null;
         } catch (error) {
             lastError = error;
-            if (error?.name !== 'AbortError' || attempt === allowedAttempts - 1) break;
+            const retryable = error?.name === 'AbortError' || error instanceof TypeError ||
+                error?.status === 429 || error?.status >= 500 || (requireAuth && error?.status === 401);
+            if (!retryable || attempt === allowedAttempts - 1) break;
+            if (requireAuth && error?.status === 401) forceRefresh = true;
             await new Promise(resolve => window.setTimeout(resolve, 350));
         } finally {
             if (timeoutId) window.clearTimeout(timeoutId);

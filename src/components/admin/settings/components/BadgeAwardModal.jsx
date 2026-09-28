@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, Award, CheckSquare, Square } from 'lucide-react';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const BadgeAwardModal = ({
     isOpen,
@@ -10,6 +11,7 @@ const BadgeAwardModal = ({
     initialAwardedUserIds,
     onSave
 }) => {
+    useModalClose(isOpen && Boolean(challenge), onClose);
     const [searchTerm, setSearchTerm] = useState('');
     const [groupFilter, setGroupFilter] = useState('ALL');
     const [schoolFilter, setSchoolFilter] = useState('ALL');

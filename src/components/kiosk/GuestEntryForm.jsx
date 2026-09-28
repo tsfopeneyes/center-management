@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { User, Smartphone, School, Calendar, X } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { findMatchingGuestAccount, normalizeSchoolName } from '../../utils/userUtils';
+import { findMatchingGuestAccount, normalizePersonName, normalizeSchoolName } from '../../utils/userUtils';
 import { buildGuestPrivacyPreferences, parseGuestBirthDate } from '../../utils/guestBirthUtils';
 import BirthDateInput from '../common/BirthDateInput';
 
@@ -58,7 +58,11 @@ const GuestEntryForm = ({ onSuccess, onCancel }) => {
 
         setLoading(true);
         try {
-            const cleanName = formData.name.trim();
+            const cleanName = normalizePersonName(formData.name);
+            if (!cleanName) {
+                alert('이름을 입력해주세요.');
+                return;
+            }
             const cleanSchool = normalizeSchoolName(formData.school);
             const { data: guestCandidates, error: guestLookupError } = await supabase
                 .from('users')
@@ -124,7 +128,7 @@ const GuestEntryForm = ({ onSuccess, onCancel }) => {
             const back4 = phoneParts[2];
             const memoText = `[가입일: ${new Date().toLocaleDateString()}] [게스트 입장 완료]`;
 
-            // 이름은 원문 그대로 저장하고 회원 유형으로 게스트를 구분한다.
+            // 정리된 이름을 저장하고 회원 유형으로 게스트를 구분한다.
             const { data: newUser, error } = await supabase.from('users').insert([{
                 name: cleanName,
                 gender: 'M', // default filler
@@ -166,8 +170,10 @@ const GuestEntryForm = ({ onSuccess, onCancel }) => {
                         type="text"
                         name="name"
                         required
+                        maxLength={80}
                         value={formData.name}
                         onChange={handleChange}
+                        onBlur={() => setFormData(prev => ({...prev, name: normalizePersonName(prev.name)}))}
                         placeholder="이름을 입력하세요"
                         className="w-full pl-10 pr-4 py-3 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none font-bold"
                     />

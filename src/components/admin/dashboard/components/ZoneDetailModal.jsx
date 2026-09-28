@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { X } from 'lucide-react';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const ZoneDetailModal = ({
     zoneDetailModal,
@@ -7,18 +8,7 @@ const ZoneDetailModal = ({
     handleForceCheckout,
     onUserClick
 }) => {
-    // ESC key listener to close modal
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                setZoneDetailModal(prev => ({ ...prev, isOpen: false }));
-            }
-        };
-        if (zoneDetailModal.isOpen) {
-            window.addEventListener('keydown', handleKeyDown);
-        }
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [zoneDetailModal.isOpen, setZoneDetailModal]);
+    useModalClose(zoneDetailModal.isOpen, () => setZoneDetailModal(prev => ({ ...prev, isOpen: false })));
 
     if (!zoneDetailModal.isOpen) return null;
 

@@ -17,8 +17,8 @@ export function createSelfPasswordService({store,limits,keyFor,authorize,passwor
             typeof context.accessToken!=='string'||!context.accessToken||context.accessToken.length>8192||
             typeof context.clientKey!=='string'||!context.clientKey||context.clientKey.length>200)throw new LoginError('invalid_request',400);
         if(!await readiness())throw unavailable();abort(context.signal);
-        if(!await limits.consumeLimit(await keyFor('credential-client',context.clientKey),20)||
-            !await limits.consumeLimit(await keyFor('account',input.profileId),5))throw new LoginError('try_later',429);
+        if(!await limits.consumeLimit(await keyFor('credential-client',context.clientKey),50)||
+            !await limits.consumeLimit(await keyFor('credential-change-account',input.profileId),10))throw new LoginError('try_later',429);
         if(await passwordPolicy(input.newPassword,{purpose:'permanent'})!==true)throw new LoginError('password_policy',400);
         const principal=await authorize({accessToken:context.accessToken,action:'credentials.change-self',targetProfileId:input.profileId});
         const account=await store.readActive(input.profileId);

@@ -56,11 +56,25 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
     const [viewComments, setViewComments] = useState([]);
     const [viewComment, setViewComment] = useState('');
     const [todaySessionNotice, setTodaySessionNotice] = useState(null);
+    const [pendingParticipantModal, setPendingParticipantModal] = useState(null);
     const [communityNotice, setCommunityNotice] = useState(null);
 
     const handleOpenTodaySession = useCallback((notice, initialView = 'overview') => {
         setTodaySessionNotice({ notice, initialView });
     }, []);
+
+    useEffect(() => {
+        if (todaySessionNotice || !pendingParticipantModal) return undefined;
+
+        // TodaySessionModal removes its synthetic browser-history entry while
+        // unmounting. Open the shared participant modal after that traversal
+        // settles so the new modal is not mistaken for the one being closed.
+        const timer = window.setTimeout(() => {
+            setModalNotice(pendingParticipantModal);
+            setPendingParticipantModal(null);
+        }, 100);
+        return () => window.clearTimeout(timer);
+    }, [todaySessionNotice, pendingParticipantModal]);
 
     const adminUser = useMemo(() => {
         try {
@@ -478,8 +492,11 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                     onClose={() => setTodaySessionNotice(null)}
                     onChanged={fetchNotices}
                     onViewParticipants={(sessionDate) => {
+                        setPendingParticipantModal({
+                            notice: { ...todaySessionNotice.notice, _initialSessionDate: sessionDate },
+                            initialView: 'attendance',
+                        });
                         setTodaySessionNotice(null);
-                        handleOpenParticipants({ ...todaySessionNotice.notice, _initialSessionDate: sessionDate }, 'attendance');
                     }}
                 />
             )}

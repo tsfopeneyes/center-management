@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState
 import { createPortal } from 'react-dom';
 import { Clock } from 'lucide-react';
 import { formatClockTime, parseClockTime, toClockTime } from '../../utils/timePicker';
+import useModalClose from '../../hooks/useModalClose';
 
 const HOURS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTES = Array.from({ length: 60 }, (_, index) => index);
@@ -14,6 +15,7 @@ export default function TimePicker({ label = '시간', value = '', onChange, dis
     const minuteRef = useRef(null);
     const needsFocus = useRef(false);
     const [open, setOpen] = useState(false);
+    useModalClose(open, () => setOpen(false), { handleEscape: false });
     const [position, setPosition] = useState(null);
     const [draft, setDraft] = useState(() => parseClockTime(value) || parseClockTime('12:00'));
     const selectedText = formatClockTime(value);

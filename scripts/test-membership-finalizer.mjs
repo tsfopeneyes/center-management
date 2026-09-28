@@ -46,6 +46,7 @@ const inspect=async(input)=>admin(async()=>{
     return {
         profile:(await query('SELECT * FROM public.users WHERE id=$1',[id])).rows[0],
         account:(await query('SELECT * FROM account_security.accounts WHERE profile_id=$1',[id])).rows[0],
+        accountRole:(await query('SELECT * FROM account_security.account_roles WHERE profile_id=$1',[id])).rows[0],
         login:(await query('SELECT * FROM account_security.login_identifiers WHERE profile_id=$1',[id])).rows[0],
         receipt:(await query('SELECT * FROM account_security.membership_receipts WHERE operation_id=$1',[input.operationId])).rows[0]
     };
@@ -61,9 +62,24 @@ try {
         CREATE TABLE public.raw_logs(id integer PRIMARY KEY,content text);
         INSERT INTO public.raw_logs VALUES(1,'original-log');
         INSERT INTO public.users(id,name,phone,phone_back4,role,password) VALUES('10000000-0000-4000-8000-000000000001','existing','010-1111-2222','2222','user','existing-hash');`);
-    for(const file of ['auth-session-foundation','auth-login-foundation','auth-registration-foundation','auth-membership-foundation']){
+    for(const file of ['auth-session-foundation','auth-login-foundation','auth-registration-foundation']){
         await db.exec(readFileSync(new URL('../supabase/manual/proposals/'+file+'.sql',import.meta.url),'utf8'));
     }
+    await db.exec(`CREATE TABLE account_security.account_roles(
+        profile_id uuid PRIMARY KEY REFERENCES account_security.accounts(profile_id) ON DELETE RESTRICT,
+        role text NOT NULL CHECK(role IN ('member','manager','admin','master')),
+        enabled boolean NOT NULL DEFAULT false);
+        ALTER TABLE account_security.account_roles ENABLE ROW LEVEL SECURITY;
+        REVOKE ALL ON account_security.account_roles FROM PUBLIC,anon,authenticated;`);
+    await db.exec(readFileSync(new URL('../supabase/manual/proposals/auth-membership-foundation.sql',import.meta.url),'utf8'));
+    await db.exec(`CREATE TABLE account_security.member_terms_consents(
+        profile_id uuid,auth_user_id uuid,session_id uuid,terms_version text,source text,
+        art1 boolean,art2 boolean,art3 boolean,art4 boolean,accepted_at timestamptz,
+        UNIQUE(profile_id,terms_version));`);
+    await db.exec(`GRANT INSERT ON account_security.account_roles TO account_membership_worker;
+        GRANT SELECT,INSERT ON account_security.member_terms_consents TO account_membership_worker;
+        CREATE POLICY membership_role_insert ON account_security.account_roles FOR INSERT TO account_membership_worker
+        WITH CHECK(role='member' AND enabled);`);
     const original=(await query("SELECT * FROM public.users WHERE name='existing'")).rows;
     await db.exec('SET ROLE account_membership_worker');
     const normal=await prepare();
@@ -73,6 +89,7 @@ try {
     assert.equal(saved.profile.id,principals.get(normal.accessToken).authUserId);
     assert.equal(saved.profile.auth_user_id,saved.account.auth_user_id);
     assert.equal(saved.account.status,'active');assert.equal(saved.account.mapping_verified,true);
+    assert.equal(saved.accountRole.role,'member');assert.equal(saved.accountRole.enabled,true);
     assert.equal(saved.login.enabled,true);assert.equal(saved.login.phone_key,await keyFor('phone',normal.submission.formData.phone));
     assert.ok(saved.receipt);assert.equal(saved.profile.school,'가상중학교');
     // Replays cannot undo later member edits or blocking.
@@ -128,11 +145,11 @@ try {
     assert.equal(review.new_profile_id,principals.get(ambiguous.accessToken).authUserId);
     assert.deepEqual(new Set(review.candidate_profile_ids),new Set(ambiguousIds));assert.equal(review.status,'pending');
     // Every write-stage failure rolls ALL new rows back; retry completes once.
-    for(const stage of ['INSERT INTO public.users','INSERT INTO account_security.accounts',
+    for(const stage of ['INSERT INTO public.users','INSERT INTO account_security.accounts','INSERT INTO account_security.account_roles','INSERT INTO account_security.member_terms_consents',
         'INSERT INTO account_security.login_identifiers','INSERT INTO account_security.membership_receipts']) {
         const input=await prepare();failure=stage;
         await rejected(input,'temporarily_unavailable');
-        assert.deepEqual(await inspect(input),{profile:undefined,account:undefined,login:undefined,receipt:undefined});
+        assert.deepEqual(await inspect(input),{profile:undefined,account:undefined,accountRole:undefined,login:undefined,receipt:undefined});
         assert.deepEqual(await finalize(input),{protocol:1,status:'registered'});
     }
     const lost=await prepare();failure='COMMIT';await rejected(lost,'temporarily_unavailable');

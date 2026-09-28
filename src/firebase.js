@@ -114,7 +114,7 @@ const requestFirebaseTokenOnce = async (userId) => {
         let swRegistration;
         if ('serviceWorker' in navigator) {
             try {
-                swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260904-delivery-receipts');
+                swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260921-fresh-shell');
             } catch (swErr) {
                 swRegistration = await navigator.serviceWorker.ready.catch(() => undefined);
             }
@@ -172,7 +172,7 @@ export const removeFirebaseToken = async (userId) => {
         }
         let currentToken = null;
         if (messaging && typeof window !== 'undefined' && window.Notification?.permission === 'granted' && 'serviceWorker' in navigator) {
-            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260904-delivery-receipts');
+            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260921-fresh-shell');
             currentToken = await getToken(messaging, {
                 vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
                 serviceWorkerRegistration: registration,
@@ -280,7 +280,7 @@ export const requestRecruitmentPushToken = async () => {
     try {
         return await Promise.race([
             (async () => {
-                const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260904-delivery-receipts');
+                const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260921-fresh-shell');
                 const token = await getToken(messaging,{vapidKey,serviceWorkerRegistration:registration});
                 if (!token) throw new Error('이 기기의 알림 등록을 완료하지 못했습니다. 다시 시도해주세요.');
                 return token;

@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardList, X, Calendar, Clock, MapPin, Save, Trash2, User } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
+import useModalClose from '../../../hooks/useModalClose';
 
 const MarkdownRenderer = ({ content }) => {
     if (!content) return <p className="text-gray-300 italic">내용이 없습니다.</p>;
@@ -56,6 +57,7 @@ const MarkdownRenderer = ({ content }) => {
 };
 
 const LogDetailModal = ({ logs, initialLogId, school, onClose, onRefresh, onDelete, allUsers }) => {
+    useModalClose(true, onClose);
     const scrollContainerRef = useRef(null);
     const logRefs = useRef({});
     const [editingContent, setEditingContent] = useState({}); // { logId: content }

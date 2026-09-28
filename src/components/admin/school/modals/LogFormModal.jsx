@@ -3,8 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Trash2, Edit2, Download, Copy, ExternalLink, Calendar, MapPin, CheckCircle, RefreshCw, Eye, MessageCircle, FileText, X, School, Flame, LayoutGrid, LayoutList, CheckCircle2, User, Users, ChevronRight, ChevronLeft, Grid, List, Star, Heart, Columns, Settings, ClipboardList, Save, Clock, Cookie } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
 import TemplateManager from '../../messages/TemplateManager';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const LogFormModal = ({ school, onClose, onSave, staffList }) => {
+    useModalClose(true, onClose);
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         start_time: '17:00',

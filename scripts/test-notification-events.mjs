@@ -37,10 +37,15 @@ const rows = {
 
 const readOne = async (table, query) => {
   const filters = query.filter(([key]) => !['select', 'limit', 'order'].includes(key));
-  return (rows[table] || []).find((row) => filters.every(([key, expression]) => {
-    const expected = String(expression).replace(/^eq\./, '');
+  const matches = (rows[table] || []).filter((row) => filters.every(([key, expression]) => {
+    const value = String(expression);
+    if (value.startsWith('lt.')) return String(row[key]) < value.slice(3);
+    const expected = value.replace(/^eq\./, '');
     return String(row[key]) === expected;
-  })) || null;
+  }));
+  const order = query.find(([key]) => key === 'order')?.[1];
+  if (order === 'created_at.desc') matches.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  return matches[0] || null;
 };
 
 for (const [noticeId, expected] of [[10, ['HAIFN']], [20, ['ENOUGH_PLACE']], [30, ['HAIFN', 'ENOUGH_PLACE']]]) {
@@ -86,12 +91,13 @@ const checkinWithSelectedOptions = await resolveNotificationEvent({
   logId: 'log-haifn',
   details: { surveyQuestion: repeatedQuestion, surveyAnswers: selectedOptions },
 }, { readOne });
-assert.match(checkinWithSelectedOptions.message, /▫ 센터에 어떤 것들이 있으면 좋을까요\?\n▪ Name Tag[^\n]*\n▪ Praise List[^\n]*\n▪ 심야식당[^\n]*/);
-assert.equal((checkinWithSelectedOptions.message.match(/▫ 센터에 어떤 것들이 있으면 좋을까요\?/g) || []).length, 1);
+assert.match(checkinWithSelectedOptions.message, /🎯 센터에 어떤 것들이 있으면 좋을까요\?\n▪ Name Tag[^\n]*\n▪ Praise List[^\n]*\n▪ 심야식당[^\n]*/);
+assert.equal((checkinWithSelectedOptions.message.match(/센터에 어떤 것들이 있으면 좋을까요\?/g) || []).length, 1);
 
 const checkout = await resolveNotificationEvent({ eventType: 'VISIT_CHECKOUT', logId: 'log-enough' }, { readOne });
 assert.deepEqual(checkout.centerCodes, ['ENOUGH_PLACE']);
 assert.match(checkout.message, /CHECK-OUT/);
+assert.match(checkout.message, /💙 홍길동 \(학교\)\n⏰ 1시간 0분 이용/);
 
 const coffee = await resolveNotificationEvent({ eventType: 'COFFEE_CHAT_APPLICATION', coffeeChatId: 'coffee-1' }, { readOne });
 assert.deepEqual(coffee.centerCodes, ['ENOUGH_PLACE']);

@@ -42,8 +42,23 @@ export const useAdminSchool = ({ users, refreshDashboardData }) => {
     };
 
     const handleDeleteSchool = async (schoolName) => {
-        if (!confirm(`'${schoolName}' 학교를 삭제하시겠습니까?`)) return;
+        const targetSchool = schools.find(s => s.name === schoolName);
+        if (!targetSchool) return;
         try {
+            const [{ count: userCount, error: userError }, { count: logCount, error: logError }, { count: contentCount, error: contentError }, { count: rentalCount, error: rentalError }] = await Promise.all([
+                supabase.from('users').select('id', { count: 'exact', head: true }).eq('school_id', targetSchool.id),
+                supabase.from('school_logs').select('id', { count: 'exact', head: true }).eq('school_id', targetSchool.id),
+                supabase.from('contents').select('id', { count: 'exact', head: true }).eq('school_id', targetSchool.id),
+                supabase.from('rentals').select('id', { count: 'exact', head: true }).eq('school_id', targetSchool.id)
+            ]);
+            const countError = userError || logError || contentError || rentalError;
+            if (countError) throw countError;
+            const linkedCount = (userCount || 0) + (logCount || 0) + (contentCount || 0) + (rentalCount || 0);
+            if (linkedCount > 0) {
+                alert(`'${schoolName}' 학교는 이용자 또는 운영 기록과 연결되어 있어 삭제할 수 없습니다.\n이용자 ${userCount || 0}명 · 학교 기록 ${logCount || 0}건 · 콘텐츠 ${contentCount || 0}건 · 대관 ${rentalCount || 0}건`);
+                return;
+            }
+            if (!confirm(`'${schoolName}' 학교를 삭제하시겠습니까?\n연결된 이용자와 운영 기록이 없는 학교만 삭제됩니다.`)) return;
             const { error } = await supabase.from('schools').delete().eq('name', schoolName);
             if (error) throw error;
             await fetchSchoolsAndLogsAndPrefs();
@@ -189,8 +204,10 @@ export const useAdminSchool = ({ users, refreshDashboardData }) => {
         const groups = {};
 
         const normalizedSchools = new Map();
+        const schoolsById = new Map();
         schools.forEach(s => {
             normalizedSchools.set(normalizeSchoolName(s.name), s);
+            schoolsById.set(String(s.id), s);
         });
 
         // 1. First, create groups for all official schools (metadata)
@@ -215,7 +232,9 @@ export const useAdminSchool = ({ users, refreshDashboardData }) => {
             if (!u.school) return;
             const normName = normalizeSchoolName(u.school);
 
-            const schoolMeta = normalizedSchools.get(normName) || schools.find(s => s.name === u.school);
+            const schoolMeta = (u.school_id ? schoolsById.get(String(u.school_id)) : null)
+                || normalizedSchools.get(normName)
+                || schools.find(s => s.name === u.school);
 
             // Re-check region filter
             if (selectedRegion !== 'ALL') {

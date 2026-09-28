@@ -1,5 +1,4 @@
 import { supabase } from '../supabaseClient';
-import { haifnApi } from './haifnApi';
 import { getRegistrationBlockReason } from '../utils/programRecruitment';
 import { fetchAllPages } from '../utils/fetchAllPages';
 import { fetchProgramPreviews, mergeProgramPreviews, readNoticeWithPreview } from './programReadApi';
@@ -349,7 +348,7 @@ export const noticesApi = {
         // 1. Get all JOIN responses or open program participants
         let responses = [];
         if (noticeData.is_recruiting === false) {
-            // Open program: Get participants from haifn_transactions
+            // Include attendance recorded before close and legacy rewards.
             const descPattern = `[오픈 프로그램 참여] ${noticeData.title}%`;
             const { data: txData, error: txError } = await supabase
                 .from('haifn_transactions')
@@ -358,6 +357,12 @@ export const noticesApi = {
                 .like('source_description', descPattern);
             if (txError) throw txError;
             
+            const { data: attendance, error: attendanceError } = await supabase
+                .from('open_program_attendance')
+                .select('user_id, attendance_date')
+                .eq('notice_id', noticeId);
+            if (attendanceError) throw attendanceError;
+
             responses = (txData || []).map(tx => {
                 const dateMatch = tx.source_description.match(/\((\d{4}-\d{2}-\d{2})\)/);
                 const dateStr = dateMatch ? dateMatch[1] : (noticeData.program_date || '');
@@ -367,6 +372,15 @@ export const noticesApi = {
                     is_staff: false,
                     program_date: dateStr
                 };
+            });
+            const seen = new Set(responses.map(row => `${row.user_id}|${row.program_date}`));
+            (attendance || []).forEach(row => {
+                const key = `${row.user_id}|${row.attendance_date}`;
+                if (!seen.has(key)) {
+                    responses.push({ user_id: row.user_id, is_attended: true,
+                        is_staff: false, program_date: row.attendance_date });
+                    seen.add(key);
+                }
             });
         } else {
             // Regular recruiting program
@@ -412,25 +426,6 @@ export const noticesApi = {
 
         const { error: insertError } = await supabase.from('logs').insert(logsToInsert);
         if (insertError) throw insertError;
-
-        // Completing a recruiting program also finalizes attendance. Award the
-        // configured participation points at that point so programs that were
-        // marked complete before the attendance modal was opened are not missed.
-        // Programs that require a review keep their existing reward-on-review flow.
-        if (noticeData.haifn_reward > 0 && !noticeData.is_review_required) {
-            const admin = JSON.parse(localStorage.getItem('admin_user')) || {};
-            const attendees = responses.filter(r => r.is_attended);
-
-            await Promise.all(attendees.map(attendee =>
-                haifnApi.grantProgramReward(
-                    attendee.user_id,
-                    noticeId,
-                    noticeData.haifn_reward,
-                    admin.id || null,
-                    noticeData.title || ''
-                )
-            ));
-        }
 
         // 5. Auto-reward 5H for staff members who attended
         const staffAttendees = responses.filter(r => r.is_attended && r.is_staff);

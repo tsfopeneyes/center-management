@@ -1,6 +1,7 @@
 import React from 'react';
 import { User, Smartphone, School, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { normalizePersonName } from '../../../utils/userUtils';
 
 const SignUpBasicInfo = ({ formData, setFormData, handleChange, handlePhoneChange, handleGuardianPhoneChange, isUnder14, isKiosk }) => {
     return (
@@ -13,8 +14,9 @@ const SignUpBasicInfo = ({ formData, setFormData, handleChange, handlePhoneChang
                     <div className="relative flex-1 border-r border-gray-200">
                         <User className={`absolute left-4 top-1/2 -translate-y-1/2 ${isKiosk ? 'text-slate-300' : 'text-[#8B95A1]'}`} size={isKiosk ? 22 : 20} />
                         <input
-                            type="text" name="name" required
+                            type="text" name="name" required maxLength={80} autoComplete="name"
                             value={formData.name} onChange={handleChange}
+                            onBlur={() => setFormData(prev => ({...prev, name: normalizePersonName(prev.name)}))}
                             placeholder="이름"
                             className={`w-full pl-12 pr-4 py-3 bg-transparent outline-none font-bold text-sm text-[#191F28] placeholder-[#B0B8C1] placeholder:font-bold ${isKiosk ? 'sm:py-4' : ''}`}
                         />

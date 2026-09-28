@@ -68,7 +68,7 @@ export const communityChannelsApi = {
 
     async fetchChallengeNotice(noticeId) {
         const { data, error } = await supabase.from('notices')
-            .select('id,title,program_start_date,program_end_date,is_challenge,challenge_format,community_enabled')
+            .select('id,title,program_start_date,program_end_date,is_challenge,challenge_format,community_enabled,host_id,host_ids,hosts')
             .eq('id', noticeId).single();
         if (error) throw error;
         return data;
@@ -103,6 +103,29 @@ export const communityChannelsApi = {
         if (error) throw error;
         return (data || []).map(item => ({ ...item, source: 'DIRECT' }))
             .sort((a, b) => (a.user?.name || '').localeCompare(b.user?.name || '', 'ko'));
+    },
+
+    async fetchMentionCandidates(channel) {
+        const members = await this.fetchMembers(channel);
+        const hostIds = channel.source_notice_id ? await (async () => {
+            const { data, error } = await supabase.from('notices').select('host_id,host_ids,hosts')
+                .eq('id', channel.source_notice_id).single();
+            if (error) throw error;
+            return [data.host_id, ...(data.host_ids || []),
+                ...(Array.isArray(data.hosts) ? data.hosts.map(host => host?.host_id) : [])].filter(Boolean);
+        })() : members.filter(member => member.member_role === 'HOST').map(member => member.user_id);
+        const memberUsers = members.map(member => member.user).filter(Boolean);
+        const missingHostIds = [...new Set(hostIds)].filter(id => !memberUsers.some(user => user.id === id));
+        let hosts = [];
+        if (missingHostIds.length) {
+            const { data, error } = await supabase.from('users').select('id,name,school,profile_image_url').in('id', missingHostIds);
+            if (error) throw error;
+            hosts = data || [];
+        }
+        const hostSet = new Set(hostIds);
+        return [...new Map([...memberUsers, ...hosts].map(user => [user.id, { ...user, isHost: hostSet.has(user.id) }])).values()]
+            .filter(user => user.id && user.name)
+            .sort((a, b) => Number(b.isHost) - Number(a.isHost) || a.name.localeCompare(b.name, 'ko'));
     },
 
     async fetchUsers() {

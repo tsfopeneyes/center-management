@@ -333,6 +333,11 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                     cached_hosts: configuredHosts.length > 0 ? configuredHosts : (gp.cached_hosts || []),
                     challenge_has_time: challengeHasTime,
                     community_channel_id: noticeData.community_enabled ? (formData.community_channel_id || '') : '',
+                    challenge_reward_criterion: formData.is_challenge
+                        ? (['FIRST_MISSION', 'PERCENT', 'ALL'].includes(formData.challenge_reward_criterion)
+                            ? formData.challenge_reward_criterion : 'ALL') : 'ALL',
+                    challenge_reward_percent: formData.is_challenge
+                        ? Math.min(100, Math.max(1, Number(formData.challenge_reward_percent) || 100)) : 100,
                     enable_post_program_button: formData.enable_post_program_button || false,
                     post_program_button_trigger: formData.post_program_button_trigger || 'start_time',
                     post_program_button_offset_minutes: Number(formData.post_program_button_offset_minutes || 0),

@@ -55,8 +55,8 @@ const Skeleton = () => (
     </div>
 );
 
-const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, feedbacks, visitNotes, isLoading, fetchData }) => {
-    const hookData = useAnalytics({ logs, schoolLogs, locations, locationGroups, users, notices, responses, feedbacks, visitNotes });
+const AnalyticsTab = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, feedbacks, visitNotes, checkoutSurveyEntries, legacyVisitSurveys, isLoading, fetchData }) => {
+    const hookData = useAnalytics({ logs, schoolLogs, locations, locationGroups, users, notices, responses, feedbacks, visitNotes, checkoutSurveyEntries, legacyVisitSurveys });
     const { 
         selectedYear, selectedMonth, selectedDay, periodType, viewMode, 
         showGuestModal, setShowGuestModal, seucheoRegion, isManagerModalOpen, setIsManagerModalOpen, 

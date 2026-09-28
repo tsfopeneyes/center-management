@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { processAnalyticsData, processProgramAnalytics, processUserAnalytics } from '../../../../../utils/analyticsUtils';
 
-export const useAnalytics = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, feedbacks, visitNotes }) => {
+export const useAnalytics = ({ logs, schoolLogs, locations, locationGroups = [], users, notices, responses, feedbacks, visitNotes, checkoutSurveyEntries = [], legacyVisitSurveys = [] }) => {
     // State for Filter 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); 
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-indexed 
@@ -87,8 +87,8 @@ export const useAnalytics = ({ logs, schoolLogs, locations, locationGroups = [],
     const spaceData = useMemo(() => {
         if (viewMode !== 'SPACE') return { summary: {}, charts: {}, logs: [] };
         const currentDate = new Date(selectedYear, selectedMonth, selectedDay);     
-        return processAnalyticsData(filteredLogsForSpace, filteredLocations, users, currentDate, periodType, visitNotes); 
-    }, [viewMode, filteredLogsForSpace, filteredLocations, users, selectedYear, selectedMonth, selectedDay, periodType, visitNotes]);   
+        return processAnalyticsData(filteredLogsForSpace, filteredLocations, users, currentDate, periodType, visitNotes, checkoutSurveyEntries, legacyVisitSurveys);
+    }, [viewMode, filteredLogsForSpace, filteredLocations, users, selectedYear, selectedMonth, selectedDay, periodType, visitNotes, checkoutSurveyEntries, legacyVisitSurveys]);
     
     const rawProgramData = useMemo(() => {
         if (viewMode !== 'PROGRAM') return [];

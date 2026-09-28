@@ -43,6 +43,11 @@ export const normalizeSchoolName = (school) => {
     return trimmed;
 };
 
+export const normalizePersonName = value => {
+    const normalized = String(value ?? '').normalize('NFC').replace(/[\s\u200B]+/gu, ' ').trim();
+    return /^[가-힣 ]+$/u.test(normalized) ? normalized.replaceAll(' ', '') : normalized;
+};
+
 export const normalizeGuestIdentityName = (name) => String(name || '')
     .replace(/\s*\(guest\)\s*$/i, '')
     .replace(/\s+/g, '')

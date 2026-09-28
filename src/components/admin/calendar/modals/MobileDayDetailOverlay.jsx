@@ -5,6 +5,7 @@ import { format, parseISO, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { getCalendarEventTheme } from '../../../../utils/calendarColors';
 import { stripHtml } from '../../../../utils/textUtils';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const MobileDayDetailOverlay = ({
     selectedDate, setSelectedDate,
@@ -15,6 +16,7 @@ const MobileDayDetailOverlay = ({
     setSelectedEvent, setShowModal,
     dynamicCategories, calendarCategories
 }) => {
+    useModalClose(showDayDetail, () => setShowDayDetail(false));
     return (
                 
                     <motion.div

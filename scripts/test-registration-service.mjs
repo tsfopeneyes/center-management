@@ -37,9 +37,9 @@ const gateway={async signIn(email,password){
     const token=crypto.randomUUID();tokens.set(token,user.id);
     return {access_token:token,user:{id:user.id}};
 },async discardCreatedSession(token){assert.ok(tokens.delete(token));}};
-const deps={store:{...store,async markReady(op,id){
+const deps={store:{...store,async markReady(op,id,lifetimeMs){
     if(readyHook)await readyHook(op,id);
-    await store.markReady(op,id);
+    await store.markReady(op,id,lifetimeMs);
     if(readyLoss)throw Error('ready UPDATE response lost');
 }},limits:{async consumeLimit(){return quota;}},keyFor,adminAuth,gateway,
     async verifyToken(token){return {authUserId:wrongProof?crypto.randomUUID():tokens.get(token),sessionId:crypto.randomUUID(),
@@ -102,9 +102,14 @@ try {
     const five=fixture(5);readyHook=(op)=>privileged(()=>query("UPDATE auth.users SET raw_app_meta_data='{}' WHERE email=$1",[op.loginEmail]));
     assert.deepEqual(await invoke(five),{protocol:1,status:'membership_pending'});readyHook=null;
     assert.equal(tokens.size,0);
-    // Expired attempts retain identity claims and never create a replacement.
+    // An expired ready attempt keeps its identity claim but can complete after
+    // fresh proof of the original password; no replacement Auth user is made.
     await query("UPDATE account_security.registration_operations SET valid_until=clock_timestamp()-interval '1 second' WHERE id=$1",[first.id]);
-    const beforeExpiry=creates;await rejected(one,'registration_review_required');assert.equal(creates,beforeExpiry);
+    const beforeExpiry=creates;
+    await rejected({...one,requestSecret:fixture(8).requestSecret,password:'wrong native password'},'invalid_login');
+    assert.deepEqual(await invoke({...one,requestSecret:fixture(8).requestSecret}),{protocol:1,status:'membership_pending'});
+    assert.equal(creates,beforeExpiry);
+    assert.equal((await query('SELECT valid_until>clock_timestamp() AS usable FROM account_security.registration_operations WHERE id=$1',[first.id])).rows[0].usable,true);
     // Direct atomic claim race: only one of 20 calls receives create permission.
     const race=await store.reserve({id:crypto.randomUUID(),requestKey:'a'.repeat(64),identityKey:'b'.repeat(64),detailsKey:'c'.repeat(64),
         loginEmail:'race@registration.example.invalid',lifetimeMs:60000});

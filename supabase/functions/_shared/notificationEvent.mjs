@@ -23,6 +23,15 @@ const cleanAnswers = (value) => (Array.isArray(value) ? value : [])
   .filter(Boolean)
   .slice(0, 20);
 
+const formatVisitDuration = (checkinAt, checkoutAt) => {
+  const elapsedMs = new Date(checkoutAt).getTime() - new Date(checkinAt).getTime();
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs > 24 * 60 * 60 * 1_000) return '';
+  const totalMinutes = Math.max(1, Math.floor(elapsedMs / 60_000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
+};
+
 const removeRepeatedQuestionPrefix = (question, answer) => {
   if (!question || !answer) return answer;
   const prefix = new RegExp(`^${question.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[:：]\\s*`);
@@ -41,7 +50,7 @@ const surveyLines = (question, answers, icon) => {
     const lines = question ? [`${icon} ${question}`] : [];
     let previousQuestion = '';
     labeled.forEach((item) => {
-      if (item.question !== previousQuestion) lines.push('', `▫ ${item.question}`);
+      if (item.question !== previousQuestion && item.question !== question) lines.push('', `▫ ${item.question}`);
       lines.push(`▪ ${item.answer.replace(/\r?\n/g, '\n  ')}`);
       previousQuestion = item.question;
     });
@@ -56,7 +65,7 @@ const requireRow = async (readOne, table, query, message) => {
   return row;
 };
 
-const buildVisitMessage = ({ eventType, user, details }) => {
+const buildVisitMessage = ({ eventType, user, details, visitDuration }) => {
   const checkout = eventType === 'VISIT_CHECKOUT';
   const isGuest = user.user_group === '게스트' || String(user.name || '').includes('(guest)');
   const name = cleanText(String(user.name || '').replace('(guest)', ''), '알 수 없음', 100);
@@ -66,6 +75,7 @@ const buildVisitMessage = ({ eventType, user, details }) => {
     `[${isGuest ? 'GUEST ' : ''}${checkout ? 'CHECK-OUT' : 'CHECK-IN'}]`,
     `${checkout ? '💙' : '💌'} ${identity}`,
   ];
+  if (checkout && visitDuration) lines.push(`⏰ ${visitDuration} 이용`);
   const referralPath = cleanText(details?.referralPath, '', 300);
   if (!checkout && referralPath) lines.push('', '🧭 방문 경로', `▪ ${referralPath}`);
   const question = cleanText(details?.surveyQuestion, '', 300);
@@ -90,10 +100,17 @@ const resolveVisit = async (payload, readOne) => {
     : null;
   const centerCode = centerFromLocationText(`${group?.name || ''} ${location.name || ''}`);
   if (!centerCode) throw new Error('The visit center could not be determined.');
+  const checkin = expectedType === 'CHECKOUT'
+    ? await readOne('logs', [
+      ['user_id', `eq.${log.user_id}`], ['type', 'eq.CHECKIN'], ['created_at', `lt.${log.created_at}`],
+      ['select', 'created_at'], ['order', 'created_at.desc'], ['limit', '1'],
+    ])
+    : null;
+  const visitDuration = checkin ? formatVisitDuration(checkin.created_at, log.created_at) : '';
   return {
     category: EVENT_CATEGORIES[payload.eventType],
     centerCodes: [centerCode],
-    message: buildVisitMessage({ eventType: payload.eventType, user, details: payload.details }),
+    message: buildVisitMessage({ eventType: payload.eventType, user, details: payload.details, visitDuration }),
     eventKey: `${payload.eventType}:${log.id}`,
     source: { table: 'logs', id: String(log.id) },
   };

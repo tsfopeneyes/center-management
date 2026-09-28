@@ -22,7 +22,9 @@ const runtime=()=>runtimePromise??=(async()=>{
   // managed URL is optional, but must never be required just to duplicate the
   // platform-provided server secret.
   const databaseUrl=Deno.env.get('ACCOUNT_DATABASE_URL')?.trim()||required('SUPABASE_DB_URL');
-  const pool=new pg.Pool({connectionString:databaseUrl,max:5,idleTimeoutMillis:10000,connectionTimeoutMillis:5000,
+  // Each Edge isolate owns a pool. Keep its idle footprint small so a burst of
+  // isolates cannot consume the project's limited direct DB connections.
+  const pool=new pg.Pool({connectionString:databaseUrl,max:2,idleTimeoutMillis:1000,connectionTimeoutMillis:5000,
     application_name:'account-auth'});
   let readyUntil=0;
   const readiness=async()=>{
@@ -38,6 +40,7 @@ const runtime=()=>runtimePromise??=(async()=>{
       AND to_regclass('account_security.account_roles') IS NOT NULL
       AND to_regclass('account_security.guest_link_reviews') IS NOT NULL
       AND to_regclass('account_security.account_merge_receipts') IS NOT NULL
+      AND to_regclass('account_security.member_terms_consents') IS NOT NULL
       AND to_regrole('account_member_admin_worker') IS NOT NULL
       AND to_regrole('account_merge_worker') IS NOT NULL AS ready`);
     if(rows[0]?.ready===true)readyUntil=Date.now()+5000;return rows[0]?.ready===true;

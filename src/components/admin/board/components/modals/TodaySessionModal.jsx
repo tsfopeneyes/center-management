@@ -4,6 +4,7 @@ import { X, FileText, Users, Check, CalendarDays, Clock3, Plus, ChevronLeft, Che
 import { programSessionsApi } from '../../../../../api/programSessionsApi';
 import { userApi } from '../../../../../api/userApi';
 import { getDailySessionFields, getNextProgramOccurrence, getKstDateString, listProgramOccurrences } from '../../../../../utils/dailyProgramSessions';
+import useModalClose from '../../../../../hooks/useModalClose';
 
 const defaultTime = (notice) => {
     const value = notice.program_date;
@@ -92,6 +93,7 @@ const SessionDateCalendar = ({ dates, value, openedDates, onChange }) => {
 };
 
 export default function TodaySessionModal({ notice, initialView = 'overview', onClose, onChanged, onViewParticipants }) {
+    useModalClose(Boolean(notice), onClose);
     const today = getKstDateString();
     const occurrenceDates = listProgramOccurrences(notice).filter(date => date >= today);
     const [sessionDate, setSessionDate] = useState(

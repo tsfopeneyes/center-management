@@ -12,7 +12,7 @@ import { requestSupabaseRest } from '../utils/supabaseRest';
 import { calculateCurrentLocations, mergeRealtimeVisitLog, sortVisitLogsChronologically } from '../utils/liveOccupancyUtils';
 import { getTodayVisitState, recordVisitEvent } from '../utils/visitLifecycle';
 import { hasExpiredWebAccessTimestamp, removeWebAccessTimestamp } from '../utils/webAccessUtils';
-import { isAdminOrStaff } from '../utils/userUtils';
+import { isAdminOrStaff, isMasterStaff } from '../utils/userUtils';
 import { userApi } from '../api/userApi';
 
 // Components
@@ -20,6 +20,7 @@ import AdminSidebar from '../components/admin/AdminSidebar';
 import AdminStatus from '../components/admin/dashboard/AdminStatus';
 import AdminBoard from '../components/admin/board/AdminBoard';
 import AdminUsers from '../components/admin/users/AdminUsers';
+import AdminUserJourney from '../components/admin/users/AdminUserJourney';
 import AdminLogs from '../components/admin/dashboard/AdminLogs';
 import AdminSettings from '../components/admin/settings/AdminSettings';
 import AdminBadges from '../components/admin/settings/AdminBadges';
@@ -85,6 +86,13 @@ const AdminDashboard = () => {
     const [currentLocations, setCurrentLocations] = useState({}); // { userId: locationId }
     const [visitNotes, setVisitNotes] = useState([]);
     const [checkinSurveys, setCheckinSurveys] = useState([]);
+    const [checkoutSurveyEntries, setCheckoutSurveyEntries] = useState([]);
+    useEffect(() => {
+        const conversationId = new URLSearchParams(window.location.search).get('dm');
+        if (currentAdmin?.id && conversationId) {
+            navigate(`/student?dm=${encodeURIComponent(conversationId)}`, { replace: true });
+        }
+    }, [currentAdmin?.id, navigate]);
 
     // Alert & Realtime Notification State
     const [isAlertEnabled, setIsAlertEnabled] = useState(localStorage.getItem('admin_alert_enabled') !== 'false');
@@ -191,7 +199,7 @@ const AdminDashboard = () => {
             try {
                 // Samsung Internet can abort Supabase client's internal request
                 // while restoring a PWA. Use the same resilient REST path as QR flows.
-                return await requestSupabaseRest(path, {}, 2, 15000);
+                return await requestSupabaseRest(path, { requireAuth: true }, 3, 15000);
             } catch (error) {
                 console.error(`Failed to load admin ${label}:`, error);
                 failedReads.push(label);
@@ -200,7 +208,7 @@ const AdminDashboard = () => {
         };
         try {
             const logLimit = activeMenu === 'STATISTICS' || isFullFetch ? 10000 : 2000;
-            let [userData, locData, lgData, noticeData, responseData, vNotesData, surveyDataList, rawLogs, sLogs] = await Promise.all([
+            let [userData, locData, lgData, noticeData, responseData, vNotesData, surveyDataList, surveyEntries, checkoutSurveyLinks, rawLogs, sLogs] = await Promise.all([
                 readAdminData('회원', 'users?select=*&order=name.asc'),
                 readAdminData('장소', 'locations?select=*&order=id.asc'),
                 readAdminData('장소 그룹', 'location_groups?select=*&order=created_at.asc'),
@@ -208,6 +216,8 @@ const AdminDashboard = () => {
                 readAdminData('신청 내역', 'notice_responses?select=*'),
                 readAdminData('방문 메모', 'visit_notes?select=*'),
                 readAdminData('체크인 설문', 'checkin_surveys?select=*&order=created_at.desc&limit=1000'),
+                readAdminData('통합 퇴실 설문 응답', 'survey_entries?select=id,link_id,user_id,answers,location_id,visit_id,snapshot,aggregation_excluded,created_at&notice_id=is.null&order=created_at.desc&limit=10000'),
+                readAdminData('퇴실 설문 연결', 'survey_links?select=id,frequency&event=eq.CHECKOUT'),
                 readAdminData('입출입 기록', `logs?select=*&order=created_at.desc&limit=${logLimit}`),
                 readAdminData('학교 기록', 'school_logs?select=*,users(name),schools(name)&order=date.desc'),
             ]);
@@ -283,6 +293,10 @@ const AdminDashboard = () => {
             setVisitNotes(vNotesData || []);
 
             setCheckinSurveys(surveyDataList);
+            const oneTimeCheckoutLinkIds = new Set((checkoutSurveyLinks || [])
+                .filter(link => link.frequency === 'ONCE')
+                .map(link => link.id));
+            setCheckoutSurveyEntries((surveyEntries || []).filter(entry => oneTimeCheckoutLinkIds.has(entry.link_id)));
 
             // Stats Calculation - Limit initial log fetch dynamically for speed
             const logs = sortVisitLogsChronologically(rawLogs || []);
@@ -401,20 +415,9 @@ const AdminDashboard = () => {
         const todayKst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
         let { data, error } = await supabase
             .from('logs')
-            .select('id,user_id,location_id,type,created_at,metadata,duration')
+            .select('id,user_id,location_id,type,created_at')
             .gte('created_at', `${todayKst}T00:00:00+09:00`)
             .order('created_at', { ascending: true });
-        // Production installations created before the compact status view do
-        // not have the optional metadata/duration columns. Keep live status
-        // available with the stable visit-log columns instead of failing the
-        // whole status refresh with Postgres 42703.
-        if (error?.code === '42703') {
-            ({ data, error } = await supabase
-                .from('logs')
-                .select('id,user_id,location_id,type,created_at')
-                .gte('created_at', `${todayKst}T00:00:00+09:00`)
-                .order('created_at', { ascending: true }));
-        }
         if (error) {
             console.error('Failed to load compact live status:', error);
             return;
@@ -452,7 +455,7 @@ const AdminDashboard = () => {
         const message = `${user.name} 학생이 ${branchName}에 체크인했어요!`;
         playChime();
         if (Notification.permission === 'granted') {
-            new Notification('체크인 알림', { body: message, icon: '/favicon.ico' });
+            new Notification('체크인 알림', { body: message, icon: '/icon-512.png' });
         }
         const toastId = `${log.id}-${Date.now()}`;
         setToasts(previous => [...previous, { id: toastId, message, name: user.name, school: user.school }]);
@@ -490,6 +493,13 @@ const AdminDashboard = () => {
                 refreshLiveStatus().catch(error => console.error('Failed to refresh live status:', error));
             }, 500);
         };
+        const debouncedSurveyRefresh = () => {
+            if (activeMenu !== 'STATISTICS') return;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                fetchData(true).catch(error => console.error('Failed to refresh survey statistics:', error));
+            }, 500);
+        };
 
         let isRefreshingOccupancy = false;
         const refreshOccupancy = async () => {
@@ -518,6 +528,7 @@ const AdminDashboard = () => {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, payload => setNotices(previous => mergeRealtimeRow(previous, payload)))
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_responses' }, payload => setResponses(previous => mergeRealtimeRow(previous, payload)))
             .on('postgres_changes', { event: '*', schema: 'public', table: 'checkin_surveys' }, payload => setCheckinSurveys(previous => mergeRealtimeRow(previous, payload)))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'survey_entries' }, debouncedSurveyRefresh)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_notes' }, payload => setVisitNotes(previous => mergeRealtimeRow(previous, payload)))
             .subscribe(status => {
                 // A browser can miss events while its tab or network is suspended.
@@ -613,7 +624,7 @@ const AdminDashboard = () => {
     // B안: 뒤로가기 시 이전 탭으로 화면 전환을 위해 History API 연동
     useEffect(() => {
         // 첫 진입 시 현재 상태를 히스토리에 기재
-        window.history.replaceState({ menu: activeMenu }, '');
+        window.history.replaceState({ ...window.history.state, menu: activeMenu }, '');
 
         const handlePopState = (event) => {
             if (event.state && event.state.menu) {
@@ -628,7 +639,7 @@ const AdminDashboard = () => {
     // activeMenu가 변경될 때마다 새로운 히스토리 항목 추가 (동일한 탭 연속 중복 추가 방지)
     useEffect(() => {
         if (window.history.state?.menu !== activeMenu) {
-            window.history.pushState({ menu: activeMenu }, '');
+            window.history.pushState({ ...window.history.state, menu: activeMenu }, '');
         }
     }, [activeMenu]);
 
@@ -740,6 +751,7 @@ const AdminDashboard = () => {
                 isPinned={isSidebarPinned}
                 setIsPinned={setIsSidebarPinned}
                 notices={notices}
+                currentAdmin={currentAdmin}
             />
 
             {/* Main Content */}
@@ -747,6 +759,7 @@ const AdminDashboard = () => {
                 {/* Universal Header - Visible on all sizes */}
                 <header className="bg-white border-b border-gray-100 p-4 sticky top-0 z-30 flex justify-between items-center shadow-sm">
                     <h1 className="text-lg font-extrabold text-blue-600 tracking-tight">SCI CENTER <span className="text-gray-400 text-[10px] ml-1 uppercase">Admin</span></h1>
+                    <div className="flex items-center gap-2">
                     <button
                         onClick={() => {
                             // On desktop, toggle pinning. On mobile, toggle overlay.
@@ -765,6 +778,7 @@ const AdminDashboard = () => {
                     >
                         {(isMenuOpen || (window.innerWidth >= 768 && isSidebarPinned)) ? <CloseIcon size={20} /> : <Menu size={20} />}
                     </button>
+                    </div>
                 </header>
 
                 <main className="p-4 md:p-10 max-w-[1600px] mx-auto">
@@ -842,7 +856,20 @@ const AdminDashboard = () => {
                         <AdminDuty currentAdmin={currentAdmin} users={users} />
                     )}
                     {activeMenu === 'USERS' && (
-                        <AdminUsers users={users} allLogs={allLogs} locations={locations} fetchData={fetchData} />
+                        <AdminUsers users={users} allLogs={allLogs} locations={locations} fetchData={fetchData} currentAdmin={currentAdmin} />
+                    )}
+                    {activeMenu === 'USER_JOURNEY' && (
+                        isMasterStaff(currentAdmin) ? (
+                            <AdminUserJourney users={users} allLogs={allLogs} locations={locations} schoolLogs={schoolLogs}
+                                visitNotes={visitNotes} feedbacks={feedbacks} checkoutSurveyEntries={checkoutSurveyEntries}
+                                fetchData={fetchData} currentAdmin={currentAdmin} />
+                        ) : (
+                            <div className="mx-auto max-w-lg rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+                                <h2 className="text-xl font-black text-slate-900">접근 권한이 없습니다</h2>
+                                <p className="mt-2 text-sm font-bold text-slate-500">이용자 여정은 현재 마스터 관리자에게만 공개되어 있습니다.</p>
+                                <button type="button" onClick={() => setActiveMenu('USERS')} className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white">이용자 목록으로 이동</button>
+                            </div>
+                        )
                     )}
                     {activeMenu === 'SCHOOLS' && (
                         <AdminSchool users={users} fetchData={fetchData} />
@@ -870,6 +897,8 @@ const AdminDashboard = () => {
                             responses={responses} 
                             feedbacks={feedbacks}
                             visitNotes={visitNotes}
+                            checkoutSurveyEntries={checkoutSurveyEntries}
+                            legacyVisitSurveys={checkinSurveys}
                             isLoading={isStatsLoading} 
                             fetchData={fetchData} 
                         />

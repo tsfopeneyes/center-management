@@ -2,8 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { Award, ChevronLeft, ChevronRight, MapPin, Clock } from 'lucide-react';
 import { format, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { aggregateVisitSessions } from '../../../../../utils/visitUtils';
+import useModalClose from '../../../../../hooks/useModalClose';
 
 const MemberActivityModal = ({ member, logs, locations, notices, responses, users, year: initialYear, month: initialMonth, onClose }) => {
+    useModalClose(true, onClose);
     const [currentDate, setCurrentDate] = useState(new Date(initialYear, initialMonth, 1));
     const [selectedDate, setSelectedDate] = useState(null);
     

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createRegistrationFormValidator} from '../supabase/functions/_shared/registrationForm.mjs';
-import {normalizeSchoolName} from '../src/utils/userUtils.js';
+import {normalizePersonName,normalizeSchoolName} from '../src/utils/userUtils.js';
 import {TERMS_VERSION} from '../src/constants/appConstants.js';
 
 const validate=createRegistrationFormValidator({termsVersion:TERMS_VERSION,now:()=>Date.parse('2026-08-30T15:00:00Z')});
@@ -14,6 +14,10 @@ assert.equal(result.profile.guardian_name,null);
 assert.equal('password' in result.profile,false);assert.equal('confirmPassword' in result.profile,false);
 assert.equal('id' in result.profile,false);assert.equal('auth_user_id' in result.profile,false);
 assert.ok(Object.isFrozen(result.profile.preferences));
+assert.equal(normalizePersonName('  권  효은\u00a0'), '권효은');
+assert.equal(normalizePersonName('\u200B권효은\u200B'), '권효은');
+assert.equal(validate({...input,formData:{...input.formData,name:'  권  효은\u00a0'}}).profile.name,'권효은');
+assert.equal(validate({...input,formData:{...input.formData,name:'  Jane   Doe  '}}).profile.name,'Jane Doe');
 const change=(fields)=>({...input,formData:{...input.formData,...fields}});
 const invalid=(value)=>assert.throws(()=>validate(value),e=>e.code==='invalid_registration');
 invalid(change({birth:'120901'})); // Day before 14th birthday still needs existing guardian fields.
@@ -28,6 +32,7 @@ for(const field of [{role:'admin'},{status:'approved'},{id:'injected'},{auth_use
     {preferences:{role:'admin'}},{memo:'injected'},{user_group:'관리자'},{gender:'other'},
     {isSchoolChurch:'true'},{password:'abc',confirmPassword:'abc'},{confirmPassword:'different'},
     {name:''},{name:'a\u0000b'},{school:''},{phone:'abc12345678'}])invalid(change(field));
+invalid(change({name:'\u200B'}));
 invalid({...input,agreements:{...input.agreements,art4:false}});
 invalid({...input,agreements:{...input.agreements,art1:'true'}});
 assert.throws(()=>validate({...input,termsVersion:'old'}),e=>e.code==='terms_changed');

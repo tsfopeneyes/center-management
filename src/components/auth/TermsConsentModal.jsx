@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle } from 'lucide-react';
+import useModalClose from '../../hooks/useModalClose';
 
-const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
+const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false, required = false, saving = false, error = '' }) => {
+    useModalClose(isOpen, onClose);
     const [agreements, setAgreements] = useState({
         art1: false,
         art2: false,
@@ -12,6 +14,10 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
     });
 
     const isAllAgreed = agreements.art1 && agreements.art2 && agreements.art3 && agreements.art4;
+
+    useEffect(() => {
+        if (isOpen) setAgreements({ art1: false, art2: false, art3: false, art4: false });
+    }, [isOpen]);
 
     const handleAllAgree = () => {
         setAgreements({ art1: true, art2: true, art3: true, art4: true });
@@ -39,9 +45,9 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
             >
                 <div className="flex justify-between items-center mb-4 shrink-0 border-b border-gray-100 pb-3">
                     <h3 className={`text-xl font-black text-gray-800 tracking-tight ${isKiosk ? 'sm:text-2xl' : ''}`}>이용 약관 및 개인정보 수집 동의</h3>
-                    <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
+                    {!required && <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
                         <X size={22} />
-                    </button>
+                    </button>}
                 </div>
 
                 {/* All Agree Button at Top */}
@@ -243,15 +249,17 @@ const TermsConsentModal = ({ isOpen, onClose, onAgree, isKiosk = false }) => {
                 </div>
 
                 <div className="pt-3 mt-3 border-t border-gray-100 shrink-0 flex gap-3">
+                    {error && <p role="alert" className="self-center text-xs font-bold text-red-600">{error}</p>}
                     <button
                         type="button"
                         onClick={handleComplete}
+                        disabled={!isAllAgreed || saving}
                         className={`flex-1 py-3.5 rounded-2xl font-black text-base md:text-lg transition-all ${isAllAgreed
                             ? 'bg-[#CF3A27] text-white shadow-xl hover:bg-[#B93223]'
                             : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                             }`}
                     >
-                        동의 완료 및 창 닫기
+                        {saving ? '저장 중...' : required ? '동의하고 계속하기' : '동의 완료 및 창 닫기'}
                     </button>
                 </div>
             </motion.div>

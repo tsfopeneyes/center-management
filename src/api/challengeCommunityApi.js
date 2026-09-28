@@ -2,10 +2,24 @@ import { supabase, supabaseUrl } from '../supabaseClient';
 import { getKSTDateString } from '../utils/dateUtils';
 import { sortCommunityPosts } from './communityFeedApi';
 import { communityImagePath } from '../utils/communityImageStorage';
+import { isAdminOrStaff } from '../utils/userUtils';
 
 const missingRpc = error => ['PGRST202', '42883'].includes(error?.code);
+const pendingReactionToggles = new Map();
 
 export const challengeCommunityApi = {
+    async isChallengeHost(challengeId, user) {
+        const { data, error } = await supabase.rpc('is_challenge_host', { p_notice_id: challengeId });
+        if (!error) return data === true;
+        if (!missingRpc(error)) throw error;
+        const { data: notice, error: readError } = await supabase.from('notices')
+            .select('host_id,host_ids,hosts').eq('id', challengeId).single();
+        if (readError) throw readError;
+        const hostIds = [notice.host_id, ...(notice.host_ids || []),
+            ...(Array.isArray(notice.hosts) ? notice.hosts.map(host => host?.host_id) : [])];
+        return isAdminOrStaff(user) && hostIds.includes(user?.id);
+    },
+
     async fetchPosts(challengeId) {
         const { data, error } = await supabase
             .from('community_channel_posts')
@@ -32,18 +46,42 @@ export const challengeCommunityApi = {
         })));
     },
 
-    async createPost({ challengeId, authorId, content, imageUrl, missionId, isAnnouncement = false }) {
+    async createPost({ challengeId, authorId, content, imageUrls = [], missionId, isAnnouncement = false }) {
+        if (imageUrls.length > 10) throw new Error('사진은 최대 10장까지 첨부할 수 있습니다.');
         const payload = {
             notice_id: challengeId,
             author_id: authorId,
             content: content.trim(),
-            image_url: imageUrl || null,
+            image_urls: imageUrls,
             mission_id: missionId || null,
         };
+        const { data: batchPostId, error: batchError } = await supabase.rpc('create_online_challenge_post_with_media', {
+            p_payload: payload, p_is_announcement: isAnnouncement,
+        });
+        if (!batchError) return batchPostId;
+        if (!missingRpc(batchError)) throw batchError;
+
+        // Direct-table fallback while the batch function is unavailable.
+        const legacyPayload = { ...payload, image_url: imageUrls[0] || null };
         const { data, error } = await supabase.rpc(
             isAnnouncement ? 'create_online_challenge_announcement' : 'create_online_challenge_post',
-            { p_payload: payload });
-        if (!error) return data;
+            { p_payload: legacyPayload });
+        if (!error) {
+            if (imageUrls.length > 1) {
+                const { error: mediaError } = await supabase.from('community_post_media').insert(
+                    imageUrls.slice(1).map((media_url, index) => ({ post_id: data, media_url, sort_order: index + 1 })));
+                if (mediaError) {
+                    let removed = false;
+                    try { await this.deletePost(data); removed = true; }
+                    catch (cleanupError) { console.error('Failed to remove incomplete community post:', cleanupError); }
+                    if (removed) throw mediaError;
+                    const partialError = new Error('글은 저장되었지만 추가 사진을 첨부하지 못했습니다. 다시 확인해 주세요.');
+                    partialError.postId = data;
+                    throw partialError;
+                }
+            }
+            return data;
+        }
         if (!missingRpc(error)) throw error;
 
         // Direct-table fallback for staged deployments. A failed later insert
@@ -56,9 +94,9 @@ export const challengeCommunityApi = {
             .select('id').single();
         if (insertError) throw insertError;
         try {
-            if (imageUrl) {
+            if (imageUrls.length) {
                 const { error: mediaError } = await supabase.from('community_post_media')
-                    .insert({ post_id: post.id, media_url: imageUrl, sort_order: 0 });
+                    .insert(imageUrls.map((media_url, sort_order) => ({ post_id: post.id, media_url, sort_order })));
                 if (mediaError) throw mediaError;
             }
             if (missionId) {
@@ -67,7 +105,7 @@ export const challengeCommunityApi = {
                     mission_id: missionId,
                     participant_id: authorId,
                     post_id: post.id,
-                    completion_date: new Date().toISOString().slice(0, 10),
+                    completion_date: getKSTDateString(new Date()),
                     completion_key: post.id,
                 });
                 if (submissionError) throw submissionError;
@@ -79,7 +117,16 @@ export const challengeCommunityApi = {
         }
     },
 
-    async toggleReaction(postId, userId, emoji) {
+    toggleReaction(postId, userId, emoji) {
+        const key = JSON.stringify([postId, userId, emoji]);
+        if (pendingReactionToggles.has(key)) return pendingReactionToggles.get(key);
+        const request = this.toggleReactionOnce(postId, userId, emoji)
+            .finally(() => pendingReactionToggles.delete(key));
+        pendingReactionToggles.set(key, request);
+        return request;
+    },
+
+    async toggleReactionOnce(postId, userId, emoji) {
         const { data, error } = await supabase.from('community_channel_reactions').select('post_id')
             .eq('post_id', postId).eq('user_id', userId).eq('emoji', emoji).maybeSingle();
         if (error) throw error;
@@ -91,9 +138,68 @@ export const challengeCommunityApi = {
         } else {
             const { error: insertError } = await supabase.from('community_channel_reactions')
                 .insert({ post_id: postId, user_id: userId, emoji });
-            if (insertError) throw insertError;
+            if (insertError?.code === '23505') {
+                // Only accept a duplicate when this exact reaction now exists.
+                const { data: existing, error: checkError } = await supabase.from('community_channel_reactions')
+                    .select('post_id').eq('post_id', postId).eq('user_id', userId).eq('emoji', emoji).maybeSingle();
+                if (checkError) throw checkError;
+                if (!existing) throw insertError;
+            } else if (insertError) throw insertError;
             return true;
         }
+    },
+
+    async setPostMissionAsAdmin(post, missionId) {
+        const { error } = await supabase.rpc('admin_set_online_post_mission', {
+            p_post_id: post.id, p_mission_id: missionId || null,
+        });
+        if (!error) return;
+        if (!missingRpc(error)) throw error;
+
+        // Direct-table fallback for a staged schema cache. The database's
+        // policies and submission trigger still enforce authorization and slots.
+        const { data: channel, error: channelError } = await supabase.from('community_channels')
+            .select('source_notice_id').eq('id', post.channel_id).single();
+        if (channelError) throw channelError;
+        const { data: reward, error: rewardError } = await supabase.from('challenge_completion_rewards')
+            .select('challenge_id').eq('challenge_id', channel.source_notice_id)
+            .eq('participant_id', post.author_id).maybeSingle();
+        if (rewardError) throw rewardError;
+        if (reward) throw new Error('완료 보상이 확정된 미션 기록은 변경할 수 없습니다.');
+        const { data: rows, error: readError } = await supabase.from('online_challenge_submissions')
+            .select('id,mission_id,is_valid').eq('post_id', post.id);
+        if (readError) throw readError;
+        const existing = rows?.[0];
+        if (!missionId) {
+            if (!existing?.is_valid) return;
+            const { error: updateError } = await supabase.from('online_challenge_submissions')
+                .update({ is_valid: false, invalidated_at: new Date().toISOString() }).eq('id', existing.id);
+            if (updateError) throw updateError;
+            return;
+        }
+        const { data: mission, error: missionError } = await supabase.from('online_challenge_missions')
+            .select('id,schedule_type,fixed_date,challenge_id,target_count').eq('id', missionId)
+            .eq('challenge_id', channel.source_notice_id).eq('is_active', true).single();
+        if (missionError) throw missionError;
+        const date = getKSTDateString(new Date(post.created_at));
+        if (mission.schedule_type === 'FIXED_DATE' && mission.fixed_date !== date)
+            throw new Error('글 작성일과 미션 날짜가 다릅니다.');
+        const completionKey = mission.schedule_type === 'FIXED_DATE' ? 'fixed'
+            : mission.schedule_type === 'DAILY' ? date : post.id;
+        if (mission.schedule_type === 'FLEXIBLE') {
+            const { count, error: countError } = await supabase.from('online_challenge_submissions')
+                .select('*', { count: 'exact', head: true }).eq('mission_id', missionId)
+                .eq('participant_id', post.author_id).eq('is_valid', true).neq('post_id', post.id);
+            if (countError) throw countError;
+            if (count >= mission.target_count) throw new Error('이미 목표 횟수를 완료했습니다.');
+        }
+        const values = { mission_id: missionId, completion_date: date, completion_key: completionKey,
+            is_valid: true, invalidated_at: null };
+        const fallback = existing
+            ? await supabase.from('online_challenge_submissions').update(values).eq('id', existing.id)
+            : await supabase.from('online_challenge_submissions').insert({ ...values,
+                challenge_id: mission.challenge_id, participant_id: post.author_id, post_id: post.id });
+        if (fallback.error) throw fallback.error;
     },
 
     async createComment(postId, userId, content) {
@@ -231,6 +337,57 @@ export const challengeCommunityApi = {
             throw categoryError;
         }
         return data;
+    },
+
+    async replacePostImages(post, imageUrls, authorId, challengeId) {
+        if (post.author_id !== authorId) throw new Error('본인 글의 사진만 수정할 수 있습니다.');
+        if (imageUrls.length > 10) throw new Error('사진은 최대 10장까지 첨부할 수 있습니다.');
+        for (const url of imageUrls) {
+            if (!communityImagePath(url, authorId, challengeId, supabaseUrl))
+                throw new Error('사진의 저장 위치를 확인할 수 없습니다.');
+        }
+        const expectedUrls = (post.media || []).map(item => item.media_url);
+        const { data, error } = await supabase.rpc('replace_community_post_media', {
+            p_post_id: post.id, p_author_id: authorId,
+            p_expected_urls: expectedUrls, p_next_urls: imageUrls,
+        });
+        if (!error) return (data || []).sort((a, b) => a.sort_order - b.sort_order);
+        if (!missingRpc(error)) throw error;
+
+        // Direct-table fallback when the new RPC is absent from the schema cache.
+        const { data: rows, error: readError } = await supabase.from('community_post_media')
+            .select('id,media_type,media_url,sort_order').eq('post_id', post.id)
+            .order('sort_order', { ascending: true });
+        if (readError) throw readError;
+        if (JSON.stringify((rows || []).map(row => row.media_url)) !== JSON.stringify(expectedUrls))
+            throw new Error('사진이 다른 곳에서 변경되었습니다. 다시 불러와 주세요.');
+        const { error: deleteError } = await supabase.from('community_post_media')
+            .delete().eq('post_id', post.id);
+        if (deleteError) throw deleteError;
+        const { data: replacement, error: insertError } = imageUrls.length
+            ? await supabase.from('community_post_media').insert(imageUrls.map((media_url, sort_order) => ({
+                post_id: post.id, media_url, sort_order,
+            }))).select('id,media_type,media_url,sort_order')
+            : { data: [], error: null };
+        if (insertError) {
+            const { error: restoreError } = await supabase.from('community_post_media')
+                .insert((rows || []).map(row => ({ post_id: post.id, media_url: row.media_url, sort_order: row.sort_order })));
+            if (restoreError) console.error('Failed to restore community photos:', restoreError);
+            throw insertError;
+        }
+        const { error: postError } = await supabase.from('community_channel_posts')
+            .update({ image_url: imageUrls[0] || null }).eq('id', post.id).eq('author_id', authorId);
+        if (postError) {
+            const { error: rollbackError } = await supabase.from('community_post_media').delete().eq('post_id', post.id);
+            if (!rollbackError && rows?.length) {
+                const restored = await supabase.from('community_post_media').insert(rows.map(row => ({
+                    post_id: post.id, media_url: row.media_url, sort_order: row.sort_order,
+                })));
+                if (restored.error) console.error('Failed to restore community photos:', restored.error);
+            } else if (rollbackError) console.error('Failed to roll back community photos:', rollbackError);
+            throw postError;
+        }
+        return replacement || [];
     },
 
     async replacePostImage(post, imageUrl, authorId, challengeId) {

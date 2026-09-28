@@ -5,24 +5,26 @@ export function createMemberWithdrawalService({pool,authorize,readiness=async()=
         if(!isProfileId(profileId))throw new LoginError('invalid_request',400);
         if(!await readiness()||signal?.aborted)throw new LoginError('temporarily_unavailable',503);
         const actor=await authorize({accessToken,action:'members.manage',targetProfileId:profileId});
-        if(actor.actorProfileId===profileId)throw new LoginError('forbidden',403);
+        if(actor.actorProfileId===profileId)throw new LoginError('cannot_withdraw_self',403);
         const client=await pool.connect();let committed=false,discard=false;
         try{
             try{await client.query('BEGIN');}catch(error){discard=true;throw error;}
             await client.query("SET LOCAL statement_timeout='5s'");
             await client.query("SET LOCAL idle_in_transaction_session_timeout='7s'");
             await client.query("SELECT set_config('app.target_profile_id',$1,true)",[profileId]);
-            const liveActor=(await client.query(`SELECT 1 FROM account_security.account_roles
-                WHERE profile_id=$1 AND enabled AND role IN ('admin','master')`,[actor.actorProfileId])).rows.length;
-            if(liveActor!==1)throw new LoginError('forbidden',403);
+            await client.query("SELECT set_config('app.actor_profile_id',$1,true)",[actor.actorProfileId]);
+            const liveActor=(await client.query(`SELECT role FROM account_security.account_roles
+                WHERE profile_id=$1 AND enabled AND role IN ('admin','master')`,[actor.actorProfileId])).rows;
+            if(liveActor.length!==1)throw new LoginError('staff_access_changed',403);
 
             const target=await client.query(`SELECT u.id,a.profile_id AS account_profile_id,r.role AS account_role,r.enabled AS role_enabled
                 FROM public.users u LEFT JOIN account_security.accounts a ON a.profile_id=u.id
                 LEFT JOIN account_security.account_roles r ON r.profile_id=u.id
                 WHERE u.id=$1 FOR UPDATE OF u`,[profileId]);
             if(target.rows.length!==1)throw new LoginError('invalid_request',400);
-            if(target.rows[0].role_enabled===true && ['admin','master'].includes(target.rows[0].account_role))
-                throw new LoginError('forbidden',403);
+            if(target.rows[0].role_enabled===true && ['admin','master'].includes(target.rows[0].account_role)){
+                if(liveActor[0].role!=='master')throw new LoginError('protected_staff_account',403);
+            }
 
             if(target.rows[0].account_profile_id){
                 await client.query(`UPDATE account_security.login_identifiers SET enabled=false WHERE profile_id=$1`,[profileId]);

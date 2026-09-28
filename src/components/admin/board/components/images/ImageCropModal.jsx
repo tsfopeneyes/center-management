@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import Cropper from 'react-easy-crop';
 import { RotateCw, X } from 'lucide-react';
+import useModalClose from '../../../../../hooks/useModalClose';
 
 const ImageCropModal = ({
     isOpen,
@@ -16,6 +17,7 @@ const ImageCropModal = ({
     onSave,
     onClose
 }) => {
+    useModalClose(isOpen, onClose);
     if (!isOpen) return null;
 
     return (

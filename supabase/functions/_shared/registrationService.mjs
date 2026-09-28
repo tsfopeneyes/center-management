@@ -68,7 +68,7 @@ export function createRegistrationService({store,limits,keyFor,adminAuth,gateway
                 principal.live!==true || principal.isAnonymous!==false || !Number.isFinite(principal.expiresAt) ||
                 principal.expiresAt<=now()+30000)throw new LoginError('invalid_login',401);
             abort(context.signal);
-            await store.markReady(operation,authUserId);
+            await store.markReady(operation,authUserId,lifetimeMs);
             if(finalizeMembership) {
                 abort(context.signal);
                 const completed=await finalizeMembership({operationId:operation.id,requestSecret:input.requestSecret,

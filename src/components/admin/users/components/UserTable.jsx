@@ -10,6 +10,15 @@ const UserTable = ({
     handleApproveUser,
     setEditingUser
 }) => {
+    const RegionBadge = ({ region }) => {
+        const styles = region === '강동'
+            ? 'bg-blue-50 text-blue-600 border-blue-100'
+            : region === '강서'
+                ? 'bg-purple-50 text-purple-600 border-purple-100'
+                : 'bg-gray-50 text-gray-400 border-gray-200';
+        return <span className={`inline-flex shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-black ${styles}`}>{region || '미지정'}</span>;
+    };
+
     return (
         <React.Fragment>
                         {/* Desktop Table View */}
@@ -69,7 +78,10 @@ const UserTable = ({
                                         </div>
                                     </td>
                                     <td className="p-4 align-middle overflow-hidden">
-                                        <div className="text-gray-500 truncate" title={user.school}>{user.school}</div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="truncate text-gray-500" title={user.schoolDisplayName}>{user.schoolDisplayName || '-'}</span>
+                                            <RegionBadge region={user.schoolRegion} />
+                                        </div>
                                         <div className="text-xs text-gray-400 mt-0.5 truncate" title={user.church}>{user.church || '-'}</div>
                                     </td>
                                     <td className="p-4 font-mono text-gray-500 text-xs md:text-sm align-middle whitespace-nowrap">{user.phone}</td>
@@ -116,7 +128,8 @@ const UserTable = ({
                                     {user.memo && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" title="메모 있음" />}
                                 </div>
                                 <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-400 mt-1">
-                                    <span className="truncate max-w-[100px]">{user.school}</span>
+                                    <span className="truncate max-w-[100px]">{user.schoolDisplayName || user.school}</span>
+                                    <RegionBadge region={user.schoolRegion} />
                                     {user.church && <span className="truncate max-w-[80px] text-gray-300">({user.church})</span>}
                                     <span className="font-mono">{user.phone}</span>
                                     <span className="ml-auto font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md">H {user.current_haifn || 0}</span>

@@ -18,6 +18,12 @@ export function programSurveyEndAt(program) {
     return lastStart + length * 60000;
 }
 export const newQuestion = () => ({ id: uuid(), title: '', type: 'short', required: true, options: [], metric: null });
+export const hasSurveyAnswerValue = value => {
+    if (Array.isArray(value)) return value.some(hasSurveyAnswerValue);
+    if (typeof value === 'string') return value.trim().length > 0;
+    return value != null;
+};
+export const surveyEntryHasAnswers = entry => Object.values(entry?.answers || {}).some(hasSurveyAnswerValue);
 export const optionsOf = q => (Array.isArray(q.options) ? q.options : String(q.options || '').split(',')).map(o => typeof o === 'string' ? o : o.label).filter(Boolean);
 export const recommendationDetails = (question, option) => {
     const index = optionsOf(question).indexOf(option);

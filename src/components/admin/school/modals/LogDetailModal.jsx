@@ -3,8 +3,10 @@ import { motion } from 'framer-motion';
 import { ClipboardList, X } from 'lucide-react';
 import { useLogDetail } from './hooks/useLogDetail';
 import LogCard from '../components/LogCard';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const LogDetailModal = ({ logs, initialLogId, school, onClose, onRefresh, onDelete, allUsers, staffList }) => {
+    useModalClose(true, onClose);
     const scrollContainerRef = useRef(null);
     const logRefs = useRef({});
     

@@ -9,11 +9,11 @@ export function createCredentialService({store,limits,keyFor,passwordHasher,admi
         throw new Error('A password hasher and explicit temporary lifetime are required');
     const unavailable=()=>new LoginError('temporarily_unavailable',503);
     const aborted=signal=>{if(signal?.aborted)throw unavailable();};
-    const quota=async(profileId,context)=>{
+    const quota=async(profileId,context,purpose)=>{
         if(!await readiness()||typeof context.clientKey!=='string'||!context.clientKey||context.clientKey.length>200)throw unavailable();
         aborted(context.signal);
-        if(!await limits.consumeLimit(await keyFor('credential-client',context.clientKey),20)||
-            !await limits.consumeLimit(await keyFor('account',profileId),5))throw new LoginError('try_later',429);
+        if(!await limits.consumeLimit(await keyFor('credential-client',context.clientKey),50)||
+            !await limits.consumeLimit(await keyFor(`credential-${purpose}-account`,profileId),10))throw new LoginError('try_later',429);
     };
     const writePermanent=async(reservation,password,signal)=>{
         aborted(signal);
@@ -38,7 +38,7 @@ export function createCredentialService({store,limits,keyFor,passwordHasher,admi
         async reset(input,context={}){
             exact(input,['protocol','profileId','confirmationId']);
             if(!isProfileId(input.confirmationId))throw new LoginError('invalid_request',400);
-            await quota(input.profileId,context);
+            await quota(input.profileId,context,'reset');
             const verified=await verifyReset?.({profileId:input.profileId,confirmationId:input.confirmationId},context);
             if(!verified||verified.allowed!==true||!isProfileId(verified.actorId)||
                 verified.account?.profileId!==input.profileId||!isProfileId(verified.account?.authUserId)||
@@ -60,7 +60,7 @@ export function createCredentialService({store,limits,keyFor,passwordHasher,admi
             if(typeof input.temporaryPassword!=='string'||!/^[0-9]{4}$/.test(input.temporaryPassword)||
                 typeof input.newPassword!=='string'||input.newPassword.length<6||input.newPassword.length>128||
                 !input.newPassword.trim()||input.newPassword===input.temporaryPassword)throw new LoginError('invalid_request',400);
-            await quota(input.profileId,context);
+            await quota(input.profileId,context,'change');
             if(await passwordPolicy(input.newPassword,{purpose:'permanent'})!==true)throw new LoginError('password_policy',400);
             const account=await store.readTemporary(input.profileId);
             if(!account)throw new LoginError('invalid_login',401);

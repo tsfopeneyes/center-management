@@ -2,8 +2,10 @@ import React from 'react';
 import { Check, ChevronRight, Edit3, BookOpen, Coffee, Heart, Smile } from 'lucide-react';
 import { motion } from 'framer-motion';
 import SurveyRunner from '../../components/surveys/SurveyRunner';
+import useModalClose from '../../hooks/useModalClose';
 
-const PurposeSelectionModal = ({ isOpen, user, onComplete, surveyConfig }) => {
+const PurposeSelectionModal = ({ isOpen, user, onComplete, onClose, surveyConfig }) => {
+    useModalClose(isOpen && !surveyConfig?._surveyLink, onClose);
     const [selected, setSelected] = React.useState([]);
     const [textAnswer, setTextAnswer] = React.useState('');
 

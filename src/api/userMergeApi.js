@@ -12,7 +12,9 @@ export const mergeUserStats=async(sourceProfileId,targetProfileId)=>{
     const key=`${sourceProfileId}:${targetProfileId}`;
     const requestId=pending.get(key)||crypto.randomUUID();pending.set(key,requestId);
     try{await getAccountAuthClient().members.merge({requestId,sourceProfileId,targetProfileId});pending.delete(key);return {success:true};}
-    catch(error){return {success:false,error:error?.message||'계정 병합을 완료하지 못했습니다.'};}
+    catch(error){return {success:false,error:error?.code==='merge_requires_review'
+        ?'이 게스트 계정에 별도 확인이 필요한 활동 기록이 있습니다. 기록을 보존하기 위해 병합을 중단했습니다.'
+        :error?.message||'계정 병합을 완료하지 못했습니다.'};}
 };
 
 export const listPendingGuestLinks=async()=>{

@@ -11,7 +11,9 @@ const query=(sql,args)=>db.query(sql,args);
 let releases=0,connections=0;
 const pool={query,connect:async()=>{connections++;return {query,release(){releases++;}};}};
 const store=createCredentialStore(pool);
-const keyFor=await createLoginKey('fixture-only-key-never-used-in-production-123456789');
+const deriveKey=await createLoginKey('fixture-only-key-never-used-in-production-123456789');
+const quotaPurposes=[];
+const keyFor=async(purpose,value)=>{quotaPurposes.push(purpose);return deriveKey(purpose,value);};
 const fixtureDigest='fixture-kdf-digest:'+('a'.repeat(64));
 let nativePassword='original-password',writes=0,hashes=0,verifies=0;
 let failWrite=false,failComplete=false,allowed=true,quota=true,policy=true,hook;
@@ -21,7 +23,7 @@ const passwordHasher={
 };
 const service=createCredentialService({
   store:{...store,async complete(op){if(failComplete)throw Error('injected commit loss');return store.complete(op);}},
-  limits:{async consumeLimit(){return quota;}},keyFor,passwordHasher,
+  limits:{async consumeLimit(_key,limit){assert.ok([50,10].includes(limit));return quota;}},keyFor,passwordHasher,
   adminAuth:{async updateUserById(id,attributes){assert.equal(id,authUserId);assert.deepEqual(Object.keys(attributes),['password']);writes++;nativePassword=attributes.password;if(failWrite)throw Error('injected response loss AFTER Auth accepted password');return {data:{user:{id:authUserId}},error:null};}},
   async verifyReset(input){return {allowed,actorId,account:{profileId,authUserId,credentialVersion:(await state()).credential_version},confirmationId:input.confirmationId,phoneLast4:'1234',validUntil:Date.now()+60000};},
   readiness:async()=>true,passwordPolicy:async()=>policy,temporaryTtlMs:600000
@@ -56,6 +58,8 @@ try {
 
   const confirmation=crypto.randomUUID();
   assert.deepEqual(await reset(confirmation),{protocol:1,status:'password_change_required'});
+  assert.ok(quotaPurposes.includes('credential-reset-account'));
+  assert.ok(!quotaPurposes.includes('account'));
   assert.equal(nativePassword,'original-password');assert.equal(writes,0);
   assert.equal((await state()).must_change_password,true);
   const epoch=(await state()).credential_version;
@@ -73,6 +77,7 @@ try {
   await reject(()=>change('1234','12345'),'invalid_request');
   policy=false;await reject(change,'password_policy');policy=true;
   assert.deepEqual(await change(),{protocol:1,status:'login_required'});
+  assert.ok(quotaPurposes.includes('credential-change-account'));
   assert.equal(nativePassword,'new native password 2026');assert.equal(writes,1);
   assert.equal((await state()).must_change_password,false);assert.equal((await state()).status,'active');assert.equal((await state()).credential_version,epoch+1);
   await reject(change,'invalid_login');

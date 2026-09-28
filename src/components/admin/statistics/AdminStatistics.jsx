@@ -3,7 +3,7 @@ import { BarChart } from 'lucide-react';
 import AnalyticsTab from '../../AnalyticsTab';
 import AdminPageHeader from '../common/AdminPageHeader';
 
-const AdminStatistics = ({ logs, schoolLogs, locations, locationGroups, users, notices, responses, feedbacks, visitNotes, isLoading, fetchData }) => {
+const AdminStatistics = ({ logs, schoolLogs, locations, locationGroups, users, notices, responses, feedbacks, visitNotes, checkoutSurveyEntries, legacyVisitSurveys, isLoading, fetchData }) => {
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">
             <AdminPageHeader
@@ -11,7 +11,7 @@ const AdminStatistics = ({ logs, schoolLogs, locations, locationGroups, users, n
                 subtitle="센터 및 프로그램 이용 관련 상세 지표 및 리뷰 분석"
                 icon={<BarChart />}
             />
-            <AnalyticsTab logs={logs} schoolLogs={schoolLogs} locations={locations} locationGroups={locationGroups} users={users} notices={notices} responses={responses} feedbacks={feedbacks} visitNotes={visitNotes} isLoading={isLoading} fetchData={fetchData} />
+            <AnalyticsTab logs={logs} schoolLogs={schoolLogs} locations={locations} locationGroups={locationGroups} users={users} notices={notices} responses={responses} feedbacks={feedbacks} visitNotes={visitNotes} checkoutSurveyEntries={checkoutSurveyEntries} legacyVisitSurveys={legacyVisitSurveys} isLoading={isLoading} fetchData={fetchData} />
         </div>
     );
 };

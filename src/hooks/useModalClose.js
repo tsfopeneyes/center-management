@@ -48,7 +48,7 @@ const unregisterHistoryLayer = (token) => {
  * @param {boolean} isOpen - Whether the modal is currently open
  * @param {Function} onClose - Function to call to close the modal
  */
-export const useModalClose = (isOpen = true, onClose) => {
+export const useModalClose = (isOpen = true, onClose, { handleEscape = true } = {}) => {
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
 
@@ -58,8 +58,8 @@ export const useModalClose = (isOpen = true, onClose) => {
         const token = registerHistoryLayer(() => onCloseRef.current?.());
 
         const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                e.stopPropagation();
+            if (handleEscape && e.key === 'Escape' && historyLayers[historyLayers.length - 1]?.token === token) {
+                e.stopImmediatePropagation();
                 onCloseRef.current?.();
             }
         };
@@ -70,7 +70,7 @@ export const useModalClose = (isOpen = true, onClose) => {
             window.removeEventListener('keydown', handleKeyDown);
             unregisterHistoryLayer(token);
         };
-    }, [isOpen]);
+    }, [isOpen, handleEscape]);
 };
 
 export default useModalClose;

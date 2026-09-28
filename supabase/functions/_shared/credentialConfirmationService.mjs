@@ -12,8 +12,8 @@ export function createCredentialConfirmationService({store,limits,keyFor,authori
         if(typeof context.clientKey!=='string'||!context.clientKey||context.clientKey.length>200)
             throw new LoginError('temporarily_unavailable',503);
         if(!await readiness())throw new LoginError('temporarily_unavailable',503);
-        if(!await limits.consumeLimit(await keyFor('credential-client',context.clientKey),20)||
-            !await limits.consumeLimit(await keyFor('account',input.profileId),5))throw new LoginError('try_later',429);
+        if(!await limits.consumeLimit(await keyFor('credential-client',context.clientKey),50)||
+            !await limits.consumeLimit(await keyFor('credential-reset-account',input.profileId),10))throw new LoginError('try_later',429);
         const principal=await authorize({accessToken:context.accessToken,action:'credentials.reset',targetProfileId:input.profileId});
         if(!principal||!isProfileId(principal.actorProfileId))throw new LoginError('forbidden',403);
         const confirmation=await store.create({id:crypto.randomUUID(),profileId:input.profileId,

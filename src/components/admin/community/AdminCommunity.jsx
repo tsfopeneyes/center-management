@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Copy, Hash, Link2, MessageCircle, MessageSquare, Pencil, Pin, Plus, Search, Send, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { communityChannelsApi } from '../../../api/communityChannelsApi';
 import { challengeCommunityApi } from '../../../api/challengeCommunityApi';
+import { challengeMissionsApi } from '../../../api/challengeMissionsApi';
 import { commentReactionsApi } from '../../../api/commentReactionsApi';
 import NoticeReactions from '../../student/NoticeReactions';
 import UserAvatar from '../../common/UserAvatar';
@@ -9,6 +10,9 @@ import useCommentReactionLongPress from '../../../hooks/useCommentReactionLongPr
 import { isAdminOrStaff } from '../../../utils/userUtils';
 import AdminPageHeader from '../common/AdminPageHeader';
 import { communityFeedApi, sortCommunityPosts } from '../../../api/communityFeedApi';
+import { confirmApp } from '../../../utils/appDialog';
+import CommunityPhotoGallery from '../../common/CommunityPhotoGallery';
+import { CommunityMentionInput, CommunityMentionText } from '../../common/CommunityMention';
 
 const sourceLabel = channel => channel.source_notice?.title || null;
 const CHANNEL_STATUSES = [
@@ -48,9 +52,14 @@ export default function AdminCommunity() {
     const [programQuery, setProgramQuery] = useState('');
     const [showEdit, setShowEdit] = useState(false);
     const [commentInputs, setCommentInputs] = useState({});
+    const [mentionCandidates, setMentionCandidates] = useState([]);
     const [editingPostId, setEditingPostId] = useState(null);
     const [editingPostContent, setEditingPostContent] = useState('');
     const [postSaving, setPostSaving] = useState(false);
+    const [missions, setMissions] = useState([]);
+    const [isChallengeHost, setIsChallengeHost] = useState(false);
+    const [editingMissionPostId, setEditingMissionPostId] = useState(null);
+    const [selectedMissionId, setSelectedMissionId] = useState('');
     const adminUser = useMemo(() => {
         try { return JSON.parse(localStorage.getItem('admin_user') || 'null'); }
         catch { return null; }
@@ -68,21 +77,32 @@ export default function AdminCommunity() {
     const openChannel = async channel => {
         setActiveChannel(channel);
         setEditingPostId(null);
+        setEditingMissionPostId(null);
         setPostsLoading(true);
         setQuery('');
         setMemberQuery('');
         setProgramQuery('');
         try {
-            const [postRows, memberRows, userRows, challengeRows] = await Promise.all([
+            const [postRows, memberRows, userRows, challengeRows, missionRows, notice, candidates] = await Promise.all([
                 communityChannelsApi.fetchPosts(channel.id),
                 communityChannelsApi.fetchMembers(channel),
                 communityChannelsApi.fetchUsers(),
                 communityChannelsApi.fetchLinkableChallenges(),
+                channel.source_notice_id
+                    ? challengeMissionsApi.fetchMissions(channel.source_notice_id, 'ONLINE') : [],
+                channel.source_notice_id
+                    ? communityChannelsApi.fetchChallengeNotice(channel.source_notice_id) : null,
+                communityChannelsApi.fetchMentionCandidates(channel),
             ]);
             setPosts(postRows);
             setMembers(memberRows);
             setUsers(userRows);
             setChallenges(challengeRows);
+            setMissions(missionRows);
+            setMentionCandidates(candidates);
+            const hostIds = [notice?.host_id, ...(notice?.host_ids || []),
+                ...(Array.isArray(notice?.hosts) ? notice.hosts.map(host => host?.host_id) : [])];
+            setIsChallengeHost(Boolean(adminUser?.id && hostIds.includes(adminUser.id)));
         }
         catch (error) { console.error(error); setPosts([]); }
         finally { setPostsLoading(false); }
@@ -125,7 +145,7 @@ export default function AdminCommunity() {
     };
 
     const removeMember = async member => {
-        if (member.source !== 'DIRECT' || !confirm(`${member.user?.name || '이 멤버'} 님을 커뮤니티에서 제외할까요?`)) return;
+        if (member.source !== 'DIRECT' || !await confirmApp(`${member.user?.name || '이 멤버'} 님을 커뮤니티에서 제외할까요?`, { title: '참여자 제외', confirmText: '제외', tone: 'danger' })) return;
         try {
             await communityChannelsApi.removeMember(activeChannel.id, member.user_id);
             setMembers(await communityChannelsApi.fetchMembers(activeChannel));
@@ -170,7 +190,7 @@ export default function AdminCommunity() {
     };
 
     const deleteChannel = async () => {
-        if (!activeChannel || saving || !confirm(`‘${activeChannel.name}’ 커뮤니티를 삭제할까요?\n게시글과 댓글은 안전하게 보관되며 목록에서는 사라집니다.`)) return;
+        if (!activeChannel || saving || !await confirmApp(`‘${activeChannel.name}’ 커뮤니티를 삭제할까요?\n게시글과 댓글은 안전하게 보관되며 목록에서는 사라집니다.`, { title: '커뮤니티 삭제', confirmText: '삭제', tone: 'danger' })) return;
         setSaving(true);
         try {
             await communityChannelsApi.archiveChannel(activeChannel.id);
@@ -190,7 +210,7 @@ export default function AdminCommunity() {
     };
 
     const deletePost = async post => {
-        if (postSaving || !confirm('이 게시글을 삭제할까요? 게시글과 댓글이 목록에서 사라집니다.')) return;
+        if (postSaving || !await confirmApp('이 게시글을 삭제할까요? 게시글과 댓글이 모두에게 보이지 않게 됩니다.', { title: '글 삭제', confirmText: '삭제', tone: 'danger' })) return;
         setPostSaving(true);
         try {
             await challengeCommunityApi.deletePost(post.id);
@@ -214,6 +234,18 @@ export default function AdminCommunity() {
             setEditingPostId(null);
         } catch (error) {
             alert(error.message || '게시글을 수정하지 못했습니다.');
+        } finally { setPostSaving(false); }
+    };
+
+    const savePostMission = async post => {
+        if (postSaving || !activeChannel?.source_notice_id || !isChallengeHost) return;
+        setPostSaving(true);
+        try {
+            await challengeCommunityApi.setPostMissionAsAdmin(post, selectedMissionId || null);
+            setPosts(await communityChannelsApi.fetchPosts(activeChannel.id));
+            setEditingMissionPostId(null);
+        } catch (error) {
+            alert(error.message || '게시글 미션을 수정하지 못했습니다.');
         } finally { setPostSaving(false); }
     };
 
@@ -349,15 +381,18 @@ export default function AdminCommunity() {
                             <button type="button" onClick={() => deletePost(post)} disabled={postSaving} className="rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50 disabled:opacity-40" title="게시글 삭제" aria-label="게시글 삭제"><Trash2 size={17}/></button>
                         </div>
                         {post.is_announcement && <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-[#FFF0E9] px-2.5 py-1 text-[10px] font-black text-[#B93223]"><Pin size={11}/>공지</span>}{mission && <span className={`mt-3 inline-block rounded-full px-2.5 py-1 text-[10px] font-black ${missionColor(mission)}`}>{mission.title}</span>}
+                        {isChallengeHost && (editingMissionPostId === post.id
+                            ? <div className="mt-3 flex flex-wrap items-center gap-2"><select value={selectedMissionId} onChange={event => setSelectedMissionId(event.target.value)} aria-label="게시글 미션 선택" className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><option value="">미션 없음</option>{missions.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select><button type="button" onClick={() => savePostMission(post)} disabled={postSaving || selectedMissionId === (post.submission?.mission_id || '')} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">{postSaving ? '저장 중...' : '미션 저장'}</button><button type="button" onClick={() => setEditingMissionPostId(null)} disabled={postSaving} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">취소</button></div>
+                            : <button type="button" onClick={() => { setEditingMissionPostId(post.id); setSelectedMissionId(post.submission?.mission_id || ''); }} disabled={postSaving} className="ml-2 mt-3 rounded-lg border border-blue-200 px-2.5 py-1 text-[10px] font-bold text-blue-600 disabled:opacity-40">미션 수정</button>)}
                         {editingPostId === post.id ? <div className="mt-3 space-y-2">
                             <textarea autoFocus value={editingPostContent} onChange={event => setEditingPostContent(event.target.value)} rows={4} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm leading-6 outline-none focus:border-blue-500" aria-label="게시글 내용 수정"/>
                             <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingPostId(null)} disabled={postSaving} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 disabled:opacity-40">취소</button><button type="button" onClick={() => savePost(post)} disabled={postSaving || !editingPostContent.trim()} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">{postSaving ? '저장 중...' : '저장'}</button></div>
                         </div> : <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">{post.content}</p>}
-                        {post.media?.[0]?.media_url && <img src={post.media[0].media_url} alt="커뮤니티 첨부" className="mt-3 max-h-[460px] w-full rounded-2xl object-cover"/>}
+                        {post.media?.length > 0 && <CommunityPhotoGallery media={post.media} alt="커뮤니티 첨부 사진"/>}
                         <div className="mt-3"><NoticeReactions reactions={post.community_channel_reactions || []} currentUserId={adminUser?.id} onToggleReaction={emoji => toggleReaction(post.id, emoji)}/></div>
                         <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
-                            {(post.community_channel_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(comment => <div key={comment.id} {...bindLongPress(comment.id)} className="flex select-none gap-3 py-1"><UserAvatar user={comment.author} size="w-8 h-8"/><div className="min-w-0 flex-1"><div className="flex items-baseline gap-2"><p className="text-xs font-black text-slate-900">{comment.author?.name}</p><span className="text-[10px] text-slate-400">{new Date(comment.created_at).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</span></div><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-slate-700">{comment.content}</p><div className="mt-1 origin-left scale-90"><NoticeReactions reactions={comment.community_channel_comment_reactions || []} currentUserId={adminUser?.id} onToggleReaction={emoji => toggleCommentReaction(post.id, comment.id, emoji)} hideAddButtonOnMobile pickerOpenToken={commentPickerRequest.commentId === comment.id ? commentPickerRequest.token : 0}/></div></div></div>)}
-                            {adminUser?.id && <div className="flex items-center gap-2"><MessageCircle size={16} className="text-slate-400"/><input value={commentInputs[post.id] || ''} onChange={event => setCommentInputs(current => ({ ...current, [post.id]: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') submitComment(post.id); }} placeholder="댓글 남기기" className="flex-1 rounded-xl bg-slate-50 px-3 py-2 text-xs outline-none"/><button onClick={() => submitComment(post.id)} className="p-2 text-blue-600"><Send size={16}/></button></div>}
+                            {(post.community_channel_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(comment => <div key={comment.id} {...bindLongPress(comment.id)} className="flex select-none gap-3 py-1"><UserAvatar user={comment.author} size="w-8 h-8"/><div className="min-w-0 flex-1"><div className="flex items-baseline gap-2"><p className="text-xs font-black text-slate-900">{comment.author?.name}</p><span className="text-[10px] text-slate-400">{new Date(comment.created_at).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</span></div><CommunityMentionText candidates={mentionCandidates} className="mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-slate-700">{comment.content}</CommunityMentionText><div className="mt-1 origin-left scale-90"><NoticeReactions reactions={comment.community_channel_comment_reactions || []} currentUserId={adminUser?.id} onToggleReaction={emoji => toggleCommentReaction(post.id, comment.id, emoji)} hideAddButtonOnMobile pickerOpenToken={commentPickerRequest.commentId === comment.id ? commentPickerRequest.token : 0}/></div></div></div>)}
+                            {adminUser?.id && <div className="flex items-center gap-2"><MessageCircle size={16} className="text-slate-400"/><CommunityMentionInput value={commentInputs[post.id] || ''} onChange={value => setCommentInputs(current => ({ ...current, [post.id]: value }))} candidates={mentionCandidates} onSubmit={() => submitComment(post.id)} className="w-full rounded-xl bg-slate-50 px-3 py-2 text-xs outline-none"/><button onClick={() => submitComment(post.id)} className="p-2 text-blue-600"><Send size={16}/></button></div>}
                         </div>
                     </article>;
                 })}</div>}

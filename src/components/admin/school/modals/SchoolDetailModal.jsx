@@ -7,6 +7,7 @@ import SchoolDetailSidebar from '../components/SchoolDetailSidebar';
 import SchoolLogsView from '../views/SchoolLogsView';
 import CallingForestView from '../views/CallingForestView';
 import SnackHistoryView from '../views/SnackHistoryView';
+import useModalClose from '../../../../hooks/useModalClose';
 
 import LogFormModal from './LogFormModal';
 import LogDetailModal from './LogDetailModal';
@@ -16,6 +17,7 @@ import ImageOverlayModal from '../../users/modals/ImageOverlayModal';
 import useAdminUsers from '../../users/hooks/useAdminUsers';
 import LogSelectorModal from '../LogSelectorModal';
 const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, setIsSettingsMode, onSaveMetadata, onToggleLeader, refreshLogs, refreshDashboardData, allUsers }) => {
+    useModalClose(Boolean(school), onClose);
     if (!school) return null;
 
     const hookData = useSchoolDetail({ school, refreshLogs, refreshDashboardData });

@@ -250,6 +250,8 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
     const seenDailyCheckins = new Set();
     const eligibleResponses = [...responses]
         .filter(response => !isExcludedResponse(response))
+        .filter(response => (response.selections || []).some(value => String(value || '').trim())
+            || Boolean(String(response.text_answer || '').trim()))
         .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
         .filter(response => {
             const surveyType = response.survey_type || 'CHECKIN';

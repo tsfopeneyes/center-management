@@ -40,13 +40,20 @@ if ('serviceWorker' in navigator) {
             }
         });
     } else {
+        let refreshingForWorkerUpdate = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshingForWorkerUpdate) return;
+            refreshingForWorkerUpdate = true;
+            window.location.reload();
+        });
         window.addEventListener('load', () => {
             // Use one service worker for both the PWA and Firebase Messaging.
             // Registering /sw.js and /firebase-messaging-sw.js at the same scope
             // made them replace each other and caused intermittent push delivery.
-    navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260904-delivery-receipts')
+    navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260921-fresh-shell')
                 .then(reg => {
                     console.log('SW Registered:', reg.scope);
+                    reg.update().catch(() => undefined);
                 })
                 .catch(err => console.log('SW Registration Failed:', err));
         });

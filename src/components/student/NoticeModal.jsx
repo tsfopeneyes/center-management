@@ -62,15 +62,22 @@ import ChallengeCommunityModal from './modals/ChallengeCommunityModal';
 import { challengeMissionsApi } from '../../api/challengeMissionsApi';
 import { commentReactionsApi } from '../../api/commentReactionsApi';
 import useCommentReactionLongPress from '../../hooks/useCommentReactionLongPress';
+import useModalClose from '../../hooks/useModalClose';
 
 const NoticeModalContent = ({
     notice, context, onClose, user, fromAdmin = false, isImpersonating = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants, onRegisterRegularUser, tutorialMode = false, tutorialStep = '', tutorialOpenCardsTotal = 0, tutorialOpenCardIndex = 0, tutorialChallengeCardsTotal = 0, tutorialChallengeCardIndex = 0, onTutorialAction, onTutorialReaction, onTutorialComment
 }) => {
     const recruitmentNow = useCurrentTime();
     const recruitment = getRecruitment(notice, recruitmentNow);
+    const recruitmentFinished = recruitment.status === 'CLOSED'
+        || (notice.is_recruiting === false && notice.program_status !== 'CANCELLED');
+    const showChallengeParticipantDetails = recruitmentFinished
+        && (responses?.[notice.id] === 'JOIN' || fromAdmin || isAdminOrStaff(user) || tutorialMode);
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
     const [zoomedImage, setZoomedImage] = useState(null);
+    useModalClose(true, onClose, { handleEscape: false });
+    useModalClose(Boolean(zoomedImage), () => setZoomedImage(null), { handleEscape: false });
     const [hostUsers, setHostUsers] = useState([]);
     const introRef = React.useRef(null);
     const missionsRef = React.useRef(null);
@@ -121,6 +128,7 @@ const NoticeModalContent = ({
 
     // Challenge & Modal States
     const [challengeParticipants, setChallengeParticipants] = useState([]);
+    const [challengeParticipantCount, setChallengeParticipantCount] = useState(null);
     const [challengeSubmissions, setChallengeSubmissions] = useState([]);
     const [uploadingMissionId, setUploadingMissionId] = useState(null);
     const [missionTextInputs, setMissionTextInputs] = useState({});
@@ -254,24 +262,29 @@ const NoticeModalContent = ({
 
     const refreshChallengeProgress = async () => {
         if (notice?.is_challenge && notice?.id) {
-            const [{ data, error }, submissions] = await Promise.all([
-                supabase
-                    .from('notice_responses')
-                    .select('user_id, status, users(name, school)')
-                    .eq('notice_id', notice.id)
-                    .eq('status', 'JOIN')
-                    .order('created_at', { ascending: true }),
-                challengeMissionsApi.fetchSubmissions(notice.id, notice.challenge_format || 'OFFLINE'),
+            const canReadProgress = responses?.[notice.id] === 'JOIN' || fromAdmin || isAdminOrStaff(user) || tutorialMode || showChallengeParticipantDetails;
+            const countQuery = supabase.from('notice_responses').select('*', { count: 'exact', head: true })
+                .eq('notice_id', notice.id).eq('status', 'JOIN');
+            const participantsQuery = showChallengeParticipantDetails
+                ? supabase.from('notice_responses').select('user_id, status, users(name, school)')
+                    .eq('notice_id', notice.id).eq('status', 'JOIN').order('created_at', { ascending: true })
+                : Promise.resolve({ data: [] });
+            const [countResult, participantsResult, submissions] = await Promise.all([
+                countQuery,
+                participantsQuery,
+                canReadProgress ? challengeMissionsApi.fetchSubmissions(notice.id, notice.challenge_format || 'OFFLINE') : Promise.resolve([]),
             ]);
-            if (error) throw error;
-            setChallengeParticipants(data || []);
+            if (countResult.error) throw countResult.error;
+            if (participantsResult.error) throw participantsResult.error;
+            setChallengeParticipantCount(countResult.count ?? 0);
+            setChallengeParticipants(participantsResult.data || []);
             setChallengeSubmissions(submissions);
         }
     };
 
     useEffect(() => {
         refreshChallengeProgress().catch(error => console.error('Failed to fetch challenge progress:', error));
-    }, [notice?.id, notice?.is_challenge, responses]);
+    }, [notice?.id, notice?.is_challenge, responses, showChallengeParticipantDetails]);
 
     const handleUploadMissionImage = async (missionId, file) => {
         if (!file) return;
@@ -923,12 +936,13 @@ const NoticeModalContent = ({
                                     return mission.schedule_type === 'FLEXIBLE' ? Math.max(1, Number(mission.target_count) || 1) : 1;
                                 };
                                 const totalMissions = (notice.challenge_missions || []).reduce((sum, mission) => sum + requiredForMission(mission), 0);
-                                const completedMissions = isOnlineChallenge ? ownSubmissions.length : ownSubmissions.filter(item => item.status === 'COMPLETED').length;
+                                const completedMissions = (notice.challenge_missions || []).reduce((sum, mission) =>
+                                    sum + Math.min(requiredForMission(mission), ownSubmissions.filter(item => item.mission_id === mission.id).length), 0);
                                 const isAllDone = totalMissions > 0 && completedMissions >= totalMissions;
 
                                 return (
                                     <>
-                                        {isAllDone && (
+                                        {responses?.[notice.id] === 'JOIN' && isAllDone && (
                                             <div className="mt-6 rounded-2xl border border-[#E7D8C4] bg-[#FBF3E7] p-5 flex flex-col items-center text-center shadow-sm animate-fade-in">
                                                 <span className="text-3xl mb-2">🎉</span>
                                                 <h4 className="font-black text-slate-800 text-sm">챌린지 미션 달성 완료!</h4>
@@ -1183,14 +1197,19 @@ const NoticeModalContent = ({
                                             </h3>
                                         </div>
                                         <div className="flex flex-col gap-2.5">
-                                            {challengeParticipants.length === 0 ? (
+                                            {!showChallengeParticipantDetails ? (
+                                                <div className="w-full rounded-2xl border border-[#E7D8C4] bg-[#FFFDF9] px-5 py-7 text-center text-sm font-extrabold text-[#544B43]">
+                                                    {challengeParticipantCount === null ? '참여 인원을 불러오는 중이에요.' : `${challengeParticipantCount}명이 챌린지에 참여해요!`}
+                                                </div>
+                                            ) : challengeParticipants.length === 0 ? (
                                                 <div className="w-full p-8 text-center text-tossGrey400 text-xs font-bold bg-white border border-tossGrey200 rounded-toss-xl">
                                                     첫 번째 참여자가 되어보세요.
                                                 </div>
                                             ) : (
                                                 challengeParticipants.map((challenger) => {
                                                     const participantSubmissions = challengeSubmissions.filter(item => item.participant_id === challenger.user_id && (isOnlineChallenge ? item.is_valid !== false : item.status === 'COMPLETED'));
-                                                    const completedCount = Math.min(totalMissions, participantSubmissions.length);
+                                                    const completedCount = (notice.challenge_missions || []).reduce((sum, mission) =>
+                                                        sum + Math.min(requiredForMission(mission), participantSubmissions.filter(item => item.mission_id === mission.id).length), 0);
                                                     const isSuccess = totalMissions > 0 && completedCount >= totalMissions;
 
                                                     return (
@@ -1796,7 +1815,7 @@ const NoticeModalContent = ({
              )}
 
              {/* Participant Mission Detail Overlay Modal */}
-             {selectedParticipantForMissions && (() => {
+             {selectedParticipantForMissions && showChallengeParticipantDetails && (() => {
                  const challenger = selectedParticipantForMissions;
                  const participantSubmissions = challengeSubmissions.filter(item => item.participant_id === challenger.user_id && (notice.challenge_format === 'ONLINE' ? item.is_valid !== false : item.status === 'COMPLETED'));
                  const name = challenger.users?.name?.replace('(guest)', '') || '참여자';
@@ -1839,7 +1858,7 @@ const NoticeModalContent = ({
                                           const authText = mStatus.auth_text;
                                           const canOpenThread = notice.challenge_format === 'ONLINE'
                                               && notice.community_enabled
-                                              && (fromAdmin || responseDetails[notice.id]?.status === 'JOIN');
+                                              && (fromAdmin || isAdminOrStaff(user) || responseDetails[notice.id]?.status === 'JOIN');
                                          
                                          return (
                                              <div

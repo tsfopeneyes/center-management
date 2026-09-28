@@ -11,12 +11,13 @@ import UserMergeModal from './modals/UserMergeModal';
 import NotificationModal from './modals/NotificationModal';
 import ImageOverlayModal from './modals/ImageOverlayModal';
 
-const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
-    const hookData = useAdminUsers({ users, allLogs, locations, fetchData });
+const AdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) => {
+    const hookData = useAdminUsers({ users, allLogs, locations, fetchData, currentAdmin });
     
     const {
         searchTerm, setSearchTerm,
         filterGroup, setFilterGroup,
+        filterRegion, setFilterRegion,
         excludeLeaders, setExcludeLeaders,
         showOnlyNonSchoolChurch, setShowOnlyNonSchoolChurch,
         showOnlyNew3Months, setShowOnlyNew3Months,
@@ -33,6 +34,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
         toggleSelectUser,
         handleBulkUpdateGroup,
         handleDeleteUser,
+        handleRemoveAdminRole,
         handleResetPassword,
         handleApproveUser
     } = hookData;
@@ -43,6 +45,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 users={users} allLogs={allLogs}
                 searchTerm={searchTerm} setSearchTerm={setSearchTerm}
                 filterGroup={filterGroup} setFilterGroup={setFilterGroup}
+                filterRegion={filterRegion} setFilterRegion={setFilterRegion}
                 excludeLeaders={excludeLeaders} setExcludeLeaders={setExcludeLeaders}
                 showOnlyNonSchoolChurch={showOnlyNonSchoolChurch} setShowOnlyNonSchoolChurch={setShowOnlyNonSchoolChurch}
                 showOnlyNew3Months={showOnlyNew3Months} setShowOnlyNew3Months={setShowOnlyNew3Months}
@@ -67,6 +70,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 editingUser={editingUser}
                 setEditingUser={setEditingUser}
                 handleDeleteUser={handleDeleteUser}
+                handleRemoveAdminRole={handleRemoveAdminRole}
                 handleResetPassword={handleResetPassword}
                 handleApproveUser={handleApproveUser}
                 userStats={editingUser ? getUserStats(editingUser.id) : null}
@@ -74,6 +78,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 setIsMergeModalOpen={setIsMergeModalOpen}
                 setViewerImage={setViewerImage}
                 locations={locations}
+                adminUser={currentAdmin}
             />
 
             <UserMergeModal

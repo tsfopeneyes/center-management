@@ -17,6 +17,8 @@ const DEFAULT_SURVEY_OPTIONS = [
     { id: '6', emoji: '🤷', label: '아직 잘 모르겠어요', recommendTitle: '랜덤 챌린지', recommendText: '인포에 있는 쌤에게 말하고 랜덤 챌린지를 뽑아보세요!' }
 ];
 
+const CHECKIN_NOTIFICATION_GRACE_MS = 60 * 1000;
+
 const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
     const [mode, setMode] = useState('SURVEY'); // 'SURVEY' | 'QUESTION_QA' | 'CHAT_SHOUTOUT' | 'HYBRID'
     const [questionText, setQuestionText] = useState('오늘 센터에서 무엇을 하고 싶나요?');
@@ -65,6 +67,25 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
     }, [dispatchPendingCheckinNotification]);
 
     useModalClose(isOpen, handleCloseWithoutSubmitting);
+
+    React.useEffect(() => {
+        if (!isOpen) return undefined;
+        let pending = {};
+        try {
+            pending = JSON.parse(sessionStorage.getItem('pending_checkin_notif') || '{}');
+        } catch {
+            sessionStorage.removeItem('pending_checkin_notif');
+            return undefined;
+        }
+        if (!pending?.logId) return undefined;
+        const createdAtMs = new Date(pending.createdAt).getTime();
+        const elapsedMs = Number.isFinite(createdAtMs) ? Date.now() - createdAtMs : 0;
+        const remainingMs = Math.max(0, CHECKIN_NOTIFICATION_GRACE_MS - elapsedMs);
+        const timeoutId = window.setTimeout(() => {
+            void handleCloseWithoutSubmitting();
+        }, remainingMs);
+        return () => window.clearTimeout(timeoutId);
+    }, [isOpen, handleCloseWithoutSubmitting]);
 
     React.useEffect(() => {
         if (!isOpen) return;

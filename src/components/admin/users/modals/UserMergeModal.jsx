@@ -3,12 +3,14 @@ import { motion } from 'framer-motion';
 import { Search, RefreshCw, ChevronRight, X } from 'lucide-react';
 import { mergeUserStats } from '../../../../api/userMergeApi';
 import UserAvatar from '../../../common/UserAvatar';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const UserMergeModal = ({ 
     isMergeModalOpen, setIsMergeModalOpen, 
     editingUser, setEditingUser,
     users, fetchData 
 }) => {
+    useModalClose(isMergeModalOpen, () => setIsMergeModalOpen(false));
     const [mergeSearchTerm, setMergeSearchTerm] = useState('');
     const [merging, setMerging] = useState(false);
 

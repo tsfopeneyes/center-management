@@ -13,7 +13,11 @@ export function createRoleBoundPool(pool,role){
                 if(command==='BEGIN'||command==='BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY'){
                     if(active)throw new Error('Transaction already active');
                     const result=await base.query(text);
-                    try{await base.query(`SET LOCAL ROLE ${quoted}`);active=true;return result;}
+                    try{
+                        await base.query(`SET LOCAL ROLE ${quoted}`);
+                        await base.query("SET LOCAL idle_in_transaction_session_timeout='5s'");
+                        active=true;return result;
+                    }
                     catch(error){try{await base.query('ROLLBACK');}catch{/* caller discards */}throw error;}
                 }
                 if(!active)throw new Error('Role-bound query requires a transaction');

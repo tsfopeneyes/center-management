@@ -39,6 +39,7 @@ self.addEventListener('push', (event) => {
       body,
       icon: notification.icon || '/icon-512.png',
       badge: '/icon-512.png',
+      tag: notification.tag || data.tag || undefined,
       data: { ...data, url },
       vibrate: [100, 50, 100],
     }).then(() => reportReceipt(data.receiptToken, 'DISPLAYED'))

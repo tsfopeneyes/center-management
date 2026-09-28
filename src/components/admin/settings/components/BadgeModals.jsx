@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Upload } from 'lucide-react';
+import useModalClose from '../../../../hooks/useModalClose';
 
 const BadgeModals = ({
     showCategoryForm, setShowCategoryForm,
@@ -10,6 +11,8 @@ const BadgeModals = ({
     handleSaveCategory, handleSaveChallenge,
     handleImageUpload, uploading
 }) => {
+    useModalClose(showCategoryForm, () => setShowCategoryForm(false));
+    useModalClose(showChallengeForm, () => setShowChallengeForm(false));
     return (
         <>
             {/* Category Form Modal */}

@@ -41,7 +41,7 @@ export async function createAccountAuthRuntime({basePool,supabaseUrl,publishable
     const credentialService=createCredentialBundle({credentialPool,confirmationPool,limits:loginStore,keyFor,authorize,
         adminAuth,gateway,verifyToken,grantAssurance:loginStore.grantAssurance,discardSession:gateway.discardCreatedSession,
         readiness,passwordPolicy,pepper,kdfIterations,temporaryTtlMs,confirmationTtlMs,assuranceTtlMs});
-    const profileService=createProfileBundle({pool:profilePool,verifyToken,readiness,profileImageOrigin:new URL(supabaseUrl).origin});
+    const profileService=createProfileBundle({pool:profilePool,verifyToken,readiness,profileImageOrigin:new URL(supabaseUrl).origin,termsVersion});
     const registrationService=createRegistrationBundle({registrationPool,membershipPool,limits:loginStore,keyFor,adminAuth,
         gateway,verifyToken,readiness,passwordPolicy,termsVersion,loginDomain,lifetimeMs:registrationTtlMs});
     const uploadService=createMediaUploadService({authorize,limits:loginStore,keyFor,

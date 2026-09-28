@@ -3,12 +3,14 @@ import { supabase } from '../../../../supabaseClient';
 import { hashPassword } from '../../../../utils/hashUtils';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../../auth/accountAuthRuntime';
 import { listPendingGuestLinks } from '../../../../api/userMergeApi';
-import { isAdminOrStaff } from '../../../../utils/userUtils';
+import { isAdminOrStaff, isMasterStaff } from '../../../../utils/userUtils';
+import { buildSchoolLookup, resolveUserSchool } from '../../../../utils/userSchoolUtils';
 
-const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
+const useAdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) => {
     // 1. Search & Filter State
     const [searchTerm, setSearchTerm] = useState('');
     const [filterGroup, setFilterGroup] = useState('ALL');
+    const [filterRegion, setFilterRegion] = useState('ALL');
     const [excludeLeaders, setExcludeLeaders] = useState(false);
     const [showOnlyNonSchoolChurch, setShowOnlyNonSchoolChurch] = useState(false);
     const [showOnlyNew3Months, setShowOnlyNew3Months] = useState(false);
@@ -24,10 +26,40 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
     const [notificationModalOpen, setNotificationModalOpen] = useState(false);
     const [viewerImage, setViewerImage] = useState(null);
     const [linkReviews,setLinkReviews]=useState(new Map());
+    const [schools, setSchools] = useState([]);
     useEffect(()=>{let active=true;if(!isAccountAuthEnabled()){setLinkReviews(new Map());return()=>{active=false;};}
         listPendingGuestLinks().then(reviews=>{if(!active)return;const mapped=new Map();for(const review of reviews){
             mapped.set(review.newProfileId,review);for(const candidate of review.candidates||[])mapped.set(candidate.profileId,review);}setLinkReviews(mapped);
         }).catch(()=>{if(active)setLinkReviews(new Map());});return()=>{active=false;};},[users]);
+
+    useEffect(() => {
+        let active = true;
+        supabase.from('schools').select('id,name,region').then(({ data, error }) => {
+            if (!active) return;
+            if (error) {
+                console.error('Failed to load schools for user regions:', error);
+                setSchools([]);
+                return;
+            }
+            setSchools(data || []);
+        });
+        return () => { active = false; };
+    }, [users]);
+
+    const usersWithSchool = useMemo(() => {
+        const schoolLookup = buildSchoolLookup(schools);
+
+        return (users || []).map(user => {
+            const resolved = resolveUserSchool(user, schoolLookup);
+            return {
+                ...user,
+                school_id: resolved.schoolId,
+                schoolRecord: resolved.school,
+                schoolRegion: resolved.region,
+                schoolDisplayName: resolved.schoolName
+            };
+        });
+    }, [users, schools]);
 
     // Filter Logic
     const filteredUsers = useMemo(() => {
@@ -40,7 +72,18 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             return !isNaN(dt.getTime()) && dt >= threeMonthsAgo;
         };
 
-        const rawFiltered = users.filter(user => {
+        const isGuestOrTemporary = (user) => !isAdminOrStaff(user) && (
+            user.user_group === '게스트'
+            || user.user_group === '미가입'
+            || user.preferences?.is_temporary === true
+        );
+
+        const needsGuestLinkReview = (user) => {
+            const review = linkReviews.get(user.id);
+            return Boolean(review) && isGuestOrTemporary(user) && review.newProfileId !== user.id;
+        };
+
+        const rawFiltered = usersWithSchool.filter(user => {
             if (user.status === 'withdrawn') return false;
             // Calculate Age from YYMMDD
             let age = '';
@@ -65,12 +108,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 matchesText(user.role) ||
                 (age && age === cleanSearch) || matchesAge;
 
-            const isStaffAccount = isAdminOrStaff(user);
-            const isGuestOrTemp = !isStaffAccount && (
-                user.user_group === '게스트'
-                || user.user_group === '미가입'
-                || user.preferences?.is_temporary === true
-            );
+            const isGuestOrTemp = isGuestOrTemporary(user);
             const isNew3M = checkIsNew3M(user);
 
             const matchesGroup = filterGroup === 'ALL'
@@ -86,8 +124,15 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             const isExcludedLeader = excludeLeaders && user.is_leader === true;
             const isNonSchoolChurchFilter = showOnlyNonSchoolChurch && user.preferences?.is_school_church === true;
             const isNew3MFilterMismatch = showOnlyNew3Months && !isNew3M;
-            return matchesSearch && matchesGroup && !isExcludedLeader && !isNonSchoolChurchFilter && !isNew3MFilterMismatch;
+            const matchesRegion = filterRegion === 'ALL' || user.schoolRegion === filterRegion;
+            return matchesSearch && matchesGroup && matchesRegion && !isExcludedLeader && !isNonSchoolChurchFilter && !isNew3MFilterMismatch;
         }).sort((a, b) => {
+            const isAGuestLinkReview = needsGuestLinkReview(a);
+            const isBGuestLinkReview = needsGuestLinkReview(b);
+
+            if (isAGuestLinkReview && !isBGuestLinkReview) return -1;
+            if (!isAGuestLinkReview && isBGuestLinkReview) return 1;
+
             const isAPending = a.status === 'pending';
             const isBPending = b.status === 'pending';
 
@@ -140,7 +185,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
                 hasWebRecord
             };
         });
-    }, [users, searchTerm, filterGroup, excludeLeaders, showOnlyNonSchoolChurch, showOnlyNew3Months, allLogs,linkReviews]);
+    }, [usersWithSchool, searchTerm, filterGroup, filterRegion, excludeLeaders, showOnlyNonSchoolChurch, showOnlyNew3Months, allLogs,linkReviews]);
 
     // Selection Logic
     const toggleSelectAll = () => {
@@ -210,7 +255,59 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
             setEditingUser(null);
             fetchData();
             return true;
-        } catch (err) { console.error(err); alert('삭제 실패: ' + err.message); return false; }
+        } catch (err) {
+            console.error(err);
+            const errorCode=err?.code||err?.message;
+            const message=errorCode==='cannot_withdraw_self'
+                ?'현재 로그인한 본인 계정은 삭제할 수 없습니다.'
+                :errorCode==='protected_staff_account'
+                    ?'최고관리자만 다른 관리자 계정을 삭제할 수 있습니다.'
+                    :errorCode==='last_master_account'
+                        ?'마지막 최고관리자 계정은 삭제할 수 없습니다.'
+                    :errorCode==='staff_access_changed'||errorCode==='forbidden'
+                        ?'관리자 권한이 변경되었습니다. 다시 로그인한 뒤 시도해주세요.'
+                :err?.code==='invalid_login'||err?.message==='invalid_login'
+                    ?'관리자 로그인 확인이 필요합니다. 다시 로그인한 뒤 시도해주세요.'
+                    :err?.message||'이용자 삭제를 완료하지 못했습니다.';
+            alert('삭제 실패: '+message);
+            return false;
+        }
+    };
+
+    const handleRemoveAdminRole = async (targetUser) => {
+        if (!targetUser || !isAccountAuthEnabled()) return false;
+        if (!isMasterStaff(currentAdmin)) {
+            alert('최고관리자만 관리자 권한을 해제할 수 있습니다.');
+            return false;
+        }
+        if (currentAdmin.id === targetUser.id) {
+            alert('현재 로그인한 본인의 최고관리자 권한은 이 화면에서 해제할 수 없습니다.');
+            return false;
+        }
+        if (!confirm(`'${targetUser.name}' 계정의 관리자 권한을 해제하고 일반 이용자로 변경하시겠습니까?`)) return false;
+        try {
+            await getAccountAuthClient().members.setRole({
+                profileId: targetUser.id,
+                targetRole: 'member',
+                reason: 'remove_admin_before_withdrawal'
+            });
+            alert('관리자 권한을 해제했습니다. 이제 이 계정을 삭제할 수 있습니다.');
+            setEditingUser(current => current?.id === targetUser.id
+                ? { ...current, account_role: 'member' }
+                : current);
+            await fetchData();
+            return true;
+        } catch (err) {
+            console.error(err);
+            const code = err?.code || err?.message;
+            const message = code === 'forbidden'
+                ? '현재 로그인한 계정에 최고관리자 권한이 없거나, 마지막 최고관리자 권한은 해제할 수 없습니다.'
+                : code === 'account_changed'
+                    ? '계정 상태가 변경되었습니다. 새로고침 후 다시 시도해주세요.'
+                    : err?.message || '최고관리자 권한과 계정 상태를 확인해주세요.';
+            alert('권한 변경 실패: ' + message);
+            return false;
+        }
     };
 
     const handleResetPassword = async (targetUser) => {
@@ -296,6 +393,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
         // State
         searchTerm, setSearchTerm,
         filterGroup, setFilterGroup,
+        filterRegion, setFilterRegion,
         excludeLeaders, setExcludeLeaders,
         showOnlyNonSchoolChurch, setShowOnlyNonSchoolChurch,
         showOnlyNew3Months, setShowOnlyNew3Months,
@@ -316,6 +414,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData }) => {
         toggleSelectUser,
         handleBulkUpdateGroup,
         handleDeleteUser,
+        handleRemoveAdminRole,
         handleResetPassword,
         handleApproveUser
     };

@@ -58,7 +58,7 @@ export const isConsecutiveWorkingDay = (prevDate, currDate) => {
 /**
  * Process Raw Logs for Space Analytics
  */
-export const processAnalyticsData = (logs, locations, users, date, type, visitNotes = []) => {
+export const processAnalyticsData = (logs, locations, users, date, type, visitNotes = [], checkoutSurveyEntries = [], legacyVisitSurveys = []) => {
     const { start, end } = getPeriodRange(date, type);
 
     const adminIds = new Set(users.filter(isAdminOrStaff).map(u => u.id));
@@ -76,6 +76,30 @@ export const processAnalyticsData = (logs, locations, users, date, type, visitNo
             visitNotesMap.set(key, vn.purpose);
         });
     }
+
+    const selectedAnswers = entry => {
+        if (entry?.aggregation_excluded) return [];
+        if (Array.isArray(entry?.selections)) return entry.selections.map(String).map(value => value.trim()).filter(Boolean);
+        const questions = entry?.snapshot?.questions || [];
+        return questions
+            .filter(question => ['choice', 'multiple'].includes(question.type))
+            .flatMap(question => [].concat(entry?.answers?.[question.id] || []))
+            .map(String)
+            .map(value => value.trim())
+            .filter(Boolean);
+    };
+    const surveyAnswersByVisit = new Map();
+    const surveyAnswersByUserDate = new Map();
+    [...checkoutSurveyEntries, ...legacyVisitSurveys.filter(entry => (entry.survey_type || 'CHECKIN') === 'CHECKOUT')]
+        .filter(entry => !entry.aggregation_excluded)
+        .forEach(entry => {
+            const answers = selectedAnswers(entry);
+            if (!answers.length || !entry.user_id) return;
+            if (entry.visit_id) surveyAnswersByVisit.set(String(entry.visit_id), answers);
+            const responseDate = new Date(entry.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+            const fallbackKey = `${entry.user_id}_${responseDate}`;
+            if (!surveyAnswersByUserDate.has(fallbackKey)) surveyAnswersByUserDate.set(fallbackKey, answers);
+        });
 
     const userMap = new Map(users.map(u => [u.id, u]));
     const locationMap = new Map(locations.map(loc => [loc.id, { 
@@ -155,9 +179,12 @@ export const processAnalyticsData = (logs, locations, users, date, type, visitNo
         });
         
         // Map purposes to visited locations in this session
+        const surveyPurposes = session.rawLogs
+            .map(log => surveyAnswersByVisit.get(String(log.id)))
+            .find(Boolean) || surveyAnswersByUserDate.get(`${userId}_${session.date}`);
         const purposeString = visitNotesMap.get(`${userId}_${session.date}`);
-        if (purposeString) {
-            const purposes = purposeString.split(',').map(s => s.trim());
+        const purposes = surveyPurposes || (purposeString ? purposeString.split(',').map(s => s.trim()) : []);
+        if (purposes.length) {
             locIdsVisited.forEach(locId => {
                 if (validVisitLocs.has(locId) || isGuestOrUnregistered) {
                     const loc = locationMap.get(locId);

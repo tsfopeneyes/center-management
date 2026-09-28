@@ -4,9 +4,10 @@ import {createSelfPasswordService} from '../supabase/functions/_shared/selfPassw
 const profileId=crypto.randomUUID(),authUserId=crypto.randomUUID(),actorProfileId=profileId,sessionId=crypto.randomUUID();
 const account={profileId,authUserId,credentialVersion:2,loginEmail:'fixture@example.invalid',credentialMode:'supabase_password',legacyDigest:null};
 let nativePassword='old-password',reserved=0,completed=0,assurances=0,discarded=0,policy=true,authorized=true,failUpdate=false,failAssurance=false;
+const quotaPurposes=[];
 const deps={
     store:{async readActive(){return account;},async reserve(input){assert.equal(input.kind,'self_change');reserved++;return {...input,profileId,authUserId,credentialVersion:3};},async complete(){completed++;return {credentialVersion:3,credentialMode:'supabase_password'};}},
-    limits:{async consumeLimit(){return true;}},keyFor:async()=> 'a'.repeat(64),
+    limits:{async consumeLimit(_key,limit){assert.ok([50,10].includes(limit));return true;}},keyFor:async purpose=>{quotaPurposes.push(purpose);return 'a'.repeat(64);},
     async authorize(){return authorized?{actorProfileId,authUserId,sessionId:crypto.randomUUID()}:null;},
     async passwordPolicy(){return policy;},
     adminAuth:{async updateUserById(id,{password}){assert.equal(id,authUserId);nativePassword=password;if(failUpdate)throw Error('lost response');return {data:{user:{id}},error:null};}},
@@ -18,6 +19,7 @@ const deps={
 const service=createSelfPasswordService(deps),context={accessToken:'current-access',clientKey:'trusted'};
 let result=await service({protocol:1,profileId,newPassword:'new-password'},context);
 assert.equal(result.status,'session_replaced');assert.equal(result.session.access_token,'new-access');assert.equal(reserved,1);assert.equal(completed,1);assert.equal(assurances,1);assert.equal(discarded,0);
+assert.deepEqual(quotaPurposes,['credential-client','credential-change-account']);
 await assert.rejects(()=>service({protocol:1,profileId,newPassword:'12345'},context),error=>error.code==='invalid_request');
 policy=false;await assert.rejects(()=>service({protocol:1,profileId,newPassword:'another-password'},context),error=>error.code==='password_policy');policy=true;
 authorized=false;await assert.rejects(()=>service({protocol:1,profileId,newPassword:'another-password'},context),error=>error.code==='forbidden');authorized=true;
