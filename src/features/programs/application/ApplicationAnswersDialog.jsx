@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { legacyGuestQuestions, questionsForAudience, validateApplicationAnswers } from '../applicationFormModel';
+import { materializeProgramApplicationForm, questionsForAudience, validateApplicationAnswers } from '../applicationFormModel';
 
-export const formForNotice = notice => notice?.application_form
-    || { questions: legacyGuestQuestions(notice?.guest_properties) };
+export const formForNotice = notice => materializeProgramApplicationForm(
+    notice?.application_form, notice?.guest_properties
+);
 
 export const hasApplicationQuestions = (notice, audience) =>
     questionsForAudience(formForNotice(notice), audience).length > 0;

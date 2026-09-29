@@ -6,23 +6,27 @@ const missingRpc = error => error?.code === 'PGRST202' || error?.code === '42883
 // verify/update/create guest, then apply to exactly one program or session.
 // Never fall back to separate users + response writes.
 export const guestProgramRegistrationApi = {
-    async register({ noticeId = null, sessionId = null, profile, answers = {} }) {
+    async register({ noticeId = null, sessionId = null, profile, answers = {}, expectedRevision }) {
         if (Boolean(noticeId) === Boolean(sessionId)) {
             throw new Error('신청 대상을 확인해 주세요.');
         }
-        const { data, error } = await supabase.rpc('register_guest_program_application', {
+        if (!Number.isInteger(expectedRevision)) {
+            throw new Error('신청 질문을 다시 불러온 뒤 신청해 주세요.');
+        }
+        const { data, error } = await supabase.rpc('register_guest_program_application_checked', {
             p_notice_id: noticeId,
             p_session_id: sessionId,
             p_profile: profile,
             p_answers: answers,
+            p_expected_revision: expectedRevision,
         });
         if (!error) return data;
         if (!missingRpc(error)) throw error;
 
         const { data: fallback, error: fallbackError } = await supabase
-            .from('guest_program_registration_requests')
+            .from('guest_program_registration_checked_requests')
             .insert({ notice_id: noticeId, session_id: sessionId,
-                profile, application_answers: answers })
+                profile, application_answers: answers, expected_revision: expectedRevision })
             .select('status,user_id,had_prior_guest_applications,guest_user')
             .single();
         if (fallbackError) throw fallbackError;

@@ -14,7 +14,7 @@ const responseSelect = () => isProgramApplicationTransitionEnabled()
     : 'status, is_attended, is_staff, application_answers, users(id, name, school, phone, phone_back4, is_leader)';
 
 const usesVerifiedWalkIns = notice => isProgramApplicationTransitionEnabled()
-    && notice?.category === 'PROGRAM' && !notice?.is_challenge;
+    && notice?.category === 'PROGRAM' && notice?.is_recruiting !== false;
 
 const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const [participantList, setParticipantList] = useState({ JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] });
@@ -341,7 +341,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const handleDeleteParticipant = async (userId, userName) => {
         if (!selectedNotice) return;
         const retainsProgramCancellation = isProgramApplicationTransitionEnabled()
-            && selectedNotice.category === 'PROGRAM' && !selectedNotice.is_challenge
+            && selectedNotice.category === 'PROGRAM'
             && selectedNotice.is_recruiting !== false && !selectedSessionId;
         const retainsApplicationCancellation = Boolean(selectedSessionId) || retainsProgramCancellation;
         const confirmation = retainsApplicationCancellation

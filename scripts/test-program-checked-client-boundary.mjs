@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const source = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+const memberApi = source('../src/api/programApplicationsApi.js');
+const sessionApi = source('../src/api/programSessionsApi.js');
+const guestApi = source('../src/api/guestProgramRegistrationApi.js');
+const modal = source('../src/components/student/NoticeModal.jsx');
+const dashboard = source('../src/pages/StudentDashboard.jsx');
+const publicPage = source('../src/pages/PublicProgramDetail.jsx');
+const studentHook = source('../src/hooks/useNotices.js');
+const adminRoster = source('../src/components/admin/board/hooks/useParticipantManagement.js');
+
+assert.match(memberApi, /rpc\('respond_to_program_application_checked'/);
+assert.match(memberApi, /from\('member_program_application_checked_requests'\)/);
+assert.doesNotMatch(memberApi, /rpc\('respond_to_program_application'/);
+assert.match(sessionApi, /respond_to_program_session_checked/);
+assert.match(sessionApi, /member_program_session_checked_requests/);
+assert.match(guestApi, /register_guest_program_application_checked/);
+assert.match(guestApi, /guest_program_registration_checked_requests/);
+assert.match(modal, /!tutorialMode && status !== 'CANCEL'/);
+assert.doesNotMatch(modal, /!notice\.is_challenge && status !== 'CANCEL'/);
+assert.match(modal, /answers, notice\.application_form_revision/);
+assert.match(dashboard, /handleTutorialResponse = \(noticeId, status, \.\.\.applicationArgs\)/);
+assert.match(dashboard, /handleResponse\(noticeId, status, \.\.\.applicationArgs\)/);
+assert.match(publicPage, /guestForm, notice\?\.application_form_revision/);
+assert.match(publicPage, /answers, notice\?\.application_form_revision/);
+assert.match(studentHook, /notice\.category === 'PROGRAM' && notice\.is_recruiting/);
+assert.doesNotMatch(studentHook, /!notice\.is_challenge && notice\.is_recruiting/);
+assert.match(adminRoster, /retainsProgramCancellation = isProgramApplicationTransitionEnabled\(\)/);
+assert.doesNotMatch(adminRoster, /selectedNotice\.category === 'PROGRAM' && !selectedNotice\.is_challenge/);
+console.log('checked member/guest/session client boundaries and challenge routing passed');

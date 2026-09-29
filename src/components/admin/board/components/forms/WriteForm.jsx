@@ -10,8 +10,10 @@ import { isAccountAuthEnabled } from '../../../../../auth/accountAuthRuntime';
 import { cachedAccountProfileId, uploadAccountImage } from '../../../../../auth/accountMedia';
 import { MAX_DAILY_SESSION_FIELDS } from '../../../../../utils/dailyProgramSessions';
 import { challengeMissionsApi } from '../../../../../api/challengeMissionsApi';
+import { programSettingsApi } from '../../../../../api/programSettingsApi';
 import { surveyHubApi } from '../../../../../api/surveyHubApi';
-import { serializeLegacyGuestFields } from '../../../../../features/programs/applicationFields';
+import { materializeProgramApplicationForm } from '../../../../../features/programs/applicationFormModel';
+import { isProgramApplicationTransitionEnabled } from '../../../../../features/programs/application/applicationTransition';
 
 // Hooks
 import useNoticeForm from '../../hooks/useNoticeForm';
@@ -292,10 +294,9 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.challenge_format = formData.is_challenge ? (formData.challenge_format || 'OFFLINE') : 'OFFLINE';
                 noticeData.community_enabled = formData.is_challenge && formData.challenge_format === 'ONLINE' && formData.community_enabled === true;
                 const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
-                if (formData.application_form) noticeData.application_form = formData.application_form;
-                const guestQuestionFields = formData.application_form
-                    ? formData.application_form.questions.filter(question => ['GUEST', 'ALL'].includes(question.audience))
-                    : gp.custom_fields;
+                noticeData.application_form = materializeProgramApplicationForm(
+                    formData.application_form, gp
+                );
                 const configuredHosts = (formData.hosts || []).filter(h => h && h.host_id);
                 noticeData.guest_properties = {
                     ...gp,
@@ -326,7 +327,6 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                         : null,
                     require_school: true,
                     require_phone: true,
-                    custom_fields: serializeLegacyGuestFields(guestQuestionFields),
                     cached_hosts: configuredHosts.length > 0 ? configuredHosts : (gp.cached_hosts || []),
                     challenge_has_time: challengeHasTime,
                     community_channel_id: noticeData.community_enabled ? (formData.community_channel_id || '') : '',
@@ -366,20 +366,38 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 }
             }
 
-            const savedNotice = editNoticeId
-                ? await noticesApi.update(editNoticeId, noticeData)
-                : await noticesApi.create(noticeData);
+            let surveyToSave = null;
             if (isProgram && formData.enable_feedback && formData._program_survey_definition) {
                 const original = formData._program_survey_original_definition;
                 const changed = !formData._program_survey_form_id
                     || JSON.stringify(original) !== JSON.stringify(formData._program_survey_definition)
                     || formData._program_survey_template_id !== formData._program_survey_original_template_id;
                 if (changed) {
+                    surveyToSave = {
+                        form_id: formData._program_survey_form_id || null,
+                        template_id: formData._program_survey_template_id || null,
+                        definition: formData._program_survey_definition,
+                    };
+                }
+            }
+            let savedNotice;
+            if (isProgram && isProgramApplicationTransitionEnabled()) {
+                savedNotice = await programSettingsApi.save({
+                    noticeId: editNoticeId || null,
+                    notice: noticeData,
+                    expectedFormRevision: editNoticeId
+                        ? existingNotice?.application_form_revision : null,
+                    survey: surveyToSave,
+                    missions: formData.is_challenge ? (formData.challenge_missions || []) : null,
+                });
+            } else {
+                savedNotice = editNoticeId
+                    ? await noticesApi.update(editNoticeId, noticeData)
+                    : await noticesApi.create(noticeData);
+                if (surveyToSave) {
                     const savedSurvey = await surveyHubApi.saveProgramSurvey(
-                        savedNotice.id,
-                        formData._program_survey_form_id,
-                        formData._program_survey_template_id,
-                        formData._program_survey_definition
+                        savedNotice.id, surveyToSave.form_id,
+                        surveyToSave.template_id, surveyToSave.definition
                     );
                     noticeData.guest_properties = {
                         ...(noticeData.guest_properties || {}),
@@ -387,13 +405,19 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                         survey_version_id: savedSurvey.version_id,
                     };
                 }
+                if (isProgram && formData.is_challenge) {
+                    await challengeMissionsApi.syncMissions(
+                        savedNotice.id,
+                        formData.challenge_format || 'OFFLINE',
+                        formData.challenge_missions || []
+                    );
+                }
             }
-            if (isProgram && formData.is_challenge) {
-                await challengeMissionsApi.syncMissions(
-                    savedNotice.id,
-                    formData.challenge_format || 'OFFLINE',
-                    formData.challenge_missions || []
-                );
+            if (savedNotice.survey?.version_id) {
+                noticeData.guest_properties = {
+                    ...(noticeData.guest_properties || {}),
+                    survey_version_id: savedNotice.survey.version_id,
+                };
             }
 
             onSave({ ...noticeData, id: savedNotice.id, challenge_missions: formData.challenge_missions || [] });

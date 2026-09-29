@@ -9,10 +9,14 @@ const form = {
     customAnswers: { purpose: '참여' },
 };
 const whole = { id: 11, category: 'PROGRAM', is_recruiting: true,
+    application_form_revision: 4,
     guest_properties: { application_scope: 'PROGRAM' } };
 const wholeRequest = buildGuestRegistrationRequest(whole, null, form);
 assert.equal(wholeRequest.noticeId, 11);
 assert.equal(wholeRequest.sessionId, null);
+assert.equal(wholeRequest.expectedRevision, 4);
+assert.equal(buildGuestRegistrationRequest(whole, null, form, 3).expectedRevision, 3,
+    'the displayed version must be sent even if the reloaded notice is newer');
 assert.equal(wholeRequest.profile.name, '신청자');
 assert.equal(wholeRequest.profile.school, '서울고등학교');
 assert.equal(wholeRequest.profile.guardian_name, '보호자');

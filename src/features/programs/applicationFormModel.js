@@ -35,6 +35,13 @@ export function legacyGuestQuestions(guestProperties) {
     return listVisibleLegacyGuestFields(guestProperties).map(field => toLegacyGuestQuestion(field));
 }
 
+// One write model for ordinary, recurring, and challenge programs. During
+// migration only, a record without a canonical form inherits its legacy guest
+// question IDs; every subsequent settings save publishes the canonical form.
+export function materializeProgramApplicationForm(applicationForm, guestProperties) {
+    return applicationForm ?? { questions: legacyGuestQuestions(guestProperties) };
+}
+
 // The editor must retain blank draft labels while the persisted/visible form
 // continues to ignore them until the administrator supplies a question.
 export function legacyGuestDraftQuestions(guestProperties) {

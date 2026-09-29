@@ -91,12 +91,12 @@ const NoticeModalContent = ({
     const [zoomedImage, setZoomedImage] = useState(null);
     const [applicationRequest, setApplicationRequest] = useState(null);
     const requestApplication = (status, sessionId = null) => {
-        if (isProgramApplicationTransitionEnabled() && !tutorialMode && !notice.is_challenge && status !== 'CANCEL'
+        if (isProgramApplicationTransitionEnabled() && !tutorialMode && status !== 'CANCEL'
             && hasApplicationQuestions(notice, 'MEMBER')) {
             setApplicationRequest({ status, sessionId });
             return;
         }
-        onResponse(notice.id, status, sessionId);
+        onResponse(notice.id, status, sessionId, undefined, notice.application_form_revision);
     };
     useModalClose(true, onClose, { handleEscape: false });
     useModalClose(Boolean(zoomedImage), () => setZoomedImage(null), { handleEscape: false });
@@ -2189,7 +2189,10 @@ const NoticeModalContent = ({
                 notice={notice}
                 audience="MEMBER"
                 onClose={() => setApplicationRequest(null)}
-                onSubmit={answers => onResponse(notice.id, applicationRequest.status, applicationRequest.sessionId, answers)}
+                onSubmit={answers => onResponse(
+                    notice.id, applicationRequest.status, applicationRequest.sessionId,
+                    answers, notice.application_form_revision
+                )}
             />
         )}
         </>,

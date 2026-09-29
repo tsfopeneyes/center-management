@@ -1041,9 +1041,9 @@ const StudentDashboard = () => {
         });
     };
 
-    const handleTutorialResponse = (noticeId, status) => {
+    const handleTutorialResponse = (noticeId, status, ...applicationArgs) => {
         if (!isTutorialProgram(noticeId)) {
-            return handleResponse(noticeId, status);
+            return handleResponse(noticeId, status, ...applicationArgs);
         }
         setTutorialSession((current) => ({
             ...current,

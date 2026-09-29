@@ -234,10 +234,20 @@ export const programSessionsApi = {
 
     async closeToday(noticeId) { return this.closeSession(noticeId, getKstDateString()); },
 
-    async respond(session, userId, action, answers) {
+    async respond(session, userId, action, answers, expectedRevision = null) {
+        const checked = isProgramApplicationTransitionEnabled();
+        if (checked && action !== 'CANCEL' && !Number.isInteger(expectedRevision)) {
+            throw new Error('신청 질문을 다시 불러온 뒤 신청해 주세요.');
+        }
         const rpcPayload = { p_session_id: session.id, p_user_id: userId, p_action: action };
         if (answers !== undefined) rpcPayload.p_answers = answers;
-        const { data, error } = await supabase.rpc('respond_to_program_session', rpcPayload);
+        if (checked) {
+            rpcPayload.p_answers ??= {};
+            rpcPayload.p_expected_revision = expectedRevision;
+        }
+        const { data, error } = await supabase.rpc(
+            checked ? 'respond_to_program_session_checked' : 'respond_to_program_session', rpcPayload
+        );
         if (!error) return data;
         if (!missingRpc(error)) throw error;
 
@@ -245,8 +255,9 @@ export const programSessionsApi = {
         // the RPC. Never infer capacity or promote waitlisted users in the client.
         const fallbackPayload = { session_id: session.id, user_id: userId, action };
         if (answers !== undefined) fallbackPayload.application_answers = answers;
+        if (checked) fallbackPayload.expected_revision = expectedRevision;
         const { data: fallback, error: fallbackError } = await supabase
-            .from('member_program_session_applications')
+            .from(checked ? 'member_program_session_checked_requests' : 'member_program_session_applications')
             .insert(fallbackPayload)
             .select('status')
             .single();

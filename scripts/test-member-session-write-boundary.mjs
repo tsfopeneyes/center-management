@@ -154,6 +154,8 @@ try {
     await db.query('UPDATE public.notices SET application_form=$1 WHERE id=1', [JSON.stringify(form)]);
     const historical = await row(members[0]);
     await applySql('../supabase/manual/proposals/20260929_session_application_answers.sql');
+    await applySql('../supabase/manual/proposals/20260930_program_application_revision_guard.sql');
+    await applySql('../supabase/manual/proposals/20260930_checked_program_session_requests.sql');
     assert.deepEqual(await row(members[0]), historical);
     await db.exec('UPDATE public.notices SET is_leader_only=true WHERE id=1');
     await db.exec('SET ROLE authenticated');
@@ -171,10 +173,11 @@ try {
 
     await db.exec('SET ROLE authenticated');
     await asMember(members[3]);
-    const memberWithAnswers = answers => db.query(`INSERT INTO public.member_program_session_applications
-        (session_id,user_id,action,application_answers)
-        VALUES($1,$2,'JOIN',$3::jsonb) RETURNING status`,
-    [sessionId, members[3], JSON.stringify(answers)]);
+    const memberWithAnswers = (answers, revision = 1) => db.query(`INSERT INTO public.member_program_session_checked_requests
+        (session_id,user_id,action,application_answers,expected_revision)
+        VALUES($1,$2,'JOIN',$3::jsonb,$4) RETURNING status`,
+    [sessionId, members[3], JSON.stringify(answers), revision]);
+    await assert.rejects(memberWithAnswers({ member_school: '하이픈중' }, 0), /질문이 변경/);
     await assert.rejects(memberWithAnswers({}), /Required application answer/);
     await assert.rejects(memberWithAnswers({ guest_gender: '남' }), /does not belong/);
     assert.equal((await memberWithAnswers({ member_school: '하이픈중' })).rows[0].status, 'WAITLIST');
@@ -233,21 +236,24 @@ try {
     await db.exec(`CREATE FUNCTION public.program_application_transition(bigint,uuid,text,text,jsonb)
         RETURNS jsonb LANGUAGE sql AS $$ SELECT '{"status":"JOIN"}'::jsonb $$`);
     await applySql('../supabase/manual/proposals/20260929_atomic_guest_program_registration.sql');
+    await applySql('../supabase/manual/proposals/20260930_checked_guest_program_registration.sql');
     const atomicProfile = JSON.stringify({
         name: '신규 회차 비회원', school: '테스트 학교', phone: '010-9876-5432',
         birth_date: '2008-03-15', privacy_consent: true,
     });
     const beforeAtomicFailure = (await db.query('SELECT count(*)::integer AS count FROM public.users')).rows[0].count;
     await db.exec('SET ROLE anon');
-    await assert.rejects(db.query(`SELECT public.register_guest_program_application(
-        NULL,$1,$2::jsonb,'{}'::jsonb)`, [sessionId, atomicProfile]), /Required application answer/);
+    await assert.rejects(db.query(`SELECT public.register_guest_program_application_checked(
+        NULL,$1,$2::jsonb,'{"guest_gender":"여"}'::jsonb,0)`, [sessionId, atomicProfile]), /질문이 변경/);
+    await assert.rejects(db.query(`SELECT public.register_guest_program_application_checked(
+        NULL,$1,$2::jsonb,'{}'::jsonb,1)`, [sessionId, atomicProfile]), /Required application answer/);
     await db.exec('RESET ROLE');
     assert.equal((await db.query('SELECT count(*)::integer AS count FROM public.users')).rows[0].count,
         beforeAtomicFailure, 'invalid session answer leaves no guest account');
     await db.exec('SET ROLE anon');
-    const atomic = (await db.query(`INSERT INTO public.guest_program_registration_requests
-        (session_id,profile,application_answers)
-        VALUES($1,$2::jsonb,'{"guest_gender":"여"}'::jsonb)
+    const atomic = (await db.query(`INSERT INTO public.guest_program_registration_checked_requests
+        (session_id,profile,application_answers,expected_revision)
+        VALUES($1,$2::jsonb,'{"guest_gender":"여"}'::jsonb,1)
         RETURNING status,user_id`, [sessionId, atomicProfile])).rows[0];
     await db.exec('RESET ROLE');
     assert.equal(atomic.status, 'WAITLIST');

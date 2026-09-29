@@ -242,6 +242,10 @@ const PublicProgramDetail = () => {
             // administrator finishes or closes the program in another tab.
             const registrationNotice = await loadOpenProgramForRegistration();
             if (registrationNotice.guest_properties?.allow_guest === false) throw new Error('게스트 신청이 비활성화되어 있습니다.');
+            if (isProgramApplicationTransitionEnabled()
+                && registrationNotice.application_form_revision !== notice?.application_form_revision) {
+                throw new Error('신청 질문이 변경되었습니다. 페이지를 새로고침한 뒤 다시 신청해 주세요.');
+            }
             const answerError = validateApplicationAnswers(formForNotice(registrationNotice), 'GUEST', guestForm.customAnswers || {});
             if (answerError) throw new Error(answerError);
             let userId = null;
@@ -250,7 +254,9 @@ const PublicProgramDetail = () => {
             let registrationStatus = 'JOIN';
 
             if (isProgramApplicationTransitionEnabled()) {
-                const request = buildGuestRegistrationRequest(registrationNotice, selectedSessionId, guestForm);
+                const request = buildGuestRegistrationRequest(
+                    registrationNotice, selectedSessionId, guestForm, notice?.application_form_revision
+                );
                 const result = await guestProgramRegistrationApi.register(request);
                 if (!result?.user_id || !result?.guest_user?.id || !result?.status) {
                     throw new Error('신청 결과를 확인하지 못했습니다. 신청 내역을 확인해 주세요.');
@@ -438,6 +444,10 @@ const PublicProgramDetail = () => {
         setSubmitting(true);
         try {
             const registrationNotice = await loadOpenProgramForRegistration();
+            if (isProgramApplicationTransitionEnabled()
+                && registrationNotice.application_form_revision !== notice?.application_form_revision) {
+                throw new Error('신청 질문이 변경되었습니다. 페이지를 새로고침한 뒤 다시 신청해 주세요.');
+            }
             let registrationStatus = 'JOIN';
             // Re-read the canonical public.users row immediately before inserting.
             // This prevents a deleted/expired local session from violating the FK.
@@ -464,12 +474,17 @@ const PublicProgramDetail = () => {
             const freshProgram = await loadOpenProgramForRegistration();
             if (usesDailySessionRsvp(freshProgram)) {
                 const session = freshProgram.open_sessions?.find(item => item.id === selectedSessionId) || freshProgram.today_session;
-                const result = await programSessionsApi.respond(session, dbUser.id, 'JOIN', Object.keys(answers).length ? answers : undefined);
+                const result = await programSessionsApi.respond(
+                    session, dbUser.id, 'JOIN', Object.keys(answers).length ? answers : undefined,
+                    notice?.application_form_revision
+                );
                 registrationStatus = result.status;
                 setApplicationStatus(result.status);
             } else {
                 if (isProgramApplicationTransitionEnabled()) {
-                    const result = await programApplicationsApi.respondMember(Number(id), dbUser.id, 'JOIN', answers);
+                    const result = await programApplicationsApi.respondMember(
+                        Number(id), dbUser.id, 'JOIN', answers, notice?.application_form_revision
+                    );
                     registrationStatus = result.status;
                     setApplicationStatus(result.status);
                 } else {

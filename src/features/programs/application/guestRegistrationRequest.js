@@ -1,7 +1,9 @@
 import { normalizeSchoolName } from '../../../utils/userUtils.js';
 import { usesDailySessionRsvp } from '../../../utils/dailyProgramSessions.js';
 
-export function buildGuestRegistrationRequest(program, selectedSessionId, form) {
+export function buildGuestRegistrationRequest(
+    program, selectedSessionId, form, displayedRevision = program?.application_form_revision
+) {
     const isSession = usesDailySessionRsvp(program);
     const session = isSession
         ? (selectedSessionId
@@ -18,6 +20,7 @@ export function buildGuestRegistrationRequest(program, selectedSessionId, form) 
     return {
         noticeId: session ? null : noticeId,
         sessionId: session?.id || null,
+        expectedRevision: displayedRevision,
         profile: {
             name: form.name.trim(),
             school: normalizeSchoolName(form.school),

@@ -62,7 +62,9 @@ export const useNotices = (userId) => {
         }
     }, [userId]);
 
-    const handleResponse = async (noticeId, status, sessionId = null, answers) => {
+    const handleResponse = async (
+        noticeId, status, sessionId = null, answers, expectedRevision = null
+    ) => {
         try {
             const dailyNotice = notices.find(item => item.id === noticeId && usesDailySessionRsvp(item));
             if (dailyNotice) {
@@ -71,7 +73,9 @@ export const useNotices = (userId) => {
                     : dailyNotice.today_session;
                 if (!session || session.status !== 'OPEN') throw new Error('오늘은 신청을 받고 있지 않습니다.');
                 const oldStatus = responses[noticeId];
-                const result = await programSessionsApi.respond(session, userId, status, answers);
+                const result = await programSessionsApi.respond(
+                    session, userId, status, answers, expectedRevision
+                );
                 setResponses(prev => {
                     const next = { ...prev };
                     if (result?.status === 'CANCELLED') delete next[noticeId];
@@ -98,13 +102,13 @@ export const useNotices = (userId) => {
             const notice = await noticesApi.loadForStudentRegistration(noticeId);
 
             if (isProgramApplicationTransitionEnabled()
-                && notice.category === 'PROGRAM' && !notice.is_challenge && notice.is_recruiting) {
+                && notice.category === 'PROGRAM' && notice.is_recruiting) {
                 const oldStatus = responses[noticeId];
                 const cancelling = status === 'CANCEL' || status === oldStatus
                     || (status === RESPONSE_STATUS.JOIN && oldStatus === RESPONSE_STATUS.WAITLIST);
                 if (cancelling && !window.confirm('신청을 취소하시겠습니까?')) return;
                 const result = await programApplicationsApi.respondMember(
-                    noticeId, userId, cancelling ? 'CANCEL' : 'JOIN', answers || {}
+                    noticeId, userId, cancelling ? 'CANCEL' : 'JOIN', answers || {}, expectedRevision
                 );
                 setResponses(previous => {
                     const next = { ...previous };

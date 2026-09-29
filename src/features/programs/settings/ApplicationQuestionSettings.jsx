@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { legacyGuestDraftQuestions, legacyGuestQuestions } from '../applicationFormModel';
+import { legacyGuestDraftQuestions, materializeProgramApplicationForm } from '../applicationFormModel';
 import { isProgramApplicationTransitionEnabled } from '../application/applicationTransition';
 
 const AUDIENCES = [
@@ -29,14 +29,13 @@ function ChoiceOptionsInput({ question, onChange }) {
 function ApplicationQuestionSettings({ formData, updateField }) {
     if (!formData.is_recruiting) return null;
 
-    const isChallenge = formData.is_challenge === true;
-    const legacyOnly = isChallenge || !isProgramApplicationTransitionEnabled();
-    // Legacy guest questions stay in their original storage until this editor
-    // is changed. Materializing the shared form preserves their original IDs.
-    const isLegacy = legacyOnly || !formData.application_form;
+    // A published canonical form must never be edited through legacy fields,
+    // even if a staged environment temporarily disables the new application path.
+    const legacyOnly = !isProgramApplicationTransitionEnabled() && !formData.application_form;
+    const isLegacy = !formData.application_form;
     const questions = legacyOnly
         ? legacyGuestDraftQuestions(formData.guest_properties)
-        : (formData.application_form?.questions || legacyGuestQuestions(formData.guest_properties));
+        : materializeProgramApplicationForm(formData.application_form, formData.guest_properties).questions;
     const updateQuestions = next => {
         if (legacyOnly) {
             updateField('guest_properties', {
@@ -67,8 +66,7 @@ function ApplicationQuestionSettings({ formData, updateField }) {
                     {isLegacy && questions.length > 0 && (
                         <p className="mt-2 text-xs text-slate-500">기존 비회원 질문의 답변 연결을 위해 질문 식별자를 유지합니다.</p>
                     )}
-                    {isChallenge && <p className="mt-2 text-xs text-slate-500">챌린지의 추가 질문은 기존 비회원 신청 방식으로 저장됩니다.</p>}
-                    {!isChallenge && legacyOnly && <p className="mt-2 text-xs text-slate-500">회원 질문은 신청 DB 전환 후 사용할 수 있습니다.</p>}
+                    {legacyOnly && <p className="mt-2 text-xs text-slate-500">회원 질문은 신청 DB 전환 후 사용할 수 있습니다.</p>}
                 </div>
                 <button type="button" onClick={addQuestion}
                     className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">

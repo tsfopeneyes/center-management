@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { CATEGORIES, PROGRAM_TYPES } from '../utils/constants';
 import { fromKstInput, validateRecruitmentForm } from '../../../../utils/programRecruitment';
-import { legacyGuestQuestions, validateApplicationForm } from '../../../../features/programs/applicationFormModel';
+import { materializeProgramApplicationForm, validateApplicationForm } from '../../../../features/programs/applicationFormModel';
 
 const INITIAL_NOTICE_STATE = {
     title: '',
@@ -113,8 +113,9 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
         }
         
         if (mode === CATEGORIES.PROGRAM) {
-            const applicationForm = formData.application_form
-                || { questions: legacyGuestQuestions(formData.guest_properties) };
+            const applicationForm = materializeProgramApplicationForm(
+                formData.application_form, formData.guest_properties
+            );
             const applicationError = validateApplicationForm(applicationForm);
             if (applicationError) return { isValid: false, message: applicationError };
             const recruitmentError = validateRecruitmentForm(formData);

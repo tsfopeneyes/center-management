@@ -26,11 +26,11 @@ const form = { questions: [
 ] };
 const applyProposal = path => db.exec(readFileSync(new URL(path, import.meta.url), 'utf8'));
 const asMember = id => db.query("SELECT set_config('test.member_id',$1,false)", [id]);
-const submitMember = (id, action, answers = {}, noticeId = 1) => db.query(`
-    INSERT INTO public.member_program_applications
-        (notice_id,user_id,action,application_answers)
-    VALUES($1,$2,$3,$4::jsonb) RETURNING status
-`, [noticeId, id, action, JSON.stringify(answers)]);
+const submitMember = (id, action, answers = {}, noticeId = 1, revision = 1) => db.query(`
+    INSERT INTO public.member_program_application_checked_requests
+        (notice_id,user_id,action,application_answers,expected_revision)
+    VALUES($1,$2,$3,$4::jsonb,$5) RETURNING status
+`, [noticeId, id, action, JSON.stringify(answers), revision]);
 const submitGuest = (answers = {}, noticeId = 1, birth = '080315') => db.query(`
     INSERT INTO public.guest_program_applications
         (notice_id,user_id,name,phone,birth,application_answers)
@@ -170,10 +170,23 @@ try {
             'ACTIVE',now()-interval '1 day',now()+interval '1 day',true,now()+interval '2 days',1);
         UPDATE public.notices SET is_leader_only=true WHERE id=6;
     `);
+    await db.query('UPDATE public.notices SET application_form=$1::jsonb WHERE id=2', [JSON.stringify(form)]);
+    await db.query(`UPDATE public.notices SET application_form =
+        CASE WHEN id=5 THEN $1::jsonb ELSE '{"questions":[]}'::jsonb END
+        WHERE application_form IS NULL`, [JSON.stringify({ questions: [{
+            id: 'legacy_gender', label: '성별', type: 'select', required: true,
+            audience: 'GUEST', options: ['여', '남'],
+        }] })]);
+    await applyProposal('../supabase/manual/proposals/20260930_program_application_form_source.sql');
+    await assert.rejects(db.exec(`INSERT INTO public.notices(id,title,category)
+        VALUES(99,'양식 없는 프로그램','PROGRAM')`), /program_application_form_required/);
     await db.query(`INSERT INTO public.notice_responses(notice_id,user_id,status,is_attended,application_answers)
         VALUES(1,$1,'JOIN',true,'{"legacy":"preserved"}')`, [memberIds[0]]);
     const before = await statusOf(memberIds[0]);
     await applyProposal('../supabase/manual/proposals/20260929_program_application_transition.sql');
+    await applyProposal('../supabase/manual/proposals/20260929_program_application_direct_write_cutover.sql');
+    await applyProposal('../supabase/manual/proposals/20260930_program_application_revision_guard.sql');
+    await applyProposal('../supabase/manual/proposals/20260929_unified_program_application_boundary.sql');
     assert.deepEqual(await statusOf(memberIds[0]), before);
 
     await db.exec('SET ROLE authenticated');
@@ -184,10 +197,14 @@ try {
     assert.equal((await statusOf(memberIds[1])).application_form_revision, 1);
     assert.deepEqual((await statusOf(memberIds[1])).application_form_snapshot, form);
     await asMember(memberIds[2]);
+    await assert.rejects(submitMember(memberIds[2], 'JOIN', { member_school: '하이픈중' }, 2, 0), /질문이 변경/);
     await assert.rejects(submitMember(memberIds[2], 'JOIN', {}, 6), /리더만/);
     await assert.rejects(submitMember(memberIds[2], 'JOIN', { guest_gender: '남' }), /does not belong/);
     assert.equal((await submitMember(memberIds[2], 'JOIN', { member_school: '하이픈중' })).rows[0].status, 'WAITLIST');
-    await assert.rejects(submitMember(memberIds[2], 'JOIN', {}, 2), /비활성화/);
+    await assert.rejects(submitMember(memberIds[2], 'JOIN', {}, 2), /Required application answer/);
+    assert.equal((await submitMember(memberIds[2], 'JOIN', { member_school: '하이픈중' }, 2)).rows[0].status, 'JOIN');
+    assert.deepEqual((await db.query(`SELECT application_form_snapshot FROM public.notice_responses
+        WHERE notice_id=2 AND user_id=$1`, [memberIds[2]])).rows[0].application_form_snapshot, form);
     await assert.rejects(submitMember(memberIds[2], 'JOIN', {}, 3), /비활성화/);
     await assert.rejects(submitMember(memberIds[2], 'JOIN', {}, 4), /종료/);
     await asMember(memberIds[1]);
@@ -229,13 +246,21 @@ try {
     await assert.rejects(submitGuest({}, 1, '080316'), /게스트 신청자/);
     await assert.rejects(submitGuest({ guest_gender: '기타' }), /Invalid application choice/);
     assert.equal((await submitGuest({ guest_gender: '남' })).rows[0].status, 'WAITLIST');
-    await assert.rejects(submitGuest({}, 5), /필수 신청 항목/);
+    assert.equal((await submitGuest({ guest_gender: '남' }, 2)).rows[0].status, 'WAITLIST');
+    await assert.rejects(submitGuest({}, 5), /Required application answer/);
     await assert.rejects(db.query('SELECT * FROM public.member_program_applications'), isPermissionDenied);
     await db.exec('RESET ROLE');
+    assert.deepEqual((await db.query(`SELECT application_form_snapshot FROM public.notice_responses
+        WHERE notice_id=2 AND user_id=$1`, [guestId])).rows[0].application_form_snapshot, form);
+    await db.exec('SET ROLE authenticated');
+    await asMember(memberIds[2]);
+    assert.equal((await submitMember(memberIds[2], 'CANCEL', {}, 2)).rows[0].status, 'CANCELLED');
+    await db.exec('RESET ROLE');
+    assert.equal((await db.query(`SELECT status FROM public.notice_responses
+        WHERE notice_id=2 AND user_id=$1`, [guestId])).rows[0].status, 'JOIN');
     assert.equal((await statusOf(guestId)).application_answers.guest_gender, '남');
     assert.equal((await db.query('SELECT count(*)::integer AS count FROM public.notice_responses WHERE notice_id=1 AND status=\'JOIN\'')).rows[0].count, 1);
     const beforeCutover = await statusOf(memberIds[1]);
-    await applyProposal('../supabase/manual/proposals/20260929_program_application_direct_write_cutover.sql');
     assert.deepEqual(await statusOf(memberIds[1]), beforeCutover);
     await db.exec('SET ROLE authenticated');
     await asMember(memberIds[2]);
@@ -254,10 +279,10 @@ try {
     assert.equal((await statusOf(memberIds[2])).is_attended, true);
     await db.exec('SET ROLE anon');
     assert.equal((await submitGuest({ legacy_gender: '여' }, 5)).rows[0].status, 'WAITLIST');
-    await db.query(`INSERT INTO public.notice_responses(notice_id,user_id,status)
-        VALUES(2,$1,'JOIN')`, [staffId]);
+    await assert.rejects(db.query(`INSERT INTO public.notice_responses(notice_id,user_id,status)
+        VALUES(2,$1,'JOIN')`, [staffId]), isPermissionDenied);
     await db.exec('RESET ROLE');
-    assert.equal((await db.query('SELECT count(*)::integer AS count FROM public.notice_responses WHERE notice_id=2')).rows[0].count, 1);
+    assert.equal((await db.query('SELECT count(*)::integer AS count FROM public.notice_responses WHERE notice_id=2')).rows[0].count, 2);
     await db.exec("UPDATE public.notices SET recruitment_deadline=now()-interval '1 minute' WHERE id=5");
     await db.exec('SET ROLE authenticated');
     await assert.rejects(db.query(`SELECT public.cancel_program_application_by_staff(5,$1)`,
@@ -291,29 +316,60 @@ try {
     await db.exec(`CREATE FUNCTION public.program_session_transition(uuid,uuid,text,text,jsonb)
         RETURNS jsonb LANGUAGE sql AS $$ SELECT '{"status":"JOIN"}'::jsonb $$`);
     await applyProposal('../supabase/manual/proposals/20260929_atomic_guest_program_registration.sql');
+    await applyProposal('../supabase/manual/proposals/20260930_checked_guest_program_registration.sql');
     const atomicProfile = {
         name: '신규 비회원', school: '테스트 학교', phone: '010-9876-5432',
         birth_date: '2008-03-15', privacy_consent: true,
     };
     const beforeAtomicFailure = (await db.query('SELECT count(*)::integer AS count FROM public.users')).rows[0].count;
     await db.exec('SET ROLE anon');
-    await assert.rejects(db.query(`SELECT public.register_guest_program_application(
-        1,NULL,$1::jsonb,'{}'::jsonb)`, [JSON.stringify(atomicProfile)]), /Required application answer/);
+    await assert.rejects(db.query(`SELECT public.register_guest_program_application_checked(
+        2,NULL,$1::jsonb,'{"guest_gender":"여"}'::jsonb,0)`, [JSON.stringify(atomicProfile)]), /질문이 변경/);
+    await assert.rejects(db.query(`SELECT public.register_guest_program_application_checked(
+        2,NULL,$1::jsonb,'{}'::jsonb,1)`, [JSON.stringify(atomicProfile)]), /Required application answer/);
     await db.exec('RESET ROLE');
     assert.equal((await db.query('SELECT count(*)::integer AS count FROM public.users')).rows[0].count,
         beforeAtomicFailure, 'required-answer failure leaves no guest account');
     await db.exec('SET ROLE anon');
-    const atomic = (await db.query(`INSERT INTO public.guest_program_registration_requests
-        (notice_id,profile,application_answers)
-        VALUES(1,$1::jsonb,'{"guest_gender":"여"}'::jsonb)
+    const atomic = (await db.query(`INSERT INTO public.guest_program_registration_checked_requests
+        (notice_id,profile,application_answers,expected_revision)
+        VALUES(2,$1::jsonb,'{"guest_gender":"여"}'::jsonb,1)
         RETURNING status,user_id`, [JSON.stringify(atomicProfile)])).rows[0];
     await db.exec('RESET ROLE');
     assert.equal(atomic.status, 'WAITLIST');
     const atomicResponse = (await db.query(`SELECT application_answers,application_form_snapshot
-        FROM public.notice_responses WHERE notice_id=1 AND user_id=$1`, [atomic.user_id])).rows[0];
+        FROM public.notice_responses WHERE notice_id=2 AND user_id=$1`, [atomic.user_id])).rows[0];
     assert.equal(atomicResponse.application_answers.guest_gender, '여');
     assert.deepEqual(atomicResponse.application_form_snapshot, form);
-    console.log('whole-program proposal: preserved history, verified identity, answers/snapshot, capacity, idempotency, cancel/promotion, direct-write cutoff, staff/challenge isolation, relation fallbacks');
+    await db.exec('SET ROLE authenticated');
+    await asMember(staffId);
+    await db.query("SELECT set_config('test.admin','true',false)");
+    assert.equal((await db.query('SELECT public.cancel_program_application_by_staff(2,$1) AS result',
+        [guestId])).rows[0].result.status, 'CANCELLED');
+    await db.exec('RESET ROLE');
+    assert.equal((await db.query(`SELECT status FROM public.notice_responses
+        WHERE notice_id=2 AND user_id=$1`, [atomic.user_id])).rows[0].status, 'JOIN');
+    assert.equal((await db.query(`SELECT status FROM public.notice_responses
+        WHERE notice_id=2 AND user_id=$1`, [guestId])).rows[0].status, 'CANCELLED');
+    await db.exec("UPDATE public.notices SET program_end_date=current_date-1 WHERE id=2");
+    await db.exec('SET ROLE authenticated');
+    await asMember(memberIds[0]);
+    await assert.rejects(submitMember(memberIds[0], 'JOIN', { member_school: '하이픈중' }, 2), /종료/);
+    await db.exec('RESET ROLE');
+    await db.exec(`UPDATE public.notices SET application_form = jsonb_set(
+        application_form,'{questions,0,label}','"새 학교"'::jsonb) WHERE id=2`);
+    assert.equal((await db.query('SELECT application_form_revision FROM public.notices WHERE id=2')).rows[0]
+        .application_form_revision, 2);
+    const beforeStaleGuest = (await db.query('SELECT count(*)::integer AS count FROM public.users')).rows[0].count;
+    await db.exec('SET ROLE anon');
+    await assert.rejects(db.query(`SELECT public.register_guest_program_application_checked(
+        2,NULL,$1::jsonb,'{"guest_gender":"여"}'::jsonb,1)`, [JSON.stringify({
+        ...atomicProfile, phone: '010-5555-4444',
+    })]), /질문이 변경/);
+    await db.exec('RESET ROLE');
+    assert.equal((await db.query('SELECT count(*)::integer AS count FROM public.users')).rows[0].count,
+        beforeStaleGuest, 'an edited form rejects a stale guest before account creation');
+    console.log('whole-program proposal: preserved history, verified identity, answers/snapshot, ordinary and challenge capacity, cancel/promotion, checked atomic guest registration, direct-write cutoff, relation fallbacks');
 } finally {
     await db.close();
 }

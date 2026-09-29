@@ -4,7 +4,7 @@ const tableFor = format => format === 'ONLINE'
     ? 'online_challenge_missions'
     : 'offline_challenge_missions';
 
-const normalizeMission = (mission, index, format) => ({
+export const normalizeMission = (mission, index, format) => ({
     id: mission.id,
     title: mission.title || '',
     description: mission.description || '',

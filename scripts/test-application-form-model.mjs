@@ -4,6 +4,7 @@ import {
     legacyGuestDraftQuestions,
     legacyGuestMigrationIssue,
     legacyGuestQuestions,
+    materializeProgramApplicationForm,
     questionsForAudience,
     validateApplicationAnswers,
     validateApplicationForm,
@@ -20,6 +21,9 @@ assert.deepEqual(legacyGuestDraftQuestions(guestProperties).map(question => ques
 assert.equal(legacyGuestDraftQuestions(guestProperties)[0].label, ' 성별 ');
 assert.equal(guestQuestions[0].audience, APPLICATION_AUDIENCE.GUEST);
 assert.equal(guestProperties.custom_fields[0].label, ' 성별 ');
+assert.deepEqual(materializeProgramApplicationForm(null, guestProperties).questions, guestQuestions);
+assert.deepEqual(materializeProgramApplicationForm(null, {}).questions, []);
+assert.deepEqual(materializeProgramApplicationForm({ questions: [] }, guestProperties), { questions: [] });
 assert.match(legacyGuestMigrationIssue(guestProperties), /비어 있는/);
 assert.match(legacyGuestMigrationIssue({ custom_fields: {} }), /배열/);
 assert.match(legacyGuestMigrationIssue({ custom_fields: [guestProperties.custom_fields[0], guestProperties.custom_fields[0]] }), /중복/);

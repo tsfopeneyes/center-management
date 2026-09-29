@@ -6,41 +6,24 @@ const missingRpc = error => error?.code === 'PGRST202' || error?.code === '42883
 // same locked transition as the RPC. Do not fall back to notice_responses:
 // direct writes cannot atomically enforce capacity and waitlist promotion.
 export const programApplicationsApi = {
-    async respondMember(noticeId, userId, action, answers = {}) {
-        const { data, error } = await supabase.rpc('respond_to_program_application', {
+    async respondMember(noticeId, userId, action, answers = {}, expectedRevision = null) {
+        if (action !== 'CANCEL' && !Number.isInteger(expectedRevision)) {
+            throw new Error('신청 질문을 다시 불러온 뒤 신청해 주세요.');
+        }
+        const { data, error } = await supabase.rpc('respond_to_program_application_checked', {
             p_notice_id: noticeId,
             p_user_id: userId,
             p_action: action,
             p_answers: answers,
+            p_expected_revision: expectedRevision,
         });
         if (!error) return data;
         if (!missingRpc(error)) throw error;
 
         const { data: fallback, error: fallbackError } = await supabase
-            .from('member_program_applications')
-            .insert({ notice_id: noticeId, user_id: userId, action, application_answers: answers })
-            .select('status')
-            .single();
-        if (fallbackError) throw fallbackError;
-        return fallback;
-    },
-
-    async applyGuest(noticeId, guest, answers = {}) {
-        const { data, error } = await supabase.rpc('apply_guest_program_application', {
-            p_notice_id: noticeId,
-            p_user_id: guest.id,
-            p_name: guest.name,
-            p_phone: guest.phone,
-            p_birth: guest.birth,
-            p_answers: answers,
-        });
-        if (!error) return data;
-        if (!missingRpc(error)) throw error;
-
-        const { data: fallback, error: fallbackError } = await supabase
-            .from('guest_program_applications')
-            .insert({ notice_id: noticeId, user_id: guest.id, name: guest.name,
-                phone: guest.phone, birth: guest.birth, application_answers: answers })
+            .from('member_program_application_checked_requests')
+            .insert({ notice_id: noticeId, user_id: userId, action,
+                application_answers: answers, expected_revision: expectedRevision })
             .select('status')
             .single();
         if (fallbackError) throw fallbackError;
