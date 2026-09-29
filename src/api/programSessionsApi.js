@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { getKstDateString } from '../utils/dailyProgramSessions';
+import { isProgramApplicationTransitionEnabled } from '../features/programs/application/applicationTransition';
 
 const missingTable = (error) => error?.code === '42P01' || error?.code === 'PGRST205';
 const missingRpc = (error) => error?.code === 'PGRST202' || error?.code === '42883';
@@ -9,13 +10,29 @@ export const programSessionsApi = {
         const { data, error } = await supabase.rpc('get_program_session_participants', {
             p_session_id: sessionId,
         });
-        if (!error) return Array.isArray(data) ? data : [];
+        if (!error) {
+            const participants = Array.isArray(data) ? data : [];
+            if (!isProgramApplicationTransitionEnabled() || !participants.length) return participants;
+            const { data: snapshots, error: snapshotError } = await supabase
+                .from('daily_program_session_responses')
+                .select('user_id,application_form_revision,application_form_snapshot')
+                .eq('session_id', sessionId);
+            if (snapshotError) throw snapshotError;
+            const byUserId = new Map((snapshots || []).map(row => [row.user_id, row]));
+            return participants.map(participant => ({
+                ...participant,
+                application_form_revision: byUserId.get(participant.user_id)?.application_form_revision ?? null,
+                application_form_snapshot: byUserId.get(participant.user_id)?.application_form_snapshot ?? null,
+            }));
+        }
         if (!missingRpc(error)) throw error;
 
         // Direct-table fallback for deployments whose RPC schema cache has not refreshed yet.
         const { data: fallback, error: fallbackError } = await supabase
             .from('daily_program_session_responses')
-            .select('user_id,status,is_attended,created_at,application_answers,users(id,name,school,phone,phone_back4,is_leader,user_group)')
+            .select(isProgramApplicationTransitionEnabled()
+                ? 'user_id,status,is_attended,created_at,application_answers,application_form_revision,application_form_snapshot,users(id,name,school,phone,phone_back4,is_leader,user_group)'
+                : 'user_id,status,is_attended,created_at,application_answers,users(id,name,school,phone,phone_back4,is_leader,user_group)')
             .eq('session_id', sessionId)
             .order('created_at', { ascending: true });
         if (fallbackError) throw fallbackError;
@@ -217,40 +234,24 @@ export const programSessionsApi = {
 
     async closeToday(noticeId) { return this.closeSession(noticeId, getKstDateString()); },
 
-    async respond(session, userId, action) {
+    async respond(session, userId, action, answers) {
         const rpcPayload = { p_session_id: session.id, p_user_id: userId, p_action: action };
+        if (answers !== undefined) rpcPayload.p_answers = answers;
         const { data, error } = await supabase.rpc('respond_to_program_session', rpcPayload);
         if (!error) return data;
         if (!missingRpc(error)) throw error;
 
-        // Direct-table fallback is intentionally retained for deployments where
-        // the RPC cache has not refreshed yet. Database constraints still guard
-        // identity, duplicates and closed sessions.
-        if (action === 'CANCEL') {
-            const { error: fallbackError } = await supabase.from('daily_program_session_responses')
-                .update({ status: 'CANCELLED', cancelled_at: new Date().toISOString() })
-                .eq('session_id', session.id).eq('user_id', userId);
-            if (fallbackError) throw error;
-            if (session.capacity > 0) {
-                const { count } = await supabase.from('daily_program_session_responses').select('*', { count: 'exact', head: true })
-                    .eq('session_id', session.id).eq('status', 'JOIN');
-                if ((count || 0) < session.capacity) {
-                    const { data: next } = await supabase.from('daily_program_session_responses').select('user_id')
-                        .eq('session_id', session.id).eq('status', 'WAITLIST').order('created_at').limit(1).maybeSingle();
-                    if (next) await supabase.from('daily_program_session_responses').update({ status: 'JOIN', cancelled_at: null })
-                        .eq('session_id', session.id).eq('user_id', next.user_id);
-                }
-            }
-            return { status: 'CANCELLED' };
-        }
-        if (session.status !== 'OPEN' || Date.now() >= new Date(session.starts_at).getTime()) {
-            throw new Error('신청이 마감되었습니다.');
-        }
-        const status = session.capacity > 0 && session.join_count >= session.capacity ? 'WAITLIST' : 'JOIN';
-        const { error: fallbackError } = await supabase.from('daily_program_session_responses')
-            .upsert({ session_id: session.id, user_id: userId, status, cancelled_at: null }, { onConflict: 'session_id,user_id' });
-        if (fallbackError) throw error;
-        return { status };
+        // The PostgREST relation fallback invokes the same locked transaction as
+        // the RPC. Never infer capacity or promote waitlisted users in the client.
+        const fallbackPayload = { session_id: session.id, user_id: userId, action };
+        if (answers !== undefined) fallbackPayload.application_answers = answers;
+        const { data: fallback, error: fallbackError } = await supabase
+            .from('member_program_session_applications')
+            .insert(fallbackPayload)
+            .select('status')
+            .single();
+        if (fallbackError) throw fallbackError;
+        return fallback;
     },
 
     async setAttendance(sessionId, userId, attended) {

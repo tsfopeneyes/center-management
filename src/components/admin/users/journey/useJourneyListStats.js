@@ -29,10 +29,12 @@ export default function useJourneyListStats(schoolLogs = []) {
     useEffect(() => {
         let active = true;
         const load = async () => {
-            const [checkins, legacy, daily, open] = await Promise.all([
+            const [checkins, legacy, challenges, daily, open] = await Promise.all([
                 fetchAllPages(() => supabase.from('logs').select('id,user_id,created_at').eq('type', 'CHECKIN').order('created_at').order('id')),
                 optionalRows(() => supabase.from('notice_responses').select('id,user_id,notice_id,created_at,notices(program_date)')
                     .eq('status', 'JOIN').eq('is_attended', true).order('created_at').order('id')),
+                optionalRows(() => supabase.from('notice_responses').select('id,user_id,notice_id,created_at,notices!inner(program_date,is_challenge)')
+                    .eq('status', 'JOIN').eq('notices.is_challenge', true).order('created_at').order('id')),
                 optionalRows(() => supabase.from('daily_program_session_responses')
                     .select('user_id,session_id,daily_program_sessions(notice_id,session_date,voided_at)')
                     .eq('is_attended', true).order('session_id').order('user_id')),
@@ -52,6 +54,11 @@ export default function useJourneyListStats(schoolLogs = []) {
                 keepLatest(latest, row.user_id, session.session_date, 'PROGRAM');
             });
             (open || []).forEach(row => { add(programs, row.user_id, `${row.notice_id}:${row.attendance_date}`); keepLatest(latest, row.user_id, row.attendance_date, 'PROGRAM'); });
+            (challenges || []).forEach(row => {
+                const date = String(row.notices?.program_date || row.created_at || '').slice(0, 10);
+                add(programs, row.user_id, `${row.notice_id}:${date}`);
+                keepLatest(latest, row.user_id, date, 'PROGRAM');
+            });
             (legacy || []).forEach(row => {
                 const date = String(row.notices?.program_date || row.created_at || '').slice(0, 10);
                 add(programs, row.user_id, `${row.notice_id}:${date}`);

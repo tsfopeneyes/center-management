@@ -94,28 +94,45 @@ export default function AdminUserJourney({ users, allLogs, locations, schoolLogs
             filteredUsers={hook.filteredUsers} setNotificationModalOpen={hook.setNotificationModalOpen} fetchData={fetchData}
             title="이용자 여정" subtitle="한 사람의 방문, 만남과 프로그램 참여를 시간의 흐름으로 살펴봅니다." showActions={false} compact />
 
-        <section className="overflow-hidden rounded-[24px] border border-gray-100 bg-white shadow-sm">
-            <div className="hidden grid-cols-[minmax(250px,1fr)_minmax(220px,.8fr)_repeat(3,minmax(95px,.35fr))_44px] items-center gap-4 border-b border-gray-100 bg-gray-50/70 px-6 py-2.5 text-[13px] font-bold text-gray-500 md:grid">
-                <button type="button" onClick={() => changeSort('name')} className={`flex w-fit items-center gap-1.5 rounded-lg px-2 py-1.5 hover:bg-white ${sort.key === 'name' ? 'text-blue-700' : ''}`}>이용자 {sortIcon('name')}</button>
-                <button type="button" onClick={() => changeSort('latest')} className={`flex w-fit items-center gap-1.5 rounded-lg px-2 py-1.5 hover:bg-white ${sort.key === 'latest' ? 'text-blue-700' : ''}`}>최근 활동 {sortIcon('latest')}</button>
-                <button type="button" onClick={() => changeSort('visits')} className={`mx-auto flex items-center gap-1.5 rounded-lg px-2 py-1.5 font-black text-sky-700 hover:bg-sky-50 ${sort.key === 'visits' ? 'bg-sky-50' : ''}`}>센터 방문 {sortIcon('visits')}</button>
-                <button type="button" onClick={() => changeSort('programs')} className={`mx-auto flex items-center gap-1.5 rounded-lg px-2 py-1.5 font-black text-orange-700 hover:bg-orange-50 ${sort.key === 'programs' ? 'bg-orange-50' : ''}`}>프로그램 {sortIcon('programs')}</button>
-                <button type="button" onClick={() => changeSort('meetings')} className={`mx-auto flex items-center gap-1.5 rounded-lg px-2 py-1.5 font-black text-violet-700 hover:bg-violet-50 ${sort.key === 'meetings' ? 'bg-violet-50' : ''}`}>학생 만남 {sortIcon('meetings')}</button>
-                <span className="sr-only">상세</span>
+        <section className="overflow-hidden rounded-[22px] border border-gray-200 bg-white shadow-sm">
+            <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[940px] table-fixed">
+                    <colgroup><col className="w-[27%]" /><col className="w-[25%]" /><col className="w-[14%]" /><col className="w-[14%]" /><col className="w-[14%]" /><col className="w-[6%]" /></colgroup>
+                    <thead><tr className="border-b border-gray-200 bg-gray-50/80 text-[14px] font-bold text-gray-600">
+                        <th className="h-12 px-6 text-left"><button type="button" onClick={() => changeSort('name')} className={`inline-flex items-center gap-1.5 ${sort.key === 'name' ? 'text-blue-700' : ''}`}>이용자{sortIcon('name')}</button></th>
+                        <th className="h-12 px-5 text-left"><button type="button" onClick={() => changeSort('latest')} className={`inline-flex items-center gap-1.5 ${sort.key === 'latest' ? 'text-blue-700' : ''}`}>최근 활동{sortIcon('latest')}</button></th>
+                        {[['visits', '센터 방문'], ['programs', '프로그램'], ['meetings', '학생 만남']].map(([key, label]) => <th key={key} className="h-12 px-2 text-center"><button type="button" onClick={() => changeSort(key)} className={`inline-flex items-center justify-center gap-1.5 ${sort.key === key ? 'text-blue-700' : ''}`}>{label}{sortIcon(key)}</button></th>)}
+                        <th><span className="sr-only">상세</span></th>
+                    </tr></thead>
+                    <tbody>{sortedUsers.map(user => {
+                        const counts = listStats.stats.get(user.id);
+                        const recent = activityMeta[counts?.latest?.type];
+                        const count = key => listStats.loading ? '-' : counts?.[key] || 0;
+                        return <tr key={user.id} onClick={() => openJourney(user)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openJourney(user); } }} tabIndex={0} aria-label={`${user.name} 이용자 여정 보기`} className="group cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-slate-50/80 focus-visible:bg-blue-50 focus-visible:outline-none">
+                            <td className="px-6 py-3"><div className="flex min-w-0 items-center gap-3.5"><UserAvatar user={user} size="w-11 h-11" textSize="text-sm" /><div className="min-w-0"><div className="flex items-baseline gap-2"><strong className="truncate text-[17px] font-black text-gray-950">{user.name}</strong><span className="shrink-0 text-[13px] font-semibold text-gray-500">{user.user_group || '미지정'}</span></div><p className="mt-0.5 flex items-center gap-1 truncate text-[14px] font-medium text-gray-500"><MapPin size={13} className="shrink-0" />{user.schoolDisplayName || user.school || '학교 미지정'}</p></div></div></td>
+                            <td className="px-5 py-3">{listStats.loading ? <span className="text-[14px] font-semibold text-gray-500">확인 중</span> : recent ? <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${recent.dot}`} /><strong className="text-[15px] font-bold text-gray-900">{recent.label}</strong><time className="text-[14px] font-medium text-gray-500">{shortDate(counts.latest.date)}</time></div> : <span className="text-[14px] font-medium text-gray-500">활동 없음</span>}</td>
+                            {[['visits', '센터 방문'], ['programs', '프로그램'], ['meetings', '학생 만남']].map(([key, label]) => <td key={key} className="px-2 py-3 text-center"><strong className={`text-[20px] font-bold tabular-nums ${sort.key === key ? 'text-blue-700' : count(key) === 0 ? 'text-gray-500' : 'text-gray-950'}`}>{count(key)}</strong>{!listStats.loading && <span className="ml-0.5 text-[13px] font-medium text-gray-500">회</span>}<span className="sr-only"> {label}</span></td>)}
+                            <td className="px-2 py-3 text-center"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition group-hover:bg-blue-600 group-hover:text-white"><ArrowRight size={17} /></span></td>
+                        </tr>;
+                    })}</tbody>
+                </table>
             </div>
-            {sortedUsers.length ? sortedUsers.map(user => {
+
+            <div className="space-y-3 bg-gray-50/80 p-3 md:hidden">{sortedUsers.map(user => {
                 const counts = listStats.stats.get(user.id);
-                const countLabel = value => listStats.loading ? '–' : value || 0;
                 const recent = activityMeta[counts?.latest?.type];
-                return <button key={user.id} type="button" onClick={() => openJourney(user)} className="group grid w-full items-center gap-4 border-b border-gray-100 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-blue-50/40 focus-visible:bg-blue-50 focus-visible:outline-none md:grid-cols-[minmax(250px,1fr)_minmax(220px,.8fr)_repeat(3,minmax(95px,.35fr))_44px] md:px-6 md:py-4">
-                <span className="flex min-w-0 items-center gap-3.5"><UserAvatar user={user} size="w-11 h-11" textSize="text-sm" /><span className="min-w-0"><span className="flex items-center gap-2"><strong className="truncate text-base font-black text-gray-900">{user.name}</strong><em className="shrink-0 rounded-md bg-gray-100 px-2 py-0.5 text-xs not-italic font-bold text-gray-500">{user.user_group || '미지정'}</em></span><span className="mt-1 flex items-center gap-1 truncate text-[13px] font-semibold text-gray-500"><MapPin size={13} />{user.schoolDisplayName || user.school || '학교 미지정'}</span></span></span>
-                <span className="min-w-0">{listStats.loading ? <span className="text-sm font-bold text-gray-400">확인 중</span> : recent ? <span className="inline-flex max-w-full items-center gap-2 rounded-lg bg-gray-50 px-3 py-2"><i className={`h-2.5 w-2.5 shrink-0 rounded-full ${recent.dot}`} /><strong className={`truncate text-[15px] font-black ${recent.text}`}>{recent.label}</strong><time className="shrink-0 border-l border-gray-200 pl-2 text-[13px] font-bold text-gray-600">{shortDate(counts.latest.date)}</time></span> : <span className="text-sm font-bold text-gray-400">활동 없음</span>}</span>
-                <span className="grid grid-cols-3 divide-x divide-gray-100 rounded-xl bg-gray-50 py-2 md:hidden">{[['방문', counts?.visits], ['프로그램', counts?.programs], ['만남', counts?.meetings]].map(([label, value]) => <span key={label} className="text-center"><small className="block text-xs font-bold text-gray-500">{label}</small><strong className="text-base font-black text-gray-900">{countLabel(value)}{!listStats.loading && '회'}</strong></span>)}</span>
-                <span className="hidden justify-self-center rounded-xl border border-sky-100 bg-sky-50 px-4 py-2 text-center text-base font-black text-sky-900 md:block md:min-w-[72px]">{countLabel(counts?.visits)}{!listStats.loading && <small className="ml-0.5 text-xs font-bold text-sky-700">회</small>}</span>
-                <span className="hidden justify-self-center rounded-xl border border-orange-100 bg-orange-50 px-4 py-2 text-center text-base font-black text-orange-900 md:block md:min-w-[72px]">{countLabel(counts?.programs)}{!listStats.loading && <small className="ml-0.5 text-xs font-bold text-orange-700">회</small>}</span>
-                <span className="hidden justify-self-center rounded-xl border border-violet-100 bg-violet-50 px-4 py-2 text-center text-base font-black text-violet-900 md:block md:min-w-[72px]">{countLabel(counts?.meetings)}{!listStats.loading && <small className="ml-0.5 text-xs font-bold text-violet-700">회</small>}</span>
-                <span className="flex h-9 w-9 items-center justify-center justify-self-end rounded-full border border-gray-200 bg-white text-gray-400 transition group-hover:border-blue-200 group-hover:text-blue-600"><ArrowRight size={16} /></span>
-            </button>}) : <div className="py-16 text-center text-sm font-bold text-slate-400">조건에 맞는 이용자가 없습니다.</div>}
+                return <button key={user.id} type="button" onClick={() => openJourney(user)} className="w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                    <div className="flex items-center gap-3 px-4 py-4"><UserAvatar user={user} size="w-12 h-12" textSize="text-sm" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><strong className="truncate text-[18px] font-black text-gray-950">{user.name}</strong><span className="text-[13px] font-semibold text-gray-500">{user.user_group || '미지정'}</span></div><p className="mt-1 truncate text-[15px] font-medium text-gray-600">{user.schoolDisplayName || user.school || '학교 미지정'}</p></div><ArrowRight size={18} className="text-gray-400" /></div>
+                    <div className="border-y border-gray-100 bg-gray-50/70 px-4 py-3">
+                        <span className="mb-1 block text-[13px] font-semibold text-gray-500">최근 활동</span>
+                        {listStats.loading ? <span className="text-[15px] font-semibold text-gray-500">확인 중</span> : recent ? <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${recent.dot}`} /><strong className="text-[15px] font-bold text-gray-900">{recent.label}</strong><time className="ml-auto text-[14px] font-medium text-gray-600">{shortDate(counts.latest.date)}</time></div> : <span className="text-[15px] font-medium text-gray-500">아직 활동이 없습니다</span>}
+                    </div>
+                    <div className="grid grid-cols-3 divide-x divide-gray-100 px-2 py-3.5">
+                        {[['센터 방문', counts?.visits || 0], ['프로그램', counts?.programs || 0], ['학생 만남', counts?.meetings || 0]].map(([label, value]) => <div key={label} className="text-center"><span className="block text-[13px] font-semibold text-gray-600">{label}</span><strong className="mt-1 block text-[19px] font-bold tabular-nums text-gray-900">{listStats.loading ? '-' : value}<span className="ml-0.5 text-[13px] font-medium text-gray-500">회</span></strong></div>)}
+                    </div>
+                </button>;
+            })}</div>
+            {!sortedUsers.length && <div className="py-16 text-center text-sm font-bold text-gray-400">조건에 맞는 이용자가 없습니다.</div>}
         </section>
     </div>;
 }

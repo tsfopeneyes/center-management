@@ -1,4 +1,4 @@
-import { usesDailySessionRsvp } from './dailyProgramSessions';
+import { usesDailySessionRsvp } from './dailyProgramSessions.js';
 
 export const kstDateKey = (value) => {
     if (value == null || value === '') return '';

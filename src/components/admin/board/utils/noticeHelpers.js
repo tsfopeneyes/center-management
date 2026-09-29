@@ -187,6 +187,7 @@ export const prepareNoticeForEdit = (notice) => {
             require_school: true,
             require_phone: true,
         },
+        application_form: notice.application_form || null,
         open_participation_mode: notice.guest_properties?.open_participation_mode || 'NONE',
         daily_session_fields: getDailySessionFields(notice),
         enable_post_program_button: notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button ?? false,

@@ -348,6 +348,7 @@ export const useKioskManager = (navigate) => {
                     .from('notice_responses')
                     .select('*', { count: 'exact', head: true })
                     .eq('user_id', user.id)
+                    .eq('status', 'JOIN')
                     .eq('is_attended', true);
 
                 const currentVisitCount = totalVisitCount + 1;

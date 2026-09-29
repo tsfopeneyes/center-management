@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import { Trash2, UserPlus, Calendar, ClipboardList } from 'lucide-react';
 import { exportParticipantsToExcel } from '../../../../../utils/exportUtils';
 import { usesDailySessionRsvp } from '../../../../../utils/dailyProgramSessions';
+import { readLegacyGuestFields } from '../../../../../features/programs/applicationFields';
+import { applicationAnswerEntries } from '../../../../../features/programs/application/applicationAnswerDisplay';
 
 const AttendanceSection = ({ 
     notice, 
@@ -15,16 +17,14 @@ const AttendanceSection = ({
     setShowEntranceList,
     selectedDate,
     setSelectedDate,
-    hasSessionHistory,
+    hasSessionHistory = false,
     onUserClick
 }) => {
     const isDailySessionProgram = usesDailySessionRsvp(notice);
     const isSessionBasedProgram = isDailySessionProgram || hasSessionHistory;
     const isDateBasedProgram = notice.is_recruiting === false || hasSessionHistory;
     const isOpenProgram = notice.is_recruiting === false && !isSessionBasedProgram;
-    const customFields = Array.isArray(notice.guest_properties?.custom_fields)
-        ? notice.guest_properties.custom_fields
-        : [];
+    const customFields = readLegacyGuestFields(notice.guest_properties);
 
     return (
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gray-50">
@@ -113,14 +113,12 @@ const AttendanceSection = ({
                                 <div className="col-span-2 md:col-span-2 flex flex-col justify-center">
                                     <span className="text-xs text-gray-600 truncate font-semibold">{user.school}</span>
                                     <span className="text-[10px] text-gray-400 font-medium tracking-wider mt-0.5">{user.phone_back4}</span>
-                                    {customFields.map(field => {
-                                        const answer = user.application_answers?.[field.id];
-                                        return answer ? (
-                                            <span key={field.id} className="text-[10px] text-blue-600 font-semibold mt-0.5 break-words">
-                                                {field.label}: {answer}
-                                            </span>
-                                        ) : null;
-                                    })}
+                                    {applicationAnswerEntries(user, customFields).map(entry => (
+                                        <span key={entry.id} className="text-[10px] text-blue-600 font-semibold mt-0.5 break-words"
+                                            title={entry.definitionKnown ? `신청 당시 질문 · 버전 ${entry.revision ?? '-'}` : '이전 신청: 현재 질문 이름을 참고로 표시'}>
+                                            {entry.label}: {entry.answer}
+                                        </span>
+                                    ))}
                                 </div>
                                 <div className="col-span-1 flex justify-center">
                                     {isOpenProgram ? (
@@ -258,10 +256,6 @@ AttendanceSection.propTypes = {
     selectedDate: PropTypes.string,
     setSelectedDate: PropTypes.func,
     hasSessionHistory: PropTypes.bool
-};
-
-AttendanceSection.defaultProps = {
-    hasSessionHistory: false
 };
 
 export default React.memo(AttendanceSection);

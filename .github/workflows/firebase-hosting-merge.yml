@@ -9,11 +9,18 @@ on:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+    env:
+      VITE_PROGRAM_APPLICATION_TRANSITION_ENABLED: 'true'
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
       - run: |
           npm ci
           node scripts/verify-supabase-config.mjs
+          npm run test:baseline
           npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

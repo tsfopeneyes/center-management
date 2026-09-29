@@ -4,6 +4,8 @@ import { noticesApi } from '../api/noticesApi';
 import { RESPONSE_STATUS } from '../constants/appConstants';
 import { trackUserWebActivity } from '../utils/userActivityUtils';
 import { programSessionsApi } from '../api/programSessionsApi';
+import { programApplicationsApi } from '../api/programApplicationsApi';
+import { isProgramApplicationTransitionEnabled } from '../features/programs/application/applicationTransition';
 import { usesDailySessionRsvp } from '../utils/dailyProgramSessions';
 import { sendProgramApplicationNotification } from '../utils/integrationUtils';
 
@@ -41,7 +43,9 @@ export const useNotices = (userId) => {
                 const resMap = {};
                 const resDetailsMap = {};
                 resData?.forEach(r => {
-                    resMap[r.notice_id] = r.status;
+                    // A retained cancellation row is history, not an active
+                    // application. Keep details for audit-facing consumers.
+                    if (r.status !== RESPONSE_STATUS.CANCELLED) resMap[r.notice_id] = r.status;
                     resDetailsMap[r.notice_id] = r;
                 });
                 data.filter(usesDailySessionRsvp).forEach(item => {
@@ -58,7 +62,7 @@ export const useNotices = (userId) => {
         }
     }, [userId]);
 
-    const handleResponse = async (noticeId, status, sessionId = null) => {
+    const handleResponse = async (noticeId, status, sessionId = null, answers) => {
         try {
             const dailyNotice = notices.find(item => item.id === noticeId && usesDailySessionRsvp(item));
             if (dailyNotice) {
@@ -67,7 +71,7 @@ export const useNotices = (userId) => {
                     : dailyNotice.today_session;
                 if (!session || session.status !== 'OPEN') throw new Error('오늘은 신청을 받고 있지 않습니다.');
                 const oldStatus = responses[noticeId];
-                const result = await programSessionsApi.respond(session, userId, status);
+                const result = await programSessionsApi.respond(session, userId, status, answers);
                 setResponses(prev => {
                     const next = { ...prev };
                     if (result?.status === 'CANCELLED') delete next[noticeId];
@@ -89,9 +93,38 @@ export const useNotices = (userId) => {
                 }
                 await fetchNotices();
                 alert(result?.status === 'WAITLIST' ? '대기 신청이 완료되었습니다.' : result?.status === 'CANCELLED' ? '신청을 취소했습니다.' : '신청이 완료되었습니다.');
-                return;
+                return true;
             }
             const notice = await noticesApi.loadForStudentRegistration(noticeId);
+
+            if (isProgramApplicationTransitionEnabled()
+                && notice.category === 'PROGRAM' && !notice.is_challenge && notice.is_recruiting) {
+                const oldStatus = responses[noticeId];
+                const cancelling = status === 'CANCEL' || status === oldStatus
+                    || (status === RESPONSE_STATUS.JOIN && oldStatus === RESPONSE_STATUS.WAITLIST);
+                if (cancelling && !window.confirm('신청을 취소하시겠습니까?')) return;
+                const result = await programApplicationsApi.respondMember(
+                    noticeId, userId, cancelling ? 'CANCEL' : 'JOIN', answers || {}
+                );
+                setResponses(previous => {
+                    const next = { ...previous };
+                    if (result?.status === 'CANCELLED') delete next[noticeId];
+                    else next[noticeId] = result?.status;
+                    return next;
+                });
+                if (result?.status !== 'CANCELLED') await trackUserWebActivity({ id: userId });
+                if (['JOIN', 'WAITLIST'].includes(result?.status) && oldStatus !== result.status) {
+                    try {
+                        await sendProgramApplicationNotification({ noticeId, userId, status: result.status });
+                    } catch (notificationError) {
+                        console.error('Program application notification failed:', notificationError);
+                    }
+                }
+                await fetchNotices();
+                alert(result?.status === 'WAITLIST' ? '대기 신청이 완료되었습니다.'
+                    : result?.status === 'CANCELLED' ? '신청을 취소했습니다.' : '신청이 완료되었습니다.');
+                return true;
+            }
 
             // 1. Strict Deadline Check
             if (notice.recruitment_deadline) {
@@ -181,6 +214,7 @@ export const useNotices = (userId) => {
         } catch (err) {
             console.error('Error handling notice response details:', err);
             alert(`응답 저장 실패: ${err.message || '알 수 없는 오류'}`);
+            return false;
         }
     };
 

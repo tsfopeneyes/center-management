@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, isSameDay, parseISO, differenceInMinutes, eachHourOfInterval, eachMonthOfInterval } from 'date-fns';
 import { aggregateVisitSessions } from './visitUtils';
 import { isAdminOrStaff } from './userUtils';
+import { isCurrentProgramAttendee } from '../features/programs/application/responseState.js';
 
 /**
  * Common period filtering logic
@@ -407,7 +408,7 @@ export const processProgramAnalytics = (notices, responses, date, type) => {
     return filteredNotices.map(n => {
         const res = responses.filter(r => r.notice_id === n.id);
         const joinCount = res.filter(r => r.status === 'JOIN').length;
-        const attendedCount = res.filter(r => r.is_attended).length;
+        const attendedCount = res.filter(isCurrentProgramAttendee).length;
         return {
             ...n,
             joinCount,
@@ -498,7 +499,7 @@ export const processUserAnalytics = (users, logs, responses, notices, date, type
             const stats = userStats.get(r.user_id);
             if (stats && r.status === 'JOIN') {
                 stats.programCount++;
-                if (r.is_attended) stats.attendedCount++;
+                if (isCurrentProgramAttendee(r)) stats.attendedCount++;
             }
         }
     });
@@ -1062,7 +1063,7 @@ SCI CENTER DASHBOARD
         filteredNotices.forEach(n => {
             // Include responses for target users only
             const nResponses = responses.filter(r => r.notice_id === n.id && allTargetUserIds.has(r.user_id));
-            const attendedCount = nResponses.filter(r => r.is_attended).length;
+            const attendedCount = nResponses.filter(isCurrentProgramAttendee).length;
             const joinCount = nResponses.filter(r => r.status === 'JOIN').length;
             
             const detail = {

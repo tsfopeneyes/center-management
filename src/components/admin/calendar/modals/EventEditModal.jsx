@@ -7,6 +7,7 @@ import TimePicker from '../../../common/TimePicker';
 import WriteForm from '../../board/components/forms/WriteForm';
 import { getCalendarEventTheme, getProgramCalendarTheme } from '../../../../utils/calendarColors';
 import useModalClose from '../../../../hooks/useModalClose';
+import { programSessionsApi } from '../../../../api/programSessionsApi';
 
 const HAIFN_DETAILS = [
     'B1F STAGE',
@@ -36,6 +37,9 @@ const EventEditModal = ({
     const [localMain, setLocalMain] = useState('');
     const [selectedDetail, setSelectedDetail] = useState('');
     const [customVal, setCustomVal] = useState('');
+    const [sessionParticipants, setSessionParticipants] = useState(null);
+    const [participantsLoading, setParticipantsLoading] = useState(false);
+    const [participantsError, setParticipantsError] = useState('');
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -80,6 +84,22 @@ const EventEditModal = ({
             if (onOpenProgram) onOpenProgram(noticeId);
             else setActiveMenu('PROGRAMS');
         });
+    };
+
+    const loadSessionParticipants = async () => {
+        const sessionId = selectedEvent?.raw?.today_session?.id;
+        if (!sessionId || participantsLoading) return;
+        setParticipantsLoading(true);
+        setParticipantsError('');
+        try {
+            const responses = await programSessionsApi.fetchAdminParticipants(sessionId);
+            setSessionParticipants(responses.filter(response => response.is_attended && response.user));
+        } catch (error) {
+            console.error('Failed to load calendar session participants:', error);
+            setParticipantsError('참석자 명단을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        } finally {
+            setParticipantsLoading(false);
+        }
     };
 
     // Initialize/Sync local main categories for location picker
@@ -222,6 +242,10 @@ const EventEditModal = ({
     if (isProgram && selectedEvent?.raw) {
         programEndTime = getEndTimeFromDuration(formData.start_time, selectedEvent.raw.duration);
     }
+    const selectedSession = selectedEvent?.raw?.today_session;
+    const isPastProgram = isProgram && selectedEvent?.start && new Date(selectedEvent.start).getTime() < Date.now();
+    const showParticipationCount = Boolean(selectedSession || isPastProgram);
+    const participationCount = selectedSession?.attendance_count ?? selectedEvent?.raw?.attendance_count ?? 0;
 
     if (formData.type === 'PROGRAM' && !isReadOnly) return (
         <motion.div className="fixed inset-0 z-[200] bg-black/40 p-3 sm:p-6 overflow-y-auto" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -279,55 +303,64 @@ const EventEditModal = ({
                         )}
 
                         {/* Detail Info Grid Cards */}
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs font-bold text-gray-700">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-6 text-xs font-bold text-gray-700">
                             {isProgram ? (
                                 <>
-                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 col-span-2">
+                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 sm:col-span-6">
                                         <CalendarIcon className="text-pink-500" size={18} />
-                                        <div>
-                                            <p className="text-[10px] text-gray-400 font-extrabold uppercase">일정</p>
-                                            <p className="mt-0.5 whitespace-nowrap">{formatDateTimeRange(formData.start_date, formData.start_time, programEndTime)}</p>
+                                        <div className="min-w-0">
+                                            <p className="text-[11px] font-bold text-gray-400">일정</p>
+                                            <p className="mt-1 text-sm font-extrabold leading-snug text-gray-700">{formatDateTimeRange(formData.start_date, formData.start_time, programEndTime)}</p>
                                         </div>
                                     </div>
-                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
-                                        <MapPin className="text-pink-500" size={18} />
-                                        <div>
-                                            <p className="text-[10px] text-gray-400 font-extrabold uppercase">장소</p>
-                                            <p className="mt-0.5">{formData.program_location || '미정'}</p>
+                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 sm:col-span-6">
+                                        <MapPin className="shrink-0 text-pink-500" size={18} />
+                                        <div className="min-w-0">
+                                            <p className="text-[11px] font-bold text-gray-400">장소</p>
+                                            <p className="mt-1 text-sm font-extrabold leading-snug text-gray-700">{formData.program_location || '미정'}</p>
                                         </div>
                                     </div>
-                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
-                                        <Users className="text-pink-500" size={18} />
-                                        <div>
-                                            <p className="text-[10px] text-gray-400 font-extrabold uppercase">모집 정원</p>
-                                            <p className="mt-0.5">{formData.max_capacity ? `${formData.max_capacity}명` : '제한 없음'}</p>
+                                    <div className={`p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 ${showParticipationCount ? 'sm:col-span-3' : 'sm:col-span-6'}`}>
+                                        <Users className="shrink-0 text-pink-500" size={18} />
+                                        <div className="min-w-0">
+                                            <p className="text-[11px] font-bold text-gray-400">모집 정원</p>
+                                            <p className="mt-1 text-sm font-extrabold leading-snug text-gray-700">{formData.max_capacity ? `${formData.max_capacity}명` : '제한 없음'}</p>
                                         </div>
                                     </div>
+                                    {showParticipationCount && (
+                                        <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 sm:col-span-3">
+                                            <Users className="shrink-0 text-pink-500" size={18} />
+                                            <div className="min-w-0">
+                                                <p className="text-[11px] font-bold text-gray-400">참여 인원</p>
+                                                <p className="mt-1 text-sm font-extrabold leading-snug text-gray-700">{participationCount}명</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             ) : (
                                 <>
-                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 col-span-2">
+                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 sm:col-span-6">
                                         <CalendarIcon className="text-purple-500" size={18} />
                                         <div>
                                             <p className="text-[10px] text-gray-400 font-extrabold uppercase">이용 시간</p>
                                             <p className="mt-0.5 whitespace-nowrap">{formatDateTimeRange(rentalData.bookingDate, rentalData.startTime, rentalData.endTime)}</p>
                                         </div>
                                     </div>
-                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
+                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 sm:col-span-3">
                                         <MapPin className="text-purple-500" size={18} />
                                         <div>
                                             <p className="text-[10px] text-gray-400 font-extrabold uppercase">대여 공간</p>
                                             <p className="mt-0.5">{rentalData.spaceName}</p>
                                         </div>
                                     </div>
-                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
+                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 sm:col-span-3">
                                         <Users className="text-purple-500" size={18} />
                                         <div>
                                             <p className="text-[10px] text-gray-400 font-extrabold uppercase">이용 인원</p>
                                             <p className="mt-0.5">{rentalData.capacity}명</p>
                                         </div>
                                     </div>
-                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 col-span-2">
+                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3 sm:col-span-6">
                                         <Tag className="text-purple-500" size={18} />
                                         <div>
                                             <p className="text-[10px] text-gray-400 font-extrabold uppercase">이용 목적</p>
@@ -354,11 +387,36 @@ const EventEditModal = ({
                         {isProgram && setActiveMenu && (
                             <button
                                 type="button"
-                                onClick={openProgramManagement}
+                                onClick={selectedSession ? loadSessionParticipants : openProgramManagement}
                                 className="w-full py-3 bg-pink-600 hover:bg-pink-700 text-white rounded-2xl font-black shadow-lg shadow-pink-200 text-xs tracking-wider transition-all"
                             >
-                                프로그램 관리 바로가기
+                                {selectedSession
+                                    ? participantsLoading ? '참석자 불러오는 중...' : '해당 회차 참석자 보기'
+                                    : '프로그램 관리 바로가기'}
                             </button>
+                        )}
+                        {isProgram && selectedSession && sessionParticipants && (
+                            <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                                <div className="mb-3 flex items-center justify-between">
+                                    <p className="text-xs font-black text-gray-800">실제 참석자</p>
+                                    <span className="text-xs font-black text-pink-600">{sessionParticipants.length}명</span>
+                                </div>
+                                {sessionParticipants.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {sessionParticipants.map(response => (
+                                            <div key={response.user_id} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2.5">
+                                                <p className="text-sm font-bold text-gray-800">{response.user.name || '이름 없음'}</p>
+                                                <p className="text-[11px] font-medium text-gray-400">{response.user.school || '학교 미등록'}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="rounded-xl bg-gray-50 py-5 text-center text-xs font-medium text-gray-400">출석 처리된 참여자가 없습니다.</p>
+                                )}
+                            </div>
+                        )}
+                        {isProgram && selectedSession && participantsError && (
+                            <p role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-600">{participantsError}</p>
                         )}
                         {isRental && setActiveMenu && (
                             <button

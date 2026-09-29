@@ -62,6 +62,7 @@ export const useProfile = (initialUser) => {
                 .from('notice_responses')
                 .select('notices(title)')
                 .eq('user_id', userId)
+                .eq('status', 'JOIN')
                 .eq('is_attended', true);
 
             setProgramCount(responses?.length || 0);

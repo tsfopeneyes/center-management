@@ -12,6 +12,7 @@ import ChallengeStatusSection from './ChallengeStatusSection';
 import ChallengeCommunityModal from '../../../../student/modals/ChallengeCommunityModal';
 import UserEditModal from '../../../users/modals/UserEditModal';
 import { supabase } from '../../../../../supabaseClient';
+import { readLegacyGuestFields } from '../../../../../features/programs/applicationFields';
 
 const getKoreanDayOfWeek = (dateStr) => {
     if (!dateStr) return '';
@@ -181,7 +182,7 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
                             )}
                             
                             <button 
-                                onClick={() => exportParticipantsToExcel(participantList.JOIN, notice.title, notice.guest_properties?.custom_fields || [])}
+                                onClick={() => exportParticipantsToExcel(participantList.JOIN, notice.title, readLegacyGuestFields(notice.guest_properties))}
                                 className="w-full py-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl flex justify-center items-center gap-2 font-bold transition mt-4 border border-green-200 shadow-sm"
                             >
                                 <ClipboardList size={16} /> 엑셀 다운로드

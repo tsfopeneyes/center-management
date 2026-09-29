@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
+import { applicationAnswerEntries } from '../features/programs/application/applicationAnswerDisplay';
 
 /**
  * Export user data to Excel
@@ -106,7 +107,7 @@ export const exportParticipantsToExcel = (participants, noticeTitle, customField
 
     const exportData = participants.map((user, idx) => {
         const customAnswers = Object.fromEntries(
-            customFields.map(field => [field.label, user.application_answers?.[field.id] || '-'])
+            customFields.map(field => [field.label, user.application_form_snapshot ? '-' : (user.application_answers?.[field.id] || '-')])
         );
         return {
             '순번': idx + 1,
@@ -121,6 +122,21 @@ export const exportParticipantsToExcel = (participants, noticeTitle, customField
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "참여자명단");
+
+    const answerRows = participants.flatMap((user, index) =>
+        applicationAnswerEntries(user, customFields).map(entry => ({
+            '순번': index + 1,
+            '이름': user.name,
+            '질문 ID': entry.id,
+            '질문': entry.label,
+            '답변': entry.answer,
+            '질문 버전': entry.revision ?? '-',
+            '질문 기준': entry.definitionKnown ? '신청 당시' : '이전 신청 · 현재 질문 이름 참고',
+        }))
+    );
+    if (answerRows.length) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(answerRows), '신청답변');
+    }
 
     // Add info row at the top or adjust Column widths
     const fileName = `[명단]_${noticeTitle}_${format(new Date(), 'yyyyMMdd')}.xlsx`;

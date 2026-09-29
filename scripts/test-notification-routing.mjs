@@ -7,6 +7,7 @@ import {
   enabledDestinations,
   normalizeRoutingConfig,
 } from '../supabase/functions/_shared/notificationRouting.mjs';
+import { resolveNotificationEvent } from '../supabase/functions/_shared/notificationEvent.mjs';
 
 assert.deepEqual(centersFromTargetRegions(['강동']), [CENTER_CODES.HAIFN]);
 assert.deepEqual(centersFromTargetRegions(['강서']), [CENTER_CODES.ENOUGH_PLACE]);
@@ -36,5 +37,24 @@ assert.deepEqual(enabledDestinations({
   { centerCode: 'HAIFN', channel: 'slack' },
   { centerCode: 'ENOUGH_PLACE', channel: 'line' },
 ]);
+
+const requestedStatuses = [];
+const resolveApplication = createdAt => resolveNotificationEvent({
+  eventType: 'PROGRAM_APPLICATION', noticeId: 1, userId: 'member-1', status: 'WAITLIST',
+}, { readOne: async (table, query) => {
+  if (table === 'notice_responses') {
+    requestedStatuses.push(query.find(([key]) => key === 'status')?.[1]);
+    return { notice_id: 1, user_id: 'member-1', status: 'WAITLIST', created_at: createdAt };
+  }
+  if (table === 'notices') return { id: 1, title: '테스트 프로그램', target_regions: ['강동'] };
+  if (table === 'users') return { id: 'member-1', name: '테스트 회원' };
+  return null;
+} });
+const firstAttempt = await resolveApplication('2026-09-29T09:00:00+09:00');
+const secondAttempt = await resolveApplication('2026-09-30T09:00:00+09:00');
+assert.deepEqual(requestedStatuses, ['eq.WAITLIST', 'eq.WAITLIST']);
+assert.match(firstAttempt.message, /대기 신청했어요/);
+assert.notEqual(firstAttempt.eventKey, secondAttempt.eventKey,
+  'a later application attempt must have a distinct delivery key');
 
 console.log('notification routing tests passed');

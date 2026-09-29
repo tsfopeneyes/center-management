@@ -28,6 +28,7 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
     const programCategories = useMemo(() => getProgramCalendarCategories(calendarCategories), [calendarCategories]);
     const [rentalBookings, setRentalBookings] = useState([]);
     const [dailyProgramSessions, setDailyProgramSessions] = useState([]);
+    const [programAttendanceCounts, setProgramAttendanceCounts] = useState({ byNotice: {}, byDate: {} });
     const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -97,11 +98,32 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
             // 4. Fetch only the dates on which a daily-session program was actually opened.
             const { data: sessionData, error: sessionError } = await supabase
                 .from('daily_program_sessions')
-                .select('id, notice_id, session_date, starts_at, status, capacity, voided_at')
+                .select('id, notice_id, session_date, starts_at, status, capacity, voided_at, daily_program_session_responses(status,is_attended)')
                 .is('voided_at', null)
                 .order('session_date', { ascending: true });
             if (sessionError) throw sessionError;
             setDailyProgramSessions(sessionData || []);
+
+            // Legacy and open programs do not use daily session responses.
+            // Keep a direct-table attendance fallback so past calendar entries
+            // can still show their actual participant count.
+            const [{ data: noticeAttendance, error: noticeAttendanceError }, { data: openAttendance, error: openAttendanceError }] = await Promise.all([
+                supabase.from('notice_responses').select('notice_id').eq('status', 'JOIN').eq('is_attended', true),
+                supabase.from('open_program_attendance').select('notice_id,attendance_date'),
+            ]);
+            if (noticeAttendanceError) console.error('Failed to load program attendance counts:', noticeAttendanceError);
+            if (openAttendanceError) console.error('Failed to load open program attendance counts:', openAttendanceError);
+            const byNotice = {};
+            const byDate = {};
+            (noticeAttendance || []).forEach(row => {
+                byNotice[row.notice_id] = (byNotice[row.notice_id] || 0) + 1;
+            });
+            (openAttendance || []).forEach(row => {
+                byNotice[row.notice_id] = (byNotice[row.notice_id] || 0) + 1;
+                const key = `${row.notice_id}:${row.attendance_date}`;
+                byDate[key] = (byDate[key] || 0) + 1;
+            });
+            setProgramAttendanceCounts({ byNotice, byDate });
 
             // Synchronize visible categories
             setVisibleCategories(prev => {
@@ -145,6 +167,16 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
                         .filter(session => session.notice_id === n.id)
                         .forEach(session => {
                             const programDateStr = session.starts_at || `${session.session_date}T12:00:00`;
+                            const responses = session.daily_program_session_responses || [];
+                            const attendanceCount = responses.filter(response => response.is_attended).length;
+                            const participantCount = responses.filter(response => ['JOIN', 'WAITLIST'].includes(response.status)).length;
+                            // A closed occurrence only belongs on the calendar when
+                            // at least one participant was actually marked present.
+                            // Application records alone do not mean it was operated.
+                            if (session.status === 'CLOSED' && attendanceCount === 0) return;
+                            const sessionResult = session.status === 'CLOSED' && attendanceCount > 0
+                                    ? 'OPERATED'
+                                    : 'OPEN';
                             programEvents.push({
                                 id: `PRG-SESSION-${session.id}`,
                                 originalId: n.id,
@@ -154,7 +186,13 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
                                 end: parseISO(programDateStr),
                                 category: getProgramCalendarKey(n),
                                 isPublic: true,
-                                raw: { ...n, today_session: session, program_location: finalLocation, duration, program_date: programDateStr }
+                                raw: {
+                                    ...n,
+                                    today_session: { ...session, attendance_count: attendanceCount, participant_count: participantCount, result: sessionResult },
+                                    program_location: finalLocation,
+                                    duration,
+                                    program_date: programDateStr
+                                }
                             });
                         });
                     return;
@@ -181,7 +219,13 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
                                 end: parseISO(programDateStr),
                                 category: getProgramCalendarKey(n),
                                 isPublic: true,
-                                raw: { ...n, program_location: finalLocation, duration, program_date: programDateStr }
+                                raw: {
+                                    ...n,
+                                    attendance_count: programAttendanceCounts.byDate[`${n.id}:${dateStr}`] || 0,
+                                    program_location: finalLocation,
+                                    duration,
+                                    program_date: programDateStr
+                                }
                             });
                         }
                         iter.setDate(iter.getDate() + 1);
@@ -196,7 +240,12 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
                         end: parseISO(n.program_date),
                         category: getProgramCalendarKey(n),
                         isPublic: true,
-                        raw: { ...n, program_location: finalLocation, duration }
+                        raw: {
+                            ...n,
+                            attendance_count: programAttendanceCounts.byNotice[n.id] || 0,
+                            program_location: finalLocation,
+                            duration
+                        }
                     });
                 }
             });
@@ -272,7 +321,7 @@ export const useAdminCalendar = ({ notices, fetchData, setActiveMenu }) => {
             if (e.isPublic) return visibleCategories[e.category];
             return visibleCategories[e.category_id];
         });
-    }, [notices, adminSchedules, rentalBookings, dailyProgramSessions, dynamicCategories, visibleCategories]);
+    }, [notices, adminSchedules, rentalBookings, dailyProgramSessions, programAttendanceCounts, dynamicCategories, visibleCategories]);
 
     // Helper to check if event spans/includes a specific day
     const isEventOnDay = (event, day) => {

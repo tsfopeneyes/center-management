@@ -3,6 +3,7 @@ import { supabase } from '../../../../supabaseClient';
 import { feedbackApi } from '../../../../api/feedbackApi';
 import { RESPONSE_STATUS } from '../../../../constants/appConstants';
 import { useProgramInterestCounts } from './useProgramInterestCounts';
+import { isCurrentProgramAttendee } from '../../../../features/programs/application/responseState.js';
 
 const useNoticeStats = (filteredNotices, mode) => {
     const [noticeStats, setNoticeStats] = useState({});
@@ -49,8 +50,9 @@ const useNoticeStats = (filteredNotices, mode) => {
                     
                     responses?.forEach(r => {
                         if (nStats[r.notice_id]) {
+                            if (r.status === RESPONSE_STATUS.CANCELLED) return;
                             nStats[r.notice_id][r.status] = (nStats[r.notice_id][r.status] || 0) + 1;
-                            if (r.is_attended) nStats[r.notice_id].attendedCount += 1;
+                            if (isCurrentProgramAttendee(r)) nStats[r.notice_id].attendedCount += 1;
                         }
                     });
                 }

@@ -278,19 +278,20 @@ export const performFullSyncToGoogleSheets = async ({
     }));
 
     // 5. 프로그램 개별로그
-    const prgDetailRows = (responses || []).filter(res => !adminIds.has(res.user_id)).map(res => {
-        const u = users.find(user => user.id === res.user_id);
-        const notice = notices.find(n => n.id === res.notice_id);
-        return {
-            '프로그램날짜': notice ? notice.program_date : '-',
-            '프로그램명': notice ? notice.title : '삭제됨',
-            '이름': u ? u.name : '알 수 없음',
-            '학교': u ? u.school : '-',
-            '신청상태': res.status,
-            '출석여부': res.is_attended ? '참석' : '미참석',
-            '신청일시': res.created_at ? format(new Date(res.created_at), 'yyyy-MM-dd HH:mm') : '-'
-        };
-    });
+    const prgDetailRows = (responses || [])
+        .filter(res => res.status !== 'CANCELLED' && !adminIds.has(res.user_id)).map(res => {
+            const u = users.find(user => user.id === res.user_id);
+            const notice = notices.find(n => n.id === res.notice_id);
+            return {
+                '프로그램날짜': notice ? notice.program_date : '-',
+                '프로그램명': notice ? notice.title : '삭제됨',
+                '이름': u ? u.name : '알 수 없음',
+                '학교': u ? u.school : '-',
+                '신청상태': res.status,
+                '출석여부': res.is_attended ? '참석' : '미참석',
+                '신청일시': res.created_at ? format(new Date(res.created_at), 'yyyy-MM-dd HH:mm') : '-'
+            };
+        });
 
     // 6. 일별 운영지표
     const dailyAnalytics = processAnalyticsData(logs, locations, users, new Date(), 'MONTHLY');

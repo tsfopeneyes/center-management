@@ -53,6 +53,17 @@ const ONLINE_MISSION_CARD_STYLE = {
     label: 'text-[#CF3A27]',
 };
 
+const formatCountdown = (deadline, now, prefix) => {
+    const deadlineTime = Date.parse(deadline);
+    if (!Number.isFinite(deadlineTime) || deadlineTime <= Number(now)) return '';
+    const diff = deadlineTime - Number(now);
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+    return `${prefix}${days > 0 ? `${days}일 ` : ''}${hours}시간 ${minutes}분 ${seconds}초 남았어요!`;
+};
+
 import ProgramFeedbackModal from './modals/ProgramFeedbackModal';
 import AdminFeedbackListModal from '../admin/board/components/modals/AdminFeedbackListModal';
 import { getRecruitment } from '../../utils/programRecruitment';
@@ -63,6 +74,8 @@ import { challengeMissionsApi } from '../../api/challengeMissionsApi';
 import { commentReactionsApi } from '../../api/commentReactionsApi';
 import useCommentReactionLongPress from '../../hooks/useCommentReactionLongPress';
 import useModalClose from '../../hooks/useModalClose';
+import ApplicationAnswersDialog, { hasApplicationQuestions } from '../../features/programs/application/ApplicationAnswersDialog';
+import { isProgramApplicationTransitionEnabled } from '../../features/programs/application/applicationTransition';
 
 const NoticeModalContent = ({
     notice, context, onClose, user, fromAdmin = false, isImpersonating = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants, onRegisterRegularUser, tutorialMode = false, tutorialStep = '', tutorialOpenCardsTotal = 0, tutorialOpenCardIndex = 0, tutorialChallengeCardsTotal = 0, tutorialChallengeCardIndex = 0, onTutorialAction, onTutorialReaction, onTutorialComment
@@ -76,6 +89,15 @@ const NoticeModalContent = ({
     const [isEditing, setIsEditing] = useState(false);
     const [editedNotice, setEditedNotice] = useState({ ...notice });
     const [zoomedImage, setZoomedImage] = useState(null);
+    const [applicationRequest, setApplicationRequest] = useState(null);
+    const requestApplication = (status, sessionId = null) => {
+        if (isProgramApplicationTransitionEnabled() && !tutorialMode && !notice.is_challenge && status !== 'CANCEL'
+            && hasApplicationQuestions(notice, 'MEMBER')) {
+            setApplicationRequest({ status, sessionId });
+            return;
+        }
+        onResponse(notice.id, status, sessionId);
+    };
     useModalClose(true, onClose, { handleEscape: false });
     useModalClose(Boolean(zoomedImage), () => setZoomedImage(null), { handleEscape: false });
     const [hostUsers, setHostUsers] = useState([]);
@@ -456,6 +478,9 @@ const NoticeModalContent = ({
     const displayedCapacity = isDailySessionProgram ? activeSession?.capacity : notice.max_capacity;
     const displayedApplicantCount = isDailySessionProgram ? activeSession?.join_count || 0 : joinCount;
     const capacityText = `${displayedCapacity > 0 ? `${displayedCapacity}명` : '제한 없음'}${shouldShowApplicationCount(notice) ? ` · 현재 ${displayedApplicantCount}명 신청` : ''}`;
+    const sessionTimeLeft = isDailySessionProgram && activeSession?.status === 'OPEN'
+        ? formatCountdown(activeSession.starts_at, recruitmentNow, '회차 신청 마감까지 ')
+        : '';
 
     const isTutorialSocial = tutorialMode && ['noticeRead', 'noticeComment', 'noticeCommentResult'].includes(tutorialStep);
     const isTutorialOpenDetail = tutorialMode && tutorialStep === 'openDetail';
@@ -1504,9 +1529,9 @@ const NoticeModalContent = ({
              {/* Program Notice Fixed Bottom Action Bar */}
              {notice.category === 'PROGRAM' && !isEditing && (
                  <div className="bg-white border-t border-tossGrey200 z-[60] shrink-0 shadow-toss-standard">
-                     {notice.is_recruiting && notice.recruitment_deadline && !isEnded && (
+                     {!isEnded && (isDailySessionProgram ? Boolean(sessionTimeLeft) : Boolean(notice.is_recruiting && notice.recruitment_deadline)) && (
                          <div className="bg-tossGrey900 text-center py-2.5 px-4 text-xs font-bold text-tossCaution tracking-tight">
-                             {timeLeft}
+                             {isDailySessionProgram ? sessionTimeLeft : timeLeft}
                          </div>
                      )}
                      {isAdmin ? (
@@ -1643,7 +1668,7 @@ const NoticeModalContent = ({
                                         {activeSession.my_response.status === 'WAITLIST' ? '대기 신청 취소' : '신청 취소'}
                                     </button>
                                 ) : (
-                                    <button onClick={() => onResponse(notice.id, 'JOIN', activeSession?.id)} className="w-full rounded-toss-xl bg-[#CF3A27] py-3.5 text-base font-black text-white shadow-md shadow-[#F4DDD4]">
+                                    <button onClick={() => requestApplication('JOIN', activeSession?.id)} className="w-full rounded-toss-xl bg-[#CF3A27] py-3.5 text-base font-black text-white shadow-md shadow-[#F4DDD4]">
                                         신청하기
                                     </button>
                                 )}
@@ -1731,7 +1756,7 @@ const NoticeModalContent = ({
                                         data-tour={tutorialMode ? 'tutorial-program-response' : undefined}
                                         disabled={notice.is_leader_only && !user?.is_leader}
                                         onClick={() => {
-                                            onResponse(notice.id, (notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
+                                            requestApplication((notice.max_capacity > 0 && joinCount >= notice.max_capacity) ? 'WAITLIST' : 'JOIN');
                                         }}
                                         className={`flex-1 py-3.5 rounded-toss-xl font-bold text-base transition transform active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer ${
                                             notice.max_capacity > 0 && joinCount >= notice.max_capacity 
@@ -2156,6 +2181,15 @@ const NoticeModalContent = ({
                 initialView={todaySessionView}
                 onClose={() => setTodaySessionView(null)}
                 onChanged={() => onRefresh?.()}
+            />
+        )}
+        {applicationRequest && (
+            <ApplicationAnswersDialog
+                key={`${notice.id}-${applicationRequest.sessionId || 'whole'}`}
+                notice={notice}
+                audience="MEMBER"
+                onClose={() => setApplicationRequest(null)}
+                onSubmit={answers => onResponse(notice.id, applicationRequest.status, applicationRequest.sessionId, answers)}
             />
         )}
         </>,

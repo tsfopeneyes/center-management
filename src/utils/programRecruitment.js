@@ -1,4 +1,4 @@
-import { isRecurringProgram } from './dailyProgramSessions';
+import { isRecurringProgram } from './dailyProgramSessions.js';
 
 // Recruitment is a derived display state. Never write it to program_status:
 // that field controls attendance finalization and rewards.

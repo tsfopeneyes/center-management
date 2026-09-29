@@ -177,6 +177,10 @@ const AdminCalendar = ({ notices, fetchData, setActiveMenu, onOpenProgram }) => 
                                                 const theme = getCalendarEventTheme(event, calendarCategories);
                                                 const isMobile = window.innerWidth < 768;
                                                 const mobileTextColor = theme.color.split(' ').find(c => c.startsWith('text-')) || 'text-gray-700';
+                                                const session = event.raw?.today_session;
+                                                const sessionLabel = session?.result === 'OPERATED'
+                                                    ? `운영 완료 · 참석 ${session.attendance_count}명`
+                                                    : null;
 
                                                 // Multi-day continuity logic
                                                 const startDateStr = event.raw.start_date || event.raw.program_date || event.raw.booking_date;
@@ -204,9 +208,11 @@ const AdminCalendar = ({ notices, fetchData, setActiveMenu, onOpenProgram }) => 
                                                         ${!isStart && !isEnd ? 'rounded-none ml-[-2px] mr-[-4px] md:mx-[-8px] border-x-0' : ''}
                                                         ${isStart && isEnd ? 'rounded-[3px] md:rounded-md' : ''}
                                                     `}
-                                                        title={event.title}
+                                                        title={sessionLabel ? `${event.title} · ${sessionLabel}` : event.title}
                                                     >
-                                                        {(isStart || dayOfWeek === 0 || isSameDay(day, startOfMonth(day))) ? event.title : '\u00A0'}
+                                                        {(isStart || dayOfWeek === 0 || isSameDay(day, startOfMonth(day)))
+                                                            ? `${event.title}${sessionLabel ? ` · ${sessionLabel}` : ''}`
+                                                            : '\u00A0'}
                                                     </div>
                                                 );
                                             })}

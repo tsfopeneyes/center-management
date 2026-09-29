@@ -11,6 +11,7 @@ import { cachedAccountProfileId, uploadAccountImage } from '../../../../../auth/
 import { MAX_DAILY_SESSION_FIELDS } from '../../../../../utils/dailyProgramSessions';
 import { challengeMissionsApi } from '../../../../../api/challengeMissionsApi';
 import { surveyHubApi } from '../../../../../api/surveyHubApi';
+import { serializeLegacyGuestFields } from '../../../../../features/programs/applicationFields';
 
 // Hooks
 import useNoticeForm from '../../hooks/useNoticeForm';
@@ -291,6 +292,10 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.challenge_format = formData.is_challenge ? (formData.challenge_format || 'OFFLINE') : 'OFFLINE';
                 noticeData.community_enabled = formData.is_challenge && formData.challenge_format === 'ONLINE' && formData.community_enabled === true;
                 const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
+                if (formData.application_form) noticeData.application_form = formData.application_form;
+                const guestQuestionFields = formData.application_form
+                    ? formData.application_form.questions.filter(question => ['GUEST', 'ALL'].includes(question.audience))
+                    : gp.custom_fields;
                 const configuredHosts = (formData.hosts || []).filter(h => h && h.host_id);
                 noticeData.guest_properties = {
                     ...gp,
@@ -321,15 +326,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                         : null,
                     require_school: true,
                     require_phone: true,
-                    custom_fields: (Array.isArray(gp.custom_fields) ? gp.custom_fields : [])
-                        .filter(field => String(field?.label || '').trim())
-                        .map(field => ({
-                            id: field.id,
-                            label: String(field.label).trim(),
-                            type: ['text', 'textarea', 'select'].includes(field.type) ? field.type : 'text',
-                            required: field.required === true,
-                            options: field.type === 'select' ? (field.options || []).filter(Boolean) : [],
-                        })),
+                    custom_fields: serializeLegacyGuestFields(guestQuestionFields),
                     cached_hosts: configuredHosts.length > 0 ? configuredHosts : (gp.cached_hosts || []),
                     challenge_has_time: challengeHasTime,
                     community_channel_id: noticeData.community_enabled ? (formData.community_channel_id || '') : '',
@@ -504,7 +501,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
 
 WriteForm.propTypes = {
     mode: PropTypes.string.isRequired,
-    editNoticeId: PropTypes.string,
+    editNoticeId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     existingNotice: PropTypes.object,
     onSave: PropTypes.func.isRequired,
     onCancel: PropTypes.func.isRequired,

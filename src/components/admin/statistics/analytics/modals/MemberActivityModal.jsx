@@ -3,6 +3,7 @@ import { Award, ChevronLeft, ChevronRight, MapPin, Clock } from 'lucide-react';
 import { format, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { aggregateVisitSessions } from '../../../../../utils/visitUtils';
 import useModalClose from '../../../../../hooks/useModalClose';
+import { isCurrentProgramAttendee } from '../../../../../features/programs/application/responseState.js';
 
 const MemberActivityModal = ({ member, logs, locations, notices, responses, users, year: initialYear, month: initialMonth, onClose }) => {
     useModalClose(true, onClose);
@@ -42,7 +43,7 @@ const MemberActivityModal = ({ member, logs, locations, notices, responses, user
     const dailyPrograms = useMemo(() => {
         if (!notices || !responses) return {};
         
-        const attendedResponses = responses.filter(r => r.user_id === member.id && r.is_attended);
+        const attendedResponses = responses.filter(r => r.user_id === member.id && isCurrentProgramAttendee(r));
         const noticeIds = new Set(attendedResponses.map(r => r.notice_id));
         
         const programs = notices.filter(n => noticeIds.has(n.id) && n.category === 'PROGRAM');

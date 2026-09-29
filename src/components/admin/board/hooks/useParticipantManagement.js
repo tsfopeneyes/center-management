@@ -5,6 +5,16 @@ import { startOfDay } from 'date-fns';
 import { getKstDateString, usesDailySessionRsvp } from '../../../../utils/dailyProgramSessions';
 import { challengeMissionsApi } from '../../../../api/challengeMissionsApi';
 import { programSessionsApi } from '../../../../api/programSessionsApi';
+import { programApplicationsApi } from '../../../../api/programApplicationsApi';
+import { staffProgramWalkInsApi } from '../../../../api/staffProgramWalkInsApi';
+import { isProgramApplicationTransitionEnabled } from '../../../../features/programs/application/applicationTransition';
+
+const responseSelect = () => isProgramApplicationTransitionEnabled()
+    ? 'status, is_attended, is_staff, application_answers, application_form_revision, application_form_snapshot, users(id, name, school, phone, phone_back4, is_leader)'
+    : 'status, is_attended, is_staff, application_answers, users(id, name, school, phone, phone_back4, is_leader)';
+
+const usesVerifiedWalkIns = notice => isProgramApplicationTransitionEnabled()
+    && notice?.category === 'PROGRAM' && !notice?.is_challenge;
 
 const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const [participantList, setParticipantList] = useState({ JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] });
@@ -145,6 +155,8 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                         ...response.user,
                         is_attended: Boolean(response.is_attended),
                         application_answers: response.application_answers || {},
+                        application_form_revision: response.application_form_revision ?? null,
+                        application_form_snapshot: response.application_form_snapshot ?? null,
                         is_staff: false,
                     });
                 });
@@ -154,14 +166,15 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 // 생성되기 전까지 기존 프로그램 신청자를 그대로 보여준다.
                 const { data, error } = await supabase
                     .from('notice_responses')
-                    .select('status, is_attended, is_staff, application_answers, users(id, name, school, phone, phone_back4, is_leader)')
+                    .select(responseSelect())
                     .eq('notice_id', notice.id)
                     .order('created_at', { ascending: true });
                 if (error) throw error;
                 if (latestQueryDateRef.current !== dateQuerying) return;
 
                 setSelectedSessionId(null);
-                setIsLegacyParticipantView((data || []).length > 0);
+                setIsLegacyParticipantView((data || []).some(response =>
+                    ['JOIN', 'DECLINE', 'UNDECIDED', 'WAITLIST'].includes(response.status)));
                 const list = { JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] };
                 (data || []).forEach(response => {
                     if (!list[response.status] || !response.users) return;
@@ -170,6 +183,8 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                         is_attended: Boolean(response.is_attended),
                         is_staff: Boolean(response.is_staff),
                         application_answers: response.application_answers || {},
+                        application_form_revision: response.application_form_revision ?? null,
+                        application_form_snapshot: response.application_form_snapshot ?? null,
                     });
                 });
                 setParticipantList(list);
@@ -218,7 +233,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     : [];
                 const { data, error } = await supabase
                     .from('notice_responses')
-                    .select('status, is_attended, is_staff, application_answers, users(id, name, school, phone, phone_back4, is_leader)')
+                    .select(responseSelect())
                     .eq('notice_id', notice.id)
                     .order('created_at', { ascending: true });
                     
@@ -232,6 +247,8 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                             is_attended: r.is_attended, 
                             is_staff: r.is_staff,
                             application_answers: r.application_answers || {},
+                            application_form_revision: r.application_form_revision ?? null,
+                            application_form_snapshot: r.application_form_snapshot ?? null,
                             challenge_submissions: challengeSubmissions.filter(item => item.participant_id === r.users.id)
                         });
                     }
@@ -323,16 +340,27 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
 
     const handleDeleteParticipant = async (userId, userName) => {
         if (!selectedNotice) return;
-        if (!window.confirm(`[${userName}] 학생의 내역을 정말 삭제하시겠습니까?`)) return;
+        const retainsProgramCancellation = isProgramApplicationTransitionEnabled()
+            && selectedNotice.category === 'PROGRAM' && !selectedNotice.is_challenge
+            && selectedNotice.is_recruiting !== false && !selectedSessionId;
+        const retainsApplicationCancellation = Boolean(selectedSessionId) || retainsProgramCancellation;
+        const confirmation = retainsApplicationCancellation
+            ? `[${userName}] 신청을 취소하시겠습니까? 취소 기록은 보존됩니다.`
+            : `[${userName}] 학생의 내역을 정말 삭제하시겠습니까?`;
+        if (!window.confirm(confirmation)) return;
         try {
             if (selectedSessionId) {
                 if (!selectedSessionId) throw new Error('선택한 날짜의 회차를 찾을 수 없습니다.');
-                const { error } = await supabase
-                    .from('daily_program_session_responses')
-                    .update({ status: 'CANCELLED', cancelled_at: new Date().toISOString() })
-                    .eq('session_id', selectedSessionId)
-                    .eq('user_id', userId);
-                if (error) throw error;
+                if (usesVerifiedWalkIns(selectedNotice)) {
+                    await staffProgramWalkInsApi.cancelSession(selectedSessionId, userId);
+                } else {
+                    const { error } = await supabase
+                        .from('daily_program_session_responses')
+                        .update({ status: 'CANCELLED', cancelled_at: new Date().toISOString() })
+                        .eq('session_id', selectedSessionId)
+                        .eq('user_id', userId);
+                    if (error) throw error;
+                }
                 await fetchParticipants(selectedNotice);
             } else if (usesDailySessionRsvp(selectedNotice) && !isLegacyParticipantView) {
                 throw new Error('먼저 선택한 날짜의 회차를 열어주세요.');
@@ -341,6 +369,9 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const { error } = await supabase.from('open_program_attendance').delete()
                     .eq('notice_id', selectedNotice.id).eq('user_id', userId).eq('attendance_date', dateStr);
                 if (error) throw error;
+                await fetchParticipants(selectedNotice);
+            } else if (retainsProgramCancellation) {
+                await programApplicationsApi.cancelByStaff(selectedNotice.id, userId);
                 await fetchParticipants(selectedNotice);
             } else {
                 await noticesApi.deleteResponse(selectedNotice.id, userId);
@@ -354,7 +385,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
             if (onRefreshData) onRefreshData();
         } catch (err) {
             console.error('Failed to delete participant:', err);
-            alert('삭제 실패: ' + err.message);
+            alert((retainsApplicationCancellation ? '취소 실패: ' : '삭제 실패: ') + err.message);
         }
     };
 
@@ -420,16 +451,20 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         try {
             if (selectedSessionId) {
                 if (!selectedSessionId) throw new Error('선택한 날짜의 회차를 찾을 수 없습니다.');
-                const { error } = await supabase
-                    .from('daily_program_session_responses')
-                    .upsert({
-                        session_id: selectedSessionId,
-                        user_id: user.id,
-                        status: 'JOIN',
-                        is_attended: true,
-                        cancelled_at: null,
-                    }, { onConflict: 'session_id,user_id' });
-                if (error) throw error;
+                if (usesVerifiedWalkIns(selectedNotice)) {
+                    await staffProgramWalkInsApi.addSession(selectedSessionId, [user.id]);
+                } else {
+                    const { error } = await supabase
+                        .from('daily_program_session_responses')
+                        .upsert({
+                            session_id: selectedSessionId,
+                            user_id: user.id,
+                            status: 'JOIN',
+                            is_attended: true,
+                            cancelled_at: null,
+                        }, { onConflict: 'session_id,user_id' });
+                    if (error) throw error;
+                }
             } else if (usesDailySessionRsvp(selectedNotice) && !isLegacyParticipantView) {
                 throw new Error('먼저 선택한 날짜의 회차를 열어주세요.');
             } else if (selectedNotice.is_recruiting === false) {
@@ -444,8 +479,12 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     setParticipantList(prev => ({ ...prev, JOIN: [newUser, ...prev.JOIN] }));
                 }
             } else {
-                await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
-                await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
+                if (usesVerifiedWalkIns(selectedNotice)) {
+                    await staffProgramWalkInsApi.addWhole(selectedNotice.id, [user.id]);
+                } else {
+                    await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
+                    await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
+                }
 
                 // Optimistic Update & Immediate Feedback
                 const newUser = { ...user, is_attended: true };
@@ -473,16 +512,20 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         try {
             if (selectedSessionId) {
                 if (!selectedSessionId) throw new Error('선택한 날짜의 회차를 찾을 수 없습니다.');
-                const { error } = await supabase
-                    .from('daily_program_session_responses')
-                    .upsert(users.map(user => ({
-                        session_id: selectedSessionId,
-                        user_id: user.id,
-                        status: 'JOIN',
-                        is_attended: true,
-                        cancelled_at: null,
-                    })), { onConflict: 'session_id,user_id' });
-                if (error) throw error;
+                if (usesVerifiedWalkIns(selectedNotice)) {
+                    await staffProgramWalkInsApi.addSession(selectedSessionId, users.map(user => user.id));
+                } else {
+                    const { error } = await supabase
+                        .from('daily_program_session_responses')
+                        .upsert(users.map(user => ({
+                            session_id: selectedSessionId,
+                            user_id: user.id,
+                            status: 'JOIN',
+                            is_attended: true,
+                            cancelled_at: null,
+                        })), { onConflict: 'session_id,user_id' });
+                    if (error) throw error;
+                }
             } else if (usesDailySessionRsvp(selectedNotice) && !isLegacyParticipantView) {
                 throw new Error('먼저 선택한 날짜의 회차를 열어주세요.');
             } else if (selectedNotice.is_recruiting === false) {
@@ -504,10 +547,13 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     return next;
                 });
             } else {
-                for (const user of users) {
-                    await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
-                    await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
-                    
+                if (usesVerifiedWalkIns(selectedNotice)) {
+                    await staffProgramWalkInsApi.addWhole(selectedNotice.id, users.map(user => user.id));
+                } else {
+                    for (const user of users) {
+                        await noticesApi.upsertResponse(selectedNotice.id, user.id, 'JOIN');
+                        await noticesApi.updateAttendance(selectedNotice.id, user.id, true);
+                    }
                 }
 
                 setParticipantList(prev => {

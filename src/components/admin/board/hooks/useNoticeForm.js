@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { CATEGORIES, PROGRAM_TYPES } from '../utils/constants';
 import { fromKstInput, validateRecruitmentForm } from '../../../../utils/programRecruitment';
+import { legacyGuestQuestions, validateApplicationForm } from '../../../../features/programs/applicationFormModel';
 
 const INITIAL_NOTICE_STATE = {
     title: '',
@@ -55,6 +56,7 @@ const INITIAL_NOTICE_STATE = {
     enable_hosts: false,
     host_one_liner: '',
     guest_properties: { allow_guest: false, require_school: true, require_phone: true },
+    application_form: null,
     open_participation_mode: 'NONE',
     daily_session_fields: [{ id: 'field-1', label: '오늘의 안내', required: true }],
     enable_post_program_button: false,
@@ -111,6 +113,10 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
         }
         
         if (mode === CATEGORIES.PROGRAM) {
+            const applicationForm = formData.application_form
+                || { questions: legacyGuestQuestions(formData.guest_properties) };
+            const applicationError = validateApplicationForm(applicationForm);
+            if (applicationError) return { isValid: false, message: applicationError };
             const recruitmentError = validateRecruitmentForm(formData);
             if (recruitmentError) return { isValid: false, message: recruitmentError };
             if (formData.enable_feedback && !formData._program_survey_definition && !formData.guest_properties?.survey_version_id) {

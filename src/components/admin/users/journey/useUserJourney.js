@@ -48,11 +48,15 @@ export default function useUserJourney({ user, locations, schoolLogs, visitNotes
         setError('');
 
         const load = async () => {
-            const [logs, legacyResponses, dailyResponses, openAttendance] = await Promise.all([
+            const [logs, legacyResponses, challengeResponses, dailyResponses, openAttendance] = await Promise.all([
                 fetchAllPages(() => supabase.from('logs').select('*').eq('user_id', user.id).order('created_at', { ascending: true }).order('id')),
                 optionalRows(() => supabase.from('notice_responses')
                     .select('id,notice_id,status,is_attended,created_at,notices(id,title,category,program_date,content)')
                     .eq('user_id', user.id).eq('status', 'JOIN').eq('is_attended', true)
+                    .order('created_at', { ascending: true }).order('id')),
+                optionalRows(() => supabase.from('notice_responses')
+                    .select('id,notice_id,status,is_attended,created_at,notices!inner(id,title,category,program_date,content,is_challenge,challenge_format)')
+                    .eq('user_id', user.id).eq('status', 'JOIN').eq('notices.is_challenge', true)
                     .order('created_at', { ascending: true }).order('id')),
                 optionalRows(() => supabase.from('daily_program_session_responses')
                     .select('session_id,status,is_attended,created_at,daily_program_sessions(id,notice_id,session_date,starts_at,voided_at,notices(id,title,category,program_date,content))')
@@ -81,6 +85,13 @@ export default function useUserJourney({ user, locations, schoolLogs, visitNotes
                 if (seen.has(key)) return;
                 seen.add(key);
                 events.push({ key, noticeId: row.notice_id, date: row.attendance_date, title: row.notices?.title || '오픈 프로그램', kind: '오픈 프로그램' });
+            });
+            (challengeResponses || []).forEach(row => {
+                const date = dateValue(row.notices?.program_date || row.created_at);
+                const key = `program:${row.notice_id}:${date}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                events.push({ key, noticeId: row.notice_id, date, title: row.notices?.title || '챌린지', kind: '챌린지' });
             });
             (legacyResponses || []).forEach(row => {
                 const date = dateValue(row.notices?.program_date || row.created_at);

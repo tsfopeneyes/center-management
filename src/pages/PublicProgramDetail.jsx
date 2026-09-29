@@ -22,8 +22,15 @@ import RecruitmentBadge from '../components/student/components/RecruitmentBadge'
 import { readNoticeWithPreview } from '../api/programReadApi';
 import SignUpForm from '../components/auth/SignUpForm';
 import { programSessionsApi } from '../api/programSessionsApi';
+import { programApplicationsApi } from '../api/programApplicationsApi';
+import { guestProgramRegistrationApi } from '../api/guestProgramRegistrationApi';
+import { buildGuestRegistrationRequest } from '../features/programs/application/guestRegistrationRequest';
 import { usesDailySessionRsvp, getDailySessionRegistrationBlockReason, formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, isRecurringProgram, shouldShowApplicationCount } from '../utils/dailyProgramSessions';
 import BirthDateInput from '../components/common/BirthDateInput';
+import { findMissingRequiredField } from '../features/programs/applicationFields';
+import { questionsForAudience, validateApplicationAnswers } from '../features/programs/applicationFormModel';
+import ApplicationAnswersDialog, { formForNotice, hasApplicationQuestions } from '../features/programs/application/ApplicationAnswersDialog';
+import { isProgramApplicationTransitionEnabled } from '../features/programs/application/applicationTransition';
 
 const isInternalAccount = isAdminOrStaff;
 
@@ -84,6 +91,7 @@ const PublicProgramDetail = () => {
     const hostRef = React.useRef(null);
     const [activeTab, setActiveTab] = useState('intro');
     const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+    const [showMemberQuestions, setShowMemberQuestions] = useState(false);
     const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
     const [shouldSuggestGuestConversion, setShouldSuggestGuestConversion] = useState(false);
     const [conversionGuest, setConversionGuest] = useState(null);
@@ -167,9 +175,7 @@ const PublicProgramDetail = () => {
         return count || 0;
     };
 
-    const getCustomGuestFields = () => (Array.isArray(notice?.guest_properties?.custom_fields)
-        ? notice.guest_properties.custom_fields
-        : []).filter(field => field?.id && String(field?.label || '').trim());
+    const getCustomGuestFields = () => questionsForAudience(formForNotice(notice), 'GUEST');
 
     const guestBirthToInputDate = (birth) => {
         const value = String(birth || '');
@@ -224,9 +230,7 @@ const PublicProgramDetail = () => {
             return;
         }
 
-        const missingRequiredCustomField = getCustomGuestFields().find(field =>
-            field.required === true && !String(guestForm.customAnswers?.[field.id] || '').trim()
-        );
+        const missingRequiredCustomField = findMissingRequiredField(getCustomGuestFields(), guestForm.customAnswers);
         if (missingRequiredCustomField) {
             alert(`필수 항목을 입력해주세요: ${missingRequiredCustomField.label}`);
             return;
@@ -238,9 +242,25 @@ const PublicProgramDetail = () => {
             // administrator finishes or closes the program in another tab.
             const registrationNotice = await loadOpenProgramForRegistration();
             if (registrationNotice.guest_properties?.allow_guest === false) throw new Error('게스트 신청이 비활성화되어 있습니다.');
+            const answerError = validateApplicationAnswers(formForNotice(registrationNotice), 'GUEST', guestForm.customAnswers || {});
+            if (answerError) throw new Error(answerError);
             let userId = null;
             let loggedInUser = null;
             let hadPriorGuestProgramApplications = false;
+            let registrationStatus = 'JOIN';
+
+            if (isProgramApplicationTransitionEnabled()) {
+                const request = buildGuestRegistrationRequest(registrationNotice, selectedSessionId, guestForm);
+                const result = await guestProgramRegistrationApi.register(request);
+                if (!result?.user_id || !result?.guest_user?.id || !result?.status) {
+                    throw new Error('신청 결과를 확인하지 못했습니다. 신청 내역을 확인해 주세요.');
+                }
+                userId = result.user_id;
+                loggedInUser = result.guest_user;
+                hadPriorGuestProgramApplications = result.had_prior_guest_applications === true;
+                registrationStatus = result.status;
+                setApplicationStatus(result.status);
+            } else {
             
             // 1. Check for existing user by phone (only if phone is required and provided)
             if (guestForm.phone) {
@@ -355,26 +375,22 @@ const PublicProgramDetail = () => {
             if (usesDailySessionRsvp(freshProgram)) {
                 const session = freshProgram.open_sessions?.find(item => item.id === selectedSessionId) || freshProgram.today_session;
                 const result = await programSessionsApi.applyGuest(session, loggedInUser, guestForm.customAnswers || {});
+                registrationStatus = result.status;
                 setApplicationStatus(result.status);
-                setIsRegistered(true);
             } else {
-            const { error: regErr } = await supabase
-                .from('notice_responses')
-                .insert({
-                    notice_id: parseInt(id),
-                    user_id: userId,
-                    status: 'JOIN',
-                    is_attended: false,
-                    application_answers: guestForm.customAnswers || {}
+                const { error: registrationError } = await supabase.from('notice_responses').insert({
+                    notice_id: Number(id), user_id: userId, status: 'JOIN', is_attended: false,
+                    application_answers: guestForm.customAnswers || {},
                 });
- 
-            if (regErr) throw regErr;
+                if (registrationError) throw registrationError;
+            }
             }
 
             try {
                 if (!usesDailySessionRsvp(registrationNotice)) await sendProgramApplicationNotification({
                     noticeId: registrationNotice.id,
                     userId,
+                    status: registrationStatus,
                 });
             } catch (notificationError) {
                 // Registration has already succeeded. Do not misreport it as a
@@ -390,6 +406,7 @@ const PublicProgramDetail = () => {
             }
  
             setIsGuestModalOpen(false);
+            setIsRegistered(true);
             setShouldSuggestGuestConversion(hadPriorGuestProgramApplications && loggedInUser?.user_group === '게스트');
             setConversionGuest(hadPriorGuestProgramApplications && loggedInUser?.user_group === '게스트' ? loggedInUser : null);
             setIsSuccessModalOpen(true);
@@ -397,21 +414,31 @@ const PublicProgramDetail = () => {
 
         } catch (err) {
             console.error('Guest Registration Error:', err);
+            if (isProgramApplicationTransitionEnabled() && err?.message?.includes('기존 회원 계정으로 로그인')) {
+                localStorage.setItem('pendingProgramJoin', id);
+                setIsGuestModalOpen(false);
+                alert('가입된 정식 회원 계정이 있습니다. 기존 계정으로 로그인한 뒤 신청해주세요.');
+                navigate(`/?programLogin=${encodeURIComponent(id)}`, {
+                    state: { fromProgram: true, programId: id }
+                });
+                return;
+            }
             alert(`신청 처리 중 오류가 발생했습니다.\n${err.message || '다시 시도해 주세요.'}`);
         } finally {
             setSubmitting(false);
         }
     };
 
-    const handleRegisterLoggedIn = async () => {
-        if (!loggedInUser) return;
+    const handleRegisterLoggedIn = async (answers = {}) => {
+        if (!loggedInUser) return false;
         if (isInternalViewer) {
             alert('관리자 및 스태프 계정은 프로그램을 신청할 수 없습니다.');
-            return;
+            return false;
         }
         setSubmitting(true);
         try {
             const registrationNotice = await loadOpenProgramForRegistration();
+            let registrationStatus = 'JOIN';
             // Re-read the canonical public.users row immediately before inserting.
             // This prevents a deleted/expired local session from violating the FK.
             const { data: dbUser, error: userErr } = await supabase
@@ -427,7 +454,7 @@ const PublicProgramDetail = () => {
                 setLoggedInUser(null);
                 setIsRegistered(false);
                 alert('회원 세션이 만료되었습니다. 다시 로그인한 후 신청해 주세요.');
-                return;
+                return false;
             }
 
             const hadPriorGuestProgramApplications = dbUser.user_group === '게스트'
@@ -437,25 +464,27 @@ const PublicProgramDetail = () => {
             const freshProgram = await loadOpenProgramForRegistration();
             if (usesDailySessionRsvp(freshProgram)) {
                 const session = freshProgram.open_sessions?.find(item => item.id === selectedSessionId) || freshProgram.today_session;
-                const result = await programSessionsApi.respond(session, dbUser.id, 'JOIN');
+                const result = await programSessionsApi.respond(session, dbUser.id, 'JOIN', Object.keys(answers).length ? answers : undefined);
+                registrationStatus = result.status;
                 setApplicationStatus(result.status);
             } else {
-            const { error: regErr } = await supabase
-                .from('notice_responses')
-                .insert({
-                    notice_id: parseInt(id),
-                    user_id: dbUser.id,
-                    status: 'JOIN',
-                    is_attended: false
-                });
-
-            if (regErr) throw regErr;
+                if (isProgramApplicationTransitionEnabled()) {
+                    const result = await programApplicationsApi.respondMember(Number(id), dbUser.id, 'JOIN', answers);
+                    registrationStatus = result.status;
+                    setApplicationStatus(result.status);
+                } else {
+                    const { error: registrationError } = await supabase.from('notice_responses').insert({
+                        notice_id: Number(id), user_id: dbUser.id, status: 'JOIN', is_attended: false,
+                    });
+                    if (registrationError) throw registrationError;
+                }
             }
 
             try {
                 if (!usesDailySessionRsvp(registrationNotice)) await sendProgramApplicationNotification({
                     noticeId: registrationNotice.id,
                     userId: dbUser.id,
+                    status: registrationStatus,
                 });
             } catch (notificationError) {
                 // Registration has already succeeded. Do not misreport it as a
@@ -470,12 +499,19 @@ const PublicProgramDetail = () => {
             setShouldSuggestGuestConversion(hadPriorGuestProgramApplications);
             setConversionGuest(hadPriorGuestProgramApplications ? dbUser : null);
             setIsSuccessModalOpen(true);
+            return true;
         } catch (err) {
             console.error('Registration Error:', err);
             alert(`신청 처리 중 오류가 발생했습니다.\n${err.message || '다시 시도해 주세요.'}`);
+            return false;
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const beginMemberRegistration = () => {
+        if (isProgramApplicationTransitionEnabled() && hasApplicationQuestions(notice, 'MEMBER')) setShowMemberQuestions(true);
+        else handleRegisterLoggedIn();
     };
 
     const scrollToSection = (section) => {
@@ -1062,7 +1098,7 @@ const PublicProgramDetail = () => {
                                              } else if (loggedInUser) {
                                                  if (isRegistered) navigate('/student');
                                                  else if (loggedInUser.user_group === '게스트') openGuestApplicationForm(loggedInUser);
-                                                 else handleRegisterLoggedIn();
+                                                 else beginMemberRegistration();
                                              } else {
                                                  handleActionClick();
                                              }
@@ -1223,7 +1259,7 @@ const PublicProgramDetail = () => {
                                     )
                                 ) : (
                                     <button 
-                                        onClick={() => loggedInUser.user_group === '게스트' ? openGuestApplicationForm(loggedInUser) : handleRegisterLoggedIn()}
+                                        onClick={() => loggedInUser.user_group === '게스트' ? openGuestApplicationForm(loggedInUser) : beginMemberRegistration()}
                                         disabled={submitting}
                                         className="w-full bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200 text-base transition active:scale-[0.98] disabled:bg-gray-200 disabled:shadow-none"
                                     >
@@ -1359,9 +1395,7 @@ const PublicProgramDetail = () => {
                 const reqPhone = true;
                 const guestBirthInfo = parseGuestBirthDate(guestForm.birth);
                 const customGuestFields = getCustomGuestFields();
-                const hasMissingRequiredCustomAnswer = customGuestFields.some(field =>
-                    field.required === true && !String(guestForm.customAnswers?.[field.id] || '').trim()
-                );
+                const hasMissingRequiredCustomAnswer = Boolean(findMissingRequiredField(customGuestFields, guestForm.customAnswers));
                 
                 const isSubmitDisabled = submitting || 
                     !guestForm.name || 
@@ -1564,6 +1598,15 @@ const PublicProgramDetail = () => {
                         </button>
                     </div>
                 </div>
+            )}
+
+            {showMemberQuestions && (
+                <ApplicationAnswersDialog
+                    notice={notice}
+                    audience="MEMBER"
+                    onClose={() => setShowMemberQuestions(false)}
+                    onSubmit={handleRegisterLoggedIn}
+                />
             )}
 
             {showGuestConversionForm && conversionGuest && (

@@ -1,23 +1,27 @@
-export const parseGuestBirthDate = (value) => {
+import { getKstDateString } from './dailyProgramSessions.js';
+
+export const parseGuestBirthDate = (value, now = new Date()) => {
     const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return null;
 
     const year = Number(match[1]);
     const month = Number(match[2]);
     const day = Number(match[3]);
-    const date = new Date(year, month - 1, day);
+    const date = new Date(Date.UTC(year, month - 1, day));
     if (
-        date.getFullYear() !== year ||
-        date.getMonth() !== month - 1 ||
-        date.getDate() !== day ||
-        date > new Date()
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day
     ) return null;
 
-    const today = new Date();
-    let age = today.getFullYear() - year;
+    const [todayYear, todayMonth, todayDay] = getKstDateString(now).split('-').map(Number);
+    if (year > todayYear || (year === todayYear && (month > todayMonth || (month === todayMonth && day > todayDay)))) {
+        return null;
+    }
+    let age = todayYear - year;
     if (
-        today.getMonth() < month - 1 ||
-        (today.getMonth() === month - 1 && today.getDate() < day)
+        todayMonth < month ||
+        (todayMonth === month && todayDay < day)
     ) age -= 1;
 
     if (age < 0 || age > 100) return null;

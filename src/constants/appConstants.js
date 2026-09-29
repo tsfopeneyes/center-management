@@ -38,7 +38,8 @@ export const RESPONSE_STATUS = {
     JOIN: 'JOIN',
     DECLINE: 'DECLINE',
     WAITLIST: 'WAITLIST',
-    UNDECIDED: 'UNDECIDED'
+    UNDECIDED: 'UNDECIDED',
+    CANCELLED: 'CANCELLED'
 };
 
 export const TAB_NAMES = {
