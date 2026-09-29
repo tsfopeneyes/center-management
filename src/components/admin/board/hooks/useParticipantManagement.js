@@ -7,14 +7,10 @@ import { challengeMissionsApi } from '../../../../api/challengeMissionsApi';
 import { programSessionsApi } from '../../../../api/programSessionsApi';
 import { programApplicationsApi } from '../../../../api/programApplicationsApi';
 import { staffProgramWalkInsApi } from '../../../../api/staffProgramWalkInsApi';
-import { isProgramApplicationTransitionEnabled } from '../../../../features/programs/application/applicationTransition';
 
-const responseSelect = () => isProgramApplicationTransitionEnabled()
-    ? 'status, is_attended, is_staff, application_answers, application_form_revision, application_form_snapshot, users(id, name, school, phone, phone_back4, is_leader)'
-    : 'status, is_attended, is_staff, application_answers, users(id, name, school, phone, phone_back4, is_leader)';
+const responseSelect = () => 'status, is_attended, is_staff, application_answers, application_form_revision, application_form_snapshot, users(id, name, school, phone, phone_back4, is_leader)';
 
-const usesVerifiedWalkIns = notice => isProgramApplicationTransitionEnabled()
-    && notice?.category === 'PROGRAM' && notice?.is_recruiting !== false;
+const usesVerifiedWalkIns = notice => notice?.category === 'PROGRAM' && notice?.is_recruiting !== false;
 
 const useParticipantManagement = (selectedNotice, onRefreshData) => {
     const [participantList, setParticipantList] = useState({ JOIN: [], DECLINE: [], UNDECIDED: [], WAITLIST: [] });
@@ -340,8 +336,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
 
     const handleDeleteParticipant = async (userId, userName) => {
         if (!selectedNotice) return;
-        const retainsProgramCancellation = isProgramApplicationTransitionEnabled()
-            && selectedNotice.category === 'PROGRAM'
+        const retainsProgramCancellation = selectedNotice.category === 'PROGRAM'
             && selectedNotice.is_recruiting !== false && !selectedSessionId;
         const retainsApplicationCancellation = Boolean(selectedSessionId) || retainsProgramCancellation;
         const confirmation = retainsApplicationCancellation

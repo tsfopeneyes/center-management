@@ -75,7 +75,6 @@ import { commentReactionsApi } from '../../api/commentReactionsApi';
 import useCommentReactionLongPress from '../../hooks/useCommentReactionLongPress';
 import useModalClose from '../../hooks/useModalClose';
 import ApplicationAnswersDialog, { hasApplicationQuestions } from '../../features/programs/application/ApplicationAnswersDialog';
-import { isProgramApplicationTransitionEnabled } from '../../features/programs/application/applicationTransition';
 
 const NoticeModalContent = ({
     notice, context, onClose, user, fromAdmin = false, isImpersonating = false, responses, responseDetails = {}, onResponse, onRefresh, comments, newComment, setNewComment, onPostComment, onDeleteComment, onUpdate, onDelete, onViewParticipants, onRegisterRegularUser, tutorialMode = false, tutorialStep = '', tutorialOpenCardsTotal = 0, tutorialOpenCardIndex = 0, tutorialChallengeCardsTotal = 0, tutorialChallengeCardIndex = 0, onTutorialAction, onTutorialReaction, onTutorialComment
@@ -91,7 +90,7 @@ const NoticeModalContent = ({
     const [zoomedImage, setZoomedImage] = useState(null);
     const [applicationRequest, setApplicationRequest] = useState(null);
     const requestApplication = (status, sessionId = null) => {
-        if (isProgramApplicationTransitionEnabled() && !tutorialMode && status !== 'CANCEL'
+        if (!tutorialMode && status !== 'CANCEL'
             && hasApplicationQuestions(notice, 'MEMBER')) {
             setApplicationRequest({ status, sessionId });
             return;

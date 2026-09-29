@@ -14,8 +14,7 @@ let found = false;
 traverse(ast, {
     IfStatement(path) {
         const test = path.node.test;
-        if (test?.operator !== '&&' || test.left?.name !== 'isProgram'
-            || test.right?.callee?.name !== 'isProgramApplicationTransitionEnabled') return;
+        if (test?.name !== 'isProgram') return;
         const calls = [];
         path.get('consequent').traverse({
             CallExpression(callPath) {
@@ -23,6 +22,7 @@ traverse(ast, {
                 if (callee.type === 'MemberExpression') calls.push(`${callee.object?.name}.${callee.property?.name}`);
             },
         });
+        if (!calls.includes('programSettingsApi.save')) return;
         assert.ok(calls.includes('programSettingsApi.save'));
         assert.ok(!calls.includes('noticesApi.update'));
         assert.ok(!calls.includes('noticesApi.create'));
@@ -31,5 +31,5 @@ traverse(ast, {
         found = true;
     },
 });
-assert.ok(found, 'program settings must use the atomic boundary when transition is enabled');
+assert.ok(found, 'program settings must use the atomic boundary');
 console.log('program settings atomic client path and direct relation fallback passed');

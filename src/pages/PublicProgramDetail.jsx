@@ -13,8 +13,8 @@ import { formatToLocalISO, formatProgramSchedule, formatCompactShareSchedule } f
 import { TAB_NAMES } from '../constants/appConstants';
 import { trackUserWebActivity } from '../utils/userActivityUtils';
 import { sendProgramApplicationNotification } from '../utils/integrationUtils';
-import { isAdminOrStaff, normalizeSchoolName } from '../utils/userUtils';
-import { buildGuestPrivacyPreferences, classifyGuestIdentityMatch, parseGuestBirthDate } from '../utils/guestBirthUtils';
+import { isAdminOrStaff } from '../utils/userUtils';
+import { parseGuestBirthDate } from '../utils/guestBirthUtils';
 import { getRecruitment, getRegistrationBlockReason } from '../utils/programRecruitment';
 import { useCurrentTime } from '../hooks/useCurrentTime';
 import ProgramAvailabilityNotice from '../components/student/components/ProgramAvailabilityNotice';
@@ -30,7 +30,6 @@ import BirthDateInput from '../components/common/BirthDateInput';
 import { findMissingRequiredField } from '../features/programs/applicationFields';
 import { questionsForAudience, validateApplicationAnswers } from '../features/programs/applicationFormModel';
 import ApplicationAnswersDialog, { formForNotice, hasApplicationQuestions } from '../features/programs/application/ApplicationAnswersDialog';
-import { isProgramApplicationTransitionEnabled } from '../features/programs/application/applicationTransition';
 
 const isInternalAccount = isAdminOrStaff;
 
@@ -242,8 +241,7 @@ const PublicProgramDetail = () => {
             // administrator finishes or closes the program in another tab.
             const registrationNotice = await loadOpenProgramForRegistration();
             if (registrationNotice.guest_properties?.allow_guest === false) throw new Error('게스트 신청이 비활성화되어 있습니다.');
-            if (isProgramApplicationTransitionEnabled()
-                && registrationNotice.application_form_revision !== notice?.application_form_revision) {
+            if (registrationNotice.application_form_revision !== notice?.application_form_revision) {
                 throw new Error('신청 질문이 변경되었습니다. 페이지를 새로고침한 뒤 다시 신청해 주세요.');
             }
             const answerError = validateApplicationAnswers(formForNotice(registrationNotice), 'GUEST', guestForm.customAnswers || {});
@@ -253,145 +251,18 @@ const PublicProgramDetail = () => {
             let hadPriorGuestProgramApplications = false;
             let registrationStatus = 'JOIN';
 
-            if (isProgramApplicationTransitionEnabled()) {
-                const request = buildGuestRegistrationRequest(
-                    registrationNotice, selectedSessionId, guestForm, notice?.application_form_revision
-                );
-                const result = await guestProgramRegistrationApi.register(request);
-                if (!result?.user_id || !result?.guest_user?.id || !result?.status) {
-                    throw new Error('신청 결과를 확인하지 못했습니다. 신청 내역을 확인해 주세요.');
-                }
-                userId = result.user_id;
-                loggedInUser = result.guest_user;
-                hadPriorGuestProgramApplications = result.had_prior_guest_applications === true;
-                registrationStatus = result.status;
-                setApplicationStatus(result.status);
-            } else {
-            
-            // 1. Check for existing user by phone (only if phone is required and provided)
-            if (guestForm.phone) {
-                const { data: existingUser, error: userCheckErr } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('phone', guestForm.phone)
-                    .maybeSingle();
- 
-                if (userCheckErr) throw userCheckErr;
- 
-                if (existingUser) {
-                    if (isInternalAccount(existingUser)) {
-                        alert('관리자 및 스태프 계정은 프로그램을 신청할 수 없습니다.');
-                        setSubmitting(false);
-                        return;
-                    }
-                    userId = existingUser.id;
-                    const identityMatch = classifyGuestIdentityMatch(existingUser, guestForm.phone, birthInfo.yymmdd);
-                    if (identityMatch === 'BIRTH_MISMATCH') {
-                        alert('같은 연락처의 기록과 생년월일이 일치하지 않아 기존 계정에 연결하지 않았습니다. 입력 정보를 확인하거나 센터에 문의해주세요.');
-                        setSubmitting(false);
-                        return;
-                    }
-                    if (existingUser.user_group === '게스트') {
-                        // A legacy guest with no real birth can be completed now,
-                        // but only a later application with both phone and birth
-                        // matching is strong enough to trigger conversion guidance.
-                        hadPriorGuestProgramApplications = identityMatch === 'VERIFIED'
-                            && (await countPriorProgramApplications(existingUser.id)) > 0;
-                        const guestUpdates = {
-                            birth: birthInfo.yymmdd,
-                            guardian_name: birthInfo.isUnder14 ? guestForm.guardianName.trim() : null,
-                            guardian_phone: birthInfo.isUnder14 ? guestForm.guardianPhone.trim() : null,
-                            guardian_relation: birthInfo.isUnder14 ? guestForm.guardianRelation.trim() : null,
-                            preferences: buildGuestPrivacyPreferences(existingUser.preferences, birthInfo.isUnder14, {
-                                purpose: 'guest_program_application_and_age_analysis',
-                            }),
-                        };
-                        const { data: updatedGuest, error: updateGuestError } = await supabase
-                            .from('users').update(guestUpdates).eq('id', existingUser.id).select().single();
-                        if (updateGuestError) throw updateGuestError;
-                        loggedInUser = updatedGuest;
-                    } else {
-                        localStorage.setItem('pendingProgramJoin', id);
-                        setIsGuestModalOpen(false);
-                        setSubmitting(false);
-                        alert('입력한 연락처와 생년월일로 가입된 정식 회원 계정이 있습니다. 기존 계정으로 로그인한 뒤 신청해주세요.');
-                        navigate(`/?programLogin=${encodeURIComponent(id)}`, {
-                            state: { fromProgram: true, programId: id }
-                        });
-                        return;
-                    }
-                    // 2. Check if already signed up for this program
-                    const { data: existingResponse, error: respCheckErr } = await supabase
-                        .from('notice_responses')
-                        .select('id')
-                        .eq('notice_id', id)
-                        .eq('user_id', userId)
-                        .maybeSingle();
- 
-                    if (respCheckErr) throw respCheckErr;
- 
-                    if (existingResponse && !usesDailySessionRsvp(registrationNotice)) {
-                        alert('이미 이 연락처로 해당 프로그램 신청이 완료되어 있습니다!');
-                        setIsGuestModalOpen(false);
-                        setSubmitting(false);
-                        return;
-                    }
-                }
+            const request = buildGuestRegistrationRequest(
+                registrationNotice, selectedSessionId, guestForm, notice?.application_form_revision
+            );
+            const result = await guestProgramRegistrationApi.register(request);
+            if (!result?.user_id || !result?.guest_user?.id || !result?.status) {
+                throw new Error('신청 결과를 확인하지 못했습니다. 신청 내역을 확인해 주세요.');
             }
- 
-            if (!userId) {
-                // Create a new guest user
-                const phoneVal = guestForm.phone;
-                const phoneParts = guestForm.phone.split('-');
-                const back4 = phoneParts.length >= 3 ? phoneParts[2] : '';
-                const newUserId = '00000000-0000-0000-0000-' + Math.floor(100000000000 + Math.random() * 900000000000);
-                const memoText = `[가입일: ${new Date().toLocaleDateString()}] [공유링크 프로그램 비회원 신청]`;
-
-                const { data: newUser, error: createErr } = await supabase
-                    .from('users')
-                    .insert([{
-                        id: newUserId,
-                        name: guestForm.name.trim(),
-                        gender: 'M',
-                        school: normalizeSchoolName(guestForm.school),
-                        birth: birthInfo.yymmdd,
-                        phone: phoneVal,
-                        phone_back4: back4,
-                        guardian_name: birthInfo.isUnder14 ? guestForm.guardianName.trim() : null,
-                        guardian_phone: birthInfo.isUnder14 ? guestForm.guardianPhone.trim() : null,
-                        guardian_relation: birthInfo.isUnder14 ? guestForm.guardianRelation.trim() : null,
-                        preferences: buildGuestPrivacyPreferences(null, birthInfo.isUnder14, {
-                            purpose: 'guest_program_application_and_age_analysis',
-                        }),
-                        user_group: '게스트',
-                        password: null,
-                        role: 'student',
-                        status: 'approved',
-                        memo: memoText
-                    }])
-                    .select()
-                    .single();
-
-                if (createErr) throw createErr;
-                userId = newUser.id;
-                loggedInUser = newUser;
-            }
- 
-            const freshProgram = await loadOpenProgramForRegistration();
-            if (usesDailySessionRsvp(freshProgram)) {
-                const session = freshProgram.open_sessions?.find(item => item.id === selectedSessionId) || freshProgram.today_session;
-                const result = await programSessionsApi.applyGuest(session, loggedInUser, guestForm.customAnswers || {});
-                registrationStatus = result.status;
-                setApplicationStatus(result.status);
-            } else {
-                const { error: registrationError } = await supabase.from('notice_responses').insert({
-                    notice_id: Number(id), user_id: userId, status: 'JOIN', is_attended: false,
-                    application_answers: guestForm.customAnswers || {},
-                });
-                if (registrationError) throw registrationError;
-            }
-            }
-
+            userId = result.user_id;
+            loggedInUser = result.guest_user;
+            hadPriorGuestProgramApplications = result.had_prior_guest_applications === true;
+            registrationStatus = result.status;
+            setApplicationStatus(result.status);
             try {
                 if (!usesDailySessionRsvp(registrationNotice)) await sendProgramApplicationNotification({
                     noticeId: registrationNotice.id,
@@ -420,7 +291,7 @@ const PublicProgramDetail = () => {
 
         } catch (err) {
             console.error('Guest Registration Error:', err);
-            if (isProgramApplicationTransitionEnabled() && err?.message?.includes('기존 회원 계정으로 로그인')) {
+            if (err?.message?.includes('기존 회원 계정으로 로그인')) {
                 localStorage.setItem('pendingProgramJoin', id);
                 setIsGuestModalOpen(false);
                 alert('가입된 정식 회원 계정이 있습니다. 기존 계정으로 로그인한 뒤 신청해주세요.');
@@ -444,8 +315,7 @@ const PublicProgramDetail = () => {
         setSubmitting(true);
         try {
             const registrationNotice = await loadOpenProgramForRegistration();
-            if (isProgramApplicationTransitionEnabled()
-                && registrationNotice.application_form_revision !== notice?.application_form_revision) {
+            if (registrationNotice.application_form_revision !== notice?.application_form_revision) {
                 throw new Error('신청 질문이 변경되었습니다. 페이지를 새로고침한 뒤 다시 신청해 주세요.');
             }
             let registrationStatus = 'JOIN';
@@ -481,18 +351,11 @@ const PublicProgramDetail = () => {
                 registrationStatus = result.status;
                 setApplicationStatus(result.status);
             } else {
-                if (isProgramApplicationTransitionEnabled()) {
-                    const result = await programApplicationsApi.respondMember(
-                        Number(id), dbUser.id, 'JOIN', answers, notice?.application_form_revision
-                    );
-                    registrationStatus = result.status;
-                    setApplicationStatus(result.status);
-                } else {
-                    const { error: registrationError } = await supabase.from('notice_responses').insert({
-                        notice_id: Number(id), user_id: dbUser.id, status: 'JOIN', is_attended: false,
-                    });
-                    if (registrationError) throw registrationError;
-                }
+                const result = await programApplicationsApi.respondMember(
+                    Number(id), dbUser.id, 'JOIN', answers, notice?.application_form_revision
+                );
+                registrationStatus = result.status;
+                setApplicationStatus(result.status);
             }
 
             try {
@@ -525,7 +388,7 @@ const PublicProgramDetail = () => {
     };
 
     const beginMemberRegistration = () => {
-        if (isProgramApplicationTransitionEnabled() && hasApplicationQuestions(notice, 'MEMBER')) setShowMemberQuestions(true);
+        if (hasApplicationQuestions(notice, 'MEMBER')) setShowMemberQuestions(true);
         else handleRegisterLoggedIn();
     };
 

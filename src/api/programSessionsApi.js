@@ -1,6 +1,5 @@
 import { supabase } from '../supabaseClient';
 import { getKstDateString } from '../utils/dailyProgramSessions';
-import { isProgramApplicationTransitionEnabled } from '../features/programs/application/applicationTransition';
 
 const missingTable = (error) => error?.code === '42P01' || error?.code === 'PGRST205';
 const missingRpc = (error) => error?.code === 'PGRST202' || error?.code === '42883';
@@ -12,7 +11,7 @@ export const programSessionsApi = {
         });
         if (!error) {
             const participants = Array.isArray(data) ? data : [];
-            if (!isProgramApplicationTransitionEnabled() || !participants.length) return participants;
+            if (!participants.length) return participants;
             const { data: snapshots, error: snapshotError } = await supabase
                 .from('daily_program_session_responses')
                 .select('user_id,application_form_revision,application_form_snapshot')
@@ -30,9 +29,7 @@ export const programSessionsApi = {
         // Direct-table fallback for deployments whose RPC schema cache has not refreshed yet.
         const { data: fallback, error: fallbackError } = await supabase
             .from('daily_program_session_responses')
-            .select(isProgramApplicationTransitionEnabled()
-                ? 'user_id,status,is_attended,created_at,application_answers,application_form_revision,application_form_snapshot,users(id,name,school,phone,phone_back4,is_leader,user_group)'
-                : 'user_id,status,is_attended,created_at,application_answers,users(id,name,school,phone,phone_back4,is_leader,user_group)')
+            .select('user_id,status,is_attended,created_at,application_answers,application_form_revision,application_form_snapshot,users(id,name,school,phone,phone_back4,is_leader,user_group)')
             .eq('session_id', sessionId)
             .order('created_at', { ascending: true });
         if (fallbackError) throw fallbackError;
@@ -148,20 +145,6 @@ export const programSessionsApi = {
         return data;
     },
 
-    async applyGuest(session, guest, answers = {}) {
-        const payload = { p_session_id: session.id, p_user_id: guest.id,
-            p_name: guest.name, p_phone: guest.phone, p_birth: guest.birth, p_answers: answers };
-        const { data, error } = await supabase.rpc('apply_guest_program_session', payload);
-        if (!error) return data;
-        if (!missingRpc(error)) throw error;
-        // The insert-only view invokes the same guarded transaction as the RPC.
-        const { data: fallback, error: fallbackError } = await supabase.from('guest_program_session_applications')
-            .insert({ session_id: session.id, user_id: guest.id, name: guest.name,
-                phone: guest.phone, birth: guest.birth, application_answers: answers }).select('status').single();
-        if (fallbackError) throw fallbackError;
-        return fallback;
-    },
-
     async saveSession(notice, values, sessionDate = getKstDateString()) {
         if (sessionDate < getKstDateString()) throw new Error('지난 날짜의 회차는 다시 열 수 없습니다.');
         const startTime = values.start_time || '12:00';
@@ -235,19 +218,14 @@ export const programSessionsApi = {
     async closeToday(noticeId) { return this.closeSession(noticeId, getKstDateString()); },
 
     async respond(session, userId, action, answers, expectedRevision = null) {
-        const checked = isProgramApplicationTransitionEnabled();
-        if (checked && action !== 'CANCEL' && !Number.isInteger(expectedRevision)) {
+        if (action !== 'CANCEL' && !Number.isInteger(expectedRevision)) {
             throw new Error('신청 질문을 다시 불러온 뒤 신청해 주세요.');
         }
         const rpcPayload = { p_session_id: session.id, p_user_id: userId, p_action: action };
         if (answers !== undefined) rpcPayload.p_answers = answers;
-        if (checked) {
-            rpcPayload.p_answers ??= {};
-            rpcPayload.p_expected_revision = expectedRevision;
-        }
-        const { data, error } = await supabase.rpc(
-            checked ? 'respond_to_program_session_checked' : 'respond_to_program_session', rpcPayload
-        );
+        rpcPayload.p_answers ??= {};
+        rpcPayload.p_expected_revision = expectedRevision;
+        const { data, error } = await supabase.rpc('respond_to_program_session_checked', rpcPayload);
         if (!error) return data;
         if (!missingRpc(error)) throw error;
 
@@ -255,9 +233,9 @@ export const programSessionsApi = {
         // the RPC. Never infer capacity or promote waitlisted users in the client.
         const fallbackPayload = { session_id: session.id, user_id: userId, action };
         if (answers !== undefined) fallbackPayload.application_answers = answers;
-        if (checked) fallbackPayload.expected_revision = expectedRevision;
+        fallbackPayload.expected_revision = expectedRevision;
         const { data: fallback, error: fallbackError } = await supabase
-            .from(checked ? 'member_program_session_checked_requests' : 'member_program_session_applications')
+            .from('member_program_session_checked_requests')
             .insert(fallbackPayload)
             .select('status')
             .single();

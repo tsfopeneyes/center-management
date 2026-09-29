@@ -9,11 +9,8 @@ import { fromKstInput, getMissingProgramDetails } from '../../../../../utils/pro
 import { isAccountAuthEnabled } from '../../../../../auth/accountAuthRuntime';
 import { cachedAccountProfileId, uploadAccountImage } from '../../../../../auth/accountMedia';
 import { MAX_DAILY_SESSION_FIELDS } from '../../../../../utils/dailyProgramSessions';
-import { challengeMissionsApi } from '../../../../../api/challengeMissionsApi';
 import { programSettingsApi } from '../../../../../api/programSettingsApi';
-import { surveyHubApi } from '../../../../../api/surveyHubApi';
 import { materializeProgramApplicationForm } from '../../../../../features/programs/applicationFormModel';
-import { isProgramApplicationTransitionEnabled } from '../../../../../features/programs/application/applicationTransition';
 
 // Hooks
 import useNoticeForm from '../../hooks/useNoticeForm';
@@ -381,7 +378,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 }
             }
             let savedNotice;
-            if (isProgram && isProgramApplicationTransitionEnabled()) {
+            if (isProgram) {
                 savedNotice = await programSettingsApi.save({
                     noticeId: editNoticeId || null,
                     notice: noticeData,
@@ -394,24 +391,6 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 savedNotice = editNoticeId
                     ? await noticesApi.update(editNoticeId, noticeData)
                     : await noticesApi.create(noticeData);
-                if (surveyToSave) {
-                    const savedSurvey = await surveyHubApi.saveProgramSurvey(
-                        savedNotice.id, surveyToSave.form_id,
-                        surveyToSave.template_id, surveyToSave.definition
-                    );
-                    noticeData.guest_properties = {
-                        ...(noticeData.guest_properties || {}),
-                        enable_feedback: true,
-                        survey_version_id: savedSurvey.version_id,
-                    };
-                }
-                if (isProgram && formData.is_challenge) {
-                    await challengeMissionsApi.syncMissions(
-                        savedNotice.id,
-                        formData.challenge_format || 'OFFLINE',
-                        formData.challenge_missions || []
-                    );
-                }
             }
             if (savedNotice.survey?.version_id) {
                 noticeData.guest_properties = {

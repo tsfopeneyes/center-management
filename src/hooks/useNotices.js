@@ -5,7 +5,6 @@ import { RESPONSE_STATUS } from '../constants/appConstants';
 import { trackUserWebActivity } from '../utils/userActivityUtils';
 import { programSessionsApi } from '../api/programSessionsApi';
 import { programApplicationsApi } from '../api/programApplicationsApi';
-import { isProgramApplicationTransitionEnabled } from '../features/programs/application/applicationTransition';
 import { usesDailySessionRsvp } from '../utils/dailyProgramSessions';
 import { sendProgramApplicationNotification } from '../utils/integrationUtils';
 
@@ -101,8 +100,7 @@ export const useNotices = (userId) => {
             }
             const notice = await noticesApi.loadForStudentRegistration(noticeId);
 
-            if (isProgramApplicationTransitionEnabled()
-                && notice.category === 'PROGRAM' && notice.is_recruiting) {
+            if (notice.category === 'PROGRAM' && notice.is_recruiting) {
                 const oldStatus = responses[noticeId];
                 const cancelling = status === 'CANCEL' || status === oldStatus
                     || (status === RESPONSE_STATUS.JOIN && oldStatus === RESPONSE_STATUS.WAITLIST);

@@ -27,6 +27,6 @@ assert.match(publicPage, /guestForm, notice\?\.application_form_revision/);
 assert.match(publicPage, /answers, notice\?\.application_form_revision/);
 assert.match(studentHook, /notice\.category === 'PROGRAM' && notice\.is_recruiting/);
 assert.doesNotMatch(studentHook, /!notice\.is_challenge && notice\.is_recruiting/);
-assert.match(adminRoster, /retainsProgramCancellation = isProgramApplicationTransitionEnabled\(\)/);
+assert.match(adminRoster, /retainsProgramCancellation = selectedNotice\.category === 'PROGRAM'/);
 assert.doesNotMatch(adminRoster, /selectedNotice\.category === 'PROGRAM' && !selectedNotice\.is_challenge/);
 console.log('checked member/guest/session client boundaries and challenge routing passed');
