@@ -16,6 +16,7 @@ const checks = [
     ['비회원 계정·신청 원자성', 'test-atomic-guest-program-registration.mjs'],
     ['구버전 비회원 부분 저장 차단', 'test-legacy-guest-registration-cutover.mjs'],
     ['공개 비회원 신청 클라이언트 경계', 'test-guest-registration-client-boundary.mjs'],
+    ['비회원 신청 성공 화면 이동', 'test-program-guest-success-navigation.mjs'],
     ['신청 양식 버전·챌린지 화면 경계', 'test-program-checked-client-boundary.mjs'],
     ['비회원 신청 대상 선택', 'test-guest-registration-request.mjs'],
     ['비회원 생년월일 KST 경계', 'test-guest-birth-kst.mjs'],

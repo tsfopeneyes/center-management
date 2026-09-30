@@ -120,8 +120,14 @@ const PublicProgramDetail = () => {
     const [hasReviewed, setHasReviewed] = useState(false);
     const qrCanvasRef = useRef(null);
     const isInternalViewer = isInternalAccount(loggedInUser);
+    const hasStudentDashboard = Boolean(loggedInUser && loggedInUser.user_group !== '게스트');
     const programRegistrationBlockReason = getProgramRegistrationBlockReason(notice, recruitmentNow);
     const isProgramRegistrationOpen = !programRegistrationBlockReason;
+
+    const openApplicationStatus = () => {
+        if (hasStudentDashboard) navigate('/student');
+        else setIsSuccessModalOpen(true);
+    };
 
     useEffect(() => {
         if (!isInternalViewer || !notice?.id) return;
@@ -974,7 +980,7 @@ const PublicProgramDetail = () => {
                                              if (isInternalViewer) {
                                                  setShowParticipantModal(true);
                                              } else if (loggedInUser) {
-                                                 if (isRegistered) navigate('/student');
+                                                 if (isRegistered) openApplicationStatus();
                                                  else if (loggedInUser.user_group === '게스트') openGuestApplicationForm(loggedInUser);
                                                  else beginMemberRegistration();
                                              } else {
@@ -1127,12 +1133,14 @@ const PublicProgramDetail = () => {
                                     ) : (
                                         <button 
                                             onClick={() => {
-                                                localStorage.setItem('pendingProgramJoin', id);
-                                                navigate('/student');
+                                                if (hasStudentDashboard) localStorage.setItem('pendingProgramJoin', id);
+                                                openApplicationStatus();
                                             }}
                                             className="w-full bg-slate-900 text-white rounded-2xl py-4 font-black text-base transition active:scale-[0.98]"
                                         >
-                                            {applicationStatus === 'WAITLIST' ? '대기 신청 완료 (대시보드 이동)' : '신청 완료됨 (대시보드 이동)'}
+                                            {applicationStatus === 'WAITLIST'
+                                                ? (hasStudentDashboard ? '대기 신청 완료 (대시보드 이동)' : '대기 신청 완료 (정보 보기)')
+                                                : (hasStudentDashboard ? '신청 완료됨 (대시보드 이동)' : '신청 완료됨 (정보 보기)')}
                                         </button>
                                     )
                                 ) : (
@@ -1468,11 +1476,13 @@ const PublicProgramDetail = () => {
                         <button
                             onClick={() => {
                                 setIsSuccessModalOpen(false);
-                                navigate('/student');
+                                if (hasStudentDashboard) navigate('/student');
                             }}
                             className={`w-full py-4 rounded-2xl font-black text-sm transition-all active:scale-[0.98] ${shouldSuggestGuestConversion ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-100'}`}
                         >
-                            {shouldSuggestGuestConversion ? '다음에 전환하고 신청 내역 보기' : '내 신청 내역 확인하기'}
+                            {hasStudentDashboard
+                                ? (shouldSuggestGuestConversion ? '다음에 전환하고 신청 내역 보기' : '내 신청 내역 확인하기')
+                                : (shouldSuggestGuestConversion ? '다음에 전환하기' : '확인')}
                         </button>
                     </div>
                 </div>
