@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import { Search, UserPlus, History, Award, CheckCircle2, X, Trash2 } from 'lucide-react';
@@ -306,7 +307,7 @@ const StoreManualPoints = ({ users: propUsers }) => {
                                         >
                                             <div>
                                                 <span className="font-bold text-gray-900">{u.name}</span>
-                                                <span className="text-xs text-blue-600 font-bold ml-2">{u.user_group}</span>
+                                                <UserCategoryBadge user={u} />
                                             </div>
                                             <span className="text-sm text-gray-400 font-medium">{u.school}</span>
                                         </div>

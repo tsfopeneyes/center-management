@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import PropTypes from 'prop-types';
-import { X, ClipboardList } from 'lucide-react';
+import { X, Users, CalendarDays } from 'lucide-react';
 import useParticipantManagement from '../../hooks/useParticipantManagement';
-import { exportParticipantsToExcel } from '../../../../../utils/exportUtils';
 import useModalClose from '../../../../../hooks/useModalClose';
 
 import AttendanceSection from './AttendanceSection';
@@ -12,20 +12,7 @@ import ChallengeStatusSection from './ChallengeStatusSection';
 import ChallengeCommunityModal from '../../../../student/modals/ChallengeCommunityModal';
 import UserEditModal from '../../../users/modals/UserEditModal';
 import { supabase } from '../../../../../supabaseClient';
-import { readLegacyGuestFields } from '../../../../../features/programs/applicationFields';
-
-const getKoreanDayOfWeek = (dateStr) => {
-    if (!dateStr) return '';
-    try {
-        const date = new Date(dateStr);
-        const days = ['일', '월', '화', '수', '목', '금', '토'];
-        const dayOfWeek = days[date.getDay()];
-        const [year, month, day] = dateStr.split('-');
-        return `${parseInt(month)}/${parseInt(day)}(${dayOfWeek})`;
-    } catch (e) {
-        return dateStr;
-    }
-};
+import { usesDailySessionRsvp } from '../../../../../utils/dailyProgramSessions';
 
 const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => {
     const {
@@ -59,8 +46,9 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
         return 'attendance';
     });
     const [selectedUserForModal, setSelectedUserForModal] = useState(null);
+    const [hasQuestionColumns, setHasQuestionColumns] = useState(false);
     const [missionPostFilter, setMissionPostFilter] = useState(null);
-    useModalClose(!!notice && !missionPostFilter, onClose);
+    useModalClose(!!notice, onClose, { priority: 150 });
 
     useEffect(() => {
         const targetView = initialView || notice?._initialView;
@@ -98,118 +86,29 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
         }
     }, [notice, fetchParticipants]);
 
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.key === 'Escape' && !missionPostFilter) {
-                onClose();
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [missionPostFilter, onClose]);
-
     if (!notice) return null;
 
     const hasMultipleViews = Boolean(notice.is_poll || notice.is_challenge);
 
-    return (
-        <div className="fixed inset-0 z-[150] bg-black/50 flex items-center justify-center p-4 md:p-6 backdrop-blur-sm animate-fade-in dropdown-overlay">
-            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row overflow-hidden animate-fade-in-up" onClick={e => e.stopPropagation()}>
-                
-                {/* Mobile Header (Hidden on md+) */}
-                <div className="md:hidden flex justify-between items-center p-4 border-b border-gray-100 bg-white z-10">
-                    <h2 className="font-bold text-lg text-gray-800 tracking-tight truncate pr-4">
-                        {notice.title} 
-                        {activeView === 'poll' ? ' 투표 결과' : ' 참여자 명단'}
-                    </h2>
-                    <button onClick={onClose} className="p-2 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-full shrink-0">
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Desktop Sidebar (Hidden on mobile) */}
-                <div className="hidden md:flex w-72 bg-gray-50 flex-col border-r border-gray-100">
-                    <div className="p-6 border-b border-gray-200/60 bg-white">
-                        <div className="flex justify-between items-start mb-4">
-                            <h2 className="font-black text-xl text-gray-800 tracking-tight leading-snug">
-                                {notice.title}
-                            </h2>
-                        </div>
-                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold shadow-sm">
-                            {activeView === 'poll' ? '투표/설문' : '참석 여부 관리'}
-                        </span>
-                    </div>
-
-                    {activeView !== 'poll' && (
-                        <div className="p-6 flex-1 text-sm text-gray-500 space-y-4 font-medium overflow-y-auto">
-                            {(notice.is_recruiting === false || availableDates.length > 0) ? (
-                                availableDates.length <= 1 ? (
-                                    <div className="space-y-1 bg-slate-100/70 border border-slate-200/60 p-4 rounded-2xl shadow-sm">
-                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">운영 날짜</span>
-                                        <span className="text-sm font-extrabold text-slate-700 block">{getKoreanDayOfWeek(selectedDate)}</span>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2.5 bg-blue-50/50 border border-blue-100 p-4 rounded-2xl">
-                                        <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">조회/등록 날짜</label>
-                                        <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto pr-1">
-                                            {availableDates.map(dateStr => {
-                                                const isActive = selectedDate === dateStr;
-                                                return (
-                                                    <button
-                                                        key={dateStr}
-                                                        onClick={() => setSelectedDate(dateStr)}
-                                                        className={`w-full py-2 px-3 rounded-xl font-extrabold text-xs transition-all text-left border ${
-                                                            isActive 
-                                                                ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-200' 
-                                                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                                                        }`}
-                                                    >
-                                                        {getKoreanDayOfWeek(dateStr)}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 font-medium leading-normal">프로그램이 실행된 날짜를 선택하여 참석자 명단을 확인하세요.</p>
-                                    </div>
-                                )
-                            ) : (
-                                <>
-                                    <p>학생들의 참석 여부를 확인하고<br/>수동으로 출석 체크 할 수 있습니다.</p>
-                                    <p>사전 신청하지 않은 학생은<br/>'상단 버튼'을 클릭하여<br/>현장에서 바로 추가 가능합니다.</p>
-                                </>
-                            )}
-                            
-                            <button 
-                                onClick={() => exportParticipantsToExcel(participantList.JOIN, notice.title, readLegacyGuestFields(notice.guest_properties))}
-                                className="w-full py-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl flex justify-center items-center gap-2 font-bold transition mt-4 border border-green-200 shadow-sm"
-                            >
-                                <ClipboardList size={16} /> 엑셀 다운로드
-                            </button>
-                        </div>
-                    )}
-                    
-                    <div className="p-6 bg-gray-100 border-t border-gray-200/50 mt-auto">
-                        <button 
-                            onClick={onClose}
-                            className="w-full py-3 bg-white text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition border border-gray-200 shadow-sm"
-                        >
-                            닫기
-                        </button>
-                    </div>
+    return createPortal(
+        <div onClick={event => { if (event.target === event.currentTarget && !selectedUserForModal && !missionPostFilter) onClose(); }} className="fixed inset-0 z-[150] bg-black/50 flex items-center justify-center p-4 md:p-6 ">
+            <div role="dialog" aria-modal="true" aria-label={notice.title + ' 참여자 명단'} className={`flex max-h-[90dvh] w-full ${hasQuestionColumns || activeView !== 'attendance' || showEntranceList ? 'max-w-6xl' : 'max-w-3xl'} flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl`} onClick={e => e.stopPropagation()}>
+                <div className="flex shrink-0 items-center justify-between gap-4 bg-[#f9fafb] px-5 py-5 md:px-7">
+                    <div className="flex min-w-0 items-center gap-3"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F4DDD4] text-[#CF3A27]"><Users size={24} /></span>
+                    <h2 className="min-w-0 truncate text-lg font-bold text-slate-900 md:text-xl">{notice.title}</h2></div>
+                    <button type="button" onClick={onClose} aria-label="명단 창 닫기" className="shrink-0 rounded-full bg-white p-2.5 text-slate-500 hover:bg-slate-200 focus-visible:ring-2 focus-visible:ring-[#CF3A27]"><X size={20} /></button>
                 </div>
 
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 bg-white relative">
                     {hasMultipleViews && !showEntranceList && (
-                        <div className="flex border-b border-gray-100 bg-white sticky top-0 z-10 shrink-0">
+                        <div className="flex shrink-0 border-b border-slate-100 bg-white px-4 md:px-6">
                             <button
                                 onClick={() => setActiveView('attendance')}
-                                className={`flex-1 py-3 text-center text-xs font-black border-b-2 transition-all ${
-                                    activeView === 'attendance' 
-                                        ? 'border-blue-600 text-blue-600' 
-                                        : 'border-transparent text-gray-400 hover:text-gray-600'
+                                className={`border-b-2 px-4 py-3 text-center text-sm font-semibold transition-colors ${
+                                    activeView === 'attendance'
+                                        ? 'border-[#CF3A27] text-[#CF3A27]'
+                                        : 'border-transparent text-slate-500 hover:text-slate-800'
                                 }`}
                             >
                                 명단 및 출석 관리
@@ -217,10 +116,10 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
                             {notice.is_poll && (
                                 <button
                                     onClick={() => setActiveView('poll')}
-                                    className={`flex-1 py-3 text-center text-xs font-black border-b-2 transition-all ${
-                                        activeView === 'poll' 
-                                            ? 'border-purple-600 text-purple-600' 
-                                            : 'border-transparent text-gray-400 hover:text-gray-600'
+                                    className={`border-b-2 px-4 py-3 text-center text-sm font-semibold transition-colors ${
+                                        activeView === 'poll'
+                                            ? 'border-[#CF3A27] text-[#CF3A27]'
+                                            : 'border-transparent text-slate-500 hover:text-slate-800'
                                     }`}
                                 >
                                     투표 결과
@@ -229,10 +128,10 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
                             {notice.is_challenge && (
                                 <button
                                     onClick={() => setActiveView('challenge')}
-                                    className={`flex-1 py-3 text-center text-xs font-black border-b-2 transition-all ${
-                                        activeView === 'challenge' 
-                                            ? 'border-emerald-600 text-emerald-600' 
-                                            : 'border-transparent text-gray-400 hover:text-gray-600'
+                                    className={`border-b-2 px-4 py-3 text-center text-sm font-semibold transition-colors ${
+                                        activeView === 'challenge'
+                                            ? 'border-[#CF3A27] text-[#CF3A27]'
+                                            : 'border-transparent text-slate-500 hover:text-slate-800'
                                     }`}
                                 >
                                     미션 인증 현황
@@ -241,17 +140,32 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
                         </div>
                     )}
 
+                    {activeView !== 'poll' && (notice.is_recruiting === false || usesDailySessionRsvp(notice) || availableDates.length > 0) && (
+                        <div className="flex shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-3 md:px-6">
+                            <CalendarDays size={18} className="text-[#CF3A27]" /><label htmlFor="participant-date" className="text-sm font-medium text-slate-600">조회·등록 날짜</label>
+                            {availableDates.length > 0 ? (
+                                <select id="participant-date" value={selectedDate || ''} onChange={event => setSelectedDate(event.target.value)}
+                                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 focus:border-[#CF3A27] focus:outline-none">
+                                    {availableDates.map(date => <option key={date} value={date}>{date}</option>)}
+                                </select>
+                            ) : (
+                                <input id="participant-date" type="date" value={selectedDate || ''} onChange={event => setSelectedDate(event.target.value)}
+                                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 focus:border-[#CF3A27] focus:outline-none" />
+                            )}
+                        </div>
+                    )}
+
                     {modalLoading ? (
                         <div className="flex-1 flex items-center justify-center p-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#CF3A27]"></div>
                         </div>
                     ) : activeView === 'poll' ? (
-                        <PollResultsSection 
-                            notice={notice} 
-                            pollModalResults={pollModalResults} 
+                        <PollResultsSection
+                            notice={notice}
+                            pollModalResults={pollModalResults}
                         />
                     ) : showEntranceList ? (
-                        <WalkInSection 
+                        <WalkInSection
                             searchQuery={searchQuery}
                             handleUserSearch={handleUserSearch}
                             searchResults={searchResults}
@@ -269,21 +183,6 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
                             participantList={participantList}
                             onRefresh={() => fetchParticipants(notice)}
                             onUserClick={handleUserClick}
-                        />
-                    ) : (
-                        <AttendanceSection 
-                            notice={notice}
-                            participantList={participantList}
-                            onAttendanceToggle={handleAttendanceToggle}
-                            onStaffToggle={handleStaffToggle}
-                            onDeleteParticipant={handleDeleteParticipant}
-                            onMarkAllAttended={handleMarkAllAttended}
-                            showEntranceList={showEntranceList}
-                            setShowEntranceList={setShowEntranceList}
-                            selectedDate={selectedDate}
-                            setSelectedDate={setSelectedDate}
-                            hasSessionHistory={availableDates.length > 0}
-                            onUserClick={handleUserClick}
                             onOpenMissionPosts={(student, mission) => setMissionPostFilter({
                                 participantId: student.id,
                                 participantName: student.name,
@@ -291,6 +190,20 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
                                 missionTitle: mission.title,
                                 locked: true,
                             })}
+                        />
+                    ) : (
+                        <AttendanceSection
+                            notice={notice}
+                            participantList={participantList}
+                            onAttendanceToggle={handleAttendanceToggle}
+                            onStaffToggle={handleStaffToggle}
+                            onDeleteParticipant={handleDeleteParticipant}
+                            onMarkAllAttended={handleMarkAllAttended}
+                            setShowEntranceList={setShowEntranceList}
+                            selectedDate={selectedDate}
+                            availableDates={availableDates}
+                            onColumnsChange={setHasQuestionColumns}
+                            onUserClick={handleUserClick}
                         />
                     )}
                 </div>
@@ -315,7 +228,7 @@ const ParticipantModal = ({ notice, user, onClose, onRefresh, initialView }) => 
                     onMissionCompleted={() => fetchParticipants(notice)}
                 />
             )}
-        </div>
+        </div>, document.body
     );
 };
 

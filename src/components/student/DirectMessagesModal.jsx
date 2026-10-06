@@ -11,6 +11,7 @@ import NoticeReactions from './NoticeReactions';
 import { confirmApp } from '../../utils/appDialog';
 import { calculateAge } from '../../utils/dateUtils';
 import { compressImage } from '../../utils/imageUtils';
+import HaifnManagementInbox from './HaifnManagementInbox';
 
 const isLegacyStaff = user => isAdminOrStaff(user)
     || ['admin', 'master', 'staff', 'rok'].includes(String(user?.role || '').toLowerCase())
@@ -40,7 +41,7 @@ const directConversationPartner = (conversation, currentUserId) => conversation.
     : null;
 
 const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConversationId = null }) => {
-    const { conversations, unreadCount, loading, refresh } = useDirectMessages(currentUser?.id);
+    const { conversations, unreadCount, haifnPendingCount, loading, refresh } = useDirectMessages(currentUser?.id);
     const [selectedId, setSelectedId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [participants, setParticipants] = useState([]);
@@ -66,6 +67,7 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
     const [pushPreferencesSaving, setPushPreferencesSaving] = useState(false);
     const [imagePreview, setImagePreview] = useState(null);
     const [copyNotice, setCopyNotice] = useState(false);
+    const [inboxTab, setInboxTab] = useState('PERSONAL');
     const endRef = useRef(null);
     const imageInputRef = useRef(null);
     const typingTimerRef = useRef(null);
@@ -83,6 +85,7 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
     } : null;
     const activeConversation = selected || draftConversation;
     const currentIsStaff = isAdminOrStaff(currentUser);
+    const canViewHaifnInbox = currentIsStaff && ['jin', 'zoe', 'sunny', 'zzang'].includes(String(currentUser?.name || '').trim().toLowerCase());
 
     const historyView = imagePreview ? 'image' : renameOpen ? 'rename' : participantsOpen ? 'participants' : settingsOpen ? 'settings'
         : notificationSettingsOpen ? 'notifications' : peopleMode ? 'people'
@@ -141,7 +144,8 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
     }, [activeConversation, imagePreview, notificationSettingsOpen, onClose, participantsOpen, peopleMode, renameOpen, settingsOpen]);
 
     useEffect(() => {
-        if (initialConversationId) setSelectedId(initialConversationId);
+        if (initialConversationId === 'management') { setInboxTab('MANAGEMENT'); setSelectedId(null); }
+        else if (initialConversationId) setSelectedId(initialConversationId);
     }, [initialConversationId]);
 
     useEffect(() => {
@@ -430,9 +434,13 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
                     <div className="flex shrink-0 gap-2"><button type="button" onClick={() => setNotificationSettingsOpen(true)} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20" aria-label="DM 알림 설정"><Bell size={19} /></button><button type="button" onClick={() => openPeople('NEW')} className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F8DF53] text-[#6E2A20] shadow-sm transition-transform active:scale-95" aria-label="새 메시지"><Plus size={19} strokeWidth={2.5} /></button><button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20" aria-label="메시지 닫기"><X size={19} /></button></div>
                 </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {canViewHaifnInbox && <div className="flex gap-2 border-b border-[#E7D8C4] bg-[#FFFDF9] px-4 py-3" role="tablist" aria-label="DM 종류">
+                <button type="button" role="tab" aria-selected={inboxTab === 'PERSONAL'} onClick={() => setInboxTab('PERSONAL')} className={`rounded-full px-4 py-2 text-sm font-bold ${inboxTab === 'PERSONAL' ? 'bg-[#CF3A27] text-white' : 'bg-[#F3EEE8] text-[#71665C]'}`}>개인 DM</button>
+                <button type="button" role="tab" aria-selected={inboxTab === 'MANAGEMENT'} onClick={() => setInboxTab('MANAGEMENT')} className={`rounded-full px-4 py-2 text-sm font-bold ${inboxTab === 'MANAGEMENT' ? 'bg-[#CF3A27] text-white' : 'bg-[#F3EEE8] text-[#71665C]'}`}>관리 DM{haifnPendingCount > 0 ? ` ${haifnPendingCount}` : ''}</button>
+            </div>}
+            {inboxTab === 'MANAGEMENT' && canViewHaifnInbox ? <HaifnManagementInbox currentUser={currentUser} /> : <div className="flex-1 overflow-y-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {loading ? <div className="flex justify-center py-16"><Loader2 className="animate-spin text-[#CF3A27]" /></div> : conversations.length === 0 ? <div className="py-20 text-center"><MessageCircle className="mx-auto text-[#D9CABC]" size={44} /><p className="mt-4 font-bold text-[#71665C]">아직 대화가 없어요.</p><button type="button" onClick={() => openPeople('NEW')} className="mt-4 rounded-xl bg-[#CF3A27] px-4 py-2.5 text-sm font-bold text-white">첫 메시지 보내기</button></div> : conversations.map(conversation => { const partner = directConversationPartner(conversation, currentUser.id); return <button type="button" key={conversation.id} onClick={() => setSelectedId(conversation.id)} className="mb-2 flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-[0_2px_12px_rgba(80,52,35,0.06)]">{conversation.kind === 'DIRECT' && partner ? <UserAvatar user={partner} size="h-11 w-11 shrink-0" textSize="text-sm" /> : <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#F8E7DE] text-[#CF3A27]"><MessageCircle size={20} /></div>}<div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-extrabold text-[#332821]">{conversationTitle(conversation, currentUser.id)}</p><span className="shrink-0 text-[10px] text-[#A3958A]">{formatTime(conversation.lastMessage?.created_at)}</span></div><p className="mt-1 truncate text-xs font-medium text-[#8B7B70]">{conversation.lastMessage?.revoked_at ? '메시지가 삭제되었습니다.' : conversation.lastMessage?.message_type === 'IMAGE' ? '사진' : conversation.lastMessage?.content || '대화를 시작해 보세요.'}</p></div>{conversation.unreadCount > 0 && <span className="flex min-w-5 h-5 items-center justify-center rounded-full bg-[#CF3A27] px-1 text-[10px] font-black text-white">{conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}</span>}</button>; })}
-            </div>
+            </div>}
         </div>
     );
 

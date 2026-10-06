@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, FileText, MapPin, MessageSquareText, Settings, Sparkles } from 'lucide-react';
 import UserAvatar from '../../../common/UserAvatar';
@@ -120,7 +121,7 @@ export default function UserJourneyView({ user, allUsers = [], locations, school
                 <div className="flex min-w-0 items-start gap-4 md:items-center">
                     <UserAvatar user={user} size="w-14 h-14 md:w-16 md:h-16" textSize="text-lg" />
                     <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><h2 className="text-xl font-black text-gray-950 md:text-2xl">{user.name}</h2><span className="text-[13px] font-bold text-blue-600">{user.user_group || '그룹 미지정'}</span></div>
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><h2 className="text-xl font-black text-gray-950 md:text-2xl">{user.name}</h2><UserCategoryBadge user={user} /></div>
                         <p className="mt-0.5 text-[14px] font-semibold text-gray-600">{user.schoolDisplayName || user.school || '학교 미지정'}{user.church ? ` · ${user.church}` : ''}</p>
                         <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px]">
                             <p className="text-gray-500"><span className="font-medium text-gray-400">최근 방문</span> <span className="font-semibold">{latestVisit ? dateLabel(latestVisit) : '기록 없음'}</span></p>

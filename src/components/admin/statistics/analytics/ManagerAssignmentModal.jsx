@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import React, { useState, useEffect } from 'react';
 import { X, Search, CheckCircle2, Save, MapPin } from 'lucide-react';
 import { userApi } from '../../../../api/userApi';
@@ -137,7 +138,7 @@ const ManagerAssignmentModal = ({ isOpen, onClose, selectedRegion, users, onSave
                                                     {staff.name}
                                                 </p>
                                                 <p className="text-[10px] font-bold text-gray-400">
-                                                    {staff.user_group} {staff.preferences?.seucheoRegion && staff.preferences.seucheoRegion !== selectedRegion && !assigned ? `(현재: ${staff.preferences.seucheoRegion})` : ''}
+                                                    <UserCategoryBadge user={staff} /> {staff.preferences?.seucheoRegion && staff.preferences.seucheoRegion !== selectedRegion && !assigned ? `(현재: ${staff.preferences.seucheoRegion})` : ''}
                                                 </p>
                                             </div>
                                         </div>

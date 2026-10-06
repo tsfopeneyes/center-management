@@ -3,10 +3,11 @@ import PropTypes from 'prop-types';
 import { ChevronUp, ChevronDown, Trash } from 'lucide-react';
 import { createDailySessionField, MAX_DAILY_SESSION_FIELDS } from '../../../utils/dailyProgramSessions';
 
-const ProgramParticipationSettings = ({ formData, updateField }) => (
+const ProgramParticipationSettings = ({ formData, updateField, section = 'all' }) => (
     <>
+        {section !== 'schedule' && (
         <div className="space-y-2">
-            <span className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-2 ml-1 block">운영 방식</span>
+            <span className="mb-2 block text-sm font-semibold text-slate-700">참여 방식</span>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Open Program Card */}
                 <button
@@ -16,10 +17,10 @@ const ProgramParticipationSettings = ({ formData, updateField }) => (
                         updateField('is_recruiting', false);
                         updateField('max_capacity', '');
                     }}
-                    className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
+                    className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
                         (formData.is_recruiting === false && !formData.is_challenge)
-                            ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
-                            : 'border-slate-100 bg-white hover:border-slate-200'
+                            ? 'border-blue-600 bg-blue-50'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                 >
                     <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
@@ -31,7 +32,7 @@ const ProgramParticipationSettings = ({ formData, updateField }) => (
                     </div>
                     <div className="space-y-1">
                         <p className="text-sm font-bold text-slate-800">오픈 프로그램</p>
-                        <p className="text-xs text-slate-400 font-medium leading-relaxed">별도의 신청 절차 없이 모든 학생이 자유롭게 참여할 수 있습니다.</p>
+                        <p className="text-xs leading-relaxed text-slate-600">신청 없이 자유롭게 참여합니다.</p>
                     </div>
                 </button>
 
@@ -42,10 +43,10 @@ const ProgramParticipationSettings = ({ formData, updateField }) => (
                         updateField('is_challenge', false);
                         updateField('is_recruiting', true);
                     }}
-                    className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
+                    className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
                         (formData.is_recruiting === true && !formData.is_challenge)
-                            ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
-                            : 'border-slate-100 bg-white hover:border-slate-200'
+                            ? 'border-blue-600 bg-blue-50'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                 >
                     <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
@@ -57,7 +58,7 @@ const ProgramParticipationSettings = ({ formData, updateField }) => (
                     </div>
                     <div className="space-y-1">
                         <p className="text-sm font-bold text-slate-800">신청 프로그램</p>
-                        <p className="text-xs text-slate-400 font-medium leading-relaxed">선착순 마감 등 사전 신청을 하고 승인받은 학생만 참여합니다.</p>
+                        <p className="text-xs leading-relaxed text-slate-600">사전 신청한 학생이 참여합니다.</p>
                     </div>
                 </button>
 
@@ -69,10 +70,10 @@ const ProgramParticipationSettings = ({ formData, updateField }) => (
                         updateField('is_recruiting', true);
                         updateField('max_capacity', '');
                     }}
-                    className={`p-4 rounded-2xl text-left border-2 transition-all duration-200 flex items-start gap-3 ${
+                    className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
                         formData.is_challenge === true
-                            ? 'border-blue-600 bg-blue-50/10 shadow-[0_4px_12px_rgba(49,130,246,0.03)]'
-                            : 'border-slate-100 bg-white hover:border-slate-200'
+                            ? 'border-blue-600 bg-blue-50'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                 >
                     <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
@@ -84,13 +85,14 @@ const ProgramParticipationSettings = ({ formData, updateField }) => (
                     </div>
                     <div className="space-y-1">
                         <p className="text-sm font-bold text-slate-800">챌린지 프로그램</p>
-                        <p className="text-xs text-slate-400 font-medium leading-relaxed">지정된 기간 동안 학생들이 미션을 수행하고 보상을 획득합니다.</p>
+                        <p className="text-xs leading-relaxed text-slate-600">기간 동안 미션을 수행합니다.</p>
                     </div>
                 </button>
             </div>
         </div>
+        )}
 
-        {!formData.is_challenge && (
+        {section !== 'mode' && !formData.is_challenge && (
             <div className="rounded-2xl border border-slate-100 bg-white p-4 space-y-4">
                 <div>
                     <p className="text-sm font-black text-slate-800">진행 횟수</p>
@@ -153,17 +155,21 @@ const ProgramParticipationSettings = ({ formData, updateField }) => (
             </div>
         )}
 
-        {formData.is_challenge && (
+        {section !== 'mode' && formData.is_challenge && (
             <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-3">
                 <div><p className="text-sm font-black text-slate-800">챌린지 참여 방식</p><p className="text-xs font-semibold text-slate-400 mt-1">참여 장소에 따라 필요한 설정을 구분합니다.</p></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button type="button" onClick={() => {
+                        if (formData.challenge_format !== 'ONLINE' && formData.challenge_missions?.length > 0
+                            && !window.confirm('참여 방식을 바꾸면 작성한 미션이 삭제됩니다. 계속할까요?')) return;
                         if (formData.challenge_format !== 'ONLINE') updateField('challenge_missions', []);
                         updateField('challenge_format', 'ONLINE');
                     }} className={`p-4 rounded-2xl border-2 text-left ${formData.challenge_format === 'ONLINE' ? 'border-blue-600 bg-blue-50' : 'border-slate-100'}`}>
                         <p className="text-sm font-black text-slate-800">온라인 챌린지</p><p className="mt-1 text-xs text-slate-500">기간 안에 어디서든 커뮤니티로 참여</p>
                     </button>
                     <button type="button" onClick={() => {
+                        if (formData.challenge_format === 'ONLINE' && formData.challenge_missions?.length > 0
+                            && !window.confirm('참여 방식을 바꾸면 작성한 미션이 삭제됩니다. 계속할까요?')) return;
                         if (formData.challenge_format === 'ONLINE') updateField('challenge_missions', []);
                         updateField('challenge_format', 'OFFLINE');
                         updateField('community_enabled', false);
@@ -178,7 +184,8 @@ const ProgramParticipationSettings = ({ formData, updateField }) => (
 
 ProgramParticipationSettings.propTypes = {
     formData: PropTypes.object.isRequired,
-    updateField: PropTypes.func.isRequired
+    updateField: PropTypes.func.isRequired,
+    section: PropTypes.oneOf(['all', 'mode', 'schedule']),
 };
 
 export default React.memo(ProgramParticipationSettings);

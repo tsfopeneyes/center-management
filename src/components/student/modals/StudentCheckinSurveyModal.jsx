@@ -19,7 +19,7 @@ const DEFAULT_SURVEY_OPTIONS = [
 
 const CHECKIN_NOTIFICATION_GRACE_MS = 60 * 1000;
 
-const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
+const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName, initialSurvey }) => {
     const [mode, setMode] = useState('SURVEY'); // 'SURVEY' | 'QUESTION_QA' | 'CHAT_SHOUTOUT' | 'HYBRID'
     const [questionText, setQuestionText] = useState('오늘 센터에서 무엇을 하고 싶나요?');
     const [descriptionText, setDescriptionText] = useState('');
@@ -62,8 +62,8 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
     }, []);
 
     const handleCloseWithoutSubmitting = React.useCallback(async () => {
-        await dispatchPendingCheckinNotification({ purposes: [] });
         onCloseRef.current(false);
+        await dispatchPendingCheckinNotification({ purposes: [] });
     }, [dispatchPendingCheckinNotification]);
 
     useModalClose(isOpen, handleCloseWithoutSubmitting);
@@ -89,6 +89,7 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
 
     React.useEffect(() => {
         if (!isOpen) return;
+        let cancelled = false;
         setModernLink(null); setSurveyLoading(true);
         setStep('SELECT');
         setSelectedLabels([]);
@@ -96,11 +97,13 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
         setChatShoutoutText('');
         const fetchConfig = async () => {
             try {
-                const assigned = await loadAssignedSurvey({ surveyType: 'CHECKIN', locationName, userId: user?.id });
+                // QR entry already resolved the assigned survey for this visit.
+                // Reuse it instead of starting the same request again during navigation.
+                const assigned = initialSurvey || await loadAssignedSurvey({ surveyType: 'CHECKIN', locationName, userId: user?.id });
+                if (cancelled) return;
                 setModernLink(assigned?.config?._surveyLink || null);
                 if (!assigned) {
-                    await dispatchPendingCheckinNotification({ purposes: [] });
-                    onCloseRef.current(false);
+                    void handleCloseWithoutSubmitting();
                     return;
                 }
                 if (assigned?.config) {
@@ -120,13 +123,16 @@ const StudentCheckinSurveyModal = ({ isOpen, onClose, user, locationName }) => {
                     }
                 }
             } catch (e) {
+                if (cancelled) return;
                 console.error('Failed to fetch checkin survey config:', e);
-                await dispatchPendingCheckinNotification({ purposes: [] });
-                onCloseRef.current(false);
+                void handleCloseWithoutSubmitting();
             }
         };
-        fetchConfig().finally(() => setSurveyLoading(false));
-    }, [dispatchPendingCheckinNotification, isOpen, locationName, user?.id]);
+        fetchConfig().finally(() => {
+            if (!cancelled) setSurveyLoading(false);
+        });
+        return () => { cancelled = true; };
+    }, [handleCloseWithoutSubmitting, isOpen, locationName, user?.id, initialSurvey]);
 
     if (!isOpen) return null;
     if (surveyLoading) return <div role="status" className="fixed inset-0 z-[1100] bg-black/50 flex items-center justify-center"><div className="rounded-2xl bg-white p-6">설문을 불러오는 중…</div></div>;

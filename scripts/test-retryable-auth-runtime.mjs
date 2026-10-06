@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {createRetryableRuntime} from '../supabase/functions/_shared/retryableRuntime.mjs';
+let calls = 0;
+const service = {};
+const runtime = createRetryableRuntime(async () => { if (++calls === 1) throw new Error('temporary initialization failure'); return service; });
+const failures = await Promise.allSettled([runtime(), runtime()]);
+assert.ok(failures.every(result => result.status === 'rejected'));
+assert.equal(calls, 1, 'concurrent requests share initialization');
+assert.equal(await runtime(), service, 'next request recovers after initialization failure');
+assert.equal(await runtime(), service);
+assert.equal(calls, 2, 'successful runtime stays cached');
+console.log('Auth initialization sharing, failure recovery and success cache passed');

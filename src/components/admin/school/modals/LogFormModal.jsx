@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Search, Plus, Trash2, Edit2, Download, Copy, ExternalLink, Calendar, MapPin, CheckCircle, RefreshCw, Eye, MessageCircle, FileText, X, School, Flame, LayoutGrid, LayoutList, CheckCircle2, User, Users, ChevronRight, ChevronLeft, Grid, List, Star, Heart, Columns, Settings, ClipboardList, Save, Clock, Cookie } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
 import TemplateManager from '../../messages/TemplateManager';
@@ -41,14 +41,14 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-slate-900/80 backdrop-blur-xl flex items-center justify-center p-0 md:p-8"
+        <div
+              
+            className="fixed inset-0 z-[110] bg-slate-900/80  flex items-center justify-center p-0 md:p-8"
             onClick={onClose}
         >
-            <motion.div
-                initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            <div
+                  
+                
                 className="bg-white w-full max-w-2xl h-full md:h-auto md:max-h-[90vh] rounded-t-[2.5rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col"
                 onClick={e => e.stopPropagation()}
             >
@@ -292,8 +292,8 @@ const LogFormModal = ({ school, onClose, onSave, staffList }) => {
                         <Save size={18} /> 사역일지 저장
                     </button>
                 </div>
-            </motion.div>
-        </motion.div >
+            </div>
+        </div >
     );
 };
 export default LogFormModal;

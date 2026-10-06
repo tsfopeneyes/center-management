@@ -171,6 +171,7 @@ const StudentDashboard = () => {
     const [checkinToastMsg, setCheckinToastMsg] = useState(null);
     const [showCheckinSurveyModal, setShowCheckinSurveyModal] = useState(false);
     const [checkinLocationName, setCheckinLocationName] = useState('');
+    const checkinSurveyVisitRef = React.useRef(null);
     const [visitStatus, setVisitStatus] = useState(null);
     const isAdminUser = isAdminOrStaff(user);
     const { unreadCount: unreadDmCount } = useDirectMessages(isPreviewMode ? null : user?.id);
@@ -377,6 +378,7 @@ const StudentDashboard = () => {
 
     useEffect(() => {
         if (!user?.id) return;
+        let cancelled = false;
         const storedToast = sessionStorage.getItem('checkin_toast');
         const isFromToastOnly = location.state?.checkinToastOnly;
         const isForceRequireSurvey = location.state?.requireCheckinSurvey || sessionStorage.getItem('require_checkin_survey') === 'true';
@@ -396,7 +398,8 @@ const StudentDashboard = () => {
             const startOfTodayIso = `${todayKst}T00:00:00+09:00`;
 
             try {
-                const { data: todayLogs } = await supabase
+                const handedOffCheckinTime = location.state?.checkinTime || sessionStorage.getItem('active_checkin_time');
+                const { data: todayLogs } = handedOffCheckinTime ? { data: [{ created_at: handedOffCheckinTime }] } : await supabase
                     .from('logs')
                     .select('id, created_at')
                     .eq('user_id', user.id)
@@ -406,6 +409,11 @@ const StudentDashboard = () => {
                     .limit(1);
 
                 const latestCheckinTime = todayLogs?.[0]?.created_at || sessionStorage.getItem('active_checkin_time');
+                if (cancelled) return;
+                // History changes and profile refreshes can rerun this effect.
+                // A QR visit owns exactly one survey opening, even while it loads.
+                if (checkinSurveyVisitRef.current === latestCheckinTime && latestCheckinTime) return;
+                checkinSurveyVisitRef.current = latestCheckinTime;
 
                 const userName = location.state?.userName || user?.name || '';
                 const locName = location.state?.locationName || '하이픈';
@@ -429,6 +437,7 @@ const StudentDashboard = () => {
         };
 
         checkTodayCheckin();
+        return () => { cancelled = true; };
     }, [location.state, user?.id, user?.name]);
 
     const [incomingRequest, setIncomingRequest] = useState(null);
@@ -1637,15 +1646,13 @@ const StudentDashboard = () => {
                 isOpen={showCheckinSurveyModal}
                 user={user}
                 locationName={checkinLocationName}
+                initialSurvey={location.state?.checkinSurvey}
                 onClose={(didComplete) => {
                     setShowCheckinSurveyModal(false);
-                    const now = new Date();
-                    const kstDate = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 60 * 60 * 1000));
-                    const y = kstDate.getFullYear();
-                    const m = String(kstDate.getMonth() + 1).padStart(2, '0');
-                    const d = String(kstDate.getDate()).padStart(2, '0');
-                    const todayKst = `${y}-${m}-${d}`;
-                    sessionStorage.setItem(`survey_dismissed_${todayKst}`, 'true');
+                    sessionStorage.removeItem('require_checkin_survey');
+                    sessionStorage.removeItem('pending_checkin_survey');
+                    const checkinTime = checkinSurveyVisitRef.current || sessionStorage.getItem('active_checkin_time');
+                    if (checkinTime) sessionStorage.setItem(`survey_dismissed_${checkinTime}`, 'true');
 
                     setCheckinToastMsg({
                         title: `${user?.name ? user.name + '님, ' : ''}${checkinLocationName || '하이픈'} 체크인 완료!`,

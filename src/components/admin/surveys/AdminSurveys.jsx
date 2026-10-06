@@ -77,7 +77,7 @@ const AdminSurveys = ({ notices = [], responses = [], visitNotes = [], users = [
     useModalClose(tab !== 'list', () => {
         setTab('list');
         setSelected(null);
-    });
+    }, { lockScroll: false });
 
     const legacySurveys = useMemo(() => ['CHECKIN', 'CHECKOUT'].map(type => {
         const notice = notices.find(n => n.category === 'SYSTEM' && n.title === `${type}_SURVEY_CONFIG`);

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { fetchOperationReportAttendance } from '../../../../api/operationReportApi';
+import { format } from 'date-fns';
 import { analyticsUtils } from '../../../../utils/analyticsUtils';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
@@ -33,7 +35,8 @@ export const useAdminReport = (allLogs, users, locations, notices = [], response
                 end = new Date(selectedYear, 11, 31, 23, 59, 59, 999);
             }
 
-            const result = analyticsUtils.processOperationReport(allLogs, users, locations, notices, responses, start, end, targetGroup);
+            const programAttendance = await fetchOperationReportAttendance(format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
+            const result = analyticsUtils.processOperationReport(allLogs, users, locations, notices, responses, start, end, targetGroup, programAttendance);
             setReport(result);
         } catch (err) {
             console.error(err);

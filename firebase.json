@@ -50,7 +50,7 @@
         ]
       },
       {
-        "source": "/@(admin|student|dashboard|kiosk|screen|checkin|guest|welcome|live-chat|chat|chat2|chat3|tv|signage|view|display)",
+        "source": "/@(admin|student|dashboard|kiosk|screen|checkin|guest|welcome|haifn|live-chat|chat|chat2|chat3|tv|signage|view|display)",
         "headers": [
           {
             "key": "Cache-Control",

@@ -127,7 +127,7 @@ const ReportMetrics = ({ report, setSelectedGuestSpace }) => {
                             <p className="text-xs font-bold text-gray-400 mt-1">선택된 타겟 그룹({report.reportTarget})의 해당 기간 누적 참여자 수입니다.</p>
                         </div>
                         <div className="bg-indigo-100 px-3 py-1.5 rounded-lg text-xs font-black text-indigo-700">
-                            총 {report.programStats.totalCount}개 진행 / {report.programStats.totalParticipants} 누적 참여
+                            총 {report.programStats.totalCount}회 진행 / {report.programStats.totalParticipants} 누적 참여
                         </div>
                     </div>
 
@@ -137,7 +137,7 @@ const ReportMetrics = ({ report, setSelectedGuestSpace }) => {
                             <div className="p-4 md:p-5 border-b border-blue-100 flex justify-between items-center bg-blue-50/50">
                                 <h4 className="font-black text-blue-800 flex items-center gap-2">센터 프로그램</h4>
                                 <div className="text-xs font-bold text-blue-600 flex gap-3">
-                                    <span>진행: {report.programStats.center.count}개</span>
+                                    <span>진행: {report.programStats.center.count}회</span>
                                     <span>누적 참여: {report.programStats.center.participants}명</span>
                                 </div>
                             </div>
@@ -170,7 +170,7 @@ const ReportMetrics = ({ report, setSelectedGuestSpace }) => {
                                                     <td className="p-3 text-center font-black">
                                                         <span className="text-blue-600">{p.targetAttendCount}</span> 
                                                         <span className="text-gray-400 mx-1">/</span> 
-                                                        <span className="text-gray-500">{p.targetJoinCount}</span>
+                                                        <span className="text-gray-500">{p.targetJoinCount ?? '—'}</span>
                                                     </td>
                                                 </tr>
                                                 );
@@ -186,7 +186,7 @@ const ReportMetrics = ({ report, setSelectedGuestSpace }) => {
                             <div className="p-4 md:p-5 border-b border-emerald-100 flex justify-between items-center bg-emerald-50/50">
                                 <h4 className="font-black text-emerald-800 flex items-center gap-2">스처 프로그램</h4>
                                 <div className="text-xs font-bold text-emerald-600 flex gap-3">
-                                    <span>진행: {report.programStats.schoolChurch.count}개</span>
+                                    <span>진행: {report.programStats.schoolChurch.count}회</span>
                                     <span>누적 참여: {report.programStats.schoolChurch.participants}명</span>
                                 </div>
                             </div>
@@ -219,7 +219,7 @@ const ReportMetrics = ({ report, setSelectedGuestSpace }) => {
                                                     <td className="p-3 text-center font-black">
                                                         <span className="text-emerald-600">{p.targetAttendCount}</span> 
                                                         <span className="text-gray-400 mx-1">/</span> 
-                                                        <span className="text-gray-500">{p.targetJoinCount}</span>
+                                                        <span className="text-gray-500">{p.targetJoinCount ?? '—'}</span>
                                                     </td>
                                                 </tr>
                                                 );

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Trash2, X, Save, School, KeyRound, MessageSquare, Star, ShieldMinus } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { RefreshCw, Trash2, X, Save, School, KeyRound, MessageSquare, Star, ShieldMinus, UserRound, Activity, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../../../supabaseClient';
 import { feedbackApi } from '../../../../api/feedbackApi';
 import { extractProgramInfo } from '../../../../utils/textUtils';
 import UserAvatar from '../../../common/UserAvatar';
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import { aggregateVisitSessions } from '../../../../utils/visitUtils';
 import { getAccountRole, isAdminOrStaff, isMasterStaff, normalizeSchoolName } from '../../../../utils/userUtils';
 import useModalClose from '../../../../hooks/useModalClose';
@@ -16,13 +18,13 @@ const UserEditModal = ({
     handleDeleteUser, handleRemoveAdminRole, handleResetPassword, handleApproveUser,
     userStats, fetchData, setIsMergeModalOpen, setViewerImage, locations, adminUser
 }) => {
-    useModalClose(!!editingUser, () => setEditingUser(null));
+
     const [editFormData, setEditFormData] = useState({
         name: '', school: '', church: '', phone: '', user_group: '재학생', memo: '',
         status: 'approved', guardian_name: '', guardian_phone: '', guardian_relation: '',
         is_leader: false, is_school_church: false
     });
-    
+
     const [activeTab, setActiveTab] = useState('INFO');
 
     const [participatedPrograms, setParticipatedPrograms] = useState([]);
@@ -45,19 +47,8 @@ const UserEditModal = ({
         return cleaned;
     };
 
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                if (isHistoryOpen) {
-                    setIsHistoryOpen(false);
-                } else {
-                    setEditingUser(null);
-                }
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isHistoryOpen, setEditingUser]);
+    useModalClose(!!editingUser, () => setEditingUser(null), { priority: 250 });
+    useModalClose(isHistoryOpen, () => setIsHistoryOpen(false), { priority: 260 });
 
     const handleBackdropClick = (e) => {
         if (e.target === e.currentTarget) {
@@ -106,7 +97,7 @@ const UserEditModal = ({
                     .eq('user_id', editingUser.id);
 
                 const sessions = aggregateVisitSessions(rawLogs || [], [editingUser], locations || []);
-                
+
                 const now = new Date();
                 const currentYear = now.getFullYear();
                 const currentMonth = now.getMonth();
@@ -167,27 +158,27 @@ const UserEditModal = ({
 
                 let totalMins = 0;
                 const progs = [];
-                
+
                 (data || []).forEach(r => {
                     const notice = r.notices;
                     if (!notice) return;
-                    
+
                     // Case-insensitive check for prior data
                     if (String(notice.category).toUpperCase() !== 'PROGRAM') return;
-                    
+
                     // Extract duration from content
                     const programInfo = extractProgramInfo(notice.content);
                     const extDuration = programInfo.duration;
-                    
+
                     let mins = 0;
                     if (extDuration) {
                         const durationStr = extDuration.replace(/\s+/g, '');
                         const hourMatch = durationStr.match(/(\d+(?:\.\d+)?)(?:시간|h|hr)/i);
                         const minMatch = durationStr.match(/(\d+(?:\.\d+)?)(?:분|m)/i);
-                        
+
                         if (hourMatch) mins += parseFloat(hourMatch[1]) * 60;
                         if (minMatch) mins += parseFloat(minMatch[1]);
-                        
+
                         if (!hourMatch && !minMatch) {
                             const num = parseFloat(durationStr);
                             if (!isNaN(num)) {
@@ -195,8 +186,8 @@ const UserEditModal = ({
                             }
                         }
                     }
-                    
-                    // Only count and show programs that they ACTUALLY attended, 
+
+                    // Only count and show programs that they ACTUALLY attended,
                     // to match Student "나의 참여 내역" logic:
                     if (r.is_attended) {
                         totalMins += mins;
@@ -273,49 +264,46 @@ const UserEditModal = ({
         && adminUser.id !== editingUser.id
         && ['admin', 'master'].includes(getAccountRole(editingUser));
 
-    return (
-        <div onClick={handleBackdropClick} className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+    return createPortal(
+        <div data-testid="user-card-overlay" onClick={handleBackdropClick} className="fixed inset-0 z-[250] bg-black/50 flex items-center justify-center p-3 sm:p-5">
+            <div role="dialog" aria-modal="true" aria-label="이용자 카드" className="bg-white w-full max-w-lg rounded-[28px] shadow-xl overflow-hidden flex flex-col max-h-[92dvh]">
                 <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-                    <h3 className="font-bold text-gray-800">회원 카드</h3>
+                    <h3 className="flex items-center gap-2 text-base font-bold text-gray-800"><UserRound size={19} className="text-[#CF3A27]" />이용자 카드</h3>
                     <div className="flex gap-2">
                         {canResetPassword && (
                             <button onClick={() => handleResetPassword(editingUser)} className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition" title="비밀번호 초기화">
                                 <KeyRound size={20} />
                             </button>
                         )}
-                        <button onClick={() => handleDeleteUser(editingUser)} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-lg transition"><Trash2 size={20} /></button>
-                        <button onClick={() => setEditingUser(null)}><X size={20} className="text-gray-400" /></button>
+                        {handleDeleteUser && <button aria-label="회원 삭제" onClick={() => handleDeleteUser(editingUser)} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-lg transition"><Trash2 size={20} /></button>}
+                        <button aria-label="회원 정보 닫기" className="p-2 rounded-lg hover:bg-gray-100" onClick={() => setEditingUser(null)}><X size={20} className="text-gray-400" /></button>
                     </div>
                 </div>
-                <div className="flex border-b border-gray-100 bg-white shrink-0 px-2 mt-2">
-                    <div className="flex-1 py-3 text-sm font-bold border-b-2 border-blue-500 text-blue-600 text-center">
-                        기본 정보
-                    </div>
-                </div>
-                <div className="overflow-y-auto custom-scrollbar flex-1">
-                    <div className="p-4 flex flex-col items-center border-b border-gray-50 bg-gray-50/30">
+                <div className="overflow-y-auto scrollbar-hide flex-1">
+                    <div className="px-6 py-5 flex items-center gap-4 bg-[#F4DDD4]/50">
                         {editingUser.profile_image_url ? (
                             <button onClick={() => setViewerImage(editingUser.profile_image_url)} title="프로필 사진 크게 보기" className="active:scale-95 transition-transform focus:outline-none">
-                                <UserAvatar user={editingUser} size="w-20 h-20" textSize="text-2xl" />
+                                <UserAvatar user={editingUser} size="w-16 h-16" textSize="text-2xl" />
                             </button>
                         ) : (
-                            <UserAvatar user={editingUser} size="w-20 h-20" textSize="text-2xl" />
+                            <UserAvatar user={editingUser} size="w-16 h-16" textSize="text-2xl" />
                         )}
-                        <div className="mt-2.5 text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
+                        <div className="min-w-0 flex-1"><p className="text-2xl font-bold tracking-tight text-gray-900">{editingUser.name}</p><p className="mt-1 text-sm text-slate-600"><UserCategoryBadge user={editingUser} /> <span className="ml-2">{editingUser.school || '학교 미등록'}</span></p><div className="mt-2 text-xs text-gray-500 flex items-center gap-1.5">
                             <span>최근 웹 접속:</span>
-                            <span className="text-blue-600 font-extrabold">{editingUser.lastActiveFormatted || '-'}</span>
+                            <span className="text-[#CF3A27] font-extrabold">{editingUser.lastActiveFormatted || '기록 없음'}</span>
+                        </div>
                         </div>
                     </div>
-                    <div className="p-5 space-y-4">
+                    <div className="p-5 sm:p-6 space-y-5">
+                        <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800"><UserRound size={17} className="text-[#CF3A27]" />기본 정보</h4>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-[10px] font-bold text-gray-500 block mb-1">이름</label>
-                                <input type="text" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold text-sm" />
+                                <label className="text-xs font-medium text-gray-600 block mb-1">이름</label>
+                                <input type="text" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] font-semibold text-sm" />
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold text-gray-500 block mb-1">그룹</label>
-                                <select value={editFormData.user_group} onChange={(e) => setEditFormData({ ...editFormData, user_group: e.target.value })} className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-white font-bold text-sm">
+                                <label className="text-xs font-medium text-gray-600 block mb-1">그룹</label>
+                                <select value={editFormData.user_group} onChange={(e) => setEditFormData({ ...editFormData, user_group: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] bg-white font-semibold text-sm">
                                     <option value="청소년">청소년</option><option value="졸업생">졸업생</option><option value="STAFF">STAFF</option><option value="재학생">재학생(구)</option><option value="일반인">일반인(구)</option>
                                 </select>
                             </div>
@@ -324,49 +312,49 @@ const UserEditModal = ({
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-1">
-                                    <label className="text-[10px] font-bold text-gray-500">학교</label>
+                                    <label className="text-xs font-medium text-gray-600">학교</label>
                                     {schoolRegion !== '미지정' && (
-                                        <span className={`px-1.5 py-0.25 rounded text-[8px] font-black leading-none ${schoolRegion === '강동' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                        <span className={`px-1.5 py-0.25 rounded text-xs font-black leading-none ${schoolRegion === '강동' ? 'bg-[#F4DDD4] text-[#CF3A27]' : 'bg-purple-100 text-purple-600'}`}>
                                             {schoolRegion}
                                         </span>
                                     )}
                                 </div>
-                                <input type="text" value={editFormData.school} onChange={(e) => setEditFormData({ ...editFormData, school: e.target.value })} className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold text-sm" />
+                                <input type="text" value={editFormData.school} onChange={(e) => setEditFormData({ ...editFormData, school: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] font-semibold text-sm" />
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold text-gray-500 block mb-1">출석교회</label>
-                                <input type="text" value={editFormData.church} onChange={(e) => setEditFormData({ ...editFormData, church: e.target.value })} className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold text-sm" />
+                                <label className="text-xs font-medium text-gray-600 block mb-1">출석교회</label>
+                                <input type="text" value={editFormData.church} onChange={(e) => setEditFormData({ ...editFormData, church: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] font-semibold text-sm" />
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 divide-y divide-transparent">
                             <div>
-                                <label className="text-[10px] font-bold text-gray-500 block mb-1">연락처</label>
-                                <input type="text" value={editFormData.phone} onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold font-mono text-sm" />
+                                <label className="text-xs font-medium text-gray-600 block mb-1">연락처</label>
+                                <input type="text" value={editFormData.phone} onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] font-semibold text-sm" />
                             </div>
                         </div>
 
 
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-3">
                             {(() => {
                                 const consentStatus = getTermsConsentStatus(editingUser);
                                 const labels = {
-                                    CURRENT: ['동의 완료', 'bg-blue-50 border-blue-100 text-blue-700'],
+                                    CURRENT: ['동의 완료', 'bg-emerald-50 text-emerald-800'],
                                     OUTDATED: ['재동의 필요 · 이전 약관', 'bg-amber-50 border-amber-100 text-amber-700'],
                                     REQUIRED: ['재동의 필요 · 기록 없음', 'bg-amber-50 border-amber-100 text-amber-700'],
                                     NOT_APPLICABLE: ['정식 가입 전', 'bg-gray-50 border-gray-200 text-gray-600'],
                                     UNAVAILABLE: ['확인 불가', 'bg-gray-50 border-gray-200 text-gray-600']
                                 };
                                 const [label, colors] = labels[consentStatus];
-                                return <div className={`p-2.5 border rounded-xl ${colors}`}>
-                                    <p className="text-xs font-black">가입 약관 · {label}</p>
-                                    {consentStatus === 'CURRENT' && <p className="mt-1 text-[10px] font-semibold">버전 {editingUser.preferences?.terms_version}{editingUser.preferences?.terms_agreed_at ? ` · ${new Date(editingUser.preferences.terms_agreed_at).toLocaleString('ko-KR')}` : ' · 기존 동의 기록'}</p>}
-                                    {['REQUIRED', 'OUTDATED'].includes(consentStatus) && <p className="mt-1 text-[10px] font-semibold">다음 로그인 또는 키오스크 이용 시 본인이 직접 동의합니다.</p>}
+                                return <div className={`col-span-2 p-4 rounded-2xl ${colors}`}>
+                                    <p className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={17} />가입 약관 · {label}</p>
+                                    {consentStatus === 'CURRENT' && <p className="mt-1 text-xs">{editingUser.preferences?.terms_agreed_at ? `동의 일시 · ${new Date(editingUser.preferences.terms_agreed_at).toLocaleString('ko-KR')}` : '동의 일시가 기록되지 않았습니다.'}</p>}
+                                    {['REQUIRED', 'OUTDATED'].includes(consentStatus) && <p className="mt-1 text-xs">다음 로그인 또는 키오스크 이용 시 본인이 직접 동의합니다.</p>}
                                 </div>;
                             })()}
 
-                            <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl">
+                            <div className="flex items-center gap-2.5 p-3.5 bg-gray-50 rounded-2xl">
                                 <input
                                     type="checkbox"
                                     id="is_school_church"
@@ -381,7 +369,7 @@ const UserEditModal = ({
                             </div>
 
                             {(editFormData.user_group === '청소년' || editFormData.user_group === '졸업생' || editFormData.user_group === '재학생') && (
-                                <div className="flex items-center gap-2 p-2.5 bg-yellow-50 border border-yellow-100 rounded-xl">
+                                <div className="flex items-center gap-2.5 p-3.5 bg-gray-50 rounded-2xl">
                                     <input
                                         type="checkbox"
                                         id="is_leader"
@@ -399,71 +387,71 @@ const UserEditModal = ({
                         </div>
 
                         {editFormData.guardian_name && (
-                            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
-                                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">보호자 정보 (만 14세 미만)</p>
+                            <div className="p-4 bg-[#F4DDD4] rounded-xl border border-[#F4DDD4] space-y-2">
+                                <p className="text-xs font-black text-[#CF3A27] uppercase tracking-widest mb-1">보호자 정보 (만 14세 미만)</p>
                                 <div className="grid grid-cols-2 gap-4 text-xs font-bold">
-                                    <div><span className="text-blue-400 block text-[9px]">성함</span>{editFormData.guardian_name}</div>
-                                    <div><span className="text-blue-400 block text-[9px]">관계</span>{editFormData.guardian_relation}</div>
-                                    <div className="col-span-2"><span className="text-blue-400 block text-[9px]">연락처</span>{editFormData.guardian_phone}</div>
+                                    <div><span className="text-[#B93223] block text-xs">성함</span>{editFormData.guardian_name}</div>
+                                    <div><span className="text-[#B93223] block text-xs">관계</span>{editFormData.guardian_relation}</div>
+                                    <div className="col-span-2"><span className="text-[#B93223] block text-xs">연락처</span>{editFormData.guardian_phone}</div>
                                 </div>
                             </div>
                         )}
 
                                                 {stats && (
-                            <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/60 mt-4">
-                                <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-widest mb-3">ACTIVITY STATS</h4>
+                            <div className="border-t border-gray-100 pt-5 mt-4">
+                                <h4 className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3"><Activity size={17} className="text-[#CF3A27]" />활동 기록</h4>
                                 <div className="grid grid-cols-3 gap-2 text-center mb-4">
-                                    <button 
+                                    <button
                                         type="button"
-                                        onClick={() => { setHistoryFilter('MONTH'); setIsHistoryOpen(true); }} 
-                                        className="bg-white p-2.5 rounded-xl border border-blue-100 hover:bg-blue-50/30 transition-all cursor-pointer shadow-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                        onClick={() => { setHistoryFilter('MONTH'); setIsHistoryOpen(true); }}
+                                        className="bg-[#f9fafb] p-4 rounded-2xl hover:bg-[#F4DDD4]/40 transition-all cursor-pointer text-center focus:outline-none focus:ring-2 focus:ring-[#CF3A27]/20"
                                     >
-                                        <span className="text-[9px] text-gray-400 block font-bold mb-0.5">이번 달 방문</span>
-                                        <span className="font-extrabold text-blue-600 text-sm whitespace-nowrap">{stats.monthCount}회</span>
+                                        <span className="text-xs text-gray-500 block font-bold mb-0.5">이번 달 방문</span>
+                                        <span className="font-bold text-[#CF3A27] text-xl whitespace-nowrap">{stats.monthCount}회</span>
                                     </button>
-                                    <button 
+                                    <button
                                         type="button"
-                                        onClick={() => { setHistoryFilter('YEAR'); setIsHistoryOpen(true); }} 
-                                        className="bg-white p-2.5 rounded-xl border border-blue-100 hover:bg-blue-50/30 transition-all cursor-pointer shadow-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                        onClick={() => { setHistoryFilter('YEAR'); setIsHistoryOpen(true); }}
+                                        className="bg-gray-50 p-3 rounded-xl hover:bg-[#F4DDD4]/40 transition-all cursor-pointer text-center focus:outline-none focus:ring-2 focus:ring-[#CF3A27]/20"
                                     >
-                                        <span className="text-[9px] text-gray-400 block font-bold mb-0.5">올해 방문</span>
-                                        <span className="font-extrabold text-blue-600 text-sm whitespace-nowrap">{stats.yearCount}회</span>
+                                        <span className="text-xs text-gray-500 block font-bold mb-0.5">올해 방문</span>
+                                        <span className="font-bold text-[#CF3A27] text-xl whitespace-nowrap">{stats.yearCount}회</span>
                                     </button>
-                                    <div className="bg-white p-2.5 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-center items-center">
-                                        <span className="text-[9px] text-gray-400 block font-bold mb-0.5">일 평균 시간</span>
-                                        <span className="font-extrabold text-gray-800 text-xs whitespace-nowrap">
-                                            {stats.dailyAvgMinutes >= 60 
+                                    <div className="bg-gray-50 p-3 rounded-xl flex flex-col justify-center items-center">
+                                        <span className="text-xs text-gray-500 block font-bold mb-0.5">일 평균 시간</span>
+                                        <span className="font-bold text-gray-800 text-base whitespace-nowrap">
+                                            {stats.dailyAvgMinutes >= 60
                                                 ? `${Math.floor(stats.dailyAvgMinutes / 60)}h ${stats.dailyAvgMinutes % 60}m`
                                                 : `${stats.dailyAvgMinutes}m`
                                             }
                                         </span>
                                     </div>
                                 </div>
-                                
-                                <div className="border-t border-blue-100/50 pt-4 mt-2">
+
+                                <div className="border-t border-[#F4DDD4]/60 pt-4 mt-2">
                                     <div className="flex justify-between items-end mb-2">
-                                        <h5 className="text-[11px] font-extrabold text-gray-600">참여 프로그램</h5>
-                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-full">
+                                        <h5 className="text-xs font-extrabold text-gray-600">참여 프로그램</h5>
+                                        <span className="text-xs font-bold text-[#CF3A27] bg-[#F4DDD4]/60 px-2 py-0.5 rounded-full">
                                             총 {programTotalHours > 0 ? (Number.isInteger(programTotalHours) ? programTotalHours : programTotalHours.toFixed(1)) : 0}시간
                                         </span>
                                     </div>
-                                    
+
                                     {isLoadingPrograms ? (
-                                        <div className="text-center py-4 text-xs text-blue-400 animate-pulse font-bold">명단 확인중...</div>
+                                        <div className="text-center py-4 text-xs text-[#B93223] animate-pulse font-bold">명단 확인중...</div>
                                     ) : participatedPrograms.length > 0 ? (
-                                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                        <div className="space-y-2">
                                             {participatedPrograms.map(p => {
                                                 return (
-                                                    <div key={p.id} className="bg-white p-2.5 rounded-lg shadow-sm border border-blue-50 flex flex-col gap-2">
+                                                    <div key={p.id} className="bg-white p-2.5 rounded-lg border border-[#F4DDD4] flex flex-col gap-2">
                                                         <div className="flex justify-between items-start gap-2">
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="text-xs font-bold text-gray-800 truncate" title={p.title}>{p.title}</div>
-                                                                <div className="text-[10px] text-gray-400 mt-0.5">
-                                                                    {p.program_date ? new Date(p.program_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) : '일정미정'} 
+                                                                <div className="text-xs text-gray-500 mt-0.5">
+                                                                    {p.program_date ? new Date(p.program_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) : '일정미정'}
                                                                     {extractProgramInfo(p.content).duration ? ` • ${formatDuration(extractProgramInfo(p.content).duration)}` : ''}
                                                                 </div>
                                                             </div>
-                                                            <div className="text-[10px] font-bold px-2 py-1 rounded-md shrink-0 bg-emerald-50 text-emerald-600">
+                                                            <div className="text-xs font-bold px-2 py-1 rounded-md shrink-0 bg-emerald-50 text-emerald-600">
                                                                 출석완료
                                                             </div>
                                                         </div>
@@ -482,21 +470,22 @@ const UserEditModal = ({
 
                         {/* 메모(관리자용) - 최하단 이동 */}
                         <div className="mt-4">
-                            <label className="text-[10px] font-extrabold text-gray-400 block mb-1">메모 (관리자용)</label>
-                            <textarea 
-                                value={editFormData.memo} 
-                                onChange={(e) => setEditFormData({ ...editFormData, memo: e.target.value })} 
-                                className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 resize-none h-16 text-xs font-bold" 
-                                placeholder="특이사항 입력" 
+                            <label className="text-xs font-semibold text-gray-600 block mb-1">메모 (관리자용)</label>
+                            <textarea
+                                value={editFormData.memo}
+                                onChange={(e) => setEditFormData({ ...editFormData, memo: e.target.value })}
+                                className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] resize-none h-16 text-xs font-bold"
+                                placeholder="특이사항 입력"
                             />
                         </div>
                     </div>
-                    <div className="p-6 pt-0 space-y-3 mt-4">
+                </div>
+                    <div className="p-5 shrink-0 border-t border-gray-100 bg-white space-y-2">
                         {canRemoveAdminRole && (
                             <button
                                 type="button"
                                 onClick={() => handleRemoveAdminRole(editingUser)}
-                                className="w-full py-3 bg-violet-50 text-violet-700 border border-violet-200 rounded-xl font-bold hover:bg-violet-100 transition flex items-center justify-center gap-2 shadow-sm"
+                                className="w-full py-3 bg-violet-50 text-violet-700 border border-violet-200 rounded-xl font-bold hover:bg-violet-100 transition flex items-center justify-center gap-2"
                             >
                                 <ShieldMinus size={18} /> 관리자 권한 해제
                             </button>
@@ -516,19 +505,19 @@ const UserEditModal = ({
                         {(editingUser.user_group === '게스트' || editingUser.preferences?.is_temporary) && (
                             <button
                                 onClick={() => setIsMergeModalOpen(true)}
-                                className="w-full py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-bold hover:bg-amber-100 transition flex items-center justify-center gap-2 shadow-sm mb-3"
+                                className="w-full py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-bold hover:bg-amber-100 transition flex items-center justify-center gap-2 mb-3"
                             >
                                 <RefreshCw size={18} /> 계정 연결 확인 안내
                             </button>
                         )}
-                        <button onClick={handleSaveUser} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl mt-3">
+                        <button onClick={handleSaveUser} className="w-full py-3.5 bg-[#CF3A27] text-white rounded-xl font-bold hover:bg-[#B93223] transition flex items-center justify-center gap-2 ">
                             <Save size={20} /> 수정사항 저장
                         </button>
                     </div>
 
                     {/* 방문 이력 상세 모달 overlay */}
                     {isHistoryOpen && (() => {
-                        const filteredHistory = historyFilter === 'MONTH' 
+                        const filteredHistory = historyFilter === 'MONTH'
                             ? visitHistory.filter(s => {
                                 const now = new Date();
                                 const [y, m, d] = s.date.split('-').map(Number);
@@ -547,7 +536,7 @@ const UserEditModal = ({
                                             <X size={18} />
                                         </button>
                                     </div>
-                                    <div className="overflow-y-auto flex-1 mt-3 space-y-2 pr-1 custom-scrollbar">
+                                    <div className="overflow-y-auto flex-1 mt-3 space-y-2 pr-1 scrollbar-hide">
                                         {filteredHistory.length === 0 ? (
                                             <div className="text-center text-gray-400 py-8 text-xs font-bold italic">
                                                 {historyFilter === 'MONTH' ? '이번 달 ' : ''}방문 기록이 없습니다.
@@ -557,9 +546,9 @@ const UserEditModal = ({
                                                 <div key={idx} className="p-3 bg-gray-50/50 border border-gray-100 rounded-xl space-y-1 text-xs">
                                                     <div className="flex justify-between font-bold">
                                                         <span className="text-gray-700">{s.date} ({s.dayOfWeek})</span>
-                                                        <span className="text-blue-600 font-mono">{s.startTime} ~ {s.endTime}</span>
+                                                        <span className="text-[#CF3A27] font-mono">{s.startTime} ~ {s.endTime}</span>
                                                     </div>
-                                                    <div className="text-[10px] text-gray-500 flex justify-between gap-2">
+                                                    <div className="text-xs text-gray-500 flex justify-between gap-2">
                                                         <span className="truncate">공간: <strong className="text-gray-700">{s.usedSpaces || '-'}</strong></span>
                                                         <span className="shrink-0">이용: <strong className="text-gray-700">{s.durationMin}</strong></span>
                                                     </div>
@@ -571,9 +560,8 @@ const UserEditModal = ({
                             </div>
                         );
                     })()}
-                </div>
             </div>
-        </div>
+        </div>, document.body
     );
 };
 

@@ -34,8 +34,6 @@ const HostSettings = ({ formData, updateField }) => {
     }, []);
 
     return (
-        <>
-            {(!formData.program_type || formData.program_type === 'CENTER') && (
                 <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${
                     isHostActive ? 'border-blue-300 shadow-md' : 'border-slate-200/80 hover:border-slate-300'
                 }`}>
@@ -233,8 +231,6 @@ const HostSettings = ({ formData, updateField }) => {
                         </div>
                     )}
                 </div>
-            )}
-        </>
     );
 };
 

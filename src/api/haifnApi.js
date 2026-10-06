@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { dispatchNotificationEvent } from '../utils/serverIntegration';
 
 export const haifnApi = {
     // ---- Earning & Deducting ----
@@ -171,10 +172,12 @@ export const haifnApi = {
 
     // ---- Admin Store & Approval Logic ----
     async createOrder(userId, itemId, amount, requiresApproval, itemName, itemType = 'SPEND') {
+        const orderId = crypto.randomUUID();
         // 1. Insert into store_orders
         const { error: orderError } = await supabase
             .from('store_orders')
             .insert([{
+                id: orderId,
                 user_id: userId,
                 item_id: itemId,
                 amount: amount,
@@ -182,6 +185,12 @@ export const haifnApi = {
             }]);
 
         if (orderError) throw orderError;
+
+        if (requiresApproval) {
+            // A delivery failure must not turn a saved request into a failed purchase.
+            void dispatchNotificationEvent({ eventType: 'STORE_APPLICATION', orderId })
+                .catch(error => console.error('Store application notification failed:', error));
+        }
 
         // 2. If it DOES NOT require approval, immediately update balance
         if (!requiresApproval) {

@@ -96,7 +96,7 @@ const UserFilters = ({
                     <div className="flex min-w-0 items-center gap-3">
                         <span className="w-20 shrink-0 text-[13px] font-black text-gray-600">이용자 유형</span>
                         <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 items-center">
-                    {['ALL:전체', 'NEW_3M:신규 (3개월)', 'LEADER:리더', '청소년:청소년', '졸업생:졸업생', 'STAFF:STAFF', 'TEMP_GUEST:게스트/임시'].map((g) => {
+                    {['ALL:전체', 'NEW_3M:신규 (3개월)', 'LEADER:리더', '청소년:청소년', '졸업생:졸업생', 'STAFF:STAFF', 'TEMP_GUEST:게스트'].map((g) => {
                         const [val, label] = g.split(':');
                         return (
                             <button key={val} onClick={() => {
@@ -132,19 +132,7 @@ const UserFilters = ({
 
                     {filterGroup === '청소년' && (
                         <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-200">
-                            <button
-                                onClick={() => setExcludeLeaders(!excludeLeaders)}
-                                className={`px-3 py-1.5 rounded-lg text-xs md:text-[13px] font-bold whitespace-nowrap transition shadow-sm flex items-center gap-1.5 ${excludeLeaders
-                                    ? 'bg-yellow-50 text-yellow-700 border border-yellow-200 shadow-yellow-100'
-                                    : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
-                                    }`}
-                            >
-                                <div className={`w-3 h-3 rounded-sm border flex items-center justify-center transition-colors ${excludeLeaders ? 'bg-yellow-500 border-yellow-500' : 'bg-white border-gray-300'
-                                    }`}>
-                                    {excludeLeaders && <svg viewBox="0 0 14 14" className="w-2 h-2 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 7 6 10 11 4"></polyline></svg>}
-                                </div>
-                                리더 제외
-                            </button>
+                            
                             <button
                                 onClick={() => setShowOnlyNonSchoolChurch(!showOnlyNonSchoolChurch)}
                                 className={`px-3 py-1.5 rounded-lg text-xs md:text-[13px] font-bold whitespace-nowrap transition shadow-sm flex items-center gap-1.5 ${showOnlyNonSchoolChurch

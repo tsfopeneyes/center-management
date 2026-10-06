@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../common/UserCategoryBadge';
 import React, { useState, useEffect, useRef } from 'react';
 import { Eye, Search, X, Sparkles, ChevronRight } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
@@ -142,7 +143,7 @@ const StudentImpersonateBar = ({ user, impersonatedUser, onSelectStudent, onRese
                                                     </div>
                                                     <div>
                                                         <div className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition">
-                                                            {st.name} <span className="text-[10px] text-slate-400 font-medium">({st.user_group || 'STUDENT'})</span>
+                                                            {st.name} <UserCategoryBadge user={st} />
                                                         </div>
                                                         <div className="text-[10px] text-slate-500 font-medium">
                                                             {st.school || '학교 미지정'} {st.grade ? `${st.grade}학년` : ''}

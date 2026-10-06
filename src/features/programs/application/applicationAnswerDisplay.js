@@ -13,6 +13,7 @@ export function applicationAnswerEntries(response, legacyFields = []) {
         .map(([id, value]) => ({
             id,
             label: byId.get(id)?.label || `질문 ${id}`,
+            audience: byId.get(id)?.audience || null,
             answer: String(value),
             revision: hasSnapshot ? response.application_form_revision : null,
             definitionKnown: hasSnapshot,

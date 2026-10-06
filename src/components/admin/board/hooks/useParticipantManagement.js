@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../../../supabaseClient';
+import { userApi } from '../../../../api/userApi';
 import { noticesApi } from '../../../../api/noticesApi';
 import { startOfDay } from 'date-fns';
 import { getKstDateString, usesDailySessionRsvp } from '../../../../utils/dailyProgramSessions';
@@ -8,7 +9,14 @@ import { programSessionsApi } from '../../../../api/programSessionsApi';
 import { programApplicationsApi } from '../../../../api/programApplicationsApi';
 import { staffProgramWalkInsApi } from '../../../../api/staffProgramWalkInsApi';
 
-const responseSelect = () => 'status, is_attended, is_staff, application_answers, application_form_revision, application_form_snapshot, users(id, name, school, phone, phone_back4, is_leader)';
+const responseSelect = (withAudience = true) => `status, is_attended, is_staff, application_answers, application_form_revision, application_form_snapshot, ${withAudience ? 'application_audience, ' : ''}users(id, name, school, phone, phone_back4, is_leader, user_group)`;
+const fetchNoticeResponses = async noticeId => {
+    const query = withAudience => supabase.from('notice_responses').select(responseSelect(withAudience))
+        .eq('notice_id', noticeId).order('created_at', { ascending: true });
+    let result = await query(true);
+    if (result.error && ['42703', 'PGRST204'].includes(result.error.code)) result = await query(false);
+    return result;
+};
 
 const usesVerifiedWalkIns = notice => notice?.category === 'PROGRAM' && notice?.is_recruiting !== false;
 
@@ -122,6 +130,13 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
         if (!notice) return;
         
         const dateQuerying = selectedDate;
+        const publishList = async list => {
+            const classified = await userApi.attachAccountRoles(Object.values(list).flat());
+            if (latestQueryDateRef.current !== dateQuerying) return;
+            const byId = new Map(classified.map(person => [person.id, person.account_role]));
+            setParticipantList(Object.fromEntries(Object.entries(list).map(([status, people]) =>
+                [status, people.map(person => ({ ...person, account_role: byId.get(person.id) || 'member' }))])));
+        };
         latestQueryDateRef.current = dateQuerying;
         
         setModalLoading(true);
@@ -153,18 +168,15 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                         application_answers: response.application_answers || {},
                         application_form_revision: response.application_form_revision ?? null,
                         application_form_snapshot: response.application_form_snapshot ?? null,
+                        application_audience: response.application_audience ?? null,
                         is_staff: false,
                     });
                 });
-                setParticipantList(list);
+                await publishList(list);
             } else if (usesDailySessionRsvp(notice)) {
                 // 한 번 신청 방식에서 회차별 신청으로 전환한 프로그램은 첫 회차가
                 // 생성되기 전까지 기존 프로그램 신청자를 그대로 보여준다.
-                const { data, error } = await supabase
-                    .from('notice_responses')
-                    .select(responseSelect())
-                    .eq('notice_id', notice.id)
-                    .order('created_at', { ascending: true });
+                const { data, error } = await fetchNoticeResponses(notice.id);
                 if (error) throw error;
                 if (latestQueryDateRef.current !== dateQuerying) return;
 
@@ -181,9 +193,10 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                         application_answers: response.application_answers || {},
                         application_form_revision: response.application_form_revision ?? null,
                         application_form_snapshot: response.application_form_snapshot ?? null,
+                        application_audience: response.application_audience ?? null,
                     });
                 });
-                setParticipantList(list);
+                await publishList(list);
             } else if (notice.is_recruiting === false) {
                 setSelectedSessionId(null);
                 setIsLegacyParticipantView(false);
@@ -193,12 +206,12 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 
                 const [{ data, error }, { data: attendance, error: attendanceError }] = await Promise.all([supabase
                     .from('haifn_transactions')
-                    .select('user_id, users(id, name, school, phone, phone_back4, is_leader)')
+                    .select('user_id, users(id, name, school, phone, phone_back4, is_leader, user_group)')
                     .eq('source_description', descMatch)
                     .eq('transaction_type', 'EARN')
                     .order('created_at', { ascending: true }),
                     supabase.from('open_program_attendance')
-                        .select('user_id,users(id,name,school,phone,phone_back4,is_leader)')
+                        .select('user_id,users(id,name,school,phone,phone_back4,is_leader,user_group)')
                         .eq('notice_id', notice.id).eq('attendance_date', dateStr)]);
                     
                 if (latestQueryDateRef.current !== dateQuerying) {
@@ -219,7 +232,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                         });
                     }
                 });
-                setParticipantList(list);
+                await publishList(list);
             } else {
                 setSelectedSessionId(null);
                 setIsLegacyParticipantView(false);
@@ -227,11 +240,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                 const challengeSubmissions = notice.is_challenge
                     ? await challengeMissionsApi.fetchSubmissions(notice.id, notice.challenge_format || 'OFFLINE')
                     : [];
-                const { data, error } = await supabase
-                    .from('notice_responses')
-                    .select(responseSelect())
-                    .eq('notice_id', notice.id)
-                    .order('created_at', { ascending: true });
+                const { data, error } = await fetchNoticeResponses(notice.id);
                     
                 if (error) throw error;
                 
@@ -245,11 +254,12 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                             application_answers: r.application_answers || {},
                             application_form_revision: r.application_form_revision ?? null,
                             application_form_snapshot: r.application_form_snapshot ?? null,
+                            application_audience: r.application_audience ?? null,
                             challenge_submissions: challengeSubmissions.filter(item => item.participant_id === r.users.id)
                         });
                     }
                 });
-                setParticipantList(list);
+                await publishList(list);
             }
 
             // Fetch Poll Responses if applicable
@@ -589,7 +599,7 @@ const useParticipantManagement = (selectedNotice, onRefreshData) => {
                     type, 
                     user_id,
                     location_id,
-                    users (id, name, school, phone, phone_back4, profile_image_url, is_leader)
+                    users (id, name, school, phone, phone_back4, profile_image_url, is_leader, user_group)
                 `)
                 .gte('created_at', todayStartsStr)
                 .order('created_at', { ascending: true });

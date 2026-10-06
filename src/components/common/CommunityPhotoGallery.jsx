@@ -18,14 +18,12 @@ export default function CommunityPhotoGallery({ media, alt = '커뮤니티 사�
 
     useEffect(() => {
         if (!isViewerOpen) return undefined;
-        const previous = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
         const onKeyDown = event => {
             if (event.key === 'ArrowRight') setOpenIndex(index => Math.min(photos.length - 1, index + 1));
             if (event.key === 'ArrowLeft') setOpenIndex(index => Math.max(0, index - 1));
         };
         window.addEventListener('keydown', onKeyDown);
-        return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKeyDown); };
+        return () => { window.removeEventListener('keydown', onKeyDown); };
     }, [isViewerOpen, photos.length]);
 
     useEffect(() => { setScale(1); }, [openIndex]);

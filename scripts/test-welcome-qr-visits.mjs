@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const source = (await readFile('src/utils/welcomeQrVisits.js', 'utf8')).replace("import { supabase } from '../supabaseClient';", 'const supabase = globalThis.qrTestDb;');
+const storage = new Map(); let inserts = 0, error = null;
+globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+globalThis.window = { location: { search: '' } };
+globalThis.qrTestDb = { from: table => { assert.equal(table, 'welcome_qr_visits'); return { insert: async row => { assert.match(row.browser_token, /^[0-9a-f-]{36}$/); inserts++; return { error }; } }; } };
+const { recordWelcomeQrVisit, koreanDay } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+assert.equal(koreanDay(new Date('2026-10-01T15:00:00Z')), '2026-10-02');
+await recordWelcomeQrVisit(); assert.equal(inserts, 0);
+window.location.search = '?from=qr'; await recordWelcomeQrVisit(); await recordWelcomeQrVisit(); assert.equal(inserts, 1);
+storage.delete('welcome-qr-recorded-day'); error = { code: '503' }; await recordWelcomeQrVisit(); assert.equal(storage.has('welcome-qr-recorded-day'), false);
+error = null; await recordWelcomeQrVisit(); assert.equal(storage.has('welcome-qr-recorded-day'), true);
+storage.delete('welcome-qr-recorded-day'); error = { code: '23505' }; await recordWelcomeQrVisit(); assert.equal(storage.has('welcome-qr-recorded-day'), true);
+console.log('PASS: QR-only tracking, repeat suppression, Korea day boundary, retry after failure, duplicate handling');

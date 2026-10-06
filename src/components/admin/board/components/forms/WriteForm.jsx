@@ -119,7 +119,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 return;
             }
         }
-        const hasNowPushPlan = mode === CATEGORIES.PROGRAM
+        const hasNowPushPlan = mode === CATEGORIES.PROGRAM && !formData.is_private
             && (formData.recruitment_push_plans || []).some(plan => plan.timing === 'NOW');
         const explicitPushResend = Boolean(formData.guest_properties?.recruitment_push_resend_nonce)
             && formData.guest_properties.recruitment_push_resend_nonce !== formData._saved_recruitment_push_resend_nonce;
@@ -267,10 +267,9 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 
                 noticeData.program_type = formData.program_type;
                 
-                const isCenter = !formData.program_type || formData.program_type === 'CENTER';
                 const isHostEnabled = formData.enable_hosts === true;
                 const allConfiguredHosts = (formData.hosts || []).filter(h => h && h.host_id);
-                const activeHosts = (isCenter && isHostEnabled) ? allConfiguredHosts : [];
+                const activeHosts = isHostEnabled ? allConfiguredHosts : [];
                 
                 noticeData.hosts = activeHosts;
                 noticeData.host_id = activeHosts[0]?.host_id || null;
@@ -413,6 +412,25 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
         }
     };
 
+    const imageUploadSection = (
+        <section aria-label="상세 이미지" className="space-y-4 border-t border-slate-200 pt-6">
+            <p className="text-sm font-bold text-slate-800">상세 이미지 <span className="ml-2 text-xs font-semibold text-slate-500">최대 {MAX_IMAGES}장</span></p>
+            <ImagePreviewList
+                existingImages={existingImages}
+                selectedFiles={selectedFiles}
+                onDragStart={handleImageDragStart}
+                onDrop={handleImageDrop}
+                onDragOver={handleImageDragOver}
+                onDeleteExisting={handleDeleteExistingImage}
+                onDeleteSelected={removeFile}
+                onEditSelected={openEditor}
+            />
+            {(existingImages.length + selectedFiles.length) < MAX_IMAGES && (
+                <ImageUploader onDrop={onDrop} currentCount={existingImages.length + selectedFiles.length} />
+            )}
+        </section>
+    );
+
     return (
         <form 
             id="write-form"
@@ -422,8 +440,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 : "bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] animate-fade-in-up space-y-6 md:space-y-8"
             }
         >
-            <div className="space-y-6 md:space-y-8">
-                
+            <div className="space-y-8 md:space-y-10">
                 <BasicInfoSection 
                     mode={mode} 
                     title={formData.title} 
@@ -434,51 +451,36 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                     onContentChange={(v) => updateField('content', v)} 
                 />
 
-                {mode === CATEGORIES.PROGRAM && (
-                    <ProgramInfoSection formData={formData} updateField={updateField} flat={flat} />
+                {mode === CATEGORIES.PROGRAM ? (
+                    <>
+                        {imageUploadSection}
+                        <ProgramInfoSection formData={formData} updateField={updateField} flat={flat}
+                            publishingSettings={<>
+                                <PostSettings formData={formData} updateField={updateField} mode={mode} noticeId={editNoticeId} />
+                                <PollBuilder formData={formData} updateField={updateField} />
+                            </>} />
+                    </>
+                ) : (
+                    <>
+                        <PollBuilder formData={formData} updateField={updateField} />
+                    <PostSettings formData={formData} updateField={updateField} mode={mode} noticeId={editNoticeId} />
+                        {imageUploadSection}
+                    </>
                 )}
-                
-                <PollBuilder formData={formData} updateField={updateField} />
-
-                <PostSettings formData={formData} updateField={updateField} mode={mode} noticeId={editNoticeId} />
-
-                {/* --- Image Upload Section --- */}
-                <div className="space-y-4 pt-4 border-t border-gray-50">
-                    <p className="text-xs font-bold text-gray-400 ml-1">상세 이미지 <span className="text-blue-500 font-bold ml-2">최대 {MAX_IMAGES}장</span></p>
-                    
-                    <ImagePreviewList 
-                        existingImages={existingImages}
-                        selectedFiles={selectedFiles}
-                        onDragStart={handleImageDragStart}
-                        onDrop={handleImageDrop}
-                        onDragOver={handleImageDragOver}
-                        onDeleteExisting={handleDeleteExistingImage}
-                        onDeleteSelected={removeFile}
-                        onEditSelected={openEditor}
-                    />
-
-                    {(existingImages.length + selectedFiles.length) < MAX_IMAGES && (
-                        <ImageUploader 
-                            onDrop={onDrop} 
-                            currentCount={existingImages.length + selectedFiles.length} 
-                        />
-                    )}
-                </div>
 
                 {/* --- Action Buttons --- */}
-                <div className="flex gap-4 pt-8">
+                <div className="flex gap-4 border-t border-slate-200 pt-8">
                     <button 
                         type="button" 
                         onClick={onCancel} 
-                        className="flex-1 py-4 bg-gray-50 text-gray-600 rounded-2xl font-bold hover:bg-gray-100 transition-all border border-gray-100"
+                        className="flex-1 rounded-2xl border border-gray-100 bg-gray-50 py-4 font-bold text-gray-600 hover:bg-gray-100"
                     >
                         취소하기
                     </button>
                     <button 
                         type="submit" 
                         disabled={isSaving} 
-                        className={`flex-1 py-4 text-white rounded-2xl font-bold transition-all shadow-[0_0_20px_rgba(37,99,235,0.15)] 
-                        ${isSaving ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 hover:shadow-[0_0_25px_rgba(37,99,235,0.3)] hover:-translate-y-0.5'}`}
+                        className={`flex-1 rounded-2xl py-4 font-bold text-white ${isSaving ? 'cursor-not-allowed bg-blue-300' : 'bg-blue-600 hover:bg-blue-700'}`}
                     >
                         {isSaving ? '저장 중...' : (editNoticeId ? '수정하기' : '등록하기')}
                     </button>

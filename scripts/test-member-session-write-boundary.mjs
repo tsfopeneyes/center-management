@@ -48,7 +48,8 @@ try {
         $$;
         CREATE TABLE public.users (
             id uuid PRIMARY KEY, auth_user_id uuid, name text, phone text, birth text,
-            user_group text, role text, status text, is_leader boolean DEFAULT false
+            user_group text, role text, status text, is_leader boolean DEFAULT false,
+            preferences jsonb NOT NULL DEFAULT '{}'::jsonb
         );
         CREATE TABLE public.notices (
             id bigint PRIMARY KEY, category text, is_recruiting boolean,
@@ -151,6 +152,9 @@ try {
     ] };
     await applySql('../supabase/manual/proposals/20260929_application_form_snapshots.sql');
     await applySql('../supabase/manual/proposals/20260929_session_application_attempt_history.sql');
+    await applySql('../supabase/manual/proposals/20260930_program_application_audience.sql');
+    await applySql('../supabase/manual/proposals/20260930_program_application_audience_classification.sql');
+    await applySql('../supabase/manual/proposals/20260930_program_application_audience_write_guard.sql');
     await db.query('UPDATE public.notices SET application_form=$1 WHERE id=1', [JSON.stringify(form)]);
     const historical = await row(members[0]);
     await applySql('../supabase/manual/proposals/20260929_session_application_answers.sql');
@@ -185,12 +189,13 @@ try {
     assert.equal((await db.query(`SELECT public.respond_to_program_session($1,$2,'JOIN') AS result`,
         [sessionId, members[1]])).rows[0].result.status, 'JOIN');
     await db.exec('RESET ROLE');
-    const memberSnapshot = (await db.query(`SELECT application_form_revision,application_form_snapshot,application_answers
+    const memberSnapshot = (await db.query(`SELECT application_form_revision,application_form_snapshot,application_answers,application_audience
         FROM public.daily_program_session_responses WHERE session_id=$1 AND user_id=$2`,
     [sessionId, members[3]])).rows[0];
     assert.equal(memberSnapshot.application_form_revision, 1);
     assert.deepEqual(memberSnapshot.application_form_snapshot, form);
     assert.equal(memberSnapshot.application_answers.member_school, '하이픈중');
+    assert.equal(memberSnapshot.application_audience, 'MEMBER');
 
     await db.exec('SET ROLE authenticated');
     await asMember(members[3]);
@@ -202,7 +207,7 @@ try {
     await db.exec('RESET ROLE');
     assert.equal((await row(members[3])).application_answers.member_school, '다른학교');
     const priorSessionAttempt = (await db.query(`SELECT status,application_answers,
-        application_form_revision,application_form_snapshot
+        application_form_revision,application_form_snapshot,application_audience
         FROM public.program_session_application_attempt_history
         WHERE session_id=$1 AND user_id=$2`, [sessionId, members[3]])).rows;
     assert.equal(priorSessionAttempt.length, 1);
@@ -210,6 +215,7 @@ try {
     assert.equal(priorSessionAttempt[0].application_answers.member_school, '하이픈중');
     assert.equal(priorSessionAttempt[0].application_form_revision, 1);
     assert.deepEqual(priorSessionAttempt[0].application_form_snapshot, form);
+    assert.equal(priorSessionAttempt[0].application_audience, 'MEMBER');
 
     await db.exec('SET ROLE anon');
     await assert.rejects(db.query(`INSERT INTO public.guest_program_session_applications
@@ -221,17 +227,18 @@ try {
         VALUES($1,$2,'두 번째 게스트','010-1234-5678','080315','{"guest_gender":"여"}'::jsonb)
         RETURNING status`, [sessionId, secondGuestId])).rows[0].status, 'WAITLIST');
     await db.exec('RESET ROLE');
-    const guestSnapshot = (await db.query(`SELECT application_form_revision,application_form_snapshot,application_answers
+    const guestSnapshot = (await db.query(`SELECT application_form_revision,application_form_snapshot,application_answers,application_audience
         FROM public.daily_program_session_responses WHERE session_id=$1 AND user_id=$2`,
     [sessionId, secondGuestId])).rows[0];
     assert.equal(guestSnapshot.application_form_revision, 1);
     assert.deepEqual(guestSnapshot.application_form_snapshot, form);
     assert.equal(guestSnapshot.application_answers.guest_gender, '여');
+    assert.equal(guestSnapshot.application_audience, 'GUEST');
 
     await db.exec(`ALTER TABLE public.users
         ADD COLUMN gender text, ADD COLUMN school text, ADD COLUMN phone_back4 text,
         ADD COLUMN guardian_name text, ADD COLUMN guardian_phone text,
-        ADD COLUMN guardian_relation text, ADD COLUMN preferences jsonb,
+        ADD COLUMN guardian_relation text, ADD COLUMN IF NOT EXISTS preferences jsonb,
         ADD COLUMN password text, ADD COLUMN memo text`);
     await db.exec(`CREATE FUNCTION public.program_application_transition(bigint,uuid,text,text,jsonb)
         RETURNS jsonb LANGUAGE sql AS $$ SELECT '{"status":"JOIN"}'::jsonb $$`);
@@ -262,6 +269,21 @@ try {
     [sessionId, atomic.user_id])).rows[0];
     assert.equal(atomicResponse.application_answers.guest_gender, '여');
     assert.deepEqual(atomicResponse.application_form_snapshot, form);
+
+    await db.query(`SELECT public.program_session_transition($1,$2,'CANCEL','GUEST','{}'::jsonb)`,
+        [sessionId, secondGuestId]);
+    await db.query("UPDATE public.users SET user_group='청소년',auth_user_id=id WHERE id=$1", [secondGuestId]);
+    assert.equal((await db.query('SELECT application_audience FROM public.daily_program_session_responses WHERE session_id=$1 AND user_id=$2',
+        [sessionId, secondGuestId])).rows[0].application_audience, 'GUEST');
+    await db.exec('SET ROLE authenticated');
+    await asMember(secondGuestId);
+    assert.equal((await db.query(`SELECT public.respond_to_program_session($1,$2,'JOIN','{"member_school":"새 학교"}'::jsonb) AS result`,
+        [sessionId, secondGuestId])).rows[0].result.status, 'WAITLIST');
+    await db.exec('RESET ROLE');
+    assert.equal((await db.query('SELECT application_audience FROM public.daily_program_session_responses WHERE session_id=$1 AND user_id=$2',
+        [sessionId, secondGuestId])).rows[0].application_audience, 'MEMBER');
+    assert.equal((await db.query('SELECT application_audience FROM public.program_session_application_attempt_history WHERE session_id=$1 AND user_id=$2',
+        [sessionId, secondGuestId])).rows[0].application_audience, 'GUEST');
 
     console.log('PASS: member/guest session answers and snapshots, RPC relation fallback, capacity, promotion, identity, old signature, member write denial, staff edits, preserved history. Isolated database only.');
 } finally {

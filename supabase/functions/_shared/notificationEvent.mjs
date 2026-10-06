@@ -11,6 +11,7 @@ const EVENT_CATEGORIES = Object.freeze({
   PROGRAM_APPLICATION: 'program',
   COFFEE_CHAT_APPLICATION: 'coffee_chat',
   RENTAL_APPLICATION: 'rental',
+  STORE_APPLICATION: 'store',
 });
 
 const cleanText = (value, fallback = '', maxLength = 1_000) => {
@@ -216,11 +217,43 @@ const resolveCoffeeChatApplication = async (payload, readOne) => {
   };
 };
 
+const resolveStoreApplication = async (payload, readOne) => {
+  const orderId = cleanText(payload.orderId, '', 100);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId)) {
+    throw new Error('A valid store order ID is required.');
+  }
+  const order = await requireRow(readOne, 'store_orders', [
+    ['id', `eq.${orderId}`], ['select', 'id,user_id,item_id,amount,status,created_at'], ['limit', '1'],
+  ], 'The store request could not be verified.');
+  if (order.status !== 'PENDING') throw new Error('The store request is no longer pending.');
+  const [user, item] = await Promise.all([
+    requireRow(readOne, 'users', [['id', `eq.${order.user_id}`], ['select', 'id,name,school'], ['limit', '1']], 'The store applicant could not be verified.'),
+    requireRow(readOne, 'haifn_items', [['id', `eq.${order.item_id}`], ['select', 'id,name,item_type'], ['limit', '1']], 'The store item could not be verified.'),
+  ]);
+  const amount = Number(order.amount);
+  if (!Number.isFinite(amount)) throw new Error('The store amount is invalid.');
+  const school = cleanText(user.school, '', 100);
+  return {
+    category: EVENT_CATEGORIES.STORE_APPLICATION,
+    centerCodes: [CENTER_CODES.HAIFN],
+    message: [
+      '[하이픈 스토어 신청]',
+      `🛍️ ${cleanText(user.name, '학생', 100)}${school ? ` (${school})` : ''}님이 신청했어요.`,
+      `🎁 상품: ${cleanText(item.name, '상품', 200)}`,
+      `🪙 포인트: ${item.item_type === 'EARN' ? '+' : '-'}${Math.abs(amount)}H`,
+      '⏳ 처리 필요 · 관리자 하이픈 스토어에서 확인해 주세요.',
+    ].join('\n'),
+    eventKey: `STORE_APPLICATION:${order.id}`,
+    source: { table: 'store_orders', id: String(order.id) },
+  };
+};
+
 export const resolveNotificationEvent = async (payload, { readOne }) => {
   if (!payload || typeof payload !== 'object' || typeof readOne !== 'function') throw new Error('Invalid notification event.');
   if (!Object.hasOwn(EVENT_CATEGORIES, payload.eventType)) throw new Error('Unsupported notification event type.');
   if (payload.eventType === 'PROGRAM_APPLICATION') return resolveProgramApplication(payload, readOne);
   if (payload.eventType === 'VISIT_CHECKIN' || payload.eventType === 'VISIT_CHECKOUT') return resolveVisit(payload, readOne);
   if (payload.eventType === 'RENTAL_APPLICATION') return resolveRentalApplication(payload, readOne);
+  if (payload.eventType === 'STORE_APPLICATION') return resolveStoreApplication(payload, readOne);
   return resolveCoffeeChatApplication(payload, readOne);
 };

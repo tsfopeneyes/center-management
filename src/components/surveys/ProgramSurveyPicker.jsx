@@ -74,7 +74,7 @@ export default function ProgramSurveyPicker({ formData, updateField }) {
         </div>
         {!templates.length && <p className="text-xs font-medium text-slate-500">저장된 템플릿이 없습니다. 새 설문을 만들거나 설문조사에서 템플릿을 저장해 주세요.</p>}
 
-        <label className="flex cursor-pointer items-center justify-between rounded-xl bg-white p-3"><span><strong className="block text-xs text-slate-800">설문 제출 후 포인트 지급</strong><span className="mt-1 block text-[10px] font-medium text-slate-400">사용하면 설문을 완료한 뒤 프로그램 포인트가 지급됩니다.</span></span><input type="checkbox" checked={!!formData.is_review_required} onChange={event => updateField('is_review_required', event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600" /></label>
+        {Number(formData.haifn_reward) > 0 && <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-white p-3"><span><strong className="block text-sm text-slate-800">설문 제출 후 포인트 지급</strong><span className="mt-1 block text-xs font-medium text-slate-600">끄면 참여 완료 시 포인트를 지급합니다.</span></span><input type="checkbox" checked={!!formData.is_review_required} onChange={event => updateField('is_review_required', event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600" /></label>}
 
         {editing && <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/45 p-3 backdrop-blur-sm md:p-8" onMouseDown={event => { if (event.target === event.currentTarget) setEditing(null); }}><div className="mx-auto max-w-5xl"><SurveyDefinitionEditor initial={editing} compact onCancel={() => setEditing(null)} onSave={applyDefinition} /></div></div>}
     </section>;

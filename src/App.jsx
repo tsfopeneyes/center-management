@@ -27,6 +27,7 @@ const ElectronicLiveChatBoard = lazy(() => import('./pages/ElectronicLiveChatBoa
 const TvSignageViewer = lazy(() => import('./pages/TvSignageViewer'))
 const ScreenViewer = lazy(() => import('./pages/ScreenViewer'))
 const CommunityChannelPage = lazy(() => import('./pages/CommunityChannelPage'))
+const HaifnIntroduction = lazy(() => import('./pages/HaifnIntroduction'))
 
 function HomeEntry() {
     const auth = useAuth()
@@ -102,10 +103,11 @@ function App() {
                         <Route path="/" element={<HomeEntry />} />
                         <Route path="/checkin" element={<GuestMobileWelcome />} />
                         <Route path="/guest" element={<GuestMobileWelcome />} />
-                        <Route path="/welcome" element={<GuestMobileWelcome />} />
+                        <Route path="/welcome" element={<HaifnIntroduction />} />
                         <Route path="/p/:id" element={<PublicProgramDetail />} />
                         <Route path="/survey/:token" element={<PublicSurveyPage />} />
                         <Route path="/community/:id" element={<CommunityChannelPage />} />
+                        <Route path="/haifn" element={<Navigate to="/welcome" replace />} />
                         <Route path="student" element={<StudentDashboard />} />
                         <Route element={<Layout />}>
                             {/* Legacy or unused routes can be kept or removed */}

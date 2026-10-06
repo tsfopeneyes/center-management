@@ -85,6 +85,9 @@ BEGIN
     IF v_existing_status IN ('JOIN', 'WAITLIST') THEN
         RETURN jsonb_build_object('status', v_existing_status);
     END IF;
+    IF public.program_application_audience_for_user(p_user_id) IS DISTINCT FROM p_audience THEN
+        RAISE EXCEPTION '신청자 회원 구분을 확인해 주세요.' USING ERRCODE = '42501';
+    END IF;
     IF v_program.application_form IS NULL THEN
         RAISE EXCEPTION '신청 질문 설정을 다시 확인해 주세요.' USING ERRCODE = '23514';
     END IF;
@@ -99,17 +102,18 @@ BEGIN
     IF v_existing_status IS NULL THEN
         INSERT INTO public.notice_responses (
             notice_id, user_id, status, is_attended, application_answers,
-            application_form_revision, application_form_snapshot
+            application_form_revision, application_form_snapshot, application_audience
         ) VALUES (
             p_notice_id, p_user_id, v_status, false, p_answers,
-            v_program.application_form_revision, v_program.application_form
+            v_program.application_form_revision, v_program.application_form, p_audience
         );
     ELSIF v_existing_status = 'CANCELLED' THEN
         UPDATE public.notice_responses SET
             status = v_status, is_attended = false, created_at = clock_timestamp(),
             cancelled_at = NULL, application_answers = p_answers,
             application_form_revision = v_program.application_form_revision,
-            application_form_snapshot = v_program.application_form
+            application_form_snapshot = v_program.application_form,
+            application_audience = p_audience
         WHERE notice_id = p_notice_id AND user_id = p_user_id;
     ELSE
         RAISE EXCEPTION '기존 신청 상태를 관리자에게 확인해 주세요.' USING ERRCODE = '23514';

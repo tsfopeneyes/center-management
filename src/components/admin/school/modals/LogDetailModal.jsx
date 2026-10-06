@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { ClipboardList, X } from 'lucide-react';
 import { useLogDetail } from './hooks/useLogDetail';
 import LogCard from '../components/LogCard';
@@ -29,19 +28,19 @@ const LogDetailModal = ({ logs, initialLogId, school, onClose, onRefresh, onDele
     }, [initialLogId]);
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-0 md:p-8"
+        <div
+              
+            className="fixed inset-0 z-[120] bg-slate-900/60  flex items-center justify-center p-0 md:p-8"
             onClick={onClose}
         >
-            <motion.div
-                initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            <div
+                  
+                
                 className="bg-white w-full max-w-2xl h-full md:h-[90vh] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header - Fixed */}
-                <div className="p-6 md:p-8 border-b border-gray-100 bg-white/80 backdrop-blur-md flex justify-between items-center shrink-0 z-10">
+                <div className="p-6 md:p-8 border-b border-gray-100 bg-white/80  flex justify-between items-center shrink-0 z-10">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
                             <ClipboardList size={20} />
@@ -85,8 +84,8 @@ const LogDetailModal = ({ logs, initialLogId, school, onClose, onRefresh, onDele
                         ))}
                     </div>
                 </div>
-            </motion.div>
-        </motion.div>
+            </div>
+        </div>
     );
 };
 

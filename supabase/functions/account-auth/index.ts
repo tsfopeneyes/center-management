@@ -1,4 +1,5 @@
 import pg from 'npm:pg@8.22.0';
+import {createRetryableRuntime} from '../_shared/retryableRuntime.mjs';
 import {createAccountAuthRuntime} from '../_shared/accountAuthRuntime.mjs';
 
 const required=(name:string)=>{const value=Deno.env.get(name)?.trim();if(!value)throw new Error(`Missing ${name}`);return value;};
@@ -14,9 +15,8 @@ const origins=()=>required('ACCOUNT_ALLOWED_ORIGINS').split(',').map(value=>valu
   return url.origin;
 });
 
-let runtimePromise:ReturnType<typeof createAccountAuthRuntime>|null=null;
 const remoteAddresses=new WeakMap<Request,string>();
-const runtime=()=>runtimePromise??=(async()=>{
+const runtime=createRetryableRuntime(async()=>{
   if(required('ACCOUNT_AUTH_READY')!=='true')throw new Error('Account auth is not enabled');
   // Supabase injects SUPABASE_DB_URL for deployed functions. A separately
   // managed URL is optional, but must never be required just to duplicate the
@@ -26,6 +26,8 @@ const runtime=()=>runtimePromise??=(async()=>{
   // isolates cannot consume the project's limited direct DB connections.
   const pool=new pg.Pool({connectionString:databaseUrl,max:2,idleTimeoutMillis:1000,connectionTimeoutMillis:5000,
     application_name:'account-auth'});
+  // Idle sockets can be closed by the database; pg emits an error outside queries.
+  pool.on('error', () => console.warn('[account-auth] idle database connection unavailable'));
   let readyUntil=0;
   const readiness=async()=>{
     if(Date.now()<readyUntil)return true;
@@ -58,7 +60,7 @@ const runtime=()=>runtimePromise??=(async()=>{
     temporaryTtlMs:86400000,confirmationTtlMs:300000,assuranceTtlMs:86400000,
     passwordPolicy:async(value:string)=>value.length>=6&&value.length<=128,
     termsVersion:required('ACCOUNT_TERMS_VERSION'),loginDomain:required('ACCOUNT_LOGIN_DOMAIN')});
-})();
+});
 
 Deno.serve(async(request,info)=>{
   try{

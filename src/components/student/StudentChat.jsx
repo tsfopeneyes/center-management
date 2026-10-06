@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../common/UserCategoryBadge';
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { Send, MessageCircle, ArrowLeft, User } from 'lucide-react';
@@ -260,7 +261,7 @@ const StudentChat = ({ currentUser, onRefreshUnread, onSubViewToggle }) => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-baseline mb-1">
-                                        <h3 className="font-bold text-gray-800 truncate">{user.name} <span className="text-xs text-gray-400 font-normal">({user.user_group || 'STAFF'})</span></h3>
+                                        <h3 className="font-bold text-gray-800 truncate">{user.name} <UserCategoryBadge user={user} /></h3>
                                         <span className="text-[10px] text-gray-400">{new Date(lastMessage.created_at).toLocaleDateString()}</span>
                                     </div>
                                     <p className="text-sm text-gray-600 truncate">{lastMessage.content}</p>
@@ -308,7 +309,7 @@ const StudentChat = ({ currentUser, onRefreshUnread, onSubViewToggle }) => {
                                 </div>
                                 <div className="flex-1">
                                     <h3 className="font-bold text-gray-800">{staff.name}</h3>
-                                    <p className="text-xs text-gray-500">{staff.user_group || 'STAFF'}</p>
+                                    <UserCategoryBadge user={staff} />
                                 </div>
                                 <Send size={18} className="text-blue-500" />
                             </div>
@@ -329,7 +330,7 @@ const StudentChat = ({ currentUser, onRefreshUnread, onSubViewToggle }) => {
                 </button>
                 <div>
                     <h3 className="font-bold text-lg text-gray-800">{selectedMatch.user.name}</h3>
-                    <p className="text-xs text-gray-500">{selectedMatch.user.user_group || 'STAFF'}</p>
+                    <UserCategoryBadge user={selectedMatch.user} />
                 </div>
             </div>
 

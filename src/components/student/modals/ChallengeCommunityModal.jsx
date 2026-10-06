@@ -92,7 +92,7 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
     const isAfterEnd = Boolean(notice.program_end_date && today > notice.program_end_date);
     const canWrite = !isBeforeStart;
     const canSubmitMission = !isBeforeStart && !isAfterEnd;
-    useModalClose(manageHistory, onClose);
+    useModalClose(manageHistory, onClose, { priority: 260 });
     const periodMessage = isBeforeStart
         ? `${new Date(`${notice.program_start_date}T00:00:00+09:00`).toLocaleDateString('ko-KR')}부터 기록을 남길 수 있어요.`
         : '챌린지는 종료되었지만 자유 글과 댓글은 계속 남길 수 있어요.';
@@ -106,11 +106,6 @@ export default function ChallengeCommunityModal({ notice, user, initialFilter = 
         return () => { active = false; };
     }, [notice.id, user.id]);
 
-    useEffect(() => {
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        return () => { document.body.style.overflow = previousOverflow; };
-    }, []);
 
     useEffect(() => {
         const timer = window.setInterval(() => setCurrentTime(new Date()), 60_000);

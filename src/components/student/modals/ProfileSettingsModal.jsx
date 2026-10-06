@@ -9,6 +9,7 @@ import { getAccountAuthClient, isAccountAuthEnabled } from '../../../auth/accoun
 import { recoverCredentialSession } from '../../../auth/credentialSessionRecovery';
 import { supabase } from '../../../supabaseClient';
 import { isAdminOrStaff } from '../../../utils/userUtils';
+import TermsReaderModal from '../../auth/TermsReaderModal';
 
 const ProfileSettingsModal = ({ 
     user, 
@@ -19,6 +20,7 @@ const ProfileSettingsModal = ({
     onStartTutorial
 }) => {
     useModalClose(true, () => setShowProfileSettings(false));
+    const [readingArticle, setReadingArticle] = useState(null);
     const [profileImage, setProfileImage] = useState(null);
     const [profilePreview, setProfilePreview] = useState(null);
     const [newPassword, setNewPassword] = useState('');
@@ -140,6 +142,8 @@ const ProfileSettingsModal = ({
         <>
             <motion.div
                 key="profile-settings"
+                inert={readingArticle ? '' : undefined}
+                aria-hidden={readingArticle ? true : undefined}
                 initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 className="fixed inset-0 z-[110] bg-white flex flex-col sm:rounded-t-3xl sm:top-10 shadow-2xl pb-20 w-full max-w-md mx-auto left-0 right-0"
             >
@@ -294,8 +298,17 @@ const ProfileSettingsModal = ({
                             회원 탈퇴하기
                         </button>
                     </div>
+                    <div className="border-t border-gray-100 pt-5 pb-6 text-center">
+                        <p className="mb-2 text-xs font-semibold text-gray-400">센터 이용과 개인정보 보호 안내</p>
+                        <div className="flex flex-wrap items-center justify-center gap-x-1 text-sm font-semibold text-gray-500">
+                            <button type="button" onClick={() => setReadingArticle('art1')} className="min-h-11 rounded-lg px-2 hover:bg-gray-50 hover:text-blue-600 focus-visible:outline-blue-600">이용약관</button>
+                            <span aria-hidden="true">·</span>
+                            <button type="button" onClick={() => setReadingArticle('art2')} className="min-h-11 rounded-lg px-2 hover:bg-gray-50 hover:text-blue-600 focus-visible:outline-blue-600">개인정보처리방침</button>
+                        </div>
+                    </div>
                 </div>
             </motion.div>
+            {readingArticle && <TermsReaderModal article={readingArticle} onClose={() => setReadingArticle(null)} />}
 
             {showCropModal && (
                 <div className="fixed inset-0 z-[150] bg-black flex flex-col animate-fade-in pb-20">

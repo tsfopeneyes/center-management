@@ -1,3 +1,4 @@
+import { buildOperationProgramStats } from './operationProgramStats';
 import { supabase } from '../supabaseClient';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, isSameDay, parseISO, differenceInMinutes, eachHourOfInterval, eachMonthOfInterval } from 'date-fns';
 import { aggregateVisitSessions } from './visitUtils';
@@ -731,7 +732,7 @@ SCI CENTER DASHBOARD
         `.trim();
     },
 
-    processOperationReport(logs, users, locations, notices, responses, startDate, endDate, targetGroup = 'ALL') {
+    processOperationReport(logs, users, locations, notices, responses, startDate, endDate, targetGroup = 'ALL', programAttendance = {}) {
         const start = startOfDay(startDate);
         const end = endOfDay(endDate);
         const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
@@ -841,7 +842,7 @@ SCI CENTER DASHBOARD
                         m.totalDuration += duration;
                         m.uniqueUsers.add(userId);
 
-                        const dateKey = `${userId}_${locId}_${session.date}`;
+                        const dateKey = JSON.stringify([userId, locId, session.date]);
                         if (!userDateVisit.has(dateKey)) {
                             userDateVisit.add(dateKey);
                             m.visitCount++;
@@ -866,7 +867,7 @@ SCI CENTER DASHBOARD
                         const g = gm.guests.get(userId);
                         g.duration += duration;
 
-                        const dateKey = `${userId}_${locId}_${session.date}`;
+                        const dateKey = JSON.stringify([userId, locId, session.date]);
                         if (!g.visitedDates.has(dateKey)) {
                             g.visitedDates.add(dateKey);
                             g.visits++;
@@ -917,7 +918,7 @@ SCI CENTER DASHBOARD
             if (isMonthlyOrMore) {
                 const spaceUserVisitDates = new Map();
                 userDateVisit.forEach(key => {
-                    const [userId, locId, dateStr] = key.split('_');
+                    const [userId, locId, dateStr] = JSON.parse(key);
                     if (locId === m.id) {
                         if (!spaceUserVisitDates.has(userId)) spaceUserVisitDates.set(userId, new Set());
                         spaceUserVisitDates.get(userId).add(dateStr);
@@ -985,7 +986,7 @@ SCI CENTER DASHBOARD
             const userWeeklyVisits = new Map(); // {userId: { weekNum: visitCount }}
 
             userDateVisit.forEach(key => {
-                const [userId, , dateStr] = key.split('_');
+                const [userId, , dateStr] = JSON.parse(key);
 
                 // Track unique dates per user
                 if (!userVisitDates.has(userId)) userVisitDates.set(userId, new Set());
@@ -1045,54 +1046,16 @@ SCI CENTER DASHBOARD
             return acc;
         }, {});
 
-        // --- Program Statistics Logic ---
-        const programStats = {
-            center: { count: 0, participants: 0, details: [] },
-            schoolChurch: { count: 0, participants: 0, details: [] },
-            totalCount: 0,
-            totalParticipants: 0
-        };
-
-        const filteredNotices = notices.filter(n => {
-            if (n.category !== 'PROGRAM') return false;
-            // Include programs inside the date range. program_date might be missing, then use created_at.
-            const d = n.program_date ? new Date(n.program_date) : new Date(n.created_at);
-            return startOfDay(d) >= startOfDay(start) && startOfDay(d) <= endOfDay(end);
-        });
-
-        filteredNotices.forEach(n => {
-            // Include responses for target users only
-            const nResponses = responses.filter(r => r.notice_id === n.id && allTargetUserIds.has(r.user_id));
-            const attendedCount = nResponses.filter(isCurrentProgramAttendee).length;
-            const joinCount = nResponses.filter(r => r.status === 'JOIN').length;
-            
-            const detail = {
-                id: n.id,
-                title: n.title,
-                target_regions: n.target_regions,
-                date: n.program_date || n.created_at,
-                targetAttendCount: attendedCount,
-                targetJoinCount: joinCount
-            };
-
-            if (n.program_type === 'SCHOOL_CHURCH') {
-                programStats.schoolChurch.count++;
-                programStats.schoolChurch.participants += attendedCount;
-                programStats.schoolChurch.details.push(detail);
-            } else {
-                programStats.center.count++;
-                programStats.center.participants += attendedCount;
-                programStats.center.details.push(detail);
-            }
-            programStats.totalCount++;
-            programStats.totalParticipants += attendedCount;
+        const programStats = buildOperationProgramStats({
+            notices, responses, users, ...programAttendance,
+            startDate: start, endDate: end, targetUserIds: allTargetUserIds,
         });
 
         return {
             spaceResults,
             guestResults,
             monthlyMetrics,
-            totalUnique: new Set(Array.from(userDateVisit).map(k => k.split('_')[0])).size,
+            totalUnique: new Set(Array.from(userDateVisit).map(k => JSON.parse(k)[0])).size,
             reportTarget: targetGroup,
             programStats
         };

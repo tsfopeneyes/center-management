@@ -63,11 +63,24 @@ export const deriveTodayVisitState = (rawLogs = [], now = new Date()) => {
 
 export const getTodayVisitState = async (userId, now = new Date()) => {
     if (!userId) return { status: 'NOT_CHECKED_IN', logs: [] };
-    const rawLogs = await requestSupabaseRest(
-        `logs?select=id,type,created_at,location_id&user_id=eq.${encodeURIComponent(userId)}&order=created_at.asc&limit=100`,
-        {},
-        2
-    );
+    const dayStart = new Date(`${getKstDate(now)}T00:00:00+09:00`);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const rawLogs = [];
+    // Filter before paginating: a frequent visitor's older history must never
+    // crowd today's events out of the state used for scans and forced checkout.
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+        const page = await requestSupabaseRest(
+            `logs?select=id,type,created_at,location_id&user_id=eq.${encodeURIComponent(userId)}`
+                + `&created_at=gte.${encodeURIComponent(dayStart.toISOString())}`
+                + `&created_at=lt.${encodeURIComponent(dayEnd.toISOString())}`
+                + `&type=in.(CHECKIN,MOVE,CHECKOUT)&order=created_at.asc,id.asc&limit=${pageSize}&offset=${offset}`,
+            {},
+            2
+        );
+        rawLogs.push(...(page || []));
+        if (!page || page.length < pageSize) break;
+    }
     return deriveTodayVisitState(rawLogs, now);
 };
 

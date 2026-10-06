@@ -1,11 +1,14 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import https from 'node:https'
 
 import legacy from '@vitejs/plugin-legacy'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const authTarget = new URL(env.VITE_ACCOUNT_AUTH_BASE_URL || `${env.VITE_SUPABASE_URL}/functions/v1/account-auth`)
+  const authAgent = new https.Agent({ keepAlive: true, maxSockets: 8, maxFreeSockets: 2, timeout: 40000 })
   return ({
   define: mode === 'development'
     ? { 'import.meta.env.VITE_ACCOUNT_AUTH_BASE_URL': JSON.stringify('/account-auth-local') }
@@ -47,10 +50,24 @@ export default defineConfig(({ mode, command }) => {
         rewrite: (path) => path.replace(/^\/naver-api/, '')
       },
       '/account-auth-local': {
-        target: env.VITE_SUPABASE_URL,
+        target: authTarget.origin,
+        agent: authAgent,
+        proxyTimeout: 35000,
+        timeout: 40000,
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/account-auth-local/, '/functions/v1/account-auth'),
-        configure: (proxy) => proxy.on('proxyReq', (request) => request.removeHeader('origin'))
+        rewrite: (path) => path.replace(/^\/account-auth-local/, authTarget.pathname.replace(/\/$/, '')),
+        configure: (proxy) => {
+          proxy.on('proxyReq', request => request.removeHeader('origin'))
+          proxy.on('error', (error, request, response) => {
+            // Log connection codes only, never login bodies or authorization headers.
+            console.warn('[local-account-auth]', error.code || 'CONNECTION_FAILED')
+            if (response && 'writeHead' in response && !response.headersSent) {
+              response.writeHead(502, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+              response.end(JSON.stringify({ error: 'local_proxy_unavailable' }))
+            }
+          })
+          proxy.on('close', () => authAgent.destroy())
+        }
       }
     }
   }

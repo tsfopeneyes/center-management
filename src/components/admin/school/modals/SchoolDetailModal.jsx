@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../../../supabaseClient';
 import { Search, Plus, Trash2, Edit2, Download, Copy, ExternalLink, Calendar, MapPin, CheckCircle, RefreshCw, Eye, MessageCircle, FileText, X, School, Flame, LayoutGrid, LayoutList, CheckCircle2, User, Users, ChevronRight, ChevronLeft, Grid, List, Star, Heart, Columns, Settings, ClipboardList, Save, Clock, Cookie } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { useSchoolDetail } from '../hooks/useSchoolDetail';
 import SchoolDetailSidebar from '../components/SchoolDetailSidebar';
 import SchoolLogsView from '../views/SchoolLogsView';
@@ -46,13 +46,13 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
 
     return (
         <>
-            <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-2 md:p-8"
+            <div
+                  
+                className="fixed inset-0 z-[100] bg-black/60  flex items-center justify-center p-2 md:p-8"
             onClick={onClose}
         >
-            <motion.div
-                initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+            <div
+                  
                 className="bg-white w-full max-w-6xl h-[95vh] rounded-[2.5rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col"
                 onClick={e => e.stopPropagation()}
             >
@@ -120,8 +120,8 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
                         {activeTab === 'snacks' && <SnackHistoryView onSaveMetadata={onSaveMetadata} hookData={detailHookData} />}
                     </div>
                 </div>
-            </motion.div>
-        </motion.div>
+            </div>
+        </div>
 
         {/* Log Entry Form Modal */}
         <AnimatePresence>
@@ -235,11 +235,11 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
                 <AnimatePresence>
                     {isAddTempStudentModalOpen && (
                         <div
-                            className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+                            className="fixed inset-0 z-[110] bg-black/50  flex items-center justify-center p-4"
                             onClick={() => setIsAddTempStudentModalOpen(false)}
                         >
-                            <motion.div
-                                initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+                            <div
+                                  
                                 onClick={e => e.stopPropagation()}
                                 className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden"
                             >
@@ -292,7 +292,7 @@ const SchoolDetailModal = ({ school, logs, staffList, onClose, isSettingsMode, s
                                         {addingTempStudent ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />} 임시 학생 등록하기
                                     </button>
                                 </div>
-                            </motion.div>
+                            </div>
                         </div>
                     )}
                 </AnimatePresence>

@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import React from 'react';
 import { Edit2 } from 'lucide-react';
 import UserAvatar from '../../../common/UserAvatar';
@@ -28,7 +29,7 @@ const UserTable = ({
                         <tr>
                             <th className="p-4 pl-6 w-[22%] min-w-[150px]">이름 (성별/나이)</th>
                             <th className="p-4 w-[12%] min-w-[80px]">생년월일</th>
-                            <th className="p-4 w-[10%] min-w-[80px]">그룹</th>
+                            <th className="p-4 w-[10%] min-w-[80px]">구분</th>
                             <th className="p-4 w-[28%] min-w-[160px]">학교 / 교회</th>
                             <th className="p-4 w-[18%] min-w-[120px]">연락처</th>
                             <th className="p-4 pr-6 text-center w-[10%] min-w-[70px]">하이픈</th>
@@ -52,7 +53,7 @@ const UserTable = ({
                                             })()}세)</span>
                                             {user.preferences?.is_temporary && <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md text-[9px] font-black leading-none flex items-center shrink-0">미가입</span>}
                                             {user.needsLinkReview && <span title="정식회원 계정은 생성되었으며, 기존 게스트 이용 기록의 병합 대상을 확인해야 합니다." className="ml-1 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-md text-[9px] font-black leading-none flex items-center shrink-0">게스트 기록 확인</span>}
-                                            {user.is_leader && <span title="리더" className="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg></span>}
+                                            
                                             {user.memo && <div className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="메모 있음" />}
                                         </div>
                                     </td>
@@ -69,9 +70,7 @@ const UserTable = ({
                                     </td>
                                     <td className="p-4 align-middle">
                                         <div className="flex items-center">
-                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold inline-block leading-none ${user.user_group === '졸업생' ? 'bg-gray-200 text-gray-600' : user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                {user.user_group || '재학생'}
-                                            </span>
+                                            <UserCategoryBadge user={user} />
                                             {user.status === 'pending' && (
                                                 <span className="ml-1 px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-[9px] font-black leading-none">승인 대기</span>
                                             )}
@@ -111,7 +110,7 @@ const UserTable = ({
                                     <span className="text-[10px] text-gray-400 flex-shrink-0">({user.gender || '-'})</span>
                                     {user.preferences?.is_temporary && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-md text-[9px] font-black shrink-0">미가입</span>}
                                     {user.needsLinkReview && <span title="정식회원 계정은 생성되었으며, 기존 게스트 이용 기록의 병합 대상을 확인해야 합니다." className="px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-md text-[9px] font-black shrink-0">게스트 기록 확인</span>}
-                                    {user.is_leader && <span title="리더"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg></span>}
+                                    
                                     {(() => {
                                         if (user.birth && user.birth.length === 6) {
                                             const yy = parseInt(user.birth.substring(0, 2));
@@ -121,9 +120,7 @@ const UserTable = ({
                                         }
                                         return null;
                                     })()}
-                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0 ${user.user_group === '졸업생' ? 'bg-gray-100 text-gray-500' : user.user_group === '일반인' ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-500'}`}>
-                                        {user.user_group || '재학생'}
-                                    </span>
+                                    <UserCategoryBadge user={user} />
                                     {user.status === 'pending' && <span className="bg-red-100 text-red-600 text-[8px] font-black px-1 py-0.5 rounded-full">대기</span>}
                                     {user.memo && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" title="메모 있음" />}
                                 </div>

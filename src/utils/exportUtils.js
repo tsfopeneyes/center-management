@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { applicationAnswerEntries } from '../features/programs/application/applicationAnswerDisplay';
+import { participantAnswerCellStates, participantAnswerColumns, questionAudienceLabel } from '../features/programs/application/participantAnswerColumns';
 
 /**
  * Export user data to Excel
@@ -89,9 +90,11 @@ export const exportLogsToExcel = (logs, users, locations, notices) => {
  * Export program participants to Excel
  * @param {Array} participants - Program participant rows
  * @param {string} noticeTitle - Program title
- * @param {Array} customFields - Program-specific application fields
+ * @param {Array} customFields - Legacy program-specific application fields
+ * @param {Array|null} currentQuestions - Current application questions, if present
+ * @param {Array|null} visibleColumns - Question columns in the current roster order
  */
-export const exportParticipantsToExcel = (participants, noticeTitle, customFields = []) => {
+export const exportParticipantsToExcel = (participants, noticeTitle, customFields = [], currentQuestions = null, visibleColumns = null) => {
     if (!participants || participants.length === 0) {
         alert('참여 신청 인원이 없습니다.');
         return;
@@ -105,9 +108,11 @@ export const exportParticipantsToExcel = (participants, noticeTitle, customField
         alert('마스터 PIN 번호가 올바르지 않습니다. 전화번호는 뒷자리 4자리만 표시됩니다.');
     }
 
+    const questionColumns = visibleColumns || participantAnswerColumns(participants, customFields, currentQuestions);
     const exportData = participants.map((user, idx) => {
+        const cells = participantAnswerCellStates(user, questionColumns, customFields, currentQuestions);
         const customAnswers = Object.fromEntries(
-            customFields.map(field => [field.label, user.application_form_snapshot ? '-' : (user.application_answers?.[field.id] || '-')])
+            questionColumns.map((column, index) => [`${column.shortLabel} ${column.label} (${questionAudienceLabel(column.audience)})`, cells[index].kind === 'not_applicable' ? '해당 없음' : cells[index].answer ?? '-'])
         );
         return {
             '순번': idx + 1,
@@ -123,12 +128,16 @@ export const exportParticipantsToExcel = (participants, noticeTitle, customField
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "참여자명단");
 
+    const currentIds = new Set((currentQuestions || []).map(question => String(question.id)));
+    const displayFields = currentQuestions === null ? customFields
+        : [...currentQuestions, ...customFields.filter(field => !currentIds.has(String(field.id)))];
     const answerRows = participants.flatMap((user, index) =>
-        applicationAnswerEntries(user, customFields).map(entry => ({
+        applicationAnswerEntries(user, displayFields).map(entry => ({
             '순번': index + 1,
             '이름': user.name,
             '질문 ID': entry.id,
             '질문': entry.label,
+            '질문 대상': questionAudienceLabel(entry.audience),
             '답변': entry.answer,
             '질문 버전': entry.revision ?? '-',
             '질문 기준': entry.definitionKnown ? '신청 당시' : '이전 신청 · 현재 질문 이름 참고',

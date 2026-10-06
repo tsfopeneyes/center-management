@@ -40,34 +40,34 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
     };
 
     return (
-        <div className="flex-1 flex flex-col min-h-0 bg-white p-6">
-            <div className="flex items-center justify-between mb-6">
+        <div className="flex min-h-0 flex-1 flex-col bg-white p-4 md:p-6">
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-5">
                 <div>
-                    <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
-                        <Award className="text-blue-500" size={20} />
+                    <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                        <Award className="text-[#3182f6]" size={20} />
                         챌린지 미션 인증 및 진행도 관리
                     </h3>
-                    <p className="text-xs text-gray-400 font-bold mt-1">
+                    <p className="mt-1 text-sm text-slate-600">
                         전체 도전자 {challengers.length}명 / 등록된 미션 {missions.length}개
                     </p>
                 </div>
             </div>
 
             {challengers.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-3xl p-8 text-gray-400">
-                    <p className="font-bold text-sm">아직 이 챌린지에 도전한 학생이 없습니다.</p>
+                <div className="flex flex-1 flex-col items-center justify-center p-8 text-slate-500">
+                    <p className="text-sm">아직 이 챌린지에 도전한 학생이 없습니다.</p>
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto pr-1">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                            <tr className="border-b border-slate-100 text-xs font-semibold text-slate-500">
                                 <th className="pb-3 pl-3">학생 정보</th>
                                 <th className="pb-3 text-center">미션 달성도</th>
                                 <th className="pb-3 pl-6">미션별 인증 세부 (클릭하여 검토)</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-slate-100">
                             {challengers.map((student) => {
                                 const allSubmissions = student.challenge_submissions || [];
                                 const submissions = allSubmissions.filter(item => isOnline ? item.is_valid !== false : item.status === 'COMPLETED');
@@ -96,7 +96,7 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                                                         <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded text-[9px] font-bold">리더</span>
                                                     )}
                                                 </button>
-                                                <span className="text-[10px] text-gray-400 font-bold mt-0.5">
+                                                <span className="mt-0.5 text-xs text-slate-500">
                                                     {student.school} • 번호 {student.phone_back4 || '----'}
                                                 </span>
                                             </div>
@@ -110,9 +110,7 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                                                 }`}>
                                                     {completedCount} / {requiredCount} 완료
                                                 </span>
-                                                {isAllCompleted && (
-                                                    <span className="text-[9px] text-emerald-500 font-black mt-1 uppercase tracking-wider">SUCCESS!</span>
-                                                )}
+                                                {isAllCompleted && <span className="mt-1 text-xs font-semibold text-emerald-600">완료</span>}
                                             </div>
                                         </td>
                                         <td className="py-4 pl-6">
@@ -150,14 +148,14 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                                                                 isDone 
                                                                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/50' 
                                                                     : hasEvidence
-                                                                        ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100/50 animate-pulse'
+                                                                        ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100/50'
                                                                         : 'bg-gray-50/30 border-dashed border-gray-200 text-gray-400 cursor-not-allowed'
                                                             }`}
                                                         >
                                                             {isDone ? (
                                                                 <CheckCircle size={12} className="text-emerald-500" />
                                                             ) : hasEvidence ? (
-                                                                <Clock size={12} className="text-amber-500 animate-spin" />
+                                                                <Clock size={12} className="text-amber-500" />
                                                             ) : (
                                                                 <Clock size={12} className="text-gray-300" />
                                                             )}

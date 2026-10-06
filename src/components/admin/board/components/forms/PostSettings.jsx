@@ -5,7 +5,7 @@ import IntuitiveTimePicker from '../../../../common/IntuitiveTimePicker';
 import DateTimeFields from './DateTimeFields';
 import { CATEGORIES } from '../../utils/constants';
 import { splitDateTime, joinDateTime } from '../../utils/noticeHelpers';
-import { Calendar, CheckCircle2, Bell, Users, ChevronDown, ChevronUp, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Calendar, CheckCircle2, Bell, Users } from 'lucide-react';
 
 const PUSH_TIMINGS = [
     ['AT_START', '모집 시작 시', '대상 지역 또는 전체 이용자'],
@@ -71,32 +71,20 @@ const PostSettings = ({ formData, updateField, mode, noticeId }) => {
 
     return (
         <div className="space-y-4">
-            <p className="text-xs font-bold text-gray-400 ml-1">게시글 설정</p>
+            <p className="text-sm font-bold text-slate-800">게시 옵션</p>
+            {mode === CATEGORIES.PROGRAM && formData.is_private && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">비공개 프로그램은 자동 모집 알림 대상에서 제외됩니다. 기존 알림 계획은 보관되지만 비공개 상태에서는 발송되지 않습니다.</p>
+            )}
             {mode === CATEGORIES.PROGRAM && (
-                <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all duration-200 ${isPushActive ? 'border-blue-300 shadow-md' : 'border-slate-200/80 hover:border-slate-300'}`}>
-                    <button type="button" onClick={() => {
-                        setPushPlans(isPushActive ? [] : [{id:'at_start',timing:'AT_START',audience:'TARGET_REGIONS',scheduled_at:''}]);
-                    }} className="w-full p-4 sm:p-5 flex items-center justify-between bg-white hover:bg-slate-50/60 transition-colors cursor-pointer select-none">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2.5 rounded-xl transition-colors ${isPushActive ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
-                                <Bell size={18} />
-                            </div>
-                            <div className="flex flex-col items-start text-left">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-sm font-bold text-slate-800">푸시 발송 설정</span>
-                                    <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-md border ${isPushActive ? 'bg-blue-50 text-blue-600 border-blue-200/60' : 'bg-slate-100 text-slate-500 border-slate-200/60'}`}>
-                                        {isPushActive ? '푸시 발송 (활성화)' : '미사용 (비활성화)'}
-                                    </span>
-                                </div>
-                                <span className="text-[11px] text-slate-400 font-medium mt-0.5">발송 시점과 이용자 대상을 설정합니다. 프로그램 저장만으로는 발송되지 않습니다.</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {isPushActive ? <ToggleRight size={28} className="text-blue-600" /> : <ToggleLeft size={28} className="text-slate-300" />}
-                            {isPushActive ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
-                        </div>
-                    </button>
-                    {isPushActive && <div className="p-4 sm:p-5 border-t border-slate-100 space-y-5 animate-fade-in">
+                <div className="space-y-4 border-t border-slate-200 pt-5">
+                    <label className="flex cursor-pointer items-start gap-3">
+                        <input type="checkbox" checked={isPushActive} onChange={event => {
+                            setPushPlans(event.target.checked ? [{id:'at_start',timing:'AT_START',audience:'TARGET_REGIONS',scheduled_at:''}] : []);
+                        }} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600" />
+                        <span><span className="block text-sm font-bold text-slate-800">푸시 알림 사용</span>
+                            <span className="mt-1 block text-xs leading-relaxed text-slate-600">발송 시점과 대상을 선택합니다. 저장 즉시 발송은 별도로 확인합니다.</span></span>
+                    </label>
+                    {isPushActive && <div className="space-y-5 border-t border-slate-100 pt-4">
                         <div className="space-y-2">
                             <p className="text-xs font-black text-gray-700">발송 계획 <span className="ml-1 font-semibold text-blue-600">여러 개 선택 가능</span></p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">

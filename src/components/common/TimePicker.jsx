@@ -15,7 +15,7 @@ export default function TimePicker({ label = '시간', value = '', onChange, dis
     const minuteRef = useRef(null);
     const needsFocus = useRef(false);
     const [open, setOpen] = useState(false);
-    useModalClose(open, () => setOpen(false), { handleEscape: false });
+    useModalClose(open, () => setOpen(false), { handleEscape: false, priority: 300 });
     const [position, setPosition] = useState(null);
     const [draft, setDraft] = useState(() => parseClockTime(value) || parseClockTime('12:00'));
     const selectedText = formatClockTime(value);

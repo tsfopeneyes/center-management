@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, Award, CheckSquare, Square } from 'lucide-react';
@@ -189,7 +190,7 @@ const BadgeAwardModal = ({
                                     <div className="min-w-0">
                                         <p className="font-black text-gray-800 text-sm">{student.name}</p>
                                         <p className="text-[10px] text-gray-400 font-bold mt-0.5">
-                                            {student.user_group || '소속없음'} • {student.school || '학교정보없음'}
+                                            <UserCategoryBadge user={student} /> • {student.school || '학교정보없음'}
                                         </p>
                                     </div>
                                     <div className="text-blue-600">

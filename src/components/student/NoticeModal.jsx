@@ -17,6 +17,7 @@ import { compressImage } from '../../utils/imageUtils';
 import confetti from 'canvas-confetti';
 import { formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, usesDailySessionRsvp, isRecurringProgram, shouldShowApplicationCount } from '../../utils/dailyProgramSessions';
 import { isAdminOrStaff } from '../../utils/userUtils';
+import { getParticipantButtonLabel, hasParticipantExtraScreen } from '../../features/programs/participantExperience';
 
 // Components
 import NoticeCarousel from './components/NoticeCarousel';
@@ -97,8 +98,7 @@ const NoticeModalContent = ({
         }
         onResponse(notice.id, status, sessionId, undefined, notice.application_form_revision);
     };
-    useModalClose(true, onClose, { handleEscape: false });
-    useModalClose(Boolean(zoomedImage), () => setZoomedImage(null), { handleEscape: false });
+    useModalClose(Boolean(zoomedImage), () => setZoomedImage(null), { priority: 110 });
     const [hostUsers, setHostUsers] = useState([]);
     const introRef = React.useRef(null);
     const missionsRef = React.useRef(null);
@@ -670,11 +670,7 @@ const NoticeModalContent = ({
 
         const started = now >= activationTime;
 
-        const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
-        const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;
-        const hasCustomBtnName = !!((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim());
-        const isButtonEnabled = notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button ?? true;
-        const customFeatures = isButtonEnabled && (hasGroup || hasQ || hasCustomBtnName);
+        const customFeatures = hasParticipantExtraScreen(notice);
 
         const programStartTimeReached = now >= startDateTime;
         return { isStarted: started, isEnded: ended, hasCustomFeatures: customFeatures, isProgramStartTimeReached: programStartTimeReached };
@@ -682,15 +678,7 @@ const NoticeModalContent = ({
 
     const isTriggered = isStarted;
 
-    const customButtonName = (() => {
-        if ((notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name) && (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name).trim()) return (notice.guest_properties?.post_program_button_name ?? notice.post_program_button_name);
-        const hasGroup = (notice.guest_properties?.enable_group_assignment ?? notice.enable_group_assignment);
-        const hasQ = (notice.guest_properties?.enable_random_questions ?? notice.enable_random_questions) && (notice.guest_properties?.random_questions ?? notice.random_questions)?.length > 0;
-        if (hasGroup && hasQ) return '팀 확인 및 나눔 질문';
-        if (hasGroup) return '팀 확인하기';
-        if (hasQ) return '아이스브레이킹 질문';
-        return '프로그램 안내';
-    })();
+    const customButtonName = getParticipantButtonLabel(notice);
 
     let allImages = [];
     if (notice.images && Array.isArray(notice.images)) {
@@ -715,28 +703,8 @@ const NoticeModalContent = ({
         }
     }, [notice.id, context]);
 
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                // Ignore ESC key if a higher-level overlay is currently open
-                if (document.querySelector('.dropdown-overlay')) return;
-                if (document.querySelector('.membership-prompt-overlay')) return;
-                if (showChallengeCommunity) return;
-
-                if (zoomedImage) {
-                    setZoomedImage(null);
-                } else if (isEditing) {
-                    setIsEditing(false);
-                } else {
-                    onClose();
-                }
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [onClose, zoomedImage, isEditing, showChallengeCommunity]);
+    useModalClose(true, onClose, { priority: 10 });
+    useModalClose(isEditing, () => setIsEditing(false), { priority: 20 });
 
     return createPortal(
         <>
@@ -904,7 +872,7 @@ const NoticeModalContent = ({
                             )}
 
                             {/* Program section navigation */}
-                            {notice.category === 'PROGRAM' && !isDailySessionProgram && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
+                            {notice.category === 'PROGRAM' && !isDailySessionProgram && hostUsers.length > 0 && (
                                 <div ref={sectionTabsRef} className="flex border-b border-tossGrey100 sticky top-0 bg-white/95 backdrop-blur z-20 mb-6">
                                     {(notice.is_challenge
                                         ? [['intro', '소개'], ['missions', '미션'], ['participants', '참여자'], ['host', '호스트']]
@@ -929,9 +897,9 @@ const NoticeModalContent = ({
                             <div>
                                 {notice.category === 'PROGRAM' && (
                                     <div 
-                                        ref={notice.program_type === 'CENTER' && hostUsers.length > 0 ? introRef : null} 
+                                        ref={!isDailySessionProgram && hostUsers.length > 0 ? introRef : null}
                                         className={`flex items-center gap-2 scroll-mt-20 ${
-                                            notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
+                                            !isDailySessionProgram && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
                                         }`}
                                     >
                                         <div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"></div>
@@ -1265,7 +1233,7 @@ const NoticeModalContent = ({
                                 </>
                             )})()}
 
-                            {notice.category === 'PROGRAM' && !isDailySessionProgram && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
+                            {notice.category === 'PROGRAM' && !isDailySessionProgram && hostUsers.length > 0 && (
                                 <div ref={hostRef} className={`${notice.is_challenge ? 'mt-10' : ''} mb-6 scroll-mt-20 flex flex-col gap-3`}>
                                     {/* Hosts with one-liners: rendered individually */}
                                     {hostUsers.filter(h => h.one_liner && h.one_liner.trim() !== '').map(host => (

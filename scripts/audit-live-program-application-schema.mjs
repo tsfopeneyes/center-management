@@ -36,7 +36,8 @@ const client = new pg.Client({
     application_name: 'read-only-program-application-schema-audit',
 });
 
-const tables = ['notices', 'notice_responses', 'daily_program_sessions', 'daily_program_session_responses'];
+const tables = ['notices', 'notice_responses', 'daily_program_sessions', 'daily_program_session_responses',
+    'program_application_attempt_history', 'program_session_application_attempt_history'];
 let transactionOpen = false;
 try {
     await client.connect();
@@ -118,6 +119,13 @@ try {
         ORDER BY proc.proname
     `, [[
         'respond_to_program_session',
+        'program_application_transition',
+        'program_application_audience_for_user',
+        'program_session_transition',
+        'add_staff_program_walkins',
+        'add_staff_program_session_walkins',
+        'archive_cancelled_program_application_attempt',
+        'archive_cancelled_program_session_application_attempt',
         'mark_daily_program_attendance_on_join',
         'refresh_program_session_join_count',
         'guard_program_recruitment_response',

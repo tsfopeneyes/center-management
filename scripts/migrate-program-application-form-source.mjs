@@ -23,12 +23,15 @@ if (['PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE'].some(name => !cre
     throw new Error('Linked database credentials are unavailable');
 }
 const migrationFiles = [
+    '20260930_program_application_audience.sql',
+    '20260930_program_application_audience_classification.sql',
     '20260930_program_application_form_source.sql',
     '20260930_program_application_revision_guard.sql',
     '20260929_unified_program_application_boundary.sql',
     '20260930_checked_program_session_requests.sql',
     '20260930_checked_guest_program_registration.sql',
     '20260930_unified_staff_program_walkins.sql',
+    '20260930_program_application_audience_write_guard.sql',
     '20260930_atomic_program_settings_save.sql',
 ];
 const migrationSql = await Promise.all(migrationFiles.map(async file => {

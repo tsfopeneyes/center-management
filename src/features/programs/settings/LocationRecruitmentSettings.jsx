@@ -207,26 +207,6 @@ const LocationRecruitmentSettings = ({ formData, updateField, isScheduledRegistr
                             <RecruitmentPeriodFields formData={formData} updateField={updateField} />
                         )}
 
-                        {/* 비공개 여부 */}
-                        <div
-                            className={`lg:col-span-2 flex items-start gap-3 p-3.5 border rounded-2xl cursor-pointer select-none transition-all duration-200 ${
-                                formData.is_private
-                                    ? 'bg-blue-50/10 border-blue-500/20 text-blue-600 shadow-[0_4px_12px_rgba(49,130,246,0.01)]'
-                                    : 'bg-slate-50 border-slate-200/60 text-slate-500 hover:bg-slate-100/50'
-                            }`}
-                            onClick={() => updateField('is_private', !formData.is_private)}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={formData.is_private || false}
-                                onChange={() => {}} // handled by click wrapper
-                                className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5 shrink-0"
-                            />
-                            <div className="flex flex-col">
-                                <span className="text-xs font-bold text-slate-800">비공개 프로그램 설정</span>
-                                <span className="text-[10px] text-slate-400 font-semibold mt-0.5">공유 링크를 가지고 있는 대상자만 접근 및 신청이 가능합니다.</span>
-                            </div>
-                        </div>
                     </>
                 )}
             </div>

@@ -63,7 +63,8 @@ try {
         $$;
         CREATE TABLE public.users (
             id uuid PRIMARY KEY, auth_user_id uuid, name text, phone text, birth text,
-            user_group text, role text, status text, is_leader boolean DEFAULT false
+            user_group text, role text, status text, is_leader boolean DEFAULT false,
+            preferences jsonb NOT NULL DEFAULT '{}'::jsonb
         );
         CREATE TABLE public.notices (
             id bigint PRIMARY KEY, title text NOT NULL, category text,
@@ -136,6 +137,9 @@ try {
     `);
     await applyProposal('../supabase/manual/proposals/20260929_application_form_snapshots.sql');
     await applyProposal('../supabase/manual/proposals/20260929_program_application_cancellation_history.sql');
+    await applyProposal('../supabase/manual/proposals/20260930_program_application_audience.sql');
+    await applyProposal('../supabase/manual/proposals/20260930_program_application_audience_classification.sql');
+    await applyProposal('../supabase/manual/proposals/20260930_program_application_audience_write_guard.sql');
     await db.exec(`CREATE TRIGGER create_application_notification_after_response_change
         AFTER INSERT OR DELETE OR UPDATE OF status ON public.notice_responses
         FOR EACH ROW EXECUTE FUNCTION public.create_application_state_notification()`);
@@ -193,6 +197,7 @@ try {
     await asMember(memberIds[1]);
     await assert.rejects(submitMember(memberIds[1], 'JOIN'), /Required application answer/);
     assert.equal((await submitMember(memberIds[1], 'JOIN', { member_school: '하이픈중' })).rows[0].status, 'WAITLIST');
+    assert.equal((await db.query('SELECT application_audience FROM public.notice_responses WHERE notice_id=1 AND user_id=$1', [memberIds[1]])).rows[0].application_audience, 'MEMBER');
     assert.equal((await submitMember(memberIds[1], 'JOIN', { member_school: '하이픈중' })).rows[0].status, 'WAITLIST');
     assert.equal((await statusOf(memberIds[1])).application_form_revision, 1);
     assert.deepEqual((await statusOf(memberIds[1])).application_form_snapshot, form);
@@ -246,6 +251,7 @@ try {
     await assert.rejects(submitGuest({}, 1, '080316'), /게스트 신청자/);
     await assert.rejects(submitGuest({ guest_gender: '기타' }), /Invalid application choice/);
     assert.equal((await submitGuest({ guest_gender: '남' })).rows[0].status, 'WAITLIST');
+    assert.equal((await db.query('SELECT application_audience FROM public.notice_responses WHERE notice_id=1 AND user_id=$1', [guestId])).rows[0].application_audience, 'GUEST');
     assert.equal((await submitGuest({ guest_gender: '남' }, 2)).rows[0].status, 'WAITLIST');
     await assert.rejects(submitGuest({}, 5), /Required application answer/);
     await assert.rejects(db.query('SELECT * FROM public.member_program_applications'), isPermissionDenied);
@@ -311,7 +317,7 @@ try {
     await db.exec(`ALTER TABLE public.users
         ADD COLUMN gender text, ADD COLUMN school text, ADD COLUMN phone_back4 text,
         ADD COLUMN guardian_name text, ADD COLUMN guardian_phone text,
-        ADD COLUMN guardian_relation text, ADD COLUMN preferences jsonb,
+        ADD COLUMN guardian_relation text, ADD COLUMN IF NOT EXISTS preferences jsonb,
         ADD COLUMN password text, ADD COLUMN memo text`);
     await db.exec(`CREATE FUNCTION public.program_session_transition(uuid,uuid,text,text,jsonb)
         RETURNS jsonb LANGUAGE sql AS $$ SELECT '{"status":"JOIN"}'::jsonb $$`);
@@ -369,6 +375,22 @@ try {
     await db.exec('RESET ROLE');
     assert.equal((await db.query('SELECT count(*)::integer AS count FROM public.users')).rows[0].count,
         beforeStaleGuest, 'an edited form rejects a stale guest before account creation');
+    await db.query(`SELECT public.program_application_transition(1,$1,'CANCEL','GUEST','{}'::jsonb)`, [guestId]);
+    await db.query("UPDATE public.users SET user_group='청소년',auth_user_id=id WHERE id=$1", [guestId]);
+    assert.equal((await db.query('SELECT application_audience FROM public.notice_responses WHERE notice_id=1 AND user_id=$1', [guestId])).rows[0].application_audience,
+        'GUEST', 'account conversion does not rewrite the earlier application');
+    await db.exec('SET ROLE authenticated');
+    await asMember(guestId);
+    assert.equal((await submitMember(guestId, 'JOIN', { member_school: '새 학교' })).rows[0].status, 'WAITLIST');
+    await db.exec('RESET ROLE');
+    assert.equal((await db.query('SELECT application_audience FROM public.notice_responses WHERE notice_id=1 AND user_id=$1', [guestId])).rows[0].application_audience, 'MEMBER');
+    assert.equal((await db.query('SELECT application_audience FROM public.program_application_attempt_history WHERE notice_id=1 AND user_id=$1', [guestId])).rows[0].application_audience, 'GUEST');
+    await db.query("UPDATE public.users SET user_group='미가입' WHERE id=$1", [memberIds[1]]);
+    await db.exec('SET ROLE authenticated');
+    await asMember(memberIds[1]);
+    assert.equal((await submitMember(memberIds[1], 'CANCEL')).rows[0].status, 'CANCELLED');
+    await assert.rejects(submitMember(memberIds[1], 'JOIN', { member_school: '하이픈중' }), /회원 구분/);
+    await db.exec('RESET ROLE');
     console.log('whole-program proposal: preserved history, verified identity, answers/snapshot, ordinary and challenge capacity, cancel/promotion, checked atomic guest registration, direct-write cutoff, relation fallbacks');
 } finally {
     await db.close();

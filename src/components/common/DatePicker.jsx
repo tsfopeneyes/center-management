@@ -20,7 +20,7 @@ export default function DatePicker({ label = '날짜', value = '', onChange, req
     const panelRef = useRef(null);
     const focusDayRef = useRef(false);
     const [open, setOpen] = useState(false);
-    useModalClose(open, () => setOpen(false), { handleEscape: false });
+    useModalClose(open, () => setOpen(false), { handleEscape: false, priority: 300 });
     const [month, setMonth] = useState(() => startOfMonth(parseDate(value) || todayInSeoul()));
     const [focusedDate, setFocusedDate] = useState(() => value || dateKey(todayInSeoul()));
     const [position, setPosition] = useState(null);

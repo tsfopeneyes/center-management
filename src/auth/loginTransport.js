@@ -23,7 +23,7 @@ export function createLoginTransport({endpoint,publishableKey,fetcher=fetch,time
                 console.info('[account-auth-timing]',JSON.stringify({stage:'login-http-error',duration:Math.round(performance.now()-started),status:response.status,server:response.headers.get('Server-Timing')||''}));
                 const codes={400:'invalid_request',401:'invalid_login',403:'confirmation_required',409:'account_changed',429:'try_later'};
                 let serverCode;try{serverCode=(await response.json())?.error;}catch{}
-                const allowed=new Set(['invalid_login','try_later','password_change_required','account_changed','name_not_found','selection_required']);
+                const allowed=new Set(['invalid_login','try_later','password_change_required','account_changed','name_not_found','selection_required','local_proxy_unavailable']);
                 throw new AuthOperationError(allowed.has(serverCode)?serverCode:(codes[response.status]||'temporarily_unavailable'));
             }
             // Do not surface raw server bodies/errors that could contain secrets.

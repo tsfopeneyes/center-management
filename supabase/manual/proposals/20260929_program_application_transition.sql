@@ -85,6 +85,9 @@ BEGIN
     IF v_existing_status IN ('JOIN', 'WAITLIST') THEN
         RETURN jsonb_build_object('status', v_existing_status);
     END IF;
+    IF public.program_application_audience_for_user(p_user_id) IS DISTINCT FROM p_audience THEN
+        RAISE EXCEPTION '신청자 회원 구분을 확인해 주세요.' USING ERRCODE = '42501';
+    END IF;
 
     IF v_program.application_form IS NOT NULL THEN
         PERFORM public.validate_program_application_answers(
@@ -115,11 +118,11 @@ BEGIN
     IF v_existing_status IS NULL THEN
         INSERT INTO public.notice_responses (
             notice_id, user_id, status, is_attended, application_answers,
-            application_form_revision, application_form_snapshot
+            application_form_revision, application_form_snapshot, application_audience
         ) VALUES (
             p_notice_id, p_user_id, v_status, false, COALESCE(p_answers, '{}'::jsonb),
             CASE WHEN v_program.application_form IS NULL THEN NULL ELSE v_program.application_form_revision END,
-            v_program.application_form
+            v_program.application_form, p_audience
         );
     ELSIF v_existing_status = 'CANCELLED' THEN
         -- The BEFORE UPDATE trigger archives the previous attempt first.
@@ -128,7 +131,8 @@ BEGIN
             cancelled_at = NULL, application_answers = COALESCE(p_answers, '{}'::jsonb),
             application_form_revision = CASE WHEN v_program.application_form IS NULL
                 THEN NULL ELSE v_program.application_form_revision END,
-            application_form_snapshot = v_program.application_form
+            application_form_snapshot = v_program.application_form,
+            application_audience = p_audience
         WHERE notice_id = p_notice_id AND user_id = p_user_id;
     ELSE
         RAISE EXCEPTION '기존 신청 상태를 관리자에게 확인해 주세요.' USING ERRCODE = '23514';

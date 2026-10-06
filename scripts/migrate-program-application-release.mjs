@@ -16,11 +16,14 @@ if (projectRef !== expectedProjectRef) throw new Error('Unexpected linked Supaba
 const phaseFiles = isPrepare ? [
     '20260929_program_application_cancellation_history.sql',
     '20260929_session_application_attempt_history.sql',
+    '20260930_program_application_audience.sql',
+    '20260930_program_application_audience_classification.sql',
     '20260929_program_application_transition.sql',
     '20260929_member_session_write_boundary.sql',
     '20260929_session_application_answers.sql',
     '20260929_atomic_guest_program_registration.sql',
     '20260929_staff_program_walkins.sql',
+    '20260930_program_application_audience_write_guard.sql',
 ] : [
     '20260929_program_application_direct_write_cutover.sql',
     '20260929_guest_registration_legacy_cutover.sql',

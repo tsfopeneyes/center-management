@@ -1,261 +1,133 @@
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Trash2, UserPlus, Calendar, ClipboardList } from 'lucide-react';
+import { ClipboardList, Trash2, UserPlus, Users, CheckCheck, Search } from 'lucide-react';
+import UserAvatar from '../../../../common/UserAvatar';
+import UserCategoryBadge from '../../../../common/UserCategoryBadge';
 import { exportParticipantsToExcel } from '../../../../../utils/exportUtils';
 import { usesDailySessionRsvp } from '../../../../../utils/dailyProgramSessions';
 import { readLegacyGuestFields } from '../../../../../features/programs/applicationFields';
-import { applicationAnswerEntries } from '../../../../../features/programs/application/applicationAnswerDisplay';
+import { participantAnswerCellStates, participantAnswerColumns, participantAnswerDetails, questionAudienceLabel, sortParticipantsByAnswer } from '../../../../../features/programs/application/participantAnswerColumns';
 
-const AttendanceSection = ({ 
-    notice, 
-    participantList, 
-    onAttendanceToggle, 
-    onStaffToggle,
-    onDeleteParticipant, 
-    onMarkAllAttended,
-    showEntranceList,
-    setShowEntranceList,
-    selectedDate,
-    setSelectedDate,
-    hasSessionHistory = false,
-    onUserClick
-}) => {
-    const isDailySessionProgram = usesDailySessionRsvp(notice);
-    const isSessionBasedProgram = isDailySessionProgram || hasSessionHistory;
-    const isDateBasedProgram = notice.is_recruiting === false || hasSessionHistory;
-    const isOpenProgram = notice.is_recruiting === false && !isSessionBasedProgram;
-    const customFields = readLegacyGuestFields(notice.guest_properties);
+const AttendanceSection = ({ notice, participantList, onAttendanceToggle, onStaffToggle, onDeleteParticipant,
+    onMarkAllAttended, setShowEntranceList, selectedDate, availableDates = [], onUserClick, onColumnsChange }) => {
+    const participants = participantList.JOIN || [];
+    const waiting = participantList.WAITLIST || [];
+    const isSessionBased = usesDailySessionRsvp(notice) || (notice.is_recruiting !== false && availableDates.length > 0);
+    const isOpen = notice.is_recruiting === false && !isSessionBased;
+    const isDateBased = notice.is_recruiting === false || isSessionBased;
+    const fields = useMemo(() => readLegacyGuestFields(notice.guest_properties), [notice.guest_properties]);
+    const currentQuestions = Array.isArray(notice.application_form?.questions) ? notice.application_form.questions : fields;
+    const columns = useMemo(() => participantAnswerColumns(participants, fields, currentQuestions), [participants, fields, currentQuestions]);
+    useEffect(() => { onColumnsChange?.(columns.length > 0); }, [columns.length, onColumnsChange]);
+    const [query, setQuery] = useState('');
+    const [sort, setSort] = useState(null);
+    const [expanded, setExpanded] = useState(null);
+    const sortedParticipants = useMemo(() => sortParticipantsByAnswer(participants.filter(person => `${person.name || ''} ${person.school || ''} ${person.phone_back4 || ''}`.toLowerCase().includes(query.trim().toLowerCase())),
+        columns.find(column => column.key === sort?.key), sort?.direction, fields, currentQuestions), [participants, columns, sort, fields, currentQuestions, query]);
+    const toggleQuestionSort = key => setSort(previous => previous?.key !== key
+        ? { key, direction: 'asc' }
+        : previous.direction === 'asc' ? { key, direction: 'desc' } : null);
+    const attended = participants.filter(person => person.is_attended).length;
+    const missing = participants.length - attended;
+    const span = (isOpen ? 4 : 5) + columns.length;
 
-    return (
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gray-50">
-            {/* Mobile Date Picker for Open Programs */}
-            {isDateBasedProgram && (
-                <div className="md:hidden flex flex-col bg-white p-4 rounded-xl shadow-sm gap-2">
-                    <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                        <Calendar size={12} />
-                        <span>출석 날짜 선택</span>
-                    </div>
-                    <input 
-                        type="date"
-                        value={selectedDate}
-                        onChange={e => setSelectedDate(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-xs focus:bg-white focus:border-blue-500 transition cursor-pointer"
-                    />
-                </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white p-4 rounded-xl shadow-sm gap-3">
-                <div>
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        참여자 명단
-                        <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-md text-[10px]">
-                            {participantList.JOIN?.length || 0}명
-                        </span>
-                    </h3>
-                    <p className="text-[10px] text-gray-500 mt-1">
-                        {isDateBasedProgram
-                            ? `${selectedDate} 참여 인원`
-                            : `출석: ${participantList.JOIN.filter(u => u.is_attended).length} / 미참석: ${participantList.JOIN.filter(u => !u.is_attended).length}`
-                        }
-                    </p>
-                </div>
-                <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
-                    {!isOpenProgram && (
-                        <button 
-                            onClick={onMarkAllAttended}
-                            className="flex-1 sm:flex-none text-center px-3 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 transition shadow-sm"
-                        >
-                            전체 참석 처리
-                        </button>
-                    )}
-                    <button 
-                        onClick={() => setShowEntranceList(!showEntranceList)}
-                        className={`flex-1 sm:flex-none text-center px-3 py-2 text-xs font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-1.5 ${showEntranceList ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
-                    >
-                        <UserPlus size={14} /> {isSessionBasedProgram ? '명단 추가' : '명단 추가 (지급)'}
-                    </button>
-                    <button 
-                        onClick={() => exportParticipantsToExcel(participantList.JOIN, notice.title, customFields)}
-                        className="md:hidden flex-1 text-center px-3 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 transition shadow-sm border border-green-200/50 flex items-center justify-center gap-1"
-                    >
-                        <ClipboardList size={14} /> 엑셀 다운로드
-                    </button>
+    return <div className="min-h-0 flex-1 space-y-4 overflow-y-auto scrollbar-hide bg-[#f9fafb] p-4 md:p-6">
+        <div className="pb-1">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+                <div><h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">참여자 명단 <span className="rounded-lg bg-[#F4DDD4] px-2 py-0.5 text-sm text-[#CF3A27]">{participants.length}명</span></h3>
+                    <p className="mt-1.5 flex items-center gap-3 text-sm text-slate-500">{!isOpen ? <><span className="text-emerald-700">출석 {attended}명</span><span>미출석 {missing}명</span></> : '참여자 정보와 출석을 확인하세요.'}</p></div>
+                <div className="flex w-full sm:w-auto gap-2">
+                    <button type="button" disabled={!participants.length} onClick={() => exportParticipantsToExcel(sortedParticipants, notice.title, fields, currentQuestions, columns)}
+                        className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"><ClipboardList size={16} /><span className="hidden sm:inline">엑셀 다운로드</span><span className="sm:hidden">엑셀</span></button>
+                    {!isOpen && <button type="button" disabled={!missing} onClick={onMarkAllAttended} className="min-h-10 rounded-xl bg-slate-100 px-3 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"><CheckCheck size={16} className="inline mr-1.5" /><span className="hidden sm:inline">전체 참석 처리</span><span className="sm:hidden">전체 출석</span></button>}
+                    <button type="button" onClick={() => setShowEntranceList(true)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-[#CF3A27] px-3 text-xs sm:text-sm font-semibold text-white hover:bg-[#B93223]"><UserPlus size={16} /><span className="hidden sm:inline">{isSessionBased ? '명단 추가' : '명단 추가 (지급)'}</span><span className="sm:hidden">추가</span></button>
                 </div>
             </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="grid grid-cols-4 md:grid-cols-5 py-3 px-4 bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500 items-center">
-                    <div className="col-span-1">이름</div>
-                    <div className="col-span-2 md:col-span-2">학교/전화번호</div>
-                    <div className="col-span-1 flex justify-center">{isOpenProgram ? "출석 취소 (회수)" : "출석"}</div>
-                    <div className="col-span-1 md:flex hidden justify-center">관리</div>
-                </div>
-                <div className="divide-y divide-gray-100/60">
-                    {participantList.JOIN?.length > 0 ? (
-                        participantList.JOIN.map(user => (
-                            <div key={user.id} className="grid grid-cols-4 md:grid-cols-5 py-3.5 px-4 items-center hover:bg-gray-50/50 transition text-sm">
-                                <div className="col-span-1 font-bold text-gray-800 pr-2 flex items-center gap-1.5 flex-wrap">
-                                    <button 
-                                        type="button"
-                                        onClick={() => onUserClick && onUserClick(user)}
-                                        className="hover:text-blue-600 hover:underline cursor-pointer text-left transition font-bold"
-                                        title="회원 정보 카드 보기"
-                                    >
-                                        {user.name?.replace('(guest)', '').trim()}
-                                    </button>
-                                    {(user.user_group === '게스트' || user.name?.includes('(guest)')) && (
-                                        <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 rounded-md text-[9px] font-bold shrink-0">
-                                            게스트
-                                        </span>
-                                    )}
-                                    {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
-                                </div>
-                                <div className="col-span-2 md:col-span-2 flex flex-col justify-center">
-                                    <span className="text-xs text-gray-600 truncate font-semibold">{user.school}</span>
-                                    <span className="text-[10px] text-gray-400 font-medium tracking-wider mt-0.5">{user.phone_back4}</span>
-                                    {applicationAnswerEntries(user, customFields).map(entry => (
-                                        <span key={entry.id} className="text-[10px] text-blue-600 font-semibold mt-0.5 break-words"
-                                            title={entry.definitionKnown ? `신청 당시 질문 · 버전 ${entry.revision ?? '-'}` : '이전 신청: 현재 질문 이름을 참고로 표시'}>
-                                            {entry.label}: {entry.answer}
-                                        </span>
-                                    ))}
-                                </div>
-                                <div className="col-span-1 flex justify-center">
-                                    {isOpenProgram ? (
-                                        <button 
-                                            onClick={() => onDeleteParticipant(user.id, user.name)}
-                                            className="flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all font-bold text-xs"
-                                            title="출석 취소 및 하이픈 회수"
-                                        >
-                                            <Trash2 size={12} />
-                                            <span>취소</span>
-                                        </button>
-                                    ) : (
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input 
-                                                type="checkbox" 
-                                                className="sr-only peer" 
-                                                checked={user.is_attended || false}
-                                                onChange={() => onAttendanceToggle(user.id, user.is_attended)}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
-                                        </label>
-                                    )}
-                                </div>
-                                <div className="col-span-1 md:flex hidden justify-center items-center gap-2.5">
-                                    {!isOpenProgram ? (
-                                        <>
-                                            {!isSessionBasedProgram && (
-                                                <button
-                                                    onClick={() => onStaffToggle(user.id, user.is_staff)}
-                                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all duration-200 border ${
-                                                        user.is_staff
-                                                            ? 'bg-purple-50 text-purple-600 border-purple-200/60 shadow-sm font-extrabold'
-                                                            : 'bg-slate-50/50 text-slate-400 border-slate-200/50 hover:bg-slate-100 hover:text-slate-600 hover:border-slate-300'
-                                                    }`}
-                                                >
-                                                    스탭
-                                                </button>
-                                            )}
-                                            <button 
-                                                onClick={() => onDeleteParticipant(user.id, user.name)}
-                                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                                                title="신청 취소"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <span className="text-xs text-gray-400 font-semibold">-</span>
-                                    )}
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="p-8 text-center text-gray-400 text-sm">
-                            {isDateBasedProgram ? `${selectedDate}에 등록된 참여자가 없습니다.` : "신청한 참여자가 없습니다."}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {!isOpenProgram && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                    <div className="bg-orange-50 p-4 rounded-xl border border-orange-100/50">
-                        <h4 className="font-bold text-orange-700 mb-2 flex justify-between text-[10px] uppercase tracking-wider">
-                            대기 <span className="bg-white px-2 rounded-full">{participantList.WAITLIST?.length || 0}</span>
-                        </h4>
-                        <div className="space-y-1">
-                            {participantList.WAITLIST?.map((u, i) => (
-                                <div key={i} className="flex items-center justify-between gap-2">
-                                    <button 
-                                        type="button"
-                                        onClick={() => onUserClick && onUserClick(u)}
-                                        className="text-[10px] text-gray-600 hover:text-blue-600 hover:underline font-bold truncate flex items-center gap-1 text-left"
-                                        title="회원 정보 카드 보기"
-                                    >
-                                        {u.name?.replace('(guest)', '').trim()}
-                                    {(u.user_group === '게스트' || u.name?.includes('(guest)')) && (
-                                            <span className="px-1 py-0.2 bg-purple-50 text-purple-500 border border-purple-100 rounded text-[8px] font-bold shrink-0">
-                                                게스트
-                                            </span>
-                                        )}
-                                        {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 drop-shadow-sm"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
-                                    </button>
-                                    <button 
-                                        onClick={() => onDeleteParticipant(u.id, u.name)}
-                                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                    >
-                                        <Trash2 size={12} />
-                                    </button>
-                                </div>
-                            ))}
-                            {(!participantList.WAITLIST || participantList.WAITLIST.length === 0) && (
-                                <span className="text-[10px] text-gray-400">-</span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                        <h4 className="font-bold text-gray-500 mb-2 flex justify-between text-[10px] uppercase tracking-wider">
-                            미참석 <span className="bg-white px-2 rounded-full">{participantList.JOIN.filter(u => !u.is_attended).length}</span>
-                        </h4>
-                        <p className="text-[10px] text-gray-400 truncate flex flex-wrap gap-1">
-                            {participantList.JOIN.filter(u => !u.is_attended).length > 0 
-                                ? participantList.JOIN.filter(u => !u.is_attended).map((u, idx, arr) => (
-                                    <span key={u.id} className="flex items-center">
-                                        <button
-                                            type="button"
-                                            onClick={() => onUserClick && onUserClick(u)}
-                                            className="hover:text-blue-600 hover:underline cursor-pointer"
-                                            title="회원 정보 카드 보기"
-                                        >
-                                            {u.name?.replace('(guest)', '').trim()}
-                                        </button>
-                                        {u.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-0.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
-                                        {idx < arr.length - 1 ? ', ' : ''}
-                                    </span>
-                                ))
-                                : '-'}
-                        </p>
-                    </div>
-                </div>
-            )}
         </div>
-    );
+
+        <label className="flex items-center gap-2 rounded-xl bg-white px-3.5 py-3 text-slate-500"><Search size={18} /><input aria-label="참여자 검색" placeholder="이름, 학교, 연락처 뒷자리 검색" value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none" /></label>
+        <div className={columns.length ? 'md:hidden space-y-2' : 'space-y-2'}>
+            {sortedParticipants.map(person => {
+                const cells = participantAnswerCellStates(person, columns, fields, currentQuestions);
+                return <article key={person.id} className="rounded-2xl bg-white p-4 hover:bg-[#F8E8E4] focus-within:bg-[#F8E8E4]">
+                    <div className="flex items-center gap-3">
+                        {!isOpen && <input type="checkbox" checked={Boolean(person.is_attended)} onChange={() => onAttendanceToggle(person.id, person.is_attended)} aria-label={person.name + ' 출석'} className="h-5 w-5 shrink-0 accent-[#CF3A27]" />}
+                        <button type="button" onClick={() => onUserClick?.(person)} className="flex min-w-0 flex-1 items-center gap-3 text-left group">
+                            <UserAvatar user={person} size="w-10 h-10" textSize="text-sm" />
+                            <div className="min-w-0 md:flex md:flex-1 md:items-center md:gap-5">
+                                <div className="min-w-0 md:w-40"><span className="font-bold text-slate-900 group-hover:text-[#CF3A27]">{person.name?.replace('(guest)', '').trim()}</span></div>
+                                <p className="mt-1 text-xs text-slate-500 md:mt-0 md:text-sm">{person.school || '학교 미등록'}<span className="ml-2 tabular-nums">{person.phone_back4 || ''}</span></p>
+                            </div>
+                        </button>
+                        <div className="shrink-0 text-center"><span className="mb-1 block text-[10px] text-slate-400 md:hidden">구분</span><UserCategoryBadge user={person} /></div>
+                        <div className="flex shrink-0 items-center gap-1">
+                            {!isOpen && !isSessionBased && <button type="button" onClick={() => onStaffToggle(person.id, person.is_staff)} aria-pressed={Boolean(person.is_staff)} className={person.is_staff ? 'rounded-lg bg-[#F4DDD4] px-2 py-2 text-xs font-bold text-[#B93223]' : 'rounded-lg bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-500'}>스탭</button>}
+                            <button type="button" onClick={() => onDeleteParticipant(person.id, person.name)} aria-label={person.name + (isOpen ? ' 출석 취소 및 하이픈 회수' : ' 신청 취소')} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={16}/></button>
+                        </div>
+                    </div>
+                    {participantAnswerDetails(person, fields, currentQuestions).length > 0 && <details className="mt-3 text-sm text-slate-600"><summary className="cursor-pointer">이전 질문 답변</summary>{participantAnswerDetails(person, fields, currentQuestions).map((entry, index) => <div key={index} className="mt-2"><p className="font-semibold">{entry.label}</p><p className="whitespace-pre-wrap break-words">{entry.answer}</p></div>)}</details>}
+                    {columns.length > 0 && <dl className="mt-4 space-y-2 border-t border-slate-100 pt-3">{columns.map((column, index) => <div key={column.key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 text-sm"><dt className="text-slate-500">{column.label}</dt><dd className="whitespace-pre-wrap break-words text-slate-800">{cells[index].kind === 'not_applicable' ? '해당 없음' : cells[index].answer || '답변 없음'}</dd></div>)}</dl>}
+                </article>;
+            })}
+            {!sortedParticipants.length && <p className="rounded-2xl bg-white py-10 text-center text-sm text-slate-500">{query ? '검색 결과가 없습니다.' : '등록된 참여자가 없습니다.'}</p>}
+        </div>
+        {columns.length > 0 && <div className="hidden md:block overflow-hidden rounded-2xl bg-white">
+            <div className="overflow-x-auto scrollbar-hide">
+                <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                    <thead className="bg-[#f9fafb] text-xs font-semibold text-slate-500"><tr>
+                        {!isOpen && <th scope="col" className="sticky left-0 z-20 w-[64px] min-w-[64px] border-b border-slate-100 bg-[#f9fafb] px-3 py-2.5 text-center">출석</th>}
+                        <th scope="col" className={`sticky z-20 w-[140px] min-w-[140px] border-b border-slate-100 bg-[#f9fafb] px-4 py-2.5 ${isOpen ? 'left-0' : 'left-[64px]'}`}>이름</th>
+                        <th scope="col" className="w-[88px] min-w-[88px] border-b border-slate-100 px-3 py-2.5">구분</th>
+                        <th scope="col" className="min-w-[160px] border-b border-slate-100 px-4 py-2.5">학교·연락처</th>
+                        {columns.map(col => <th key={col.key} scope="col" aria-sort={sort?.key === col.key ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="min-w-[160px] max-w-[220px] border-b border-slate-100 px-4 py-2.5">
+                            <button type="button" title={`${col.label} · ${questionAudienceLabel(col.audience)} · 클릭하여 정렬`} aria-label={`${col.shortLabel}: ${col.label}, ${questionAudienceLabel(col.audience)}, 답변 정렬`} onClick={() => toggleQuestionSort(col.key)} className={`inline-flex items-center gap-1 rounded font-semibold hover:text-[#CF3A27] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#CF3A27] ${sort?.key === col.key ? 'text-[#CF3A27]' : 'text-slate-500'}`}>{col.shortLabel}<span className="ml-1 text-[11px] font-normal text-slate-400">{questionAudienceLabel(col.audience)}</span><span aria-hidden="true" className="text-[11px]">{sort?.key === col.key ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span></button>
+                        </th>)}
+                        <th scope="col" className="w-[128px] min-w-[128px] border-b border-slate-100 px-4 py-2.5 text-center">관리</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {sortedParticipants.map(person => {
+                            const cells = participantAnswerCellStates(person, columns, fields, currentQuestions);
+                            const previousAnswers = participantAnswerDetails(person, fields, currentQuestions);
+                            const detail = expanded?.personId === person.id ? expanded : null;
+                            return <React.Fragment key={person.id}><tr className="group hover:bg-[#F8E8E4] focus-within:bg-[#F8E8E4]">
+                                {!isOpen && <td className="sticky left-0 z-10 bg-white group-hover:bg-[#F8E8E4] group-focus-within:bg-[#F8E8E4] px-3 py-2.5 text-center"><input type="checkbox" checked={Boolean(person.is_attended)} onChange={() => onAttendanceToggle(person.id, person.is_attended)} aria-label={`${person.name} 출석`} className="h-4 w-4 cursor-pointer accent-[#CF3A27]" /></td>}
+                                <td className={`sticky z-10 bg-white group-hover:bg-[#F8E8E4] group-focus-within:bg-[#F8E8E4] px-4 py-2.5 ${isOpen ? 'left-0' : 'left-[64px]'}`}>
+                                    <button type="button" onClick={() => onUserClick?.(person)} className="flex items-center gap-2.5 text-left font-semibold text-slate-900 hover:text-[#B93223]"><UserAvatar user={person} size="w-9 h-9" textSize="text-sm" />{person.name?.replace('(guest)', '').trim()}</button>
+                                    {previousAnswers.length > 0 && <button type="button" onClick={() => setExpanded(detail?.columnKey === 'history' ? null : { personId: person.id, columnKey: 'history', name: person.name, historical: previousAnswers })} className="mt-1 text-xs text-slate-500 underline-offset-2 hover:text-[#B93223] hover:underline">이전 질문 {previousAnswers.length}개</button>}
+                                </td>
+                                <td className="px-3 py-2.5"><UserCategoryBadge user={person} /></td>
+                                <td className="px-4 py-2.5 text-slate-700"><div className="font-medium">{person.school || '—'}</div><div className="mt-1 text-xs text-slate-500">{person.phone_back4 || '—'}</div></td>
+                                {columns.map((col, index) => <td key={col.key} className="max-w-[220px] px-4 py-2.5 text-slate-700">{cells[index].kind === 'not_applicable' ? <span className="text-xs text-slate-400">해당 없음</span> : cells[index].kind === 'blank' ? <span title={cells[index].audienceUnknown ? '신청 당시 회원·비회원 구분 기록 없음' : '답변 없음'} className="text-slate-400">—</span> : <button type="button" title="답변 전체 보기" onClick={() => setExpanded(detail?.columnKey === col.key ? null : { personId: person.id, columnKey: col.key, name: person.name, label: col.label, answer: cells[index].answer })} className="line-clamp-2 break-words text-left hover:text-[#B93223] hover:underline">{cells[index].answer}</button>}</td>)}
+                                <td className="px-3 py-2.5 text-center"><div className="flex items-center justify-center gap-2">
+                                    {isOpen ? <button type="button" onClick={() => onDeleteParticipant(person.id, person.name)} title="출석 취소 및 하이픈 회수" className="rounded-lg px-2 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">출석 취소</button> : <>
+                                        {!isSessionBased && <button type="button" onClick={() => onStaffToggle(person.id, person.is_staff)} aria-pressed={Boolean(person.is_staff)} className={`rounded-lg border px-2 py-1.5 text-xs font-semibold ${person.is_staff ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>스탭</button>}
+                                        <button type="button" onClick={() => onDeleteParticipant(person.id, person.name)} aria-label={`${person.name} 신청 취소`} title="신청 취소" className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button>
+                                    </>}
+                                </div></td>
+                            </tr>{detail && <tr><td colSpan={span} className="bg-slate-50 px-5 py-4"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="text-xs font-semibold text-slate-600">{detail.name} · {detail.historical ? '이전 질문 답변' : detail.label}</p>{detail.historical ? <div className="mt-2 space-y-2">{detail.historical.map((entry, index) => <div key={`${entry.id}-${index}`} className="text-sm"><span className="font-medium text-slate-700">{entry.label} ({questionAudienceLabel(entry.audience)})</span>{!entry.definitionKnown && <span className="ml-2 text-xs text-slate-400">당시 질문 기록 없음</span>}<p className="whitespace-pre-wrap break-words text-slate-600">{entry.answer}</p></div>)}</div> : <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-800">{detail.answer}</p>}</div><button type="button" onClick={() => setExpanded(null)} className="shrink-0 text-xs font-semibold text-slate-600 hover:underline">닫기</button></div></td></tr>}</React.Fragment>;
+                        })}
+                        {!sortedParticipants.length && <tr><td colSpan={span} className="px-5 py-12 text-center text-sm text-slate-500">{isDateBased ? `${selectedDate}에 등록된 참여자가 없습니다.` : '신청한 참여자가 없습니다.'}</td></tr>}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        }
+
+        {!isOpen && waiting.length > 0 && <section className="border-t border-slate-100 pt-5">
+            <h4 className="text-sm font-semibold text-slate-700">대기 명단 <span className="ml-1 text-[#CF3A27]">{waiting.length}명</span></h4>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2 text-sm text-slate-600">{waiting.map(person => <div key={person.id} className="inline-flex items-center gap-1"><button type="button" onClick={() => onUserClick?.(person)} className="font-medium hover:underline">{person.name?.replace('(guest)', '').trim()}</button><button type="button" onClick={() => onDeleteParticipant(person.id, person.name)} aria-label={`${person.name} 대기 신청 취소`} className="p-1 text-slate-400 hover:text-red-700"><Trash2 size={14} /></button></div>)}</div>
+        </section>}
+    </div>;
 };
 
 AttendanceSection.propTypes = {
-    notice: PropTypes.object.isRequired,
-    participantList: PropTypes.object.isRequired,
-    onAttendanceToggle: PropTypes.func.isRequired,
-    onStaffToggle: PropTypes.func.isRequired,
-    onDeleteParticipant: PropTypes.func.isRequired,
-    onMarkAllAttended: PropTypes.func.isRequired,
-    showEntranceList: PropTypes.bool.isRequired,
-    setShowEntranceList: PropTypes.func.isRequired,
-    selectedDate: PropTypes.string,
-    setSelectedDate: PropTypes.func,
-    hasSessionHistory: PropTypes.bool
+    notice: PropTypes.object.isRequired, participantList: PropTypes.object.isRequired,
+    onAttendanceToggle: PropTypes.func.isRequired, onStaffToggle: PropTypes.func.isRequired,
+    onDeleteParticipant: PropTypes.func.isRequired, onMarkAllAttended: PropTypes.func.isRequired,
+    setShowEntranceList: PropTypes.func.isRequired, selectedDate: PropTypes.string,
+    availableDates: PropTypes.arrayOf(PropTypes.string),
+    onUserClick: PropTypes.func,
 };
 
 export default React.memo(AttendanceSection);

@@ -392,7 +392,7 @@ export const useKioskManager = (navigate) => {
             setPendingNotificationLogId(notificationLogId);
 
             // Send real-time notification (Delay for checkin-survey or checkout-purpose)
-            const shouldDelayNotification = nextType === 'CHECKOUT' || (nextType === 'CHECKIN' && Boolean(checkinSurveyConfig));
+            const shouldDelayNotification = nextType === 'CHECKOUT' || (nextType === 'CHECKIN' && Boolean(effectiveCheckinSurvey));
             if (!shouldDelayNotification) {
                 await sendRealtimeNotification(user, nextType, selectedLocation, { logId: notificationLogId });
             }

@@ -21,6 +21,7 @@ DECLARE
     v_notice public.notices%ROWTYPE;
     v_user_id uuid;
     v_status text;
+    v_audience text;
     v_count integer := 0;
 BEGIN
     IF public.is_current_staff() IS DISTINCT FROM true THEN
@@ -37,18 +38,20 @@ BEGIN
     END IF;
 
     FOR v_user_id IN SELECT DISTINCT unnest(p_user_ids) AS id ORDER BY id LOOP
+        v_audience := public.program_application_audience_for_user(v_user_id);
         SELECT status INTO v_status FROM public.notice_responses
             WHERE notice_id = p_notice_id AND user_id = v_user_id;
         IF v_status IS NULL THEN
             INSERT INTO public.notice_responses (
                 notice_id, user_id, status, is_attended, application_answers,
-                application_form_revision, application_form_snapshot
-            ) VALUES (p_notice_id, v_user_id, 'JOIN', true, '{}'::jsonb, NULL, NULL);
+                application_form_revision, application_form_snapshot, application_audience
+            ) VALUES (p_notice_id, v_user_id, 'JOIN', true, '{}'::jsonb, NULL, NULL, v_audience);
         ELSIF v_status = 'CANCELLED' THEN
             UPDATE public.notice_responses SET
                 status = 'JOIN', is_attended = true, created_at = clock_timestamp(),
                 cancelled_at = NULL, application_answers = '{}'::jsonb,
-                application_form_revision = NULL, application_form_snapshot = NULL
+                application_form_revision = NULL, application_form_snapshot = NULL,
+                application_audience = v_audience
             WHERE notice_id = p_notice_id AND user_id = v_user_id;
         ELSE
             UPDATE public.notice_responses SET status = 'JOIN', is_attended = true
@@ -85,6 +88,7 @@ DECLARE
     v_session public.daily_program_sessions%ROWTYPE;
     v_user_id uuid;
     v_status text;
+    v_audience text;
     v_count integer := 0;
 BEGIN
     IF public.is_current_staff() IS DISTINCT FROM true THEN
@@ -100,18 +104,20 @@ BEGIN
     END IF;
 
     FOR v_user_id IN SELECT DISTINCT unnest(p_user_ids) AS id ORDER BY id LOOP
+        v_audience := public.program_application_audience_for_user(v_user_id);
         SELECT status INTO v_status FROM public.daily_program_session_responses
             WHERE session_id = p_session_id AND user_id = v_user_id;
         IF v_status IS NULL THEN
             INSERT INTO public.daily_program_session_responses (
                 session_id, user_id, status, is_attended, application_answers,
-                application_form_revision, application_form_snapshot
-            ) VALUES (p_session_id, v_user_id, 'JOIN', true, '{}'::jsonb, NULL, NULL);
+                application_form_revision, application_form_snapshot, application_audience
+            ) VALUES (p_session_id, v_user_id, 'JOIN', true, '{}'::jsonb, NULL, NULL, v_audience);
         ELSIF v_status = 'CANCELLED' THEN
             UPDATE public.daily_program_session_responses SET
                 status = 'JOIN', is_attended = true, created_at = clock_timestamp(),
                 cancelled_at = NULL, application_answers = '{}'::jsonb,
-                application_form_revision = NULL, application_form_snapshot = NULL
+                application_form_revision = NULL, application_form_snapshot = NULL,
+                application_audience = v_audience
             WHERE session_id = p_session_id AND user_id = v_user_id;
         ELSE
             UPDATE public.daily_program_session_responses SET status = 'JOIN', is_attended = true

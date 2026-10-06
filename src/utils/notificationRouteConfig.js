@@ -1,11 +1,11 @@
 export const NOTIFICATION_ROUTE_DEFAULTS = {
     HAIFN: {
-        line: { visit: true, program: true, coffee_chat: true, rental: false },
-        slack: { visit: true, program: true, coffee_chat: true, rental: true },
+        line: { visit: true, program: true, coffee_chat: true, rental: false, store: false },
+        slack: { visit: true, program: true, coffee_chat: true, rental: true, store: true },
     },
     ENOUGH_PLACE: {
-        line: { visit: true, program: true, coffee_chat: true, rental: false },
-        slack: { visit: false, program: false, coffee_chat: false, rental: false },
+        line: { visit: true, program: true, coffee_chat: true, rental: false, store: false },
+        slack: { visit: false, program: false, coffee_chat: false, rental: false, store: false },
     },
 };
 

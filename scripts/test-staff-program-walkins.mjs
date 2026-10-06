@@ -34,7 +34,8 @@ try {
         CREATE FUNCTION public.is_current_staff() RETURNS boolean LANGUAGE sql AS $$
             SELECT COALESCE(current_setting('test.admin',true),'false') = 'true'
         $$;
-        CREATE TABLE public.users (id uuid PRIMARY KEY);
+        CREATE TABLE public.users (id uuid PRIMARY KEY, user_group text,
+            preferences jsonb NOT NULL DEFAULT '{}'::jsonb);
         CREATE TABLE public.notices (
             id bigint PRIMARY KEY, title text NOT NULL, category text,
             is_challenge boolean, is_recruiting boolean,
@@ -66,6 +67,9 @@ try {
     `);
     await sql('../supabase/manual/proposals/20260929_program_application_cancellation_history.sql');
     await sql('../supabase/manual/proposals/20260929_session_application_attempt_history.sql');
+    await sql('../supabase/manual/proposals/20260930_program_application_audience.sql');
+    await sql('../supabase/manual/proposals/20260930_program_application_audience_classification.sql');
+    await sql('../supabase/manual/proposals/20260930_program_application_audience_write_guard.sql');
     await sql('../supabase/manual/proposals/20260929_staff_program_walkins.sql');
     await sql('../supabase/manual/proposals/20260930_unified_staff_program_walkins.sql');
 
@@ -75,7 +79,11 @@ try {
               (2,'챌린지 현장 추가','PROGRAM',true,true,'{"questions":[]}'::jsonb,3)`);
     await db.query('INSERT INTO public.daily_program_sessions(id,notice_id,capacity) VALUES($1,1,1)', [sessionId]);
     await db.query('INSERT INTO public.daily_program_sessions(id,notice_id,capacity) VALUES($1,1,1)', [secondSessionId]);
-    for (const id of ids.slice(0, 4)) await db.query('INSERT INTO public.users(id) VALUES($1)', [id]);
+    for (const [index, id] of ids.slice(0, 4).entries()) await db.query(
+        'INSERT INTO public.users(id,user_group) VALUES($1,$2)', [id, index === 2 ? '미가입' : '청소년']);
+    await db.query(`UPDATE public.users SET preferences='{"is_temporary":true}'::jsonb WHERE id=$1`, [ids[3]]);
+    assert.equal((await db.query('SELECT public.program_application_audience_for_user($1) AS audience', [ids[3]])).rows[0].audience, 'GUEST');
+    await db.query("UPDATE public.users SET preferences='{}'::jsonb WHERE id=$1", [ids[3]]);
     for (const [index, status] of ['JOIN', 'WAITLIST', 'CANCELLED'].entries()) {
         await db.query(`INSERT INTO public.notice_responses
             (notice_id,user_id,status,is_attended,cancelled_at,application_answers,
@@ -139,10 +147,10 @@ try {
     await db.exec('RESET ROLE');
 
     const wholeRows = (await db.query(`SELECT user_id,status,is_attended,application_answers,
-        application_form_revision,application_form_snapshot FROM public.notice_responses
+        application_form_revision,application_form_snapshot,application_audience FROM public.notice_responses
         WHERE notice_id=1`)).rows;
     const sessionRows = (await db.query(`SELECT user_id,status,is_attended,application_answers,
-        application_form_revision,application_form_snapshot FROM public.daily_program_session_responses
+        application_form_revision,application_form_snapshot,application_audience FROM public.daily_program_session_responses
         WHERE session_id=$1`, [sessionId])).rows;
     for (const rows of [wholeRows, sessionRows]) {
         assert.equal(rows.length, 3, 'a failed batch must leave no partial new user');
@@ -160,6 +168,7 @@ try {
             'a new walk-in must not inherit a cancelled attempt answer');
         assert.equal(readded.application_form_revision, rows === wholeRows ? 2 : null);
         assert.deepEqual(readded.application_form_snapshot, rows === wholeRows ? { questions: [] } : null);
+        assert.equal(readded.application_audience, 'GUEST');
     }
     const challengeWalkIn = (await db.query(`SELECT status,is_attended,application_form_revision,
         application_form_snapshot FROM public.notice_responses WHERE notice_id=2 AND user_id=$1`,
@@ -168,6 +177,7 @@ try {
     assert.equal(challengeWalkIn.is_attended, true);
     assert.equal(challengeWalkIn.application_form_revision, 3);
     assert.deepEqual(challengeWalkIn.application_form_snapshot, { questions: [] });
+    assert.equal((await db.query('SELECT application_audience FROM public.notice_responses WHERE notice_id=2 AND user_id=$1', [ids[3]])).rows[0].application_audience, 'MEMBER');
     const wholeHistory = (await db.query(`SELECT application_answers FROM
         public.program_application_attempt_history WHERE notice_id=1 AND user_id=$1`, [ids[2]])).rows;
     const sessionHistory = (await db.query(`SELECT application_answers FROM

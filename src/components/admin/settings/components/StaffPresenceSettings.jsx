@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Users, Search, Check, Save, X } from 'lucide-react';
@@ -139,9 +140,7 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="text-xs font-bold text-slate-800 truncate">{u.name}</span>
-                                                    <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1 py-0.2 rounded shrink-0">
-                                                        {u.user_group || u.role}
-                                                    </span>
+                                                    <UserCategoryBadge user={u} />
                                                 </div>
                                             </div>
                                         </div>
@@ -209,9 +208,7 @@ const StaffPresenceSettings = ({ users, selectedStaffConfig = { "하이픈": [],
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="text-xs font-bold text-slate-800 truncate">{u.name}</span>
-                                                    <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1 py-0.2 rounded shrink-0">
-                                                        {u.user_group || u.role}
-                                                    </span>
+                                                    <UserCategoryBadge user={u} />
                                                 </div>
                                             </div>
                                         </div>

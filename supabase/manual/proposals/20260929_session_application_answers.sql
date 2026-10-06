@@ -79,6 +79,9 @@ BEGIN
     IF v_existing_status IN ('JOIN', 'WAITLIST') THEN
         RETURN jsonb_build_object('status', v_existing_status);
     END IF;
+    IF public.program_application_audience_for_user(p_user_id) IS DISTINCT FROM p_audience THEN
+        RAISE EXCEPTION '신청자 회원 구분을 확인해 주세요.' USING ERRCODE = '42501';
+    END IF;
 
     IF v_program.application_form IS NOT NULL THEN
         PERFORM public.validate_program_application_answers(
@@ -108,16 +111,17 @@ BEGIN
         THEN 'WAITLIST' ELSE 'JOIN' END;
     INSERT INTO public.daily_program_session_responses (
         session_id, user_id, status, application_answers,
-        application_form_revision, application_form_snapshot, cancelled_at
+        application_form_revision, application_form_snapshot, application_audience, cancelled_at
     ) VALUES (
         p_session_id, p_user_id, v_status, COALESCE(p_answers, '{}'::jsonb),
         CASE WHEN v_program.application_form IS NULL THEN NULL ELSE v_program.application_form_revision END,
-        v_program.application_form, NULL
+        v_program.application_form, p_audience, NULL
     ) ON CONFLICT(session_id,user_id) DO UPDATE SET
         status = EXCLUDED.status,
         application_answers = EXCLUDED.application_answers,
         application_form_revision = EXCLUDED.application_form_revision,
         application_form_snapshot = EXCLUDED.application_form_snapshot,
+        application_audience = EXCLUDED.application_audience,
         cancelled_at = NULL,
         created_at = now();
     RETURN jsonb_build_object('status', v_status);

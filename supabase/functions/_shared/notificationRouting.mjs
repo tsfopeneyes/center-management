@@ -8,11 +8,12 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
   'program',
   'coffee_chat',
   'rental',
+  'store',
 ]);
 
 const DEFAULT_CHANNELS = Object.freeze({
-  line: Object.freeze({ visit: true, program: true, coffee_chat: true, rental: false }),
-  slack: Object.freeze({ visit: true, program: true, coffee_chat: true, rental: true }),
+  line: Object.freeze({ visit: true, program: true, coffee_chat: true, rental: false, store: false }),
+  slack: Object.freeze({ visit: true, program: true, coffee_chat: true, rental: true, store: true }),
 });
 
 export const DEFAULT_NOTIFICATION_ROUTING = Object.freeze({
@@ -21,7 +22,7 @@ export const DEFAULT_NOTIFICATION_ROUTING = Object.freeze({
     line: DEFAULT_CHANNELS.line,
     // No existing 이높플레이스 Slack destination is assumed. An admin can
     // enable these routes only after SLACK_ENOUGH_CHANNEL_ID is configured.
-    slack: Object.freeze({ visit: false, program: false, coffee_chat: false, rental: false }),
+    slack: Object.freeze({ visit: false, program: false, coffee_chat: false, rental: false, store: false }),
   }),
 });
 

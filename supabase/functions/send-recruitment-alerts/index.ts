@@ -1,3 +1,4 @@
+import { deliverHaifnChatPush } from './haifn-push-worker.mjs';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { GoogleAuth } from 'npm:google-auth-library@9';
 import webpush from 'npm:web-push@3.6.7';
@@ -53,7 +54,7 @@ Deno.serve(async request=>{
             // Do not log device tokens or service responses containing tokens.
             return {state:[429,500,503].includes(response.status)?'retry':'failed',code:`fcm_${response.status}`};
         };
-        const sendUser=async({user,notice,job}:any)=>{
+        const sendUser=async({user,notice,job,customPush}:any)=>{
             const {data:registered,error:deviceError}=await db.from('push_devices')
                 .select('id,provider,credential,browser,failure_count,enabled').eq('user_id',user.id);
             if(deviceError && deviceError.code!=='42P01')throw new Error('device_registry');
@@ -67,15 +68,15 @@ Deno.serve(async request=>{
             let firebase;
             if(fcm.length){try{firebase=await (firebaseAccess??=(async()=>{const credentials=JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')||'{}');if(!credentials.project_id)throw new Error('firebase');const access=await new GoogleAuth({credentials,scopes:['https://www.googleapis.com/auth/firebase.messaging']}).getAccessToken();if(!access)throw new Error('firebase token');return {projectId:credentials.project_id,access};})());}catch{return {state:'FAILED',deviceCount:fcm.length+standard.length,successCount:0,failureCount:fcm.length+standard.length,code:'firebase_auth_unavailable'};}}
             const origin=Deno.env.get('RECRUITMENT_APP_ORIGIN')||'';
-            const title=job.audience==='APPLICANTS'?'프로그램 안내가 도착했어요':'프로그램 모집 알림';
-            const body=job.timing==='AT_START'
+            const title=customPush?.title || (job.audience==='APPLICANTS'?'프로그램 안내가 도착했어요':'프로그램 모집 알림');
+            const body=customPush?.body || (job.timing==='AT_START'
                 ? `${String(notice.title||'프로그램').slice(0,120)}\n프로그램 신청이 시작됐어요!`
-                : `${String(notice.title||'프로그램').slice(0,120)} · 앱에서 확인해보세요.`;
-            const link=`${origin}/p/${encodeURIComponent(notice.id)}`;
-            const fcmResults=await Promise.all(fcm.map(async({token,device}:any)=>{try{const response=await fetch(`https://fcm.googleapis.com/v1/projects/${firebase.projectId}/messages:send`,{method:'POST',headers:{Authorization:`Bearer ${firebase.access}`,'Content-Type':'application/json'},body:JSON.stringify({message:{token,notification:{title,body},data:{url:link,noticeId:String(notice.id)},webpush:{fcm_options:{link}}}}),signal:AbortSignal.timeout(5000)});return {ok:response.ok,device,code:response.ok?null:`fcm_${response.status}`};}catch{return {ok:false,device,uncertain:true,code:'transport_unknown'};}}));
+                : `${String(notice.title||'프로그램').slice(0,120)} · 앱에서 확인해보세요.`);
+            const link=customPush ? origin+customPush.link : `${origin}/p/${encodeURIComponent(notice.id)}`;
+            const fcmResults=await Promise.all(fcm.map(async({token,device}:any)=>{try{const response=await fetch(`https://fcm.googleapis.com/v1/projects/${firebase.projectId}/messages:send`,{method:'POST',headers:{Authorization:`Bearer ${firebase.access}`,'Content-Type':'application/json'},body:JSON.stringify({message:{token,notification:{title,body},data:{url:link,noticeId:String(notice.id)},webpush:{headers:customPush?{TTL:String(customPush.ttl)}:undefined,fcm_options:{link}}}}),signal:AbortSignal.timeout(5000)});return {ok:response.ok,device,code:response.ok?null:`fcm_${response.status}`};}catch{return {ok:false,device,uncertain:true,code:'transport_unknown'};}}));
             const publicKey=Deno.env.get('WEB_PUSH_VAPID_PUBLIC_KEY')?.trim();const privateKey=Deno.env.get('WEB_PUSH_VAPID_PRIVATE_KEY')?.trim();
             if(standard.length&&publicKey&&privateKey)webpush.setVapidDetails(Deno.env.get('WEB_PUSH_VAPID_SUBJECT')?.trim()||'mailto:admin@schoolchurchimpact.org',publicKey,privateKey);
-            const webResults=await Promise.all(standard.map(async(device:any)=>{if(!publicKey||!privateKey)return {ok:false,device,code:'web_push_credentials_unavailable'};try{const response=await webpush.sendNotification(device.credential,JSON.stringify({notification:{title,body},data:{url:link,noticeId:String(notice.id)}}),{TTL:86400,contentEncoding:device.browser==='Samsung Internet'?'aesgcm':'aes128gcm'});return {ok:response.statusCode>=200&&response.statusCode<300,device,code:String(response.statusCode)};}catch(error){return {ok:false,device,uncertain:!error?.statusCode,code:String(error?.statusCode||'web_push_failed')};}}));
+            const webResults=await Promise.all(standard.map(async(device:any)=>{if(!publicKey||!privateKey)return {ok:false,device,code:'web_push_credentials_unavailable'};try{const response=await webpush.sendNotification(device.credential,JSON.stringify({notification:{title,body},data:{url:link,noticeId:String(notice.id)}}),{TTL:customPush?.ttl || 86400,contentEncoding:device.browser==='Samsung Internet'?'aesgcm':'aes128gcm'});return {ok:response.statusCode>=200&&response.statusCode<300,device,code:String(response.statusCode)};}catch(error){return {ok:false,device,uncertain:!error?.statusCode,code:String(error?.statusCode||'web_push_failed')};}}));
             const results=[...fcmResults,...webResults];
             await Promise.all(results.filter((item:any)=>item.device).map((item:any)=>db.from('push_devices').update(item.ok?{last_success_at:new Date().toISOString(),failure_count:0,last_failure_code:null}:{failure_count:Number(item.device.failure_count||0)+1,last_failure_code:item.code,...(['fcm_404','fcm_410','404','410'].includes(item.code)?{enabled:false}:{})}).eq('id',item.device.id)));
             const successCount=results.filter((item:any)=>item.ok).length;const failureCount=results.length-successCount;
@@ -95,6 +96,11 @@ Deno.serve(async request=>{
                 return firebaseAccess;
             }}),
         ]);
-        return json({legacy,plans,community});
+        const haifn=await deliverHaifnChatPush({db,sendUser:async(id:string,customPush:any)=>{
+            const user=checked(await db.from('users').select('id,status,fcm_token').eq('id',id).maybeSingle());
+            if(!user || user.status==='withdrawn')return {state:'SKIPPED',code:'account_unavailable'};
+            return sendUser({user,notice:{id:'management'},job:{},customPush});
+        }});
+        return json({legacy,plans,community,haifn});
     } catch {return json({error:'worker_failed'},500);}
 });

@@ -5,6 +5,7 @@ const ROUTE_CATEGORIES = [
     ['program', '프로그램'],
     ['coffee_chat', '커피챗'],
     ['rental', '대관'],
+    ['store', '스토어 신청'],
 ];
 
 const ROUTE_CENTERS = [

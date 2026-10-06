@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import React, { useState, useEffect } from 'react';
 import UserAvatar from '../../../common/UserAvatar';
 
@@ -98,7 +99,7 @@ const RealtimeActiveUsers = ({
                                     <th className="p-6">입실 시간</th>
                                     <th className="p-6">방문 목적</th>
                                     <th className="p-6">학교</th>
-                                    <th className="p-6">그룹</th>
+                                    <th className="p-6">구분</th>
                                     <th className="p-6 pr-10 text-right">관리</th>
                                 </tr>
                             </thead>
@@ -122,7 +123,7 @@ const RealtimeActiveUsers = ({
                                                 >
                                                     <UserAvatar user={{ ...user, name: cleanNameStr }} size="w-10 h-10" textSize="text-sm" />
                                                     <span className="hover:underline">{cleanNameStr}</span>
-                                                    {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                                    
                                                 </div>
                                             </td>
                                             <td className="p-6 text-blue-600 font-black align-middle">{user.currentLocationName}</td>
@@ -142,14 +143,7 @@ const RealtimeActiveUsers = ({
                                             </td>
                                             <td className="p-6 text-gray-500 font-medium align-middle">{user.school || '-'}</td>
                                             <td className="p-6 align-middle">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border ${
-                                                    user.user_group === '게스트' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                                                    user.user_group === '졸업생' ? 'bg-gray-100 text-gray-600 border-gray-200' :
-                                                    user.user_group === '일반인' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                    'bg-blue-50 text-blue-600 border-blue-200'
-                                                }`}>
-                                                    {user.user_group || '청소년'}
-                                                </span>
+                                                <UserCategoryBadge user={user} />
                                             </td>
                                             <td className="p-6 pr-10 text-right align-middle">
                                                 <button
@@ -194,13 +188,9 @@ const RealtimeActiveUsers = ({
                                                 className="font-bold text-gray-800 text-base flex-shrink-0 flex items-center gap-1 cursor-pointer hover:text-blue-600 hover:underline"
                                             >
                                                 {cleanNameStr}
-                                                {user.is_leader && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
+                                                
                                             </span>
-                                            {user.user_group === '게스트' && (
-                                                <span className="px-1.5 py-[1px] leading-none inline-flex items-center rounded-full text-[9.5px] font-bold bg-purple-100 text-purple-700 border border-purple-200/80 shrink-0">
-                                                    게스트
-                                                </span>
-                                            )}
+                                            <UserCategoryBadge user={user} />
                                             {user.school && (
                                                 <span className="text-xs text-gray-400 font-medium truncate flex-1 min-w-0">
                                                     ({user.school})

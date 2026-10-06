@@ -270,10 +270,15 @@ const PublicProgramDetail = () => {
             registrationStatus = result.status;
             setApplicationStatus(result.status);
             try {
-                if (!usesDailySessionRsvp(registrationNotice)) await sendProgramApplicationNotification({
+                const registeredSession = request.sessionId
+                    ? registrationNotice.open_sessions?.find(item => item.id === request.sessionId) || registrationNotice.today_session
+                    : null;
+                await sendProgramApplicationNotification({
                     noticeId: registrationNotice.id,
                     userId,
                     status: registrationStatus,
+                    dailySessionId: request.sessionId,
+                    sessionDate: registeredSession?.session_date,
                 });
             } catch (notificationError) {
                 // Registration has already succeeded. Do not misreport it as a
@@ -348,6 +353,7 @@ const PublicProgramDetail = () => {
                 : false;
 
             const freshProgram = await loadOpenProgramForRegistration();
+            let registeredSession = null;
             if (usesDailySessionRsvp(freshProgram)) {
                 const session = freshProgram.open_sessions?.find(item => item.id === selectedSessionId) || freshProgram.today_session;
                 const result = await programSessionsApi.respond(
@@ -355,6 +361,7 @@ const PublicProgramDetail = () => {
                     notice?.application_form_revision
                 );
                 registrationStatus = result.status;
+                registeredSession = session;
                 setApplicationStatus(result.status);
             } else {
                 const result = await programApplicationsApi.respondMember(
@@ -365,10 +372,12 @@ const PublicProgramDetail = () => {
             }
 
             try {
-                if (!usesDailySessionRsvp(registrationNotice)) await sendProgramApplicationNotification({
-                    noticeId: registrationNotice.id,
+                await sendProgramApplicationNotification({
+                    noticeId: freshProgram.id,
                     userId: dbUser.id,
                     status: registrationStatus,
+                    dailySessionId: registeredSession?.id,
+                    sessionDate: registeredSession?.session_date,
                 });
             } catch (notificationError) {
                 // Registration has already succeeded. Do not misreport it as a
@@ -803,10 +812,10 @@ const PublicProgramDetail = () => {
                 
                 {notice.category === 'PROGRAM' && (
                     <div className="bg-[#f8fafc] rounded-2xl p-5 space-y-4 mb-6">
-                        {usesDailySessionRsvp(notice) && openSessions.length > 1 && <div className="grid grid-cols-2 gap-2.5 border-b border-gray-200 pb-4">{openSessions.map(session => <button key={session.id} type="button" onClick={() => setSelectedSessionId(session.id)} className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${activeSession?.id === session.id ? 'border-blue-600 bg-blue-600 text-white shadow-blue-200' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'}`}>{formatDailySessionSchedule(session)}</button>)}</div>}
+                        {usesDailySessionRsvp(notice) && openSessions.length > 1 && <div className="grid grid-cols-2 gap-2.5 border-b border-gray-200 pb-4">{openSessions.map(session => <button key={session.id} type="button" onClick={() => setSelectedSessionId(session.id)} className={`min-h-14 rounded-2xl border-2 px-3 py-2.5 text-sm font-black leading-snug shadow-sm transition active:scale-[0.98] ${activeSession?.id === session.id ? 'border-[#CF3A27] bg-[#CF3A27] text-white shadow-red-100' : 'border-gray-200 bg-white text-gray-700 hover:border-red-200 hover:bg-red-50'}`}>{formatDailySessionSchedule(session)}</button>)}</div>}
                         <div className="flex text-sm leading-relaxed">
                             <span className="w-16 text-gray-500 font-semibold shrink-0">일정</span>
-                            <span className="text-blue-600 font-extrabold">{formattedSchedule}</span>
+                            <span className="text-[#B83222] font-extrabold">{formattedSchedule}</span>
                         </div>
                         {!(notice.is_challenge && notice.challenge_format === 'ONLINE') && <div className="flex text-sm leading-relaxed">
                             <span className="w-16 text-gray-500 font-semibold shrink-0">장소</span>
@@ -820,22 +829,22 @@ const PublicProgramDetail = () => {
                 )}
 
                 {usesDailySessionRsvp(notice) && hostUsers.length > 0 && <section className="mb-7">
-                    <div className="mb-3 flex items-center gap-2"><div className="h-[14px] w-[3px] rounded-full bg-blue-500"/><h3 className="text-[15px] font-extrabold leading-none text-gray-900">프로그램 호스트</h3></div>
-                    <div className="grid grid-cols-1 gap-3">{hostUsers.map(host => <div key={host.id} className="flex w-full items-center gap-3.5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-blue-600 shadow-sm">{host.profile_image_url ? <img src={host.profile_image_url} alt="" className="h-full w-full object-cover"/> : <User size={21}/>}</div><div className="min-w-0"><p className="truncate text-base font-black text-slate-900">{host.name}</p><p className="mt-1 line-clamp-2 text-sm font-semibold leading-relaxed text-slate-600">{host.one_liner || host.school || '이번 회차를 함께 진행해요.'}</p></div></div>)}</div>
+                    <div className="mb-3 flex items-center gap-2"><div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"/><h3 className="text-[15px] font-extrabold leading-none text-gray-900">프로그램 호스트</h3></div>
+                    <div className="grid grid-cols-1 gap-3">{hostUsers.map(host => <div key={host.id} className="flex w-full items-center gap-3.5 rounded-2xl border border-red-100 bg-red-50/60 p-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-[#CF3A27] shadow-sm">{host.profile_image_url ? <img src={host.profile_image_url} alt="" className="h-full w-full object-cover"/> : <User size={21}/>}</div><div className="min-w-0"><p className="truncate text-base font-black text-slate-900">{host.name}</p><p className="mt-1 line-clamp-2 text-sm font-semibold leading-relaxed text-slate-600">{host.one_liner || host.school || '이번 회차를 함께 진행해요.'}</p></div></div>)}</div>
                 </section>}
 
                 {usesDailySessionRsvp(notice) && todaySessionFields.length > 0 && <section className="mb-8">
-                    <div className="mb-4 flex items-center gap-2"><div className="h-[14px] w-[3px] rounded-full bg-blue-500"/><h3 className="text-[15px] font-extrabold leading-none text-gray-900">오늘의 내용</h3></div>
+                    <div className="mb-4 flex items-center gap-2"><div className="h-[14px] w-[3px] rounded-full bg-[#CF3A27]"/><h3 className="text-[15px] font-extrabold leading-none text-gray-900">오늘의 내용</h3></div>
                     <div className="space-y-3 border-b border-gray-100 pb-6">{todaySessionRows.map((row, rowIndex) => <div key={rowIndex} className="flex w-full flex-wrap gap-3">{row.map(field => <div key={field.id} className="min-w-0 rounded-2xl border border-[#f1ece3] bg-[#faf8f2] px-4 py-4 shadow-sm" style={{flexBasis:0,flexGrow:row.length===1?1:getSessionFieldWeight(field),minWidth:row.length===1?'100%':`${getSessionFieldMinWidth(field)}px`}}><p className="whitespace-nowrap text-[13px] font-extrabold leading-none text-[#e83b2f]">{field.label}</p><p className="mt-4 whitespace-pre-wrap break-words text-center text-[17px] font-extrabold leading-snug tracking-[-0.025em] text-gray-900">{field.value}</p></div>)}</div>)}</div>
                 </section>}
 
                 {/* Sticky Section Tabs: Only show when both Introduction and Host sections are active */}
-                {notice.category === 'PROGRAM' && !usesDailySessionRsvp(notice) && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
+                {notice.category === 'PROGRAM' && !usesDailySessionRsvp(notice) && hostUsers.length > 0 && (
                     <div className="flex border-b border-gray-100 sticky top-14 bg-white/95 backdrop-blur z-20 mb-6">
                         <button
                             onClick={() => scrollToSection('intro')}
                             className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
-                                activeTab === 'intro' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+                                activeTab === 'intro' ? 'border-[#CF3A27] text-[#CF3A27]' : 'border-transparent text-gray-400 hover:text-gray-600'
                             }`}
                         >
                             소개
@@ -843,7 +852,7 @@ const PublicProgramDetail = () => {
                         <button
                             onClick={() => scrollToSection('host')}
                             className={`flex-1 py-3 text-center text-sm font-extrabold border-b-2 transition-all ${
-                                activeTab === 'host' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+                                activeTab === 'host' ? 'border-[#CF3A27] text-[#CF3A27]' : 'border-transparent text-gray-400 hover:text-gray-600'
                             }`}
                         >
                             호스트
@@ -872,12 +881,12 @@ const PublicProgramDetail = () => {
                 {/* Body Content */}
                 {notice.category === 'PROGRAM' && (
                     <div 
-                        ref={!usesDailySessionRsvp(notice) && notice.program_type === 'CENTER' && hostUsers.length > 0 ? introRef : null} 
+                        ref={!usesDailySessionRsvp(notice) && hostUsers.length > 0 ? introRef : null}
                         className={`flex items-center gap-2 scroll-mt-28 ${
-                            !usesDailySessionRsvp(notice) && notice.program_type === 'CENTER' && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
+                            !usesDailySessionRsvp(notice) && hostUsers.length > 0 ? 'mt-4 mb-4' : 'mt-8 mb-4'
                         }`}
                     >
-                        <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
+                        <div className="w-[3px] h-[14px] bg-[#CF3A27] rounded-full"></div>
                         <h3 className="font-extrabold text-[15px] leading-none text-gray-900">
                             {usesDailySessionRsvp(notice) ? '소개' : '프로그램 소개'}
                         </h3>
@@ -892,7 +901,7 @@ const PublicProgramDetail = () => {
                 {notice.is_challenge && (
                     <div className="mt-8 border-t border-gray-100 pt-8">
                         <div className="flex items-center gap-2 mb-4">
-                            <div className="w-[3px] h-[14px] bg-blue-500 rounded-full"></div>
+                            <div className="w-[3px] h-[14px] bg-[#CF3A27] rounded-full"></div>
                             <h3 className="font-extrabold text-[15px] leading-none text-gray-900">
                                 미션 목록
                             </h3>
@@ -920,7 +929,7 @@ const PublicProgramDetail = () => {
                                             onClick={() => setSelectedMissionForDetail(mission)}
                                             className="flex flex-col items-center cursor-pointer select-none group flex-1"
                                         >
-                                            <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 bg-blue-50 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                                            <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs mb-2 bg-red-50 text-[#CF3A27] group-hover:bg-[#CF3A27] group-hover:text-white transition-colors">
                                                 {index + 1}
                                             </div>
                                             <span className="text-[11px] font-bold text-gray-900 leading-snug text-center break-all">
@@ -987,7 +996,7 @@ const PublicProgramDetail = () => {
                                                  handleActionClick();
                                              }
                                          }}
-                                        className="w-full py-4 bg-blue-600 text-white font-black text-center rounded-2xl text-sm transition-all hover:bg-blue-700 active:scale-[0.98]"
+                                        className="w-full py-4 bg-[#CF3A27] text-white font-black text-center rounded-2xl text-sm transition-all hover:bg-[#B83222] active:scale-[0.98]"
                                     >
                                          {isInternalViewer
                                              ? '신청자 명단'
@@ -999,7 +1008,7 @@ const PublicProgramDetail = () => {
                     );
                 })()}
 
-                {notice.category === 'PROGRAM' && !usesDailySessionRsvp(notice) && notice.program_type === 'CENTER' && hostUsers.length > 0 && (
+                {notice.category === 'PROGRAM' && !usesDailySessionRsvp(notice) && hostUsers.length > 0 && (
                     <div ref={hostRef} className="mb-8 scroll-mt-28 flex flex-col gap-3">
                         {/* Hosts with one-liners: rendered individually */}
                         {hostUsers.filter(h => h.one_liner && h.one_liner.trim() !== '').map(host => (
@@ -1124,7 +1133,7 @@ const PublicProgramDetail = () => {
                                             className={`w-full rounded-2xl py-4 font-black text-base transition active:scale-[0.98] flex items-center justify-center gap-2 ${
                                                 hasReviewed
                                                     ? 'bg-slate-100 text-slate-700 border border-slate-200'
-                                                    : 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                                                    : 'bg-[#CF3A27] text-white shadow-lg shadow-red-100'
                                             }`}
                                         >
                                             <Sparkles size={19} />
@@ -1147,7 +1156,7 @@ const PublicProgramDetail = () => {
                                     <button 
                                         onClick={() => loggedInUser.user_group === '게스트' ? openGuestApplicationForm(loggedInUser) : beginMemberRegistration()}
                                         disabled={submitting}
-                                        className="w-full bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200 text-base transition active:scale-[0.98] disabled:bg-gray-200 disabled:shadow-none"
+                                        className="w-full bg-[#CF3A27] text-white rounded-2xl py-4 font-black shadow-lg shadow-red-100 text-base transition hover:bg-[#B83222] active:scale-[0.98] disabled:bg-gray-200 disabled:shadow-none"
                                     >
                                         {submitting ? '신청 처리 중...' : '신청하기'}
                                     </button>
@@ -1157,7 +1166,7 @@ const PublicProgramDetail = () => {
                                     {/* Primary Button: Log in and apply */}
                                     <button 
                                         onClick={handleActionClick}
-                                        className="w-full bg-blue-600 text-white rounded-2xl py-4 font-black shadow-lg shadow-blue-200 text-base transition active:scale-[0.98]"
+                                        className="w-full bg-[#CF3A27] text-white rounded-2xl py-4 font-black shadow-lg shadow-red-100 text-base transition hover:bg-[#B83222] active:scale-[0.98]"
                                     >
                                         로그인하고 신청하기
                                     </button>
@@ -1438,7 +1447,7 @@ const PublicProgramDetail = () => {
                                 <button
                                     type="submit"
                                     disabled={isSubmitDisabled}
-                                    className="w-full mt-6 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-100 disabled:bg-gray-200 disabled:shadow-none transition-all active:scale-[0.98] text-sm"
+                                    className="w-full mt-6 py-4 bg-[#CF3A27] text-white rounded-2xl font-black shadow-lg shadow-red-100 disabled:bg-gray-200 disabled:shadow-none transition-all hover:bg-[#B83222] active:scale-[0.98] text-sm"
                                 >
                                     {submitting ? '신청 처리 중...' : '신청 완료하기'}
                                 </button>
@@ -1478,7 +1487,7 @@ const PublicProgramDetail = () => {
                                 setIsSuccessModalOpen(false);
                                 if (hasStudentDashboard) navigate('/student');
                             }}
-                            className={`w-full py-4 rounded-2xl font-black text-sm transition-all active:scale-[0.98] ${shouldSuggestGuestConversion ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-100'}`}
+                            className={`w-full py-4 rounded-2xl font-black text-sm transition-all active:scale-[0.98] ${shouldSuggestGuestConversion ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-[#CF3A27] hover:bg-[#B83222] text-white shadow-lg shadow-red-100'}`}
                         >
                             {hasStudentDashboard
                                 ? (shouldSuggestGuestConversion ? '다음에 전환하고 신청 내역 보기' : '내 신청 내역 확인하기')

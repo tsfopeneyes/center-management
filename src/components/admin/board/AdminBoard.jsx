@@ -64,16 +64,9 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
     }, []);
 
     useEffect(() => {
-        if (todaySessionNotice || !pendingParticipantModal) return undefined;
-
-        // TodaySessionModal removes its synthetic browser-history entry while
-        // unmounting. Open the shared participant modal after that traversal
-        // settles so the new modal is not mistaken for the one being closed.
-        const timer = window.setTimeout(() => {
-            setModalNotice(pendingParticipantModal);
-            setPendingParticipantModal(null);
-        }, 100);
-        return () => window.clearTimeout(timer);
+        if (todaySessionNotice || !pendingParticipantModal) return;
+        setModalNotice(pendingParticipantModal);
+        setPendingParticipantModal(null);
     }, [todaySessionNotice, pendingParticipantModal]);
 
     const adminUser = useMemo(() => {

@@ -3,6 +3,20 @@ import { getKstDateString } from '../utils/dailyProgramSessions';
 
 const missingTable = (error) => error?.code === '42P01' || error?.code === 'PGRST205';
 const missingRpc = (error) => error?.code === 'PGRST202' || error?.code === '42883';
+const missingAudience = error => ['42703', 'PGRST204'].includes(error?.code);
+const fetchSessionResponses = async (sessionId, rpcSupplement = false) => {
+    const columns = rpcSupplement
+        ? 'user_id,application_form_revision,application_form_snapshot'
+        : 'user_id,status,is_attended,created_at,application_answers,application_form_revision,application_form_snapshot,users(id,name,school,phone,phone_back4,is_leader,user_group)';
+    const query = withAudience => {
+        const selected = withAudience ? `${columns},application_audience` : columns;
+        const request = supabase.from('daily_program_session_responses').select(selected).eq('session_id', sessionId);
+        return rpcSupplement ? request : request.order('created_at', { ascending: true });
+    };
+    let result = await query(true);
+    if (missingAudience(result.error)) result = await query(false);
+    return result;
+};
 
 export const programSessionsApi = {
     async fetchAdminParticipants(sessionId) {
@@ -12,26 +26,20 @@ export const programSessionsApi = {
         if (!error) {
             const participants = Array.isArray(data) ? data : [];
             if (!participants.length) return participants;
-            const { data: snapshots, error: snapshotError } = await supabase
-                .from('daily_program_session_responses')
-                .select('user_id,application_form_revision,application_form_snapshot')
-                .eq('session_id', sessionId);
+            const { data: snapshots, error: snapshotError } = await fetchSessionResponses(sessionId, true);
             if (snapshotError) throw snapshotError;
             const byUserId = new Map((snapshots || []).map(row => [row.user_id, row]));
             return participants.map(participant => ({
                 ...participant,
                 application_form_revision: byUserId.get(participant.user_id)?.application_form_revision ?? null,
                 application_form_snapshot: byUserId.get(participant.user_id)?.application_form_snapshot ?? null,
+                application_audience: byUserId.get(participant.user_id)?.application_audience ?? null,
             }));
         }
         if (!missingRpc(error)) throw error;
 
         // Direct-table fallback for deployments whose RPC schema cache has not refreshed yet.
-        const { data: fallback, error: fallbackError } = await supabase
-            .from('daily_program_session_responses')
-            .select('user_id,status,is_attended,created_at,application_answers,application_form_revision,application_form_snapshot,users(id,name,school,phone,phone_back4,is_leader,user_group)')
-            .eq('session_id', sessionId)
-            .order('created_at', { ascending: true });
+        const { data: fallback, error: fallbackError } = await fetchSessionResponses(sessionId);
         if (fallbackError) throw fallbackError;
         return (fallback || []).map(response => ({
             ...response,

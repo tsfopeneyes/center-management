@@ -1,3 +1,4 @@
+import UserCategoryBadge from '../../../common/UserCategoryBadge';
 import React, { useState, useMemo } from 'react';
 import { Globe, RefreshCw, Clock, UserX, UserCheck } from 'lucide-react';
 import { isAdminOrStaff } from '../../../../utils/userUtils';
@@ -84,7 +85,7 @@ const WebAccessSettings = ({ users = [], fetchData }) => {
     }, [users, excludeStaff]);
 
     return (
-        <div className="w-full bg-white rounded-2xl md:rounded-[24px] border border-[#f2f4f6] p-4 sm:p-6 shadow-sm flex flex-col gap-5 sm:gap-6">
+        <div className="w-full bg-white rounded-2xl md:rounded-[24px] border border-[#f2f4f6] p-3 sm:p-6 shadow-sm flex flex-col gap-3 sm:gap-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 border-b border-gray-100 pb-4 sm:pb-5">
                 <div>
@@ -135,18 +136,17 @@ const WebAccessSettings = ({ users = [], fetchData }) => {
             ) : (
                 <>
                     {/* 1. Mobile List View (md:hidden) - Optimized for readability */}
-                    <div className="flex flex-col gap-2.5 md:hidden">
+                    <div className="flex flex-col divide-y divide-gray-100 md:hidden">
                         {recentWebUsers.map((user, index) => {
                             const rawTime = user.preferences?.last_web_login_at;
                             const formattedTime = formatKSTDate(rawTime);
                             const relativeTime = getRelativeTime(rawTime);
                             const isRecent5Min = (new Date() - new Date(rawTime)) < 5 * 60 * 1000;
-                            const isStaff = isAdminOrStaff(user);
 
                             return (
                                 <div
                                     key={user.id || index}
-                                    className="p-3.5 bg-gray-50/60 border border-gray-100 rounded-xl flex flex-col gap-2 transition-colors hover:bg-blue-50/40"
+                                    className="py-3 flex flex-col gap-1.5 transition-colors hover:bg-blue-50/40"
                                 >
                                     {/* Top Row: Rank, User Avatar, Name, Badges & Relative Time */}
                                     <div className="flex items-center justify-between gap-2">
@@ -167,20 +167,12 @@ const WebAccessSettings = ({ users = [], fetchData }) => {
                                             </div>
 
                                             {/* User Name & Badges */}
-                                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                                <span className="font-bold text-sm text-[#191f28] whitespace-nowrap">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <span className="font-bold text-sm text-[#191f28] break-words min-w-0">
                                                     {user.name || '미등록'}
                                                 </span>
-                                                {user.is_leader && (
-                                                    <span className="px-1.5 py-0.2 bg-purple-50 text-purple-600 rounded text-[9.5px] font-bold border border-purple-100 shrink-0">
-                                                        리더
-                                                    </span>
-                                                )}
-                                                {isStaff && (
-                                                    <span className="px-1.5 py-0.2 bg-blue-50 text-blue-600 rounded text-[9.5px] font-bold border border-blue-100 shrink-0">
-                                                        스탭
-                                                    </span>
-                                                )}
+
+
                                             </div>
                                         </div>
 
@@ -195,19 +187,13 @@ const WebAccessSettings = ({ users = [], fetchData }) => {
                                         </span>
                                     </div>
 
-                                    {/* Bottom Row: School/Group & KST Timestamp */}
-                                    <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-100/80 font-medium">
-                                        <div className="truncate max-w-[55%]">
-                                            <span>{user.school || user.user_group || '소속 미설정'}</span>
-                                            {user.school && user.user_group && (
-                                                <span className="text-gray-400"> ({user.user_group})</span>
-                                            )}
-                                        </div>
-
-                                        <div className="flex items-center gap-1 text-[11px] font-mono text-gray-600 shrink-0">
-                                            <Clock size={12} className="text-gray-400 shrink-0" />
-                                            <span>{formattedTime}</span>
-                                        </div>
+                                    <div className="pl-7 flex items-center gap-2 min-w-0">
+                                        <UserCategoryBadge user={user} className="!py-0.5 !text-[11px]" />
+                                        <p className="min-w-0 text-xs text-gray-600 break-words">{user.school || '학교 미등록'}</p>
+                                    </div>
+                                    <div className="pl-7 flex items-center gap-1 text-[11px] text-gray-500 tabular-nums">
+                                        <Clock size={12} className="shrink-0" />
+                                        <time dateTime={rawTime}>{formattedTime}</time>
                                     </div>
                                 </div>
                             );
@@ -221,7 +207,8 @@ const WebAccessSettings = ({ users = [], fetchData }) => {
                                 <tr className="bg-gray-50/80 text-gray-500 text-xs font-bold border-b border-gray-100">
                                     <th className="py-3.5 px-4 w-16 text-center">순위</th>
                                     <th className="py-3.5 px-4">이용자 이름</th>
-                                    <th className="py-3.5 px-4">소속 / 학교</th>
+                                    <th scope="col" className="py-3.5 px-4 w-24">구분</th>
+                                    <th scope="col" className="py-3.5 px-4">학교</th>
                                     <th className="py-3.5 px-4">최근 웹 접속 일시 (KST)</th>
                                     <th className="py-3.5 px-4 text-right">경과 시간</th>
                                 </tr>
@@ -232,7 +219,6 @@ const WebAccessSettings = ({ users = [], fetchData }) => {
                                     const formattedTime = formatKSTDate(rawTime);
                                     const relativeTime = getRelativeTime(rawTime);
                                     const isRecent5Min = (new Date() - new Date(rawTime)) < 5 * 60 * 1000;
-                                    const isStaff = isAdminOrStaff(user);
 
                                     return (
                                         <tr key={user.id || index} className="hover:bg-blue-50/30 transition-colors">
@@ -255,28 +241,13 @@ const WebAccessSettings = ({ users = [], fetchData }) => {
                                                         {user.name ? user.name.substring(0, 1) : 'U'}
                                                     </div>
                                                     <span className="font-bold text-[#191f28] whitespace-nowrap">{user.name || '미등록'}</span>
-                                                    {user.is_leader && (
-                                                        <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[10px] font-bold border border-purple-100 shrink-0">
-                                                            리더
-                                                        </span>
-                                                    )}
-                                                    {isStaff && (
-                                                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold border border-blue-100 shrink-0">
-                                                            스탭/관리자
-                                                        </span>
-                                                    )}
+
+
                                                 </div>
                                             </td>
 
-                                            {/* Group / School */}
-                                            <td className="py-3.5 px-4 text-gray-600">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="font-semibold text-xs text-gray-700">{user.user_group || '소속 미설정'}</span>
-                                                    {user.school && (
-                                                        <span className="text-gray-400 text-xs">• {user.school}</span>
-                                                    )}
-                                                </div>
-                                            </td>
+                                            <td className="py-3.5 px-4"><UserCategoryBadge user={user} /></td>
+                                            <td className="py-3.5 px-4 text-gray-600">{user.school || '학교 미등록'}</td>
 
                                             {/* KST Access Time */}
                                             <td className="py-3.5 px-4 font-mono font-medium text-gray-700 text-xs sm:text-sm">

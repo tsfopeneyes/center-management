@@ -455,3 +455,9 @@ enabled = true
 # action performs its own live token, account, role and assurance checks.
 verify_jwt = false
 entrypoint = "./functions/account-auth/index.ts"
+
+[functions.haifn-chat]
+enabled = true
+# Visitors start this conversation without a user account; the function checks a random session token.
+verify_jwt = false
+entrypoint = "./functions/haifn-chat/index.ts"

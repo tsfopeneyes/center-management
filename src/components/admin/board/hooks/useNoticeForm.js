@@ -113,6 +113,14 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
         }
         
         if (mode === CATEGORIES.PROGRAM) {
+            if (formData.enable_post_program_button && formData.post_program_button_link?.trim()) {
+                try {
+                    const link = new URL(formData.post_program_button_link.trim());
+                    if (!['http:', 'https:'].includes(link.protocol)) throw new Error('Invalid protocol');
+                } catch {
+                    return { isValid: false, message: '참가자 추가 화면의 링크는 http 또는 https 주소로 입력해주세요.' };
+                }
+            }
             const applicationForm = materializeProgramApplicationForm(
                 formData.application_form, formData.guest_properties
             );

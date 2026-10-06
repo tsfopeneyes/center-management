@@ -15,6 +15,7 @@ const files = [
     '../src/features/programs/settings/ChallengeSettings.jsx',
     '../src/features/programs/settings/ApplicantExperienceSettings.jsx',
     '../src/features/programs/settings/ProgramAudienceSettings.jsx',
+    '../src/features/programs/settings/ProgramVisibilitySettings.jsx',
     '../src/features/programs/settings/ProgramParticipationSettings.jsx',
     '../src/features/programs/settings/ProgramSettingsLayout.jsx',
 ];

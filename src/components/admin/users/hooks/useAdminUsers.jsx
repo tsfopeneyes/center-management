@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../../../../supabaseClient';
+import { getUserCategory } from '../../../../utils/userCategory';
 import { hashPassword } from '../../../../utils/hashUtils';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../../auth/accountAuthRuntime';
 import { listPendingGuestLinks } from '../../../../api/userMergeApi';
@@ -104,7 +105,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) =
                 matchesText(user.phone_back4) ||
                 matchesText(user.school) ||
                 matchesText(user.church) ||
-                matchesText(user.user_group) ||
+                matchesText(user.user_group) || matchesText(getUserCategory(user)) ||
                 matchesText(user.role) ||
                 (age && age === cleanSearch) || matchesAge;
 
@@ -116,10 +117,10 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) =
                 : filterGroup === 'NEW_3M'
                     ? isNew3M && !isGuestOrTemp
                     : filterGroup === 'LEADER'
-                        ? user.is_leader === true
+                        ? getUserCategory(user) === '리더'
                         : filterGroup === 'TEMP_GUEST'
-                            ? isGuestOrTemp
-                            : user.user_group === filterGroup && !isGuestOrTemp;
+                            ? getUserCategory(user) === '게스트'
+                            : getUserCategory(user) === filterGroup && !isGuestOrTemp;
 
             const isExcludedLeader = excludeLeaders && user.is_leader === true;
             const isNonSchoolChurchFilter = showOnlyNonSchoolChurch && user.preferences?.is_school_church === true;

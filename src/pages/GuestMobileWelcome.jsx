@@ -24,6 +24,7 @@ import { answerSummary, notificationAnswerSummary } from '../utils/surveyModel';
 import { userApi } from '../api/userApi';
 import { useAuth } from '../auth/AuthProvider';
 import SignUpForm from '../components/auth/SignUpForm';
+import TermsReaderModal from '../components/auth/TermsReaderModal';
 import StudentCheckoutSurveyModal from '../components/student/modals/StudentCheckoutSurveyModal';
 import SurveyRunner from '../components/surveys/SurveyRunner';
 import BirthDateInput from '../components/common/BirthDateInput';
@@ -62,6 +63,7 @@ const getObjectParticle = (word = '') => {
 
 const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurveyLoginComplete, onSurveyLoginCancel, communityLoginId = '', onCommunityLoginComplete, onCommunityLoginCancel, onLoginComplete, onLoginCancel, loginOnly = false }) => {
     const auth = useAuth();
+    const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
     const searchParams = new URLSearchParams(location.search);
@@ -253,6 +255,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     const [loginName, setLoginName] = useState('');
     const [loginPassword, setLoginPassword] = useState('');
     const [loginLoading, setLoginLoading] = useState(false);
+    const loginInFlightRef = useRef(false);
     const [loginDuplicates, setLoginDuplicates] = useState([]);
     const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
     const [resetCandidate, setResetCandidate] = useState(null);
@@ -609,6 +612,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
 
             const hasCompletedCheckinSurvey = Array.isArray(completedSurveyPurposes) && completedSurveyPurposes.length > 0;
             let requiresCheckinSurvey = false;
+            let checkinSurvey = null;
             if (hasCompletedCheckinSurvey) {
                 try {
                     await sendCheckinNotification({
@@ -634,6 +638,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                     return null;
                 });
                 requiresCheckinSurvey = Boolean(assignedSurvey);
+                checkinSurvey = assignedSurvey;
                 if (requiresCheckinSurvey) {
                     sessionStorage.setItem('require_checkin_survey', 'true');
                 } else {
@@ -655,6 +660,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                 replace: true,
                 state: {
                     requireCheckinSurvey: requiresCheckinSurvey,
+                    checkinSurvey,
                     checkinTime: insertedLog?.created_at,
                     locationName: locObj.name
                 }
@@ -783,6 +789,8 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
             return;
         }
 
+        if (loginInFlightRef.current) return;
+        loginInFlightRef.current = true;
         setLoginLoading(true);
         try {
             if(isAccountAuthEnabled()){
@@ -822,12 +830,15 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
             }
         } catch (err) {
             console.error('Login submit error:', err);
-            if (isAccountAuthEnabled() && ['temporarily_unavailable', 'cancelled'].includes(err?.code)) {
+            if (isAccountAuthEnabled() && err?.code === 'local_proxy_unavailable') {
+                alert('로컬 개발 서버의 인증 연결이 끊겼습니다. 연결 상태를 확인한 뒤 다시 로그인해주세요.');
+            } else if (isAccountAuthEnabled() && ['temporarily_unavailable', 'cancelled'].includes(err?.code)) {
                 alert('인증 서버 연결이 지연되고 있습니다. 잠시 후 다시 시도해주세요.');
             } else {
                 alert('로그인 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.');
             }
         } finally {
+            loginInFlightRef.current = false;
             setLoginLoading(false);
         }
     };
@@ -920,7 +931,9 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                 return false;
             }
             if(isAccountAuthEnabled()&&['name_not_found','selection_required'].includes(err?.code))return err.code;
-            if (isAccountAuthEnabled() && ['temporarily_unavailable', 'cancelled'].includes(err?.code)) {
+            if (isAccountAuthEnabled() && err?.code === 'local_proxy_unavailable') {
+                alert('로컬 개발 서버의 인증 연결이 끊겼습니다. 연결 상태를 확인한 뒤 다시 로그인해주세요.');
+            } else if (isAccountAuthEnabled() && ['temporarily_unavailable', 'cancelled'].includes(err?.code)) {
                 alert('인증 서버 연결이 지연되고 있습니다. 잠시 후 다시 시도해주세요.');
                 return false;
             }
@@ -1497,7 +1510,8 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     }
 
     return (
-        <div className={`h-screen h-[100svh] supports-[height:100dvh]:h-[100dvh] text-[#191F28] flex flex-col overflow-hidden select-none font-sans ${loginOnly ? 'fixed inset-0 z-40 bg-transparent' : `relative ${step === 'HOME' ? 'bg-[#F7EFE2]' : 'bg-[#F8F9FA]'}`}`}>
+        <>
+        <div inert={showPrivacyPolicy ? '' : undefined} aria-hidden={showPrivacyPolicy ? true : undefined} className={`h-screen h-[100svh] supports-[height:100dvh]:h-[100dvh] text-[#191F28] flex flex-col overflow-hidden select-none font-sans ${loginOnly ? 'fixed inset-0 z-40 bg-transparent' : `relative ${step === 'HOME' ? 'bg-[#F7EFE2]' : 'bg-[#F8F9FA]'}`}`}>
             {/* Background Glow Accents */}
             <div className={`absolute inset-0 overflow-hidden -z-10 pointer-events-none ${loginOnly ? 'hidden' : ''}`}>
                 <motion.div animate={{ scale: [1, 1.2, 1], x: [0, 30, 0] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute -top-32 left-1/2 -translate-x-1/2 w-[480px] h-[480px] bg-gradient-to-b from-[#CF3A27]/10 to-orange-500/5 rounded-full blur-[100px]" />
@@ -1554,7 +1568,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
             </header>
 
             {/* Main Content Areas */}
-            <main className={`scrollbar-hide flex-1 min-h-0 relative z-10 max-w-md mx-auto w-full overscroll-contain ${loginOnly ? 'invisible' : ''} ${step === 'HOME' ? 'overflow-hidden px-0 py-0' : 'overflow-y-auto px-6'} ${step === 'SURVEY' ? 'py-4 flex flex-col justify-start' : step === 'HOME' ? 'flex flex-col justify-start [@media(min-width:480px)_and_(min-height:800px)]:justify-center' : 'flex flex-col justify-center'}`}>
+            <main className={`scrollbar-hide flex-1 min-h-0 relative z-10 max-w-md mx-auto w-full overscroll-contain ${loginOnly ? 'invisible' : ''} ${step === 'HOME' ? 'overflow-y-auto px-0 py-0' : 'overflow-y-auto px-6'} ${step === 'SURVEY' ? 'py-4 flex flex-col justify-start' : step === 'HOME' ? 'flex flex-col justify-start [@media(min-width:480px)_and_(min-height:800px)]:justify-center' : 'flex flex-col justify-center'}`}>
                 <AnimatePresence mode="wait">
                     {step === 'HOME' && (
                         <motion.div
@@ -2286,9 +2300,12 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
 
             {/* Footer */}
             <footer className={`py-4 text-center text-xs text-[#8B95A1] relative z-10 font-medium shrink-0 ${loginOnly ? 'hidden' : ''}`}>
-                © SCI CENTER • HAIFN & ENOUGH PLACE
+                {isMainEntry && <button type="button" onClick={() => setShowPrivacyPolicy(true)} className="mb-1 min-h-11 rounded-lg px-3 font-bold text-[#4E5968] underline underline-offset-4 hover:text-[#191F28] focus-visible:outline-[#CF3A27]">개인정보처리방침</button>}
+                <p>© SCI CENTER • HAIFN & ENOUGH PLACE</p>
             </footer>
         </div>
+        {showPrivacyPolicy && <TermsReaderModal article="art2" returnLabel="첫 화면으로 돌아가기" onClose={() => setShowPrivacyPolicy(false)} />}
+        </>
     );
 };
 

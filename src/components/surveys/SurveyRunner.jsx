@@ -3,7 +3,7 @@ import { Sparkles } from 'lucide-react';
 import SurveyFields from './SurveyFields';
 import { surveyHubApi } from '../../api/surveyHubApi';
 import { answerSummary, notificationAnswerSummary, recommendationsFor, validateAnswers } from '../../utils/surveyModel';
-import useModalClose from '../../hooks/useModalClose';
+import useModalClose, { useBodyScrollLock } from '../../hooks/useModalClose';
 
 export default function SurveyRunner({ link, userId, onComplete, onClose, initialEntry, locationId, visitId, onSubmit, inline = false, manageHistory = true, dismissible = true }) {
     const [answers, setAnswers] = useState(initialEntry?.answers || {});
@@ -13,11 +13,7 @@ export default function SurveyRunner({ link, userId, onComplete, onClose, initia
     const lock = useRef(false);
     const saved = useRef(null);
     useModalClose(!inline && manageHistory, () => { if (!lock.current) onClose?.(); });
-    useEffect(() => {
-        if (inline) return;
-        const original = document.body.style.overflow; document.body.style.overflow = 'hidden';
-        return () => { document.body.style.overflow = original; };
-    }, [inline]);
+    useBodyScrollLock(!inline && !manageHistory);
     const definition = initialEntry?.snapshot || link.version.definition;
     useEffect(() => { setAnswers(initialEntry?.answers || {}); setRecommendationPreview(null); saved.current = null; }, [link.id, initialEntry?.id]);
     const persist = async () => {
