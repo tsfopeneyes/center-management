@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { feedbackApi } from '../api/feedbackApi';
+import { noticesApi } from '../api/noticesApi';
+import { trackNoticeView } from '../utils/noticeViewTracking';
 import { Calendar, User, ArrowLeft, Share, AlertCircle, MapPin, Users, Smartphone, School, CheckCircle2, X, Download, Copy, Sparkles } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import NoticeCarousel from '../components/student/components/NoticeCarousel';
@@ -24,6 +26,7 @@ import SignUpForm from '../components/auth/SignUpForm';
 import { programSessionsApi } from '../api/programSessionsApi';
 import { programApplicationsApi } from '../api/programApplicationsApi';
 import { guestProgramRegistrationApi } from '../api/guestProgramRegistrationApi';
+import { communityChannelsApi } from '../api/communityChannelsApi';
 import { buildGuestRegistrationRequest } from '../features/programs/application/guestRegistrationRequest';
 import { usesDailySessionRsvp, getDailySessionRegistrationBlockReason, formatDailySessionSchedule, getDailySessionHosts, getDailySessionValues, isRecurringProgram, shouldShowApplicationCount } from '../utils/dailyProgramSessions';
 import BirthDateInput from '../components/common/BirthDateInput';
@@ -110,6 +113,7 @@ const PublicProgramDetail = () => {
     const [submitting, setSubmitting] = useState(false);
     const [selectedMissionForDetail, setSelectedMissionForDetail] = useState(null);
     const [loggedInUser, setLoggedInUser] = useState(null);
+    const [viewerReadyFor, setViewerReadyFor] = useState(null);
     const [isRegistered, setIsRegistered] = useState(false);
     const [applicationStatus, setApplicationStatus] = useState('JOIN');
     const [currentApplicantCount, setCurrentApplicantCount] = useState(0);
@@ -123,6 +127,11 @@ const PublicProgramDetail = () => {
     const hasStudentDashboard = Boolean(loggedInUser && loggedInUser.user_group !== '게스트');
     const programRegistrationBlockReason = getProgramRegistrationBlockReason(notice, recruitmentNow);
     const isProgramRegistrationOpen = !programRegistrationBlockReason;
+
+    useEffect(() => {
+        if (viewerReadyFor !== id || !notice?.id || String(notice.id) !== String(id) || notice.is_program_preview) return;
+        trackNoticeView({ noticeId: notice.id, user: loggedInUser, increment: noticesApi.incrementViewCount }).catch(console.error);
+    }, [id, notice?.id, notice?.is_program_preview, viewerReadyFor, loggedInUser]);
 
     const openApplicationStatus = () => {
         if (hasStudentDashboard) navigate('/student');
@@ -205,6 +214,14 @@ const PublicProgramDetail = () => {
             customAnswers: {},
         });
         setIsGuestModalOpen(true);
+    };
+
+    const openProgramCommunity = async () => {
+        try {
+            const channel=await communityChannelsApi.fetchProgramInvite(Number(id));
+            if(!channel)throw new Error('커뮤니티가 아직 열리지 않았거나 종료됐어요.');
+            navigate(`/community/${channel.id}`);
+        } catch(error) { alert(error.message || '커뮤니티를 열지 못했어요. 잠시 후 다시 시도해주세요.'); }
     };
 
     const handleGuestSubmit = async (e) => {
@@ -508,6 +525,8 @@ const PublicProgramDetail = () => {
                 }
             }
 
+            setLoggedInUser(user);
+            setViewerReadyFor(id);
             if (user) {
                 setLoggedInUser(user);
 
@@ -780,7 +799,8 @@ const PublicProgramDetail = () => {
             notice.program_end_date
         );
     const isFeedbackEnabled = notice.enable_feedback === true || notice.guest_properties?.enable_feedback === true;
-    const canLeaveFeedback = Boolean(loggedInUser && isRegistered && isProgramEnded(notice) && isFeedbackEnabled);
+    const hasConfirmedApplication = Boolean(loggedInUser && isRegistered && applicationStatus === 'JOIN');
+    const canLeaveFeedback = Boolean(hasConfirmedApplication && isProgramEnded(notice) && isFeedbackEnabled);
 
     return (
         <div className="w-full md:max-w-lg mx-auto min-h-screen bg-white relative pb-48 shadow-2xl">
@@ -1105,7 +1125,7 @@ const PublicProgramDetail = () => {
             {usesDailySessionRsvp(notice) && programRegistrationBlockReason && <div className="mx-5 mb-6 rounded-2xl bg-blue-50 p-4 text-sm font-semibold text-slate-600">{programRegistrationBlockReason}</div>}
             {/* Bottom Floating Action Bar */}
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-lg bg-white/95 backdrop-blur-xl border-t border-gray-100 z-50 safe-area-bottom">
-                {(notice.is_recruiting === false || isProgramRegistrationOpen || canLeaveFeedback || isInternalViewer) ? (
+                {(notice.is_recruiting === false || isProgramRegistrationOpen || canLeaveFeedback || isInternalViewer || (hasConfirmedApplication && notice.community_enabled)) ? (
                     <div className="flex flex-col">
                         {/* Full-width Dark Deadline Bar */}
                         {isProgramRegistrationOpen && notice.recruitment_deadline && !isProgramEnded(notice) && (
@@ -1115,6 +1135,8 @@ const PublicProgramDetail = () => {
                         )}
                         
                         <div className="p-4 flex flex-col gap-2">
+                            {notice.community_enabled&&(isInternalViewer||hasConfirmedApplication)&&<button type="button" onClick={openProgramCommunity}
+                                className="h-12 w-full rounded-2xl border border-emerald-100 bg-emerald-50 text-sm font-bold text-emerald-700 hover:bg-emerald-100">커뮤니티</button>}
                             {!notice.is_recruiting && !usesDailySessionRsvp(notice) ? (
                                 <div className="w-full rounded-2xl bg-emerald-50 py-4 text-center text-sm font-black text-emerald-700">신청 없이 참여할 수 있어요</div>
                             ) : isInternalViewer ? (
@@ -1273,7 +1295,7 @@ const PublicProgramDetail = () => {
                 </div>
             )}
 
-            {showFeedbackModal && (
+            {showFeedbackModal && hasConfirmedApplication && (
                 <ProgramFeedbackModal
                     program={notice}
                     onClose={() => setShowFeedbackModal(false)}
@@ -1471,6 +1493,8 @@ const PublicProgramDetail = () => {
                                 ? '이전에도 게스트로 신청한 기록이 있어요. 정식 회원으로 전환하면 신청과 방문 기록을 한 계정에서 계속 확인할 수 있습니다.'
                                 : '프로그램 일정에 맞춰 늦지 않게 방문해 주세요! ✨'}
                         </p>
+                        {notice.community_enabled&&applicationStatus==='JOIN'&&<button type="button" onClick={openProgramCommunity}
+                            className="mb-2 h-12 w-full rounded-2xl bg-[#CF3A27] text-sm font-bold text-white hover:bg-[#B83222]">커뮤니티 입장</button>}
                         {shouldSuggestGuestConversion && conversionGuest && (
                             <button
                                 onClick={() => {

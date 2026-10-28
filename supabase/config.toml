@@ -461,3 +461,15 @@ enabled = true
 # Visitors start this conversation without a user account; the function checks a random session token.
 verify_jwt = false
 entrypoint = "./functions/haifn-chat/index.ts"
+
+[functions.center-statistics-mcp]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/center-statistics-mcp/index.ts"
+
+[functions.guest-community]
+enabled = false
+# Verification starts without member login. The function issues and checks a
+# random token scoped to one community and rechecks live participation.
+verify_jwt = false
+entrypoint = "./functions/guest-community/index.ts"

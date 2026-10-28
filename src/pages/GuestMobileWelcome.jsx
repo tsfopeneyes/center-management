@@ -2080,6 +2080,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                                         className="w-full pl-9 pr-3 py-3 bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl text-[#191F28] placeholder-[#B0B8C1] outline-none focus:bg-white focus:border-[#CF3A27] font-bold text-sm"
                                     />
                                 </div>
+                                <p className="mt-2 text-xs leading-5 text-[#6B7684]">게스트는 신청할 때 등록한 휴대폰 번호 뒤 4자리로 로그인해주세요.</p>
                             </div>
 
                             <button

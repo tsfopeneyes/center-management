@@ -34,6 +34,9 @@ export default defineConfig(({ mode, command }) => {
     }
   },
   server: {
+    // SCI Challenge uses 2000; keep SCI Center on its own stable address.
+    port: 1000,
+    strictPort: true,
     // Codex can retain hidden preview tabs. Their HMR reconnects used to make
     // every server start recompile the app several times before the visible
     // tab could respond. A normal refresh is deterministic and much faster.
@@ -44,6 +47,12 @@ export default defineConfig(({ mode, command }) => {
       ignored: ['**/.chrome-*/**', '**/.edge-*/**', '**/.codex-*/**']
     },
     proxy: {
+      '/center-api-local': {
+        target: new URL(env.VITE_SUPABASE_URL).origin,
+        changeOrigin: true,
+        headers: { origin: 'https://app.schoolchurchimpact.org' },
+        rewrite: path => path.replace(/^\/center-api-local/, '/functions/v1/center-api'),
+      },
       '/naver-api': {
         target: 'https://openapi.naver.com',
         changeOrigin: true,
@@ -56,8 +65,10 @@ export default defineConfig(({ mode, command }) => {
         timeout: 40000,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/account-auth-local/, authTarget.pathname.replace(/\/$/, '')),
+        bypass: (request) => {
+          delete request.headers.origin
+        },
         configure: (proxy) => {
-          proxy.on('proxyReq', request => request.removeHeader('origin'))
           proxy.on('error', (error, request, response) => {
             // Log connection codes only, never login bodies or authorization headers.
             console.warn('[local-account-auth]', error.code || 'CONNECTION_FAILED')

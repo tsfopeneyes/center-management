@@ -1,0 +1,10 @@
+import {build} from 'esbuild';
+import {loadEnv} from 'vite';
+import {mkdir,writeFile} from 'node:fs/promises';
+const env=loadEnv('development',process.cwd(),'VITE_');
+const run=`20261023_${Date.now()}`;
+await mkdir('.local/chat-load',{recursive:true});
+await writeFile('.local/chat-load/run.json',JSON.stringify({run,center:`LOAD_TEST_${run}`,maxMessages:30},null,2));
+await writeFile('.local/chat-load/index.html','<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="./style.css"><div id="root"></div><script type="module" src="./bundle.js"></script></html>');
+await build({entryPoints:['scripts/fixtures/center-chat-load-ui.jsx'],bundle:true,outfile:'.local/chat-load/bundle.js',format:'iife',loader:{'.png':'dataurl','.svg':'dataurl','.jpg':'dataurl'},define:{'__CHAT_TEST_RUN__':JSON.stringify(run),'import.meta.env':JSON.stringify({...env,DEV:true,MODE:'development'}),'process.env.NODE_ENV':JSON.stringify('development')}});
+console.log(JSON.stringify({run,center:`LOAD_TEST_${run}`,maxMessages:30}));

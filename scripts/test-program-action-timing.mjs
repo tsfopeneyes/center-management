@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { hasProgramStartActions, programActionStartAt, usesProgramStartActions } from '../src/utils/programActionTiming.js';
+import { getRecruitment } from '../src/utils/programRecruitment.js';
+const program = { category: 'PROGRAM', is_recruiting: true, program_date: '2026-10-23T12:30:00+09:00', program_duration: '90분', recruitment_deadline: '2026-10-23T11:00:00+09:00' };
+const start = Date.parse(program.program_date);
+assert.equal(getRecruitment(program, start - 1).canApply, false, 'Recruitment remains closed');
+assert.equal(hasProgramStartActions(program, start - 1), false, 'Keep cancellation until the last moment before start');
+assert.equal(hasProgramStartActions(program, start), true, 'Switch to feedback exactly at start');
+assert.equal(hasProgramStartActions(program, start + 60_000), true, 'Feedback is available during the program');
+assert.equal(hasProgramStartActions({ ...program, program_status: 'CANCELLED' }, start), false);
+assert.equal(hasProgramStartActions({ ...program, program_status: 'COMPLETED' }, start - 1), true);
+assert.equal(hasProgramStartActions({ ...program, program_date: null }, start), false);
+assert.equal(hasProgramStartActions({ ...program, program_date: 'invalid' }, start), false);
+assert.equal(usesProgramStartActions({ ...program, is_recruiting: false }), false);
+assert.equal(usesProgramStartActions({ ...program, is_challenge: true }), false);
+assert.equal(usesProgramStartActions({ ...program, guest_properties: { schedule_mode: 'RECURRING' } }), false);
+assert.equal(programActionStartAt({ ...program, program_date: '2026-10-23', program_time: '12:30' }), start);
+console.log('Program participant action timing: passed');

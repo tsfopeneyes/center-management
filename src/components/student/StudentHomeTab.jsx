@@ -18,6 +18,8 @@ import {parseContentPost, sortContentPosts} from '../../utils/contentPosts';
 import { isAdminOrStaff } from '../../utils/userUtils';
 import HaifnPointIcon from './components/HaifnPointIcon';
 import ContentImage from '../common/ContentImage';
+import { useDataReload } from '../../hooks/useDataReload';
+import { subscribeDataRefresh } from '../../utils/dataRefresh';
 
 const StudentHomeTab = ({
     user,
@@ -67,6 +69,7 @@ const StudentHomeTab = ({
     tutorialMode = false,
     tutorialStep = null
 }) => {
+    const dataReload = useDataReload();
     const dmButtonRef = useRef(null);
     const [dmHighlightRect, setDmHighlightRect] = useState(null);
 
@@ -149,12 +152,14 @@ const StudentHomeTab = ({
                 let region=studentRegion || (user?.school?.includes('강서')?'강서':'강동');
                 if(isAdminOrStaff(user)) region=selectedRegion==='GANGSEO'?'강서':selectedRegion==='GANGDONG'?'강동':null;
                 let query=supabase.from('contents').select('*, schools(region)').eq('is_active',true).order('created_at',{ascending:false});
-                if(region){const {data:matchedSchools}=await supabase.from('schools').select('id').eq('region',region);query=query.in('school_id',(matchedSchools||[]).map(s=>s.id));}
+                if(region){const {data:matchedSchools,error}=await supabase.from('schools').select('id').eq('region',region);if(error)throw error;query=query.in('school_id',(matchedSchools||[]).map(s=>s.id));}
                 const {data,error}=await query;if(error)throw error;if(active)setHomeContents(sortContentPosts((data||[]).map(parseContentPost).filter(Boolean)));
-            }catch(error){console.error('Failed to load home contents:',error);if(active)setHomeContents([]);}
+            }catch(error){console.error('Failed to load home contents:',error);throw error;}
         };
-        loadContents();return()=>{active=false};
-    },[user?.id,user?.school,user?.role,studentRegion,selectedRegion]);
+        loadContents().catch(()=>{});
+        const stopRefresh=subscribeDataRefresh(loadContents);
+        return()=>{active=false;stopRefresh();};
+    },[user?.id,user?.school,user?.role,studentRegion,selectedRegion,dataReload]);
     const today = startOfDay(new Date());
     const matchesSelectedRegion = (cardRegion) => {
         if (!selectedRegion || selectedRegion === 'ALL') return true;

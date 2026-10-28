@@ -17,7 +17,7 @@ export function createAccountLoginAdapter({client,auth}){
         async login({profileId,name,password},options){
             const identity=await client.login.login(profileId?{profileId,password}:{name,password},options);
             if(identity.profile?.id!==identity.profileId)throw new AuthOperationError('account_changed');
-            return identity.profile;
+            return {...identity.profile,auth_user_id:identity.authUserId};
         }
     });
 }

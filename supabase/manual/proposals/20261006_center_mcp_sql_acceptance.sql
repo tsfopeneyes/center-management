@@ -1,0 +1,172 @@
+-- REVIEW PROPOSAL ONLY. Not applied. Transaction can be ended with ROLLBACK
+-- for a catalog/privilege dry-run. Never insert real binding values in source.
+BEGIN;
+CREATE SCHEMA center_mcp;
+REVOKE ALL ON SCHEMA center_mcp FROM PUBLIC, anon, authenticated;
+CREATE ROLE center_statistics_reader NOLOGIN NOSUPERUSER NOBYPASSRLS;
+CREATE ROLE center_mcp_consent_writer NOLOGIN NOSUPERUSER NOBYPASSRLS;
+CREATE ROLE center_mcp_release_worker NOLOGIN NOSUPERUSER NOBYPASSRLS;
+-- JWT role has no table, schema or function privileges. It is not a DB reader.
+CREATE ROLE center_mcp_oauth NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT;
+GRANT center_statistics_reader,center_mcp_consent_writer,center_mcp_release_worker TO postgres;
+-- Deliberately NOT a member of authenticator: PostgREST cannot SET ROLE to
+-- this JWT role, including calls to PUBLIC-granted SECURITY DEFINER RPCs.
+CREATE TABLE center_mcp.configuration (
+ singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),
+ client_id uuid UNIQUE, auth_user_id uuid UNIQUE, profile_id uuid UNIQUE,
+ credential_version integer CHECK(credential_version>0), enabled boolean NOT NULL DEFAULT false,
+ publication_policy jsonb NOT NULL DEFAULT '{"reviewed":false}'::jsonb,
+ CHECK(NOT enabled OR (client_id IS NOT NULL AND auth_user_id IS NOT NULL AND profile_id IS NOT NULL AND credential_version IS NOT NULL))
+);
+INSERT INTO center_mcp.configuration(singleton,client_id) VALUES(true,'914be882-969c-408f-9609-57a3534cc9b5');
+CREATE TABLE center_mcp.consent_proofs (
+ authorization_id text PRIMARY KEY, client_id uuid NOT NULL, auth_user_id uuid NOT NULL,
+ profile_id uuid NOT NULL, website_session_id uuid NOT NULL, credential_version integer NOT NULL CHECK(credential_version>0),
+ created_at timestamptz NOT NULL DEFAULT now(), revoked_at timestamptz
+);
+REVOKE ALL ON ALL TABLES IN SCHEMA center_mcp FROM PUBLIC,anon,authenticated;
+CREATE TABLE center_mcp.published_statistics (
+ signature text NOT NULL, policy_id text NOT NULL, window_start timestamptz NOT NULL,
+ window_end timestamptz NOT NULL CHECK(window_end>window_start), payload jsonb NOT NULL,
+ PRIMARY KEY(signature,policy_id)
+);
+REVOKE ALL ON center_mcp.published_statistics FROM PUBLIC,anon,authenticated;
+GRANT USAGE ON SCHEMA center_mcp TO center_mcp_release_worker;
+GRANT SELECT,INSERT ON center_mcp.published_statistics TO center_mcp_release_worker;
+GRANT USAGE ON SCHEMA public,account_security,center_mcp,auth TO center_statistics_reader;
+GRANT SELECT(id,user_group) ON public.users TO center_statistics_reader;
+GRANT SELECT(id,role) ON public.staff_directory TO center_statistics_reader;
+GRANT SELECT(id) ON public.locations TO center_statistics_reader;
+GRANT SELECT(id,user_id,type,location_id,created_at) ON public.logs TO center_statistics_reader;
+GRANT SELECT(id,category,program_date,created_at,program_status,is_recruiting) ON public.notices TO center_statistics_reader;
+GRANT SELECT(notice_id,user_id,status,is_attended,is_staff) ON public.notice_responses TO center_statistics_reader;
+GRANT SELECT(id,notice_id,session_date,status,voided_at) ON public.daily_program_sessions TO center_statistics_reader;
+GRANT SELECT(session_id,user_id,status,is_attended) ON public.daily_program_session_responses TO center_statistics_reader;
+GRANT SELECT(notice_id,user_id,attendance_date) ON public.open_program_attendance TO center_statistics_reader;
+GRANT SELECT(auth_user_id,profile_id,mapping_verified,status,must_change_password,credential_version)
+ ON account_security.accounts TO center_statistics_reader,center_mcp_consent_writer;
+GRANT SELECT(profile_id,role,enabled) ON account_security.account_roles TO center_statistics_reader,center_mcp_consent_writer;
+GRANT SELECT ON center_mcp.configuration,center_mcp.consent_proofs TO center_statistics_reader;
+GRANT SELECT(id,user_id,oauth_client_id,created_at,not_after) ON auth.sessions TO center_statistics_reader;
+GRANT SELECT(id,deleted_at) ON auth.oauth_clients TO center_statistics_reader;
+GRANT SELECT(user_id,client_id,granted_at,revoked_at) ON auth.oauth_consents TO center_statistics_reader;
+GRANT SELECT(authorization_id,client_id,user_id,status,approved_at) ON auth.oauth_authorizations TO center_statistics_reader;
+GRANT USAGE ON SCHEMA account_security,center_mcp,auth TO center_mcp_consent_writer;
+GRANT SELECT ON center_mcp.configuration TO center_mcp_consent_writer;
+GRANT INSERT(authorization_id,client_id,auth_user_id,profile_id,website_session_id,credential_version),SELECT(authorization_id)
+ ON center_mcp.consent_proofs TO center_mcp_consent_writer;
+GRANT SELECT(session_id,auth_user_id,profile_id,credential_version,status) ON account_security.session_assurances TO center_mcp_consent_writer;
+GRANT SELECT(authorization_id,client_id,user_id,status,expires_at,redirect_uri,resource,code_challenge_method)
+ ON auth.oauth_authorizations TO center_mcp_consent_writer;
+-- Existing policies are not changed. Additive role-specific SELECT policies
+-- do not grant anon/authenticated any new rights. Restrictive policies, if any,
+-- still apply and must be examined in the impact check.
+DO $block$ DECLARE t text; BEGIN
+ FOREACH t IN ARRAY ARRAY['users','locations','logs','notices','notice_responses','daily_program_sessions','daily_program_session_responses','open_program_attendance'] LOOP
+  EXECUTE format('CREATE POLICY center_mcp_read ON public.%I FOR SELECT TO center_statistics_reader USING (true)',t);
+ END LOOP;
+END $block$;
+
+CREATE POLICY center_mcp_bound_account ON account_security.accounts FOR SELECT TO center_statistics_reader,center_mcp_consent_writer
+ USING (EXISTS(SELECT 1 FROM center_mcp.configuration c WHERE c.singleton AND c.enabled AND c.auth_user_id=accounts.auth_user_id AND c.profile_id=accounts.profile_id));
+CREATE POLICY center_mcp_bound_role ON account_security.account_roles FOR SELECT TO center_statistics_reader,center_mcp_consent_writer
+ USING (EXISTS(SELECT 1 FROM center_mcp.configuration c WHERE c.singleton AND c.enabled AND c.profile_id=account_roles.profile_id));
+CREATE POLICY center_mcp_bound_assurance ON account_security.session_assurances FOR SELECT TO center_mcp_consent_writer
+ USING (EXISTS(SELECT 1 FROM center_mcp.configuration c WHERE c.singleton AND c.enabled AND c.auth_user_id=session_assurances.auth_user_id AND c.profile_id=session_assurances.profile_id));
+CREATE POLICY center_mcp_native_session ON auth.sessions FOR SELECT TO center_statistics_reader
+ USING (EXISTS(SELECT 1 FROM center_mcp.configuration c WHERE c.singleton AND c.enabled AND c.auth_user_id=sessions.user_id AND c.client_id=sessions.oauth_client_id));
+-- Native OAuth tables have RLS disabled in the verified project metadata.
+-- Do not alter their managed policies/ownership. Only projected column grants
+-- are added; the parameterized adapter always binds exact configured IDs.
+
+-- Composable transformer: an existing hook's vetted output claims can be fed
+-- into this function. Do not activate by replacing an existing hook blindly.
+CREATE FUNCTION center_mcp.apply_access_claims(event jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $body$
+DECLARE c center_mcp.configuration%ROWTYPE; claims jsonb:=event->'claims'; permitted boolean:=false;
+BEGIN
+ SELECT * INTO c FROM center_mcp.configuration WHERE singleton=true;
+ IF coalesce(event->>'client_id',claims->>'client_id') IS DISTINCT FROM '914be882-969c-408f-9609-57a3534cc9b5' THEN RETURN event; END IF;
+ -- Even disabled/wrong-user dedicated tokens never retain broad website role.
+ claims:=claims || jsonb_build_object('aud','https://erecqalsxoxrufggvmcc.supabase.co/functions/v1/center-statistics-mcp',
+   'role','center_mcp_oauth','client_id','914be882-969c-408f-9609-57a3534cc9b5','center_permissions','[]'::jsonb,'center_credential_version',null);
+ IF c.enabled AND claims->>'sub'=c.auth_user_id::text THEN
+  SELECT EXISTS(SELECT 1 FROM account_security.accounts a
+   JOIN account_security.account_roles r ON r.profile_id=a.profile_id
+   JOIN center_mcp.consent_proofs p ON p.auth_user_id=a.auth_user_id AND p.profile_id=a.profile_id
+   JOIN auth.oauth_authorizations oa ON oa.authorization_id=p.authorization_id AND oa.client_id=p.client_id AND oa.user_id=p.auth_user_id
+   JOIN auth.sessions os ON os.id::text=claims->>'session_id' AND os.user_id=p.auth_user_id AND os.oauth_client_id=p.client_id
+   WHERE a.auth_user_id=c.auth_user_id AND a.profile_id=c.profile_id AND a.mapping_verified=true AND a.status='active'
+    AND a.must_change_password=false AND a.credential_version=c.credential_version AND r.enabled=true AND r.role IN ('admin','master')
+    AND p.client_id=c.client_id AND p.credential_version=c.credential_version AND p.revoked_at IS NULL
+    AND oa.status::text='approved' AND oa.approved_at IS NOT NULL
+    AND os.created_at BETWEEN oa.approved_at - interval '5 seconds' AND oa.approved_at + interval '30 seconds') INTO permitted;
+ END IF;
+ IF permitted THEN claims:=claims || jsonb_build_object('center_permissions',jsonb_build_array('center:statistics:read','center:programs:read'),
+   'center_credential_version',c.credential_version); END IF;
+ RETURN jsonb_set(event,'{claims}',claims);
+END $body$;
+REVOKE ALL ON FUNCTION center_mcp.apply_access_claims(jsonb) FROM PUBLIC,anon,authenticated,center_mcp_oauth;
+GRANT USAGE ON SCHEMA center_mcp TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION center_mcp.apply_access_claims(jsonb) TO supabase_auth_admin;
+-- No runtime role may configure/enable the binding or change privacy policy.
+
+CREATE TEMP TABLE mcp_accounts(auth_user_id uuid,profile_id uuid,mapping_verified boolean,status text,must_change_password boolean,credential_version integer);
+CREATE TEMP TABLE mcp_roles(profile_id uuid,role text,enabled boolean);
+CREATE TEMP TABLE mcp_authorizations(authorization_id text,client_id uuid,user_id uuid,status text,approved_at timestamptz);
+CREATE TEMP TABLE mcp_sessions(id uuid,user_id uuid,oauth_client_id uuid,created_at timestamptz);
+CREATE FUNCTION center_mcp.fixture_apply_access_claims(event jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $body$
+DECLARE c center_mcp.configuration%ROWTYPE; claims jsonb:=event->'claims'; permitted boolean:=false;
+BEGIN
+ SELECT * INTO c FROM center_mcp.configuration WHERE singleton=true;
+ IF coalesce(event->>'client_id',claims->>'client_id') IS DISTINCT FROM '914be882-969c-408f-9609-57a3534cc9b5' THEN RETURN event; END IF;
+ -- Even disabled/wrong-user dedicated tokens never retain broad website role.
+ claims:=claims || jsonb_build_object('aud','https://erecqalsxoxrufggvmcc.supabase.co/functions/v1/center-statistics-mcp',
+   'role','center_mcp_oauth','client_id','914be882-969c-408f-9609-57a3534cc9b5','center_permissions','[]'::jsonb,'center_credential_version',null);
+ IF c.enabled AND claims->>'sub'=c.auth_user_id::text THEN
+  SELECT EXISTS(SELECT 1 FROM pg_temp.mcp_accounts a
+   JOIN pg_temp.mcp_roles r ON r.profile_id=a.profile_id
+   JOIN center_mcp.consent_proofs p ON p.auth_user_id=a.auth_user_id AND p.profile_id=a.profile_id
+   JOIN pg_temp.mcp_authorizations oa ON oa.authorization_id=p.authorization_id AND oa.client_id=p.client_id AND oa.user_id=p.auth_user_id
+   JOIN pg_temp.mcp_sessions os ON os.id::text=claims->>'session_id' AND os.user_id=p.auth_user_id AND os.oauth_client_id=p.client_id
+   WHERE a.auth_user_id=c.auth_user_id AND a.profile_id=c.profile_id AND a.mapping_verified=true AND a.status='active'
+    AND a.must_change_password=false AND a.credential_version=c.credential_version AND r.enabled=true AND r.role IN ('admin','master')
+    AND p.client_id=c.client_id AND p.credential_version=c.credential_version AND p.revoked_at IS NULL
+    AND oa.status::text='approved' AND oa.approved_at IS NOT NULL
+    AND os.created_at BETWEEN oa.approved_at - interval '5 seconds' AND oa.approved_at + interval '30 seconds') INTO permitted;
+ END IF;
+ IF permitted THEN claims:=claims || jsonb_build_object('center_permissions',jsonb_build_array('center:statistics:read','center:programs:read'),
+   'center_credential_version',c.credential_version); END IF;
+ RETURN jsonb_set(event,'{claims}',claims);
+END $body$;
+
+DO $test$ DECLARE event jsonb; output jsonb; ordinary jsonb; BEGIN
+ ordinary:=jsonb_build_object('authentication_method','password','claims',jsonb_build_object('aud','authenticated','role','authenticated','sub','00000000-0000-4000-8000-000000000001','custom_existing',true));
+ IF center_mcp.apply_access_claims(ordinary) IS DISTINCT FROM ordinary THEN RAISE EXCEPTION 'ordinary login claims changed'; END IF;
+ event:=jsonb_build_object('client_id','914be882-969c-408f-9609-57a3534cc9b5','authentication_method','oauth_provider/authorization_code','claims',jsonb_build_object('aud','authenticated','role','authenticated','sub','00000000-0000-4000-8000-000000000001','session_id','00000000-0000-4000-8000-000000000003','custom_existing',true));
+ output:=center_mcp.apply_access_claims(event);
+ IF output#>>'{claims,role}'<>'center_mcp_oauth' OR output#>'{claims,center_permissions}'<>'[]'::jsonb OR output#>'{claims,custom_existing}'<>'true'::jsonb THEN RAISE EXCEPTION 'disabled dedicated client did not isolate or preserve claims'; END IF;
+ IF pg_has_role('authenticator','center_mcp_oauth','MEMBER') THEN RAISE EXCEPTION 'PostgREST can assume OAuth role'; END IF;
+ IF has_column_privilege('center_statistics_reader','public.users','name','SELECT') OR has_table_privilege('center_statistics_reader','public.logs','INSERT,UPDATE,DELETE') THEN RAISE EXCEPTION 'reader has excessive rights'; END IF;
+ IF has_function_privilege('authenticated','center_mcp.apply_access_claims(jsonb)','EXECUTE') OR NOT has_function_privilege('supabase_auth_admin','center_mcp.apply_access_claims(jsonb)','EXECUTE') THEN RAISE EXCEPTION 'Hook execution ACL wrong'; END IF;
+ UPDATE center_mcp.configuration SET auth_user_id='00000000-0000-4000-8000-000000000001',profile_id='00000000-0000-4000-8000-000000000002',credential_version=3,enabled=true;
+ INSERT INTO pg_temp.mcp_accounts VALUES('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002',true,'active',false,3);
+ INSERT INTO pg_temp.mcp_roles VALUES('00000000-0000-4000-8000-000000000002','master',true);
+ INSERT INTO pg_temp.mcp_authorizations VALUES('synthetic-check','914be882-969c-408f-9609-57a3534cc9b5','00000000-0000-4000-8000-000000000001','approved',now());
+ INSERT INTO pg_temp.mcp_sessions VALUES('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001','914be882-969c-408f-9609-57a3534cc9b5',now());
+ INSERT INTO center_mcp.consent_proofs(authorization_id,client_id,auth_user_id,profile_id,website_session_id,credential_version) VALUES('synthetic-check','914be882-969c-408f-9609-57a3534cc9b5','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000004',3);
+ output:=center_mcp.fixture_apply_access_claims(event);
+ IF output#>'{claims,center_permissions}'<>'["center:statistics:read","center:programs:read"]'::jsonb OR output#>>'{claims,center_credential_version}'<>'3' THEN RAISE EXCEPTION 'verified synthetic proof denied'; END IF;
+ UPDATE pg_temp.mcp_accounts SET credential_version=4;
+ IF center_mcp.fixture_apply_access_claims(event)#>'{claims,center_permissions}'<>'[]'::jsonb THEN RAISE EXCEPTION 'stale epoch allowed'; END IF;
+ UPDATE pg_temp.mcp_accounts SET credential_version=3;
+ UPDATE center_mcp.consent_proofs SET revoked_at=now();
+ IF center_mcp.fixture_apply_access_claims(event)#>'{claims,center_permissions}'<>'[]'::jsonb THEN RAISE EXCEPTION 'revoked proof allowed'; END IF;
+ IF center_mcp.fixture_apply_access_claims(jsonb_set(event,'{claims,sub}','"00000000-0000-4000-8000-000000000099"'::jsonb))#>'{claims,center_permissions}'<>'[]'::jsonb THEN RAISE EXCEPTION 'other user allowed'; END IF;
+END $test$;
+SET LOCAL ROLE center_statistics_reader;
+EXPLAIN (FORMAT JSON) SELECT id,role FROM public.staff_directory LIMIT 0;
+RESET ROLE;
+ROLLBACK;
+SELECT jsonb_build_object('schema_rolled_back',to_regnamespace('center_mcp') IS NULL,'role_rolled_back',to_regrole('center_statistics_reader') IS NULL,'assertions_passed',true) AS verification;

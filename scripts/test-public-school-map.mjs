@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { excludeRegisteredSchools, nearbyPublicSchools } from '../src/utils/publicSchoolMap.js';
+const school = (id,name,lat,lng,type='중학교') => ({id,name,lat,lng,type,address:''});
+const publicSchools=[school('a','광문고등학교',37.56,127.15,'고등학교'),school('b','광문고등학교',37.44,126.87,'고등학교'),school('c','상동고등학교',37.49,126.74,'고등학교'),school('d','새학교',37.55,127.12),school('e','용인신릉중학교',37.29,127.11)];
+const filtered=excludeRegisteredSchools(publicSchools,[{name:'광문고등학교',map_latitude:37.5601,map_longitude:127.1501},{name:'부천상동고',map_latitude:37.4901,map_longitude:126.7401},{name:'신릉중학교',map_latitude:37.2901,map_longitude:127.1101}]);
+assert.deepEqual(filtered.map(s=>s.id),['b','d']);
+assert.deepEqual(nearbyPublicSchools(filtered,{south:37.5,north:37.6,west:127,east:127.2},['중학교']).map(s=>s.id),['d']);
+assert.equal(nearbyPublicSchools(filtered,{south:37,north:38,west:126,east:128},['초등학교']).length,0);
+assert.equal(nearbyPublicSchools(filtered,{south:37,north:38,west:126,east:128},['중학교'],'없는학교').length,0);
+const data=JSON.parse(await readFile('public/data/public-school-locations.json','utf8'));
+assert.ok(data.schools.length>10000);assert.equal(new Set(data.schools.map(s=>s[0])).size,data.schools.length);
+assert.ok(data.schools.every(s=>s.length===6&&s[4]>=33&&s[4]<=39&&s[5]>=124&&s[5]<=132));
+console.log(`Passed: ${data.schools.length} public school coordinates, unique IDs, aliases, same-name schools in different cities, viewport/type/search filters.`);

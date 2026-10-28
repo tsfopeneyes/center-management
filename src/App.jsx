@@ -14,6 +14,7 @@ import AuthenticatedTermsGate from './components/auth/AuthenticatedTermsGate'
 // page could render, which made a cold local start appear frozen.
 const Layout = lazy(() => import('./components/Layout'))
 const Landing = lazy(() => import('./pages/Landing'))
+const OAuthConsent = lazy(() => import('./pages/OAuthConsent'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
@@ -101,6 +102,7 @@ function App() {
                 <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] px-6 text-center font-bold text-gray-700">화면을 불러오고 있습니다...</div>}>
                     <Routes>
                         <Route path="/" element={<HomeEntry />} />
+                        <Route path="/oauth/consent" element={<OAuthConsent />} />
                         <Route path="/checkin" element={<GuestMobileWelcome />} />
                         <Route path="/guest" element={<GuestMobileWelcome />} />
                         <Route path="/welcome" element={<HaifnIntroduction />} />

@@ -1,7 +1,7 @@
 import React from 'react';
 import { stripHtml } from '../../utils/textUtils';
 import { parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { MapPin, Calendar, Clock, ChevronRight, Users, CheckCircle2 } from 'lucide-react';
+import { MapPin, Calendar, Clock, ChevronRight, Users } from 'lucide-react';
 import { parseDurationToMinutes, formatKoreanTimeRange } from '../../utils/dateUtils';
 import { getRecruitment, getRecruitmentStart, formatRecruitmentStart } from '../../utils/programRecruitment';
 import { useCurrentTime } from '../../hooks/useCurrentTime';
@@ -98,11 +98,6 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
         <div className={`flex flex-wrap items-start gap-2 ${thumb ? 'flex-col' : ''}`}>
             <RecruitmentBadge program={program} now={now} />
 
-            {recruitment.canApply && isClosingSoon && !isPast && (
-                <div className={`flex items-center bg-tossError text-white font-bold shadow-toss-subtle ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
-                    <CheckCircle2 size={compact ? 10 : 12} strokeWidth={2.5} /> 마감임박
-                </div>
-            )}
             {recruitment.canViewDetails && program.is_leader_only && (
                 <div className={`flex items-center bg-tossCaution text-tossGrey800 font-bold shadow-toss-subtle border border-tossCaution/20 w-fit ${compact ? 'gap-1 px-2 py-0.5 rounded-toss-md text-[10px]' : 'gap-1.5 px-2.5 py-1 rounded-toss-md text-[11px]'}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" width={compact ? "10" : "12"} height={compact ? "10" : "12"} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
@@ -132,9 +127,17 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
             {/* Content Section */}
             <div className={compact ? "min-w-0 p-4 flex flex-col flex-1" : "p-6 pb-4"}>
                 {!thumb && <div className={compact ? 'mb-3' : 'mb-4'}>{statusBadges}</div>}
-                <h3 className={`font-bold text-tossGrey900 line-clamp-2 ${compact ? 'text-sm leading-snug ' + (description ? 'mb-1' : 'mb-3') : 'text-xl leading-tight ' + (description ? 'mb-2' : 'mb-4')}`}>
-                    {program.title}
-                </h3>
+                <div className={`flex flex-wrap items-center gap-x-2 gap-y-1.5 ${compact ? (description ? 'mb-1' : 'mb-3') : (description ? 'mb-2' : 'mb-4')}`}>
+                    <h3 className={`min-w-0 font-bold text-tossGrey900 line-clamp-2 ${compact ? 'text-sm leading-snug' : 'text-xl leading-tight'}`}>
+                        {program.title}
+                    </h3>
+                    {recruitment.canApply && isClosingSoon && !isPast && (
+                        <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-orange-100 text-orange-800 font-bold ${compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1 text-xs'}`}>
+                            <Clock size={compact ? 12 : 14} strokeWidth={2.5} aria-hidden="true" />
+                            마감 임박
+                        </span>
+                    )}
+                </div>
                 {description && (
                     <p className={`text-tossGrey600 font-medium break-keep whitespace-normal ${compact ? 'text-[11px] mb-3 leading-snug' : 'text-[15px] mb-6 leading-relaxed'}`}>
                         {description}
@@ -235,7 +238,7 @@ const ProgramCard = ({ program, onClick, compact = false, tourTarget, tourLabel 
                                 }
                             }));
                         } : undefined}
-                        className={`${actionButtonClass} min-w-0 px-2 active:scale-95 ${isScheduled ? 'bg-[#CF3A27] text-white hover:bg-[#B83222] cursor-pointer' : program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none shadow-none' : (program.responseStatus === 'WAITLIST' ? 'bg-tossWarning/10 text-[#fe9800] pointer-events-none shadow-none' : 'bg-[#CF3A27] text-white hover:bg-[#B83222]')}`}
+                        className={`${actionButtonClass} min-w-0 px-2 active:scale-95 ${isScheduled || (recruitment.canViewDetails && !recruitment.canApply) ? 'bg-[#CF3A27] text-white hover:bg-[#B83222] cursor-pointer' : program.responseStatus === 'JOIN' ? 'bg-tossGrey100 text-tossGrey500 pointer-events-none shadow-none' : (program.responseStatus === 'WAITLIST' ? 'bg-tossWarning/10 text-[#fe9800] pointer-events-none shadow-none' : 'bg-[#CF3A27] text-white hover:bg-[#B83222]')}`}
                     >
                         {isScheduled ? '모집 예정' : !recruitment.canViewDetails ? recruitment.message : !recruitment.canApply ? '상세 보기' : program.responseStatus === 'JOIN' ? '신청 완료' : (program.responseStatus === 'WAITLIST' ? '대기명단' : '신청하기')}
                     </button>

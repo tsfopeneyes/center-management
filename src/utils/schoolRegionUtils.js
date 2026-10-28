@@ -1,50 +1,30 @@
-import { supabase } from '../supabaseClient';
-import { normalizeSchoolName } from './schoolUtils';
+import { supabase, supabaseUrl } from '../supabaseClient';
+import { createSchoolRegionResolver, withSchoolLookupTimeout } from './schoolRegionResolver';
 
-const SCHOOL_REGION_CACHE_MS = 60 * 1000;
-let cachedSchoolRegions = null;
-let schoolRegionCacheExpiresAt = 0;
-let schoolRegionRequest = null;
-
-const loadSchoolRegionMap = async () => {
-    const now = Date.now();
-    if (cachedSchoolRegions && now < schoolRegionCacheExpiresAt) {
-        return cachedSchoolRegions;
-    }
-    if (schoolRegionRequest) return schoolRegionRequest;
-
-    schoolRegionRequest = supabase
-        .from('schools')
-        .select('name, region')
-        .then(({ data, error }) => {
+async function readSchools() {
+    try {
+        return await withSchoolLookupTimeout(async () => {
+            const { data, error } = await supabase.from('schools').select('name, region');
             if (error) throw error;
-            const regionMap = new Map();
-            (data || []).forEach((school) => {
-                const normalizedName = normalizeSchoolName(school.name);
-                if (normalizedName && school.region) {
-                    regionMap.set(normalizedName, school.region.trim());
-                }
-            });
-            cachedSchoolRegions = regionMap;
-            schoolRegionCacheExpiresAt = Date.now() + SCHOOL_REGION_CACHE_MS;
-            return regionMap;
-        })
-        .finally(() => {
-            schoolRegionRequest = null;
+            if (!Array.isArray(data)) throw new Error('Invalid school response');
+            return data;
         });
+    } catch {
+        // Same public school directory as registration, without a restored SDK's aborted signal.
+        const controller = new AbortController();
+        try {
+            return await withSchoolLookupTimeout(async () => {
+                const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                const response = await fetch(`${supabaseUrl}/rest/v1/schools?select=name,region`, {
+                    headers: { apikey: key, Authorization: `Bearer ${key}` },
+                    signal: controller.signal,
+                    cache: 'no-store',
+                });
+                if (!response.ok) throw Object.assign(new Error('School lookup failed'), { code: `HTTP_${response.status}` });
+                return response.json();
+            });
+        } finally { controller.abort(); }
+    }
+}
 
-    return schoolRegionRequest;
-};
-export const resolveSchoolRegion = async (schoolName) => {
-    if (!schoolName) return null;
-
-    const regionMap = await loadSchoolRegionMap();
-    const normalizedName = normalizeSchoolName(schoolName);
-    const registeredRegion = regionMap.get(normalizedName);
-    if (registeredRegion) return registeredRegion;
-
-    // Only use a name fallback when the region itself is explicitly written.
-    if (schoolName.includes('강서')) return '강서';
-    if (schoolName.includes('강동')) return '강동';
-    return null;
-};
+export const resolveSchoolRegion = createSchoolRegionResolver({ readSchools });

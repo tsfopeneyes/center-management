@@ -176,7 +176,8 @@ export const noticesApi = {
         try {
             const { data: rpcData, error: rpcError } = await supabase.rpc('increment_notice_views', { p_notice_id: noticeId });
             if (!rpcError) {
-                return typeof rpcData === 'number' ? rpcData : null;
+                // The deployed RPC may return void; true still means saved.
+                return typeof rpcData === 'number' ? rpcData : true;
             }
 
             // Fallback direct update if RPC is missing
@@ -191,16 +192,19 @@ export const noticesApi = {
             const currentViews = data?.view_count || 0;
             const newViews = currentViews + 1;
 
-            const { error: updateError } = await supabase
+            const { data: updated, error: updateError } = await supabase
                 .from('notices')
                 .update({ view_count: newViews })
-                .eq('id', noticeId);
+                .eq('id', noticeId)
+                .select('view_count')
+                .maybeSingle();
 
             if (updateError) {
                 console.warn('Direct view_count update fallback warning:', updateError.message);
+                return null;
             }
 
-            return newViews;
+            return updated?.view_count ?? null;
         } catch (e) {
             console.error('Failed to increment notice view count:', e);
             return null;
@@ -263,6 +267,10 @@ export const noticesApi = {
 
     async update(id, updates) {
         const payload = { ...updates };
+        if (['COMPLETED', 'CANCELLED'].includes(payload.program_status)
+            || payload.guest_properties?.is_ended === true) {
+            payload.is_sticky = false;
+        }
         // Programs use the recruitment-start interest worker. A stale form or
         // older client must never turn a program save into an immediate blast.
         // Program pushes are delivered exclusively by program_push_jobs.
@@ -306,15 +314,21 @@ export const noticesApi = {
     },
 
     async delete(id) {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('notices')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .select('id');
         if (error) throw error;
+        if (!data?.length) throw new Error('삭제 권한을 확인할 수 없습니다. 관리자 계정으로 다시 로그인해주세요.');
     },
 
     async create(notice) {
         const payload = { ...notice };
+        if (payload.category === 'PROGRAM' && (['COMPLETED', 'CANCELLED'].includes(payload.program_status)
+            || payload.guest_properties?.is_ended === true)) {
+            payload.is_sticky = false;
+        }
         // Programs use the recruitment-start interest worker. A stale form or
         // older client must never turn a program save into an immediate blast.
         const shouldSendPush = payload.send_push === true && payload.category !== 'PROGRAM';
@@ -339,7 +353,7 @@ export const noticesApi = {
     async updateProgramStatus(noticeId, status) {
         const { error } = await supabase
             .from('notices')
-            .update({ program_status: status })
+            .update({ program_status: status, ...(['COMPLETED', 'CANCELLED'].includes(status) ? { is_sticky: false } : {}) })
             .eq('id', noticeId);
         if (error) throw error;
     },

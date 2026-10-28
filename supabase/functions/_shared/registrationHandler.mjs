@@ -8,7 +8,7 @@ export function createRegistrationHandler({register,resolveClientKey,allowedOrig
         const origin=request.headers.get('Origin'),headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',Vary:'Origin'};
         const response=(status,body)=>new Response(JSON.stringify(body),{status,headers});
         if(origin&&!origins.has(origin))return response(403,{error:'request_not_allowed'});if(origin)headers['Access-Control-Allow-Origin']=origin;
-        if(request.method==='OPTIONS'){headers['Access-Control-Allow-Methods']='POST, OPTIONS';headers['Access-Control-Allow-Headers']='content-type, apikey';return new Response(null,{status:204,headers});}
+        if(request.method==='OPTIONS'){headers['Access-Control-Allow-Methods']='POST, OPTIONS';headers['Access-Control-Allow-Headers']='content-type, apikey, authorization';return new Response(null,{status:204,headers});}
         if(request.method!=='POST')return response(405,{error:'method_not_allowed'});
         if(request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')return response(415,{error:'json_required'});
         const abort=new AbortController(),onAbort=()=>abort.abort();request.signal.addEventListener('abort',onAbort,{once:true});let timer;
@@ -20,7 +20,8 @@ export function createRegistrationHandler({register,resolveClientKey,allowedOrig
             finally{abort.signal.removeEventListener('abort',cancel);reader.releaseLock();}
             const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
             let input;try{input=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{return response(400,{error:'invalid_request'});}
-            const result=await register(input,{clientKey:await resolveClientKey(request),signal:abort.signal});
+            const accessToken=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/i)?.[1]||null;
+            const result=await register(input,{clientKey:await resolveClientKey(request),signal:abort.signal,accessToken});
             return response(200,result);
         };
         try{return await Promise.race([work(),deadline]);}catch(error){

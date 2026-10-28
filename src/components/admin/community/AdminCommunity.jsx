@@ -87,8 +87,8 @@ export default function AdminCommunity() {
                 communityChannelsApi.fetchPosts(channel.id),
                 communityChannelsApi.fetchMembers(channel),
                 communityChannelsApi.fetchUsers(),
-                communityChannelsApi.fetchLinkableChallenges(),
-                channel.source_notice_id
+                communityChannelsApi.fetchLinkablePrograms(),
+                channel.source_notice?.is_challenge && channel.source_notice?.challenge_format === 'ONLINE'
                     ? challengeMissionsApi.fetchMissions(channel.source_notice_id, 'ONLINE') : [],
                 channel.source_notice_id
                     ? communityChannelsApi.fetchChallengeNotice(channel.source_notice_id) : null,
@@ -102,7 +102,7 @@ export default function AdminCommunity() {
             setMentionCandidates(candidates);
             const hostIds = [notice?.host_id, ...(notice?.host_ids || []),
                 ...(Array.isArray(notice?.hosts) ? notice.hosts.map(host => host?.host_id) : [])];
-            setIsChallengeHost(Boolean(adminUser?.id && hostIds.includes(adminUser.id)));
+            setIsChallengeHost(Boolean(notice?.is_challenge && notice?.challenge_format === 'ONLINE' && adminUser?.id && hostIds.includes(adminUser.id)));
         }
         catch (error) { console.error(error); setPosts([]); }
         finally { setPostsLoading(false); }
@@ -133,7 +133,7 @@ export default function AdminCommunity() {
     };
 
     const addMember = async userId => {
-        if (!userId || !activeChannel || activeChannel.source_notice_id || saving) return;
+        if (!userId || !activeChannel || saving) return;
         setSaving(true);
         try {
             await communityChannelsApi.addMember(activeChannel.id, userId);
@@ -168,9 +168,11 @@ export default function AdminCommunity() {
 
     const linkChallenge = async noticeId => {
         if (!activeChannel || saving) return;
+        if (!noticeId && !await confirmApp('연결을 해제하면 모든 이용자가 접근 권한을 잃고 커뮤니티가 종료됩니다. 글과 댓글은 보관됩니다.', { title: '프로그램 연결 해제', confirmText: '연결 해제' })) return;
+        if (noticeId && activeChannel.post_count > 0 && !await confirmApp('기존 게시글이 연결할 프로그램의 참여자에게 공개됩니다.', { title: '프로그램 연결', confirmText: '연결' })) return;
         setSaving(true);
         try {
-            await communityChannelsApi.linkToChallenge(activeChannel.id, noticeId ? Number(noticeId) : null);
+            await communityChannelsApi.linkToProgram(activeChannel.id, noticeId ? Number(noticeId) : null, activeChannel.source_notice_id);
             const refreshed = await communityChannelsApi.fetchChannel(activeChannel.id);
             await loadChannels();
             await openChannel(refreshed);
@@ -227,9 +229,7 @@ export default function AdminCommunity() {
         if (postSaving || post.author_id !== adminUser?.id || !content) return;
         setPostSaving(true);
         try {
-            const updated = post.submission
-                ? await challengeCommunityApi.updatePost(post, content, post.submission.mission_id, activeChannel.source_notice_id, adminUser.id)
-                : await communityChannelsApi.updatePost(post.id, adminUser.id, content);
+            const updated = await communityChannelsApi.editPost(post, adminUser.id, content, post.submission?.mission_id || null);
             setPosts(current => current.map(item => item.id === post.id ? { ...item, content: updated?.content || content, updated_at: updated?.updated_at || new Date().toISOString() } : item));
             setEditingPostId(null);
         } catch (error) {
@@ -335,7 +335,7 @@ export default function AdminCommunity() {
                         <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black tracking-tight text-slate-900">{activeChannel.name}</h1>{sourceLabel(activeChannel) && <span className="inline-flex max-w-full items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-600"><Link2 size={12}/><span className="truncate">{sourceLabel(activeChannel)}</span></span>}</div>
                             <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-500">{activeChannel.description || '커뮤니티 설명이 아직 없습니다.'}</p>
-                            <div className="mt-4 flex flex-wrap items-center gap-2"><span className="mr-1 text-xs font-black text-slate-400">운영 상태</span>{CHANNEL_STATUSES.map(status => <button key={status.value} type="button" onClick={() => changeChannelStatus(status.value)} disabled={saving} aria-pressed={normalizedStatus(activeChannel.status) === status.value} className={`rounded-xl border px-3 py-2 text-xs font-black transition disabled:opacity-50 ${normalizedStatus(activeChannel.status) === status.value ? `${status.activeClass} shadow-sm` : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}>{status.label}</button>)}</div>
+                            <div className="mt-4 flex flex-wrap items-center gap-2"><span className="mr-1 text-xs font-black text-slate-400">운영 상태</span>{CHANNEL_STATUSES.filter(status => !activeChannel.source_notice_id || status.value !== 'SCHEDULED').map(status => <button key={status.value} type="button" onClick={() => changeChannelStatus(status.value)} disabled={saving} aria-pressed={normalizedStatus(activeChannel.status) === status.value} className={`rounded-xl border px-3 py-2 text-xs font-black transition disabled:opacity-50 ${normalizedStatus(activeChannel.status) === status.value ? `${status.activeClass} shadow-sm` : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}>{status.label}</button>)}{activeChannel.source_notice_id && <span className="text-xs text-slate-600">{activeChannel.status === 'SCHEDULED' ? '모집 시작 시 자동으로 열립니다.' : '프로그램 종료와 별도로 운영합니다.'}</span>}</div>
                         </div>
                         <div className="flex shrink-0 flex-wrap gap-2 md:justify-end"><button onClick={() => { setNewName(activeChannel.name); setNewDescription(activeChannel.description || ''); setShowEdit(true); }} className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-50"><Pencil size={14}/>정보 수정</button><button type="button" onClick={deleteChannel} disabled={saving} className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-xs font-black text-red-500 hover:bg-red-50 disabled:opacity-50"><Trash2 size={14}/>삭제</button><button onClick={() => copyInvite(activeChannel)} className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-600 hover:bg-blue-100"><Copy size={14}/>초대 링크</button></div>
                     </div>
@@ -343,7 +343,7 @@ export default function AdminCommunity() {
                 <div className="grid border-t border-slate-100 px-5 py-6 md:px-6 lg:grid-cols-2 lg:gap-0">
                     <div className="pb-6 lg:pr-7 lg:pb-0">
                         <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-sm font-black text-slate-800"><Users size={16} className="text-blue-600"/>참여자 {members.length}명</h2></div>
-                        {activeChannel.source_notice_id ? <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-xs font-medium text-slate-500">연결된 프로그램의 신청 완료 인원을 보여줍니다. 참여자 변경은 프로그램 신청 내역에서 관리해 주세요.</p> : <div className="relative mt-3">
+                        {activeChannel.source_notice_id && <p className="mt-3 text-xs leading-5 text-slate-600">{activeChannel.is_open_program ? '로그인한 이용자는 자유롭게 입장합니다. 참여 내역은 프로그램에서 관리해주세요.' : '프로그램 신청·참여 내역으로 자동 연결됩니다. 참여자 추가와 취소는 프로그램에서 관리해주세요.'}</p>}{!activeChannel.source_notice_id && <div className="relative mt-3">
                             <Search size={15} className="pointer-events-none absolute left-3 top-3 text-slate-400"/>
                             <input value={memberQuery} onChange={event => setMemberQuery(event.target.value)} placeholder="추가할 이용자 이름 또는 학교 검색" className="h-10 w-full rounded-xl border border-slate-200 pl-9 pr-3 text-xs outline-none focus:border-blue-500"/>
                             {normalizedMemberQuery && <div className="absolute left-0 right-0 top-12 z-20 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -359,7 +359,7 @@ export default function AdminCommunity() {
                         <h2 className="flex items-center gap-2 text-sm font-black text-slate-800"><Link2 size={16} className="text-blue-600"/>프로그램 연결</h2>
                         <div className="relative mt-3">
                             <Search size={15} className="pointer-events-none absolute left-3 top-3 text-slate-400"/>
-                            <input value={programQuery} onChange={event => setProgramQuery(event.target.value)} placeholder="연결할 온라인 챌린지 검색" className="h-10 w-full rounded-xl border border-slate-200 pl-9 pr-3 text-xs outline-none focus:border-blue-500"/>
+                            <input value={programQuery} onChange={event => setProgramQuery(event.target.value)} placeholder="연결할 프로그램 검색" className="h-10 w-full rounded-xl border border-slate-200 pl-9 pr-3 text-xs outline-none focus:border-blue-500"/>
                             {normalizedProgramQuery && <div className="absolute left-0 right-0 top-12 z-20 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
                                 {availableChallenges.length === 0 ? <p className="px-3 py-4 text-center text-xs font-semibold text-slate-400">연결할 수 있는 프로그램이 없습니다.</p> : availableChallenges.map(challenge => <button key={challenge.id} type="button" onClick={() => linkChallenge(challenge.id)} disabled={saving} className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left hover:bg-slate-50 disabled:opacity-40"><span className="min-w-0 truncate text-xs font-bold text-slate-800">{challenge.title}</span><span className="ml-3 shrink-0 text-[11px] font-black text-blue-600">연결</span></button>)}
                             </div>}
@@ -398,7 +398,7 @@ export default function AdminCommunity() {
                 })}</div>}
             </section>
         </>}
-        {showCreate && <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/45 p-4" onClick={() => setShowCreate(false)}><form onSubmit={createChannel} onClick={event => event.stopPropagation()} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><h2 className="text-xl font-black text-slate-900">새 커뮤니티</h2><p className="mt-1 text-xs font-semibold text-slate-400">먼저 독립 채널로 만들고 필요할 때 프로그램에 연결합니다.</p></div><button type="button" onClick={() => setShowCreate(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100"><X size={18}/></button></div><label className="mt-6 block text-sm font-bold text-slate-700">커뮤니티 이름<input autoFocus value={newName} onChange={event => setNewName(event.target.value)} placeholder="예: 청소년 리더 모임" className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-blue-500"/></label><label className="mt-4 block text-sm font-bold text-slate-700">커뮤니티 설명 <span className="font-medium text-slate-400">(선택)</span><textarea value={newDescription} onChange={event => setNewDescription(event.target.value)} placeholder="이 커뮤니티의 목적과 이용 방법을 적어주세요" rows={3} className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500"/></label><p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-medium leading-5 text-slate-500">만든 뒤 이용자를 직접 추가하거나 초대 링크를 공유하고, 온라인 챌린지와 연결할 수 있습니다.</p><button type="submit" disabled={!newName.trim() || saving} className="mt-5 w-full rounded-xl bg-blue-600 py-3.5 text-sm font-black text-white disabled:opacity-40">{saving ? '만드는 중...' : '커뮤니티 만들기'}</button></form></div>}
+        {showCreate && <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/45 p-4" onClick={() => setShowCreate(false)}><form onSubmit={createChannel} onClick={event => event.stopPropagation()} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><h2 className="text-xl font-black text-slate-900">새 커뮤니티</h2><p className="mt-1 text-xs font-semibold text-slate-400">먼저 독립 채널로 만들고 필요할 때 프로그램에 연결합니다.</p></div><button type="button" onClick={() => setShowCreate(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100"><X size={18}/></button></div><label className="mt-6 block text-sm font-bold text-slate-700">커뮤니티 이름<input autoFocus value={newName} onChange={event => setNewName(event.target.value)} placeholder="예: 청소년 리더 모임" className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-blue-500"/></label><label className="mt-4 block text-sm font-bold text-slate-700">커뮤니티 설명 <span className="font-medium text-slate-400">(선택)</span><textarea value={newDescription} onChange={event => setNewDescription(event.target.value)} placeholder="이 커뮤니티의 목적과 이용 방법을 적어주세요" rows={3} className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500"/></label><p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-medium leading-5 text-slate-500">만든 뒤 이용자를 직접 추가하거나 초대 링크를 공유하고, 일반 프로그램이나 챌린지와 연결할 수 있습니다.</p><button type="submit" disabled={!newName.trim() || saving} className="mt-5 w-full rounded-xl bg-blue-600 py-3.5 text-sm font-black text-white disabled:opacity-40">{saving ? '만드는 중...' : '커뮤니티 만들기'}</button></form></div>}
         {showEdit && <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/45 p-4" onClick={() => setShowEdit(false)}><form onSubmit={saveChannelInfo} onClick={event => event.stopPropagation()} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-xl font-black text-slate-900">커뮤니티 정보 수정</h2><button type="button" onClick={() => setShowEdit(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100"><X size={18}/></button></div><label className="mt-6 block text-sm font-bold text-slate-700">커뮤니티 이름<input autoFocus value={newName} onChange={event => setNewName(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-blue-500"/></label><label className="mt-4 block text-sm font-bold text-slate-700">커뮤니티 설명<textarea value={newDescription} onChange={event => setNewDescription(event.target.value)} rows={4} className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500"/></label><button type="submit" disabled={!newName.trim() || saving} className="mt-5 w-full rounded-xl bg-blue-600 py-3.5 text-sm font-black text-white disabled:opacity-40">{saving ? '저장 중...' : '저장'}</button></form></div>}
     </div>;
 }

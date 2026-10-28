@@ -79,5 +79,22 @@ await assert.rejects(edit('보상 확정 후 변경', null), /완료 보상이 �
 const unchanged = await db.query('SELECT content FROM public.community_channel_posts WHERE id = $1', [post]);
 assert.equal(unchanged.rows[0].content, '다시 미션 글', 'failed edit rolls back post content');
 
+// Staff status must never replace a program application for mission submissions.
+await db.exec(`CREATE FUNCTION public.is_community_admin() RETURNS boolean LANGUAGE sql AS $$ SELECT current_setting('test.staff',true)='true' $$;`);
+await db.exec(await readFile(new URL('../supabase/migrations/20260909023000_explain_duplicate_online_completion.sql', import.meta.url), 'utf8'));
+await db.exec(`CREATE TRIGGER prepare_submission BEFORE INSERT ON online_challenge_submissions FOR EACH ROW EXECUTE FUNCTION prepare_online_challenge_submission(); SET test.staff='true';`);
+await db.query('DELETE FROM notice_responses WHERE user_id=$1', [author]);
+const missionPost = '11111111-1111-4111-8111-111111111111';
+await db.query('INSERT INTO community_channel_posts(id,channel_id,author_id,content) VALUES($1,$2,$3,$4)', [missionPost,channel,author,'Staff mission']);
+const submitMission = () => db.query('INSERT INTO online_challenge_submissions(mission_id,participant_id,post_id) VALUES($1,$2,$3)', [firstMission,author,missionPost]);
+await assert.rejects(submitMission(), /챌린지 참여자만/, 'unregistered admin cannot submit a mission');
+await db.query('INSERT INTO notice_responses VALUES(1,$1,$2)', [author,'JOIN']);
+await submitMission();
+assert.equal((await db.query('SELECT count(*)::int AS n FROM online_challenge_submissions WHERE post_id=$1', [missionPost])).rows[0].n, 1, 'manually registered admin participates in missions');
+await db.query("UPDATE notice_responses SET status='CANCEL' WHERE user_id=$1", [author]);
+await assert.rejects(submitMission(), /챌린지 참여자만/, 'cancellation revokes admin mission access');
+await db.query("UPDATE notice_responses SET status='JOIN' WHERE user_id=$1", [author]);
+await db.exec('UPDATE notices SET program_end_date=current_date-2');
+await assert.rejects(submitMission(), /챌린지 수행 기간/, 'admin missions remain period bound');
 await db.close();
 console.log('Online challenge post category edits passed.');

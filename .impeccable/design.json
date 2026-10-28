@@ -1,0 +1,230 @@
+{
+  "components": [
+    {
+      "name": "Question action",
+      "refersTo": "question-button",
+      "css": ".ds-question{display:flex;width:100%;padding:13px 18px;min-height:48px;background:#f8df53;color:#332821;border:0;border-radius:0;font-family:Pretendard,ui-sans-serif,system-ui,sans-serif;font-weight:850;font-size:15px;cursor:pointer}.ds-question:hover{background:#f8df53}.ds-question:focus-visible{outline:3px solid #957400;outline-offset:3px}",
+      "kind": "button",
+      "html": "<button class=\"ds-question\">더 궁금한 게 있나요?</button>",
+      "description": "Final invitation chat action."
+    },
+    {
+      "name": "Next control",
+      "refersTo": "next-button",
+      "css": ".ds-next{display:grid;place-items:center;width:48px;height:48px;border:0;border-radius:50%;background:#cf3a27;color:#f7efe2;cursor:pointer}.ds-next:hover{background:#cf3a27}.ds-next:focus-visible{outline:3px solid #957400;outline-offset:3px}",
+      "kind": "button",
+      "html": "<button class=\"ds-next\" aria-label=\"다음 화면\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 5v14m-7-7 7 7 7-7\"/></svg></button>",
+      "description": "Move to the following poster."
+    },
+    {
+      "description": "One of six accessible section targets.",
+      "css": ".ds-progress{display:grid;place-items:center;width:25px;height:44px;background:transparent;border:0;cursor:pointer}.ds-progress span{width:9px;height:9px;border-radius:50%;background:#cf3a27}.ds-progress:hover{background:transparent}.ds-progress:focus-visible{outline:3px solid #957400;outline-offset:3px}",
+      "kind": "nav",
+      "name": "Progress target",
+      "html": "<button class=\"ds-progress\" aria-label=\"1번째 화면: 공간 소개\" aria-current=\"step\"><span></span></button>"
+    },
+    {
+      "description": "Semantic text on a diagonal red band.",
+      "css": ".ds-band{margin:20px 0;padding:24px 30px 28px;background:#cf3a27;color:#f7efe2;transform:rotate(8deg);font-family:Pretendard,ui-sans-serif,system-ui,sans-serif;font-size:clamp(54px,16vw,78px);line-height:1.02;font-weight:900;letter-spacing:-.04em}",
+      "kind": "custom",
+      "name": "Headline band",
+      "html": "<h2 class=\"ds-band\">뭐 하는<br>곳이지?</h2>"
+    },
+    {
+      "description": "Existing visitor message field.",
+      "css": ".ds-compose{height:46px;padding:0 14px;border:1px solid #e7d8c4;border-radius:23px;background:#fff;font-family:Pretendard,ui-sans-serif,system-ui,sans-serif;font-size:16px;outline:none}.ds-compose:focus{border-color:#cf3a27}",
+      "kind": "input",
+      "name": "Chat composer field",
+      "html": "<input class=\"ds-compose\" placeholder=\"메시지를 입력하세요\" aria-label=\"메시지\">"
+    }
+  ],
+  "title": "Design System: HAIFN welcome",
+  "extensions": {
+    "breakpoints": [
+      {
+        "value": "768px",
+        "name": "desktop"
+      },
+      {
+        "value": "720px",
+        "name": "short-mobile-height"
+      }
+    ],
+    "typographyMeta": {
+      "display": {
+        "purpose": "Semantic Korean headline on the diagonal band.",
+        "displayName": "Poster question"
+      },
+      "main-copy": {
+        "purpose": "Bold introductory explanation.",
+        "displayName": "Main copy"
+      },
+      "body": {
+        "purpose": "Approved supporting information.",
+        "displayName": "Body"
+      }
+    },
+    "shadows": [
+      {
+        "value": "0 20px 70px rgba(25,20,17,.25)",
+        "name": "chat-overlay",
+        "purpose": "Existing desktop chat separation only."
+      }
+    ],
+    "colorMeta": {
+      "invitation-action": {
+        "role": "secondary",
+        "canonical": "#f8df53",
+        "displayName": "Invitation yellow",
+        "tonalRamp": [
+          "oklch(15% 0.1570 99.03)",
+          "oklch(26% 0.1570 99.03)",
+          "oklch(38% 0.1570 99.03)",
+          "oklch(49% 0.1570 99.03)",
+          "oklch(61% 0.1570 99.03)",
+          "oklch(72% 0.1570 99.03)",
+          "oklch(84% 0.1570 99.03)",
+          "oklch(95% 0.1570 99.03)"
+        ],
+        "tonalRampPurpose": "Synthesized panel preview only; not implementation tokens."
+      },
+      "ink": {
+        "role": "neutral",
+        "canonical": "#332821",
+        "displayName": "Dark brown",
+        "tonalRamp": [
+          "oklch(15% 0.0207 54.16)",
+          "oklch(26% 0.0207 54.16)",
+          "oklch(38% 0.0207 54.16)",
+          "oklch(49% 0.0207 54.16)",
+          "oklch(61% 0.0207 54.16)",
+          "oklch(72% 0.0207 54.16)",
+          "oklch(84% 0.0207 54.16)",
+          "oklch(95% 0.0207 54.16)"
+        ],
+        "tonalRampPurpose": "Synthesized panel preview only; not implementation tokens."
+      },
+      "surface": {
+        "role": "neutral",
+        "canonical": "#fffdf9",
+        "displayName": "Near-white surface",
+        "tonalRamp": [
+          "oklch(15% 0.0057 84.57)",
+          "oklch(26% 0.0057 84.57)",
+          "oklch(38% 0.0057 84.57)",
+          "oklch(49% 0.0057 84.57)",
+          "oklch(61% 0.0057 84.57)",
+          "oklch(72% 0.0057 84.57)",
+          "oklch(84% 0.0057 84.57)",
+          "oklch(95% 0.0057 84.57)"
+        ],
+        "tonalRampPurpose": "Synthesized panel preview only; not implementation tokens."
+      },
+      "muted": {
+        "role": "neutral",
+        "canonical": "#71665c",
+        "displayName": "Muted brown",
+        "tonalRamp": [
+          "oklch(15% 0.0208 64.64)",
+          "oklch(26% 0.0208 64.64)",
+          "oklch(38% 0.0208 64.64)",
+          "oklch(49% 0.0208 64.64)",
+          "oklch(61% 0.0208 64.64)",
+          "oklch(72% 0.0208 64.64)",
+          "oklch(84% 0.0208 64.64)",
+          "oklch(95% 0.0208 64.64)"
+        ],
+        "tonalRampPurpose": "Synthesized panel preview only; not implementation tokens."
+      },
+      "paper": {
+        "role": "neutral",
+        "canonical": "#f7efe2",
+        "displayName": "Warm cream",
+        "tonalRamp": [
+          "oklch(15% 0.0193 80.12)",
+          "oklch(26% 0.0193 80.12)",
+          "oklch(38% 0.0193 80.12)",
+          "oklch(49% 0.0193 80.12)",
+          "oklch(61% 0.0193 80.12)",
+          "oklch(72% 0.0193 80.12)",
+          "oklch(84% 0.0193 80.12)",
+          "oklch(95% 0.0193 80.12)"
+        ],
+        "tonalRampPurpose": "Synthesized panel preview only; not implementation tokens."
+      },
+      "line": {
+        "role": "neutral",
+        "canonical": "#e7d8c4",
+        "displayName": "Warm line",
+        "tonalRamp": [
+          "oklch(15% 0.0315 75.20)",
+          "oklch(26% 0.0315 75.20)",
+          "oklch(38% 0.0315 75.20)",
+          "oklch(49% 0.0315 75.20)",
+          "oklch(61% 0.0315 75.20)",
+          "oklch(72% 0.0315 75.20)",
+          "oklch(84% 0.0315 75.20)",
+          "oklch(95% 0.0315 75.20)"
+        ],
+        "tonalRampPurpose": "Synthesized panel preview only; not implementation tokens."
+      },
+      "primary": {
+        "role": "primary",
+        "canonical": "#cf3a27",
+        "displayName": "HAIFN red",
+        "tonalRamp": [
+          "oklch(15% 0.1889 30.75)",
+          "oklch(26% 0.1889 30.75)",
+          "oklch(38% 0.1889 30.75)",
+          "oklch(49% 0.1889 30.75)",
+          "oklch(61% 0.1889 30.75)",
+          "oklch(72% 0.1889 30.75)",
+          "oklch(84% 0.1889 30.75)",
+          "oklch(95% 0.1889 30.75)"
+        ],
+        "tonalRampPurpose": "Synthesized panel preview only; not implementation tokens."
+      }
+    },
+    "motion": []
+  },
+  "schemaVersion": 2,
+  "narrative": {
+    "overview": "Scope is `/welcome` only. This records the implemented route, following the first composition selected by the user. Other app surfaces retain their incumbent design system.\n\nBold Korean questions, authentic character cutouts, and diagonal color bands form one graphic composition. Approved information remains readable HTML beneath or beside the artwork. The existing chat retains its product styling and behavior.",
+    "donts": [
+      "Don't apply this route's poster composition to unrelated app surfaces.",
+      "Don't add a decorative star to the HAIFN wordmark.",
+      "Don't replace supplied characters with generated approximations.",
+      "Don't change visitor chat behavior as part of poster styling."
+    ],
+    "rules": [
+      {
+        "name": "The Reversal Rule",
+        "section": "colors",
+        "body": "The final invitation reverses red and cream while retaining the same typographic band grammar."
+      },
+      {
+        "name": "The One Typeface Rule",
+        "section": "typography",
+        "body": "Keep the existing app typeface for Korean display, body, and controls. Preserve semantic headings and text rather than embedding typography in images."
+      },
+      {
+        "name": "The Scene Rule",
+        "section": "layout",
+        "body": "Keep character scale, question placement, and band direction coordinated within the stage. The band is composition geometry, not a separate card."
+      }
+    ],
+    "northStar": "School club festival poster",
+    "dos": [
+      "Do retain the original character assets, app typeface, and red/cream palette.",
+      "Do keep headings and all approved information as semantic text.",
+      "Do coordinate typography and characters as one composition.",
+      "Do allow content height to grow when a short viewport cannot contain it."
+    ],
+    "keyCharacteristics": [
+      "Diagonal headline bands with integrated character scenes.",
+      "HAIFN red and warm cream, with dark brown text.",
+      "One app typeface and real supplied PNG characters."
+    ]
+  },
+  "generatedAt": "2026-10-01T03:57:33.4016374Z"
+}

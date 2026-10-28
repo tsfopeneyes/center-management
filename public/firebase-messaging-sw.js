@@ -48,16 +48,28 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification?.data?.url || '/';
-  event.waitUntil(
-    reportReceipt(event.notification?.data?.receiptToken, 'CLICKED').then(() =>
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      const existing = windowClients.find((client) => 'focus' in client);
-      if (existing) {
-        if ('navigate' in existing) existing.navigate(targetUrl);
-        return existing.focus();
+  const target = new URL(event.notification?.data?.url || '/', self.location.origin);
+  // Also mark notifications delivered before senders included this parameter.
+  // Only a notification click adds it; ordinary community navigation is untouched.
+  if (target.origin === self.location.origin && /^\/community\/[^/]+\/?$/.test(target.pathname)) {
+    target.searchParams.set('from', 'push');
+  }
+  const targetUrl = target.href;
+  const openTarget = async () => {
+    const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existing = windowClients.find((client) => 'focus' in client && 'navigate' in client);
+    if (existing) {
+      try {
+        const navigated = await existing.navigate(targetUrl);
+        if (navigated) return navigated.focus();
+      } catch (_) {
+        // A closing or suspended window can reject navigation. Open the target anew.
       }
-      return clients.openWindow ? clients.openWindow(targetUrl) : undefined;
-    }))
-  );
+    }
+    return clients.openWindow ? clients.openWindow(targetUrl) : undefined;
+  };
+  event.waitUntil(Promise.all([
+    reportReceipt(event.notification?.data?.receiptToken, 'CLICKED'),
+    openTarget(),
+  ]));
 });

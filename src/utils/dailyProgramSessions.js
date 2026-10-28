@@ -4,6 +4,15 @@ export const APPLICATION_SCOPE_PROGRAM = 'PROGRAM';
 export const APPLICATION_SCOPE_SESSION = 'SESSION';
 export const MAX_DAILY_SESSION_FIELDS = 5;
 
+// Open programs persist NONE. Switching back to applications must restore a
+// valid scope rather than carrying that saved open-program value forward.
+export const resolveProgramApplicationScope = form => {
+    if (!form.is_recruiting || form.is_challenge) return 'NONE';
+    return form.schedule_mode === SCHEDULE_MODE_RECURRING
+        && form.application_scope === APPLICATION_SCOPE_SESSION
+        ? APPLICATION_SCOPE_SESSION : APPLICATION_SCOPE_PROGRAM;
+};
+
 export const usesDailySessionRsvp = (notice) => (
     notice?.category === 'PROGRAM'
     && !notice?.is_challenge

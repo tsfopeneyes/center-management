@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Award, CheckCircle, Clock, FileText, Check, X as XIcon } from 'lucide-react';
 import { supabase } from '../../../../../supabaseClient';
+import { getChallengeProgress } from '../../../../../utils/challengeProgress';
 
 const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClick, onOpenMissionPosts }) => {
     const [previewImage, setPreviewImage] = useState(null);
@@ -48,7 +49,7 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                         챌린지 미션 인증 및 진행도 관리
                     </h3>
                     <p className="mt-1 text-sm text-slate-600">
-                        전체 도전자 {challengers.length}명 / 등록된 미션 {missions.length}개
+                        전체 도전자 {challengers.length}명 / 성공 {challengers.filter(student => getChallengeProgress(notice, student.challenge_submissions || []).isSuccess).length}명 / 성공 기준 {getChallengeProgress(notice).threshold}회
                     </p>
                 </div>
             </div>
@@ -71,15 +72,7 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                             {challengers.map((student) => {
                                 const allSubmissions = student.challenge_submissions || [];
                                 const submissions = allSubmissions.filter(item => isOnline ? item.is_valid !== false : item.status === 'COMPLETED');
-                                const requiredForMission = mission => {
-                                    if (!isOnline) return 1;
-                                    if (mission.schedule_type === 'DAILY') return Math.max(1, Math.round((new Date(`${notice.program_end_date}T00:00:00+09:00`) - new Date(`${notice.program_start_date}T00:00:00+09:00`)) / 86400000) + 1);
-                                    return mission.schedule_type === 'FLEXIBLE' ? Math.max(1, Number(mission.target_count) || 1) : 1;
-                                };
-                                const requiredCount = missions.reduce((sum, mission) => sum + requiredForMission(mission), 0);
-                                const completedCount = missions.reduce((sum, mission) => sum + Math.min(
-                                    requiredForMission(mission), submissions.filter(item => item.mission_id === mission.id).length), 0);
-                                const isAllCompleted = completedCount >= requiredCount && requiredCount > 0;
+                                const { total: requiredCount, completed: completedCount, isSuccess: isAllCompleted, remaining } = getChallengeProgress(notice, submissions);
 
                                 return (
                                     <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
@@ -110,7 +103,7 @@ const ChallengeStatusSection = ({ notice, participantList, onRefresh, onUserClic
                                                 }`}>
                                                     {completedCount} / {requiredCount} 완료
                                                 </span>
-                                                {isAllCompleted && <span className="mt-1 text-xs font-semibold text-emerald-600">완료</span>}
+                                                <span className={`mt-1 text-xs font-semibold ${isAllCompleted ? 'text-emerald-600' : 'text-slate-500'}`}>{isAllCompleted ? '성공' : `성공까지 ${remaining}회`}</span>
                                             </div>
                                         </td>
                                         <td className="py-4 pl-6">

@@ -4,10 +4,10 @@ const normalizeGuestName=value=>String(value||'').replace(/\s*\(guest\)\s*$/i,''
 
 // Server-only final stage. accessToken is the new password-verified session held
 // by the registration server, never obtained from a cached member profile.
-export function createMembershipFinalizer({pool,keyFor,validateForm,verifyToken,readiness=async()=>false,now=Date.now}) {
+export function createMembershipFinalizer({pool,keyFor,validateForm,verifyToken,readiness=async()=>false,now=Date.now,mappedGuestUpgrade=false}) {
     const review=()=>new LoginError('registration_review_required',409);
     const abort=(signal)=>{if(signal?.aborted)throw new LoginError('temporarily_unavailable',503);};
-    return async({operationId,requestSecret,operationRequestKey,submission,accessToken},{signal}={})=>{
+    return async({operationId,requestSecret,operationRequestKey,submission,accessToken,guestAccessToken=null},{signal}={})=>{
         const hasRequestSecret=typeof requestSecret==='string'&&/^[A-Za-z0-9_-]{43}$/.test(requestSecret);
         const hasOperationRequestKey=typeof operationRequestKey==='string'&&/^[a-f0-9]{64}$/.test(operationRequestKey);
         if(!isProfileId(operationId) || (!hasRequestSecret&&!hasOperationRequestKey) ||
@@ -52,6 +52,17 @@ export function createMembershipFinalizer({pool,keyFor,validateForm,verifyToken,
                 return {protocol:1,status:receipt.result};
             }
             if(!operation.usable)throw review();
+            if(mappedGuestUpgrade&&requestedGuestUserId){
+                const mapped=(await query('SELECT account_security.guest_has_account($1) AS mapped',[requestedGuestUserId])).rows[0]?.mapped;
+                if(mapped){
+                    const guestPrincipal=guestAccessToken?await verifyToken(guestAccessToken,{signal}):null;
+                    if(!guestPrincipal||guestPrincipal.live!==true||guestPrincipal.isAnonymous!==false||guestPrincipal.expiresAt<=now())throw review();
+                    await query('SELECT account_security.complete_guest_membership($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[
+                        operationId,requestedGuestUserId,guestPrincipal.authUserId,guestPrincipal.sessionId,principal.authUserId,principal.sessionId,
+                        profile,nameKey,phoneKey,detailsKey,submission.termsVersion]);
+                    abort(signal);await query('COMMIT');committed=true;return {protocol:1,status:'registered'};
+                }
+            }
             const temporary=(await query(`SELECT u.id,u.name,u.birth,u.phone FROM public.users u
                 LEFT JOIN account_security.accounts a ON a.profile_id=u.id
                 WHERE a.profile_id IS NULL AND u.auth_user_id IS NULL

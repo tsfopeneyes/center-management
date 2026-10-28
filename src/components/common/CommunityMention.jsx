@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import UserAvatar from './UserAvatar';
+import YouTubeCommentPreview from './YouTubeCommentPreview';
+import { extractYouTubeVideos } from '../../utils/youtubePreview';
 
 const activeMention = (value, caret) => {
     const before = value.slice(0, caret);
@@ -8,7 +10,7 @@ const activeMention = (value, caret) => {
     return { query: match[2], start: caret - match[2].length - 1, end: caret };
 };
 
-export function CommunityMentionInput({ value, onChange, candidates = [], onSubmit, placeholder = '댓글 남기기', className = '' }) {
+export function CommunityMentionInput({ value, onChange, candidates = [], onMentionSelect, onSubmit, placeholder = '댓글 남기기', className = '' }) {
     const inputRef = useRef(null);
     const [mention, setMention] = useState(null);
     const [activeIndex, setActiveIndex] = useState(0);
@@ -28,6 +30,7 @@ export function CommunityMentionInput({ value, onChange, candidates = [], onSubm
         const nextValue = `${value.slice(0, mention.start)}@${candidate.name} ${value.slice(mention.end)}`;
         const nextCaret = mention.start + candidate.name.length + 2;
         onChange(nextValue);
+        onMentionSelect?.(candidate);
         setMention(null);
         window.requestAnimationFrame(() => {
             inputRef.current?.focus();
@@ -64,11 +67,27 @@ export function CommunityMentionInput({ value, onChange, candidates = [], onSubm
 
 export function CommunityMentionText({ children, candidates = [], className = '' }) {
     const content = String(children || '');
+    const videos = useMemo(() => extractYouTubeVideos(content), [content]);
     const names = useMemo(() => [...new Set(candidates.map(candidate => candidate.name).filter(Boolean))].sort((a, b) => b.length - a.length), [candidates]);
-    if (!names.length) return <p className={className}>{content}</p>;
     const escaped = names.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const parts = content.split(new RegExp(`(@(?:${escaped.join('|')}))`, 'g'));
-    return <p className={className}>{parts.map((part, index) => part.startsWith('@') && names.includes(part.slice(1))
+    const renderMentions = text => (names.length ? text.split(new RegExp(`(@(?:${escaped.join('|')}))`, 'g')) : [text]).map((part, index) => part.startsWith('@') && names.includes(part.slice(1))
         ? <span key={index} className="font-black text-blue-600">{part}</span>
-        : <React.Fragment key={index}>{part}</React.Fragment>)}</p>;
+        : <React.Fragment key={index}>{part}</React.Fragment>);
+    // Recognize web links before mentions so @names inside a URL remain intact.
+    const parts = content.split(/((?:https?:\/\/|www\.)[^\s<>"']+)/gi);
+    return <><p className={className}>{parts.map((part, index) => {
+        if (index % 2 === 0) return <React.Fragment key={index}>{renderMentions(part)}</React.Fragment>;
+        let link = part.replace(/[.,!?;:，。！？、…]+$/u, '');
+        for (const [open, close] of [['(', ')'], ['[', ']'], ['{', '}']]) {
+            while (link.endsWith(close) && link.split(close).length > link.split(open).length) link = link.slice(0, -1);
+        }
+        const href = /^www\./i.test(link) ? `https://${link}` : link;
+        try {
+            const url = new URL(href);
+            if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) throw new Error('Invalid web link');
+        } catch {
+            return <React.Fragment key={index}>{part}</React.Fragment>;
+        }
+        return <React.Fragment key={index}><a href={href} target="_blank" rel="noopener noreferrer" className="break-words text-blue-600 underline decoration-blue-400 underline-offset-2 [overflow-wrap:anywhere] hover:text-blue-700 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600" onClick={event => event.stopPropagation()}>{link}</a>{part.slice(link.length)}</React.Fragment>;
+    })}</p>{videos.length > 0 && <div className="mt-2 space-y-2">{videos.map(video => <YouTubeCommentPreview key={video.id} video={video}/>)}</div>}</>;
 }

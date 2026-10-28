@@ -16,6 +16,7 @@ import {createLegacyCredentialBridge} from './legacyCredentialBridge.mjs';
 import {createMemberAdminService} from './memberAdminService.mjs';
 import {createMemberWithdrawalService} from './memberWithdrawalService.mjs';
 import {createAccountMergeService} from './accountMergeService.mjs';
+import {createGuestLoginService} from './guestLoginService.mjs';
 
 export async function createAccountAuthRuntime({basePool,supabaseUrl,publishableKey,serviceRoleKey,lookupSecret,legacyBridgeSecret,pepper,
     resolveClientKey,readiness,allowedOrigins,basePath='/functions/v1/account-auth',temporaryTtlMs=86400000,
@@ -24,6 +25,7 @@ export async function createAccountAuthRuntime({basePool,supabaseUrl,publishable
     if(!basePool?.connect||typeof readiness!=='function'||typeof passwordPolicy!=='function')throw new Error('Explicit account runtime dependencies required');
     const readerPool=createRoleBoundPool(basePool,'account_session_reader');
     const loginPool=createRoleBoundPool(basePool,'account_login_worker');
+    const guestLoginPool=createRoleBoundPool(basePool,'account_guest_login_worker');
     const credentialPool=createRoleBoundPool(basePool,'account_credential_worker');
     const confirmationPool=createRoleBoundPool(basePool,'account_confirmation_writer');
     const profilePool=createRoleBoundPool(basePool,'account_profile_worker');
@@ -38,6 +40,8 @@ export async function createAccountAuthRuntime({basePool,supabaseUrl,publishable
     const legacyBridge=await createLegacyCredentialBridge(legacyBridgeSecret);
     const gateway=createPasswordGateway({supabaseUrl,publishableKey,fetcher});
     const adminAuth=createAdminAuthGateway({supabaseUrl,serviceRoleKey,fetcher});
+    const guestLogin=createGuestLoginService({pool:guestLoginPool,keyFor,bridge:legacyBridge,adminAuth,gateway,verifyToken,readiness,loginDomain,assuranceTtlMs});
+    const guestCandidates=async name=>(await guestLoginPool.query('SELECT account_security.guest_login_candidates($1) AS result',[name])).rows[0]?.result||[];
     const credentialService=createCredentialBundle({credentialPool,confirmationPool,limits:loginStore,keyFor,authorize,
         adminAuth,gateway,verifyToken,grantAssurance:loginStore.grantAssurance,discardSession:gateway.discardCreatedSession,
         readiness,passwordPolicy,pepper,kdfIterations,temporaryTtlMs,confirmationTtlMs,assuranceTtlMs});
@@ -51,5 +55,5 @@ export async function createAccountAuthRuntime({basePool,supabaseUrl,publishable
     const withdraw=createMemberWithdrawalService({pool:memberAdminPool,authorize,readiness});
     const memberAdminService=Object.freeze({setRole,withdraw,...mergeService});
     return createAccountAuthService({readerPool,loginPool,supabaseUrl,publishableKey,lookupSecret,legacyBridge,resolveClientKey,readiness,
-        assuranceTtlMs,allowedOrigins,credentialService,profileService,registrationService,uploadService,memberAdminService,basePath,fetcher});
+        assuranceTtlMs,allowedOrigins,credentialService,profileService,registrationService,uploadService,memberAdminService,basePath,fetcher,guestLogin,guestCandidates});
 }

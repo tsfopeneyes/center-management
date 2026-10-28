@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, Bell, ChevronRight, Copy, Eye, ImagePlus, Loader2, MessageCircle, MoreHorizontal, Plus, Search, Send, SmilePlus, Users, X } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { dmApi } from '../../api/dmApi';
@@ -12,14 +13,23 @@ import { confirmApp } from '../../utils/appDialog';
 import { calculateAge } from '../../utils/dateUtils';
 import { compressImage } from '../../utils/imageUtils';
 import HaifnManagementInbox from './HaifnManagementInbox';
+import { useBodyScrollLock } from '../../hooks/useModalClose';
 
 const isLegacyStaff = user => isAdminOrStaff(user)
     || ['admin', 'master', 'staff', 'rok'].includes(String(user?.role || '').toLowerCase())
     || user?.is_master;
 
-const formatTime = value => value ? new Intl.DateTimeFormat('ko-KR', {
-    hour: 'numeric', minute: '2-digit',
-}).format(new Date(value)) : '';
+const formatTime = value => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const today = dateKey(date) === dateKey(new Date());
+    return new Intl.DateTimeFormat('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        ...(today ? {} : { year: 'numeric', month: 'numeric', day: 'numeric' }),
+        hour: 'numeric', minute: '2-digit',
+    }).format(date);
+};
 
 const dateKey = value => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date(value));
 const formatDate = value => new Intl.DateTimeFormat('ko-KR', {
@@ -41,6 +51,31 @@ const directConversationPartner = (conversation, currentUserId) => conversation.
     : null;
 
 const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConversationId = null }) => {
+    useBodyScrollLock(true);
+    const [viewport, setViewport] = useState(() => ({
+        height: window.visualViewport?.height || window.innerHeight,
+        top: window.visualViewport?.offsetTop || 0,
+    }));
+    useEffect(() => {
+        const visual = window.visualViewport;
+        let frame;
+        const update = () => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => {
+                setViewport({ height: visual?.height || window.innerHeight, top: visual?.offsetTop || 0 });
+            });
+        };
+        visual?.addEventListener('resize', update);
+        visual?.addEventListener('scroll', update);
+        window.addEventListener('resize', update);
+        update();
+        return () => {
+            cancelAnimationFrame(frame);
+            visual?.removeEventListener('resize', update);
+            visual?.removeEventListener('scroll', update);
+            window.removeEventListener('resize', update);
+        };
+    }, []);
     const { conversations, unreadCount, haifnPendingCount, loading, refresh } = useDirectMessages(currentUser?.id);
     const [selectedId, setSelectedId] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -68,7 +103,7 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
     const [imagePreview, setImagePreview] = useState(null);
     const [copyNotice, setCopyNotice] = useState(false);
     const [inboxTab, setInboxTab] = useState('PERSONAL');
-    const endRef = useRef(null);
+    const messageListRef = useRef(null);
     const imageInputRef = useRef(null);
     const typingTimerRef = useRef(null);
     const lastTypingSentRef = useRef(0);
@@ -84,6 +119,10 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
         draft: true,
     } : null;
     const activeConversation = selected || draftConversation;
+    useLayoutEffect(() => {
+        const list = messageListRef.current;
+        if (list) list.scrollTop = list.scrollHeight;
+    }, [messages, selectedId, viewport.height]);
     const currentIsStaff = isAdminOrStaff(currentUser);
     const canViewHaifnInbox = currentIsStaff && ['jin', 'zoe', 'sunny', 'zzang'].includes(String(currentUser?.name || '').trim().toLowerCase());
 
@@ -190,7 +229,6 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
         setParticipants(nextParticipants);
         await dmApi.markRead(conversationId);
         refresh();
-        requestAnimationFrame(() => endRef.current?.scrollIntoView({ block: 'end' }));
     }, [refresh]);
 
     useEffect(() => {
@@ -424,8 +462,8 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
     };
 
     const renderList = () => (
-        <div className="flex h-full flex-col bg-[#FFFDF9]">
-            <div className="relative min-h-[77px] overflow-hidden border-b border-[#B92F20] bg-[#CF3A27] px-5 py-4 text-white">
+        <div className="flex h-full min-h-0 flex-col bg-[#FFFDF9]">
+            <div className="relative shrink-0 min-h-[77px] overflow-hidden border-b border-[#B92F20] bg-[#CF3A27] px-5 py-4 text-white">
                 <div className="relative z-10 flex items-center justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-inner"><MessageCircle size={22} strokeWidth={2.2} /></div>
@@ -438,7 +476,7 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
                 <button type="button" role="tab" aria-selected={inboxTab === 'PERSONAL'} onClick={() => setInboxTab('PERSONAL')} className={`rounded-full px-4 py-2 text-sm font-bold ${inboxTab === 'PERSONAL' ? 'bg-[#CF3A27] text-white' : 'bg-[#F3EEE8] text-[#71665C]'}`}>개인 DM</button>
                 <button type="button" role="tab" aria-selected={inboxTab === 'MANAGEMENT'} onClick={() => setInboxTab('MANAGEMENT')} className={`rounded-full px-4 py-2 text-sm font-bold ${inboxTab === 'MANAGEMENT' ? 'bg-[#CF3A27] text-white' : 'bg-[#F3EEE8] text-[#71665C]'}`}>관리 DM{haifnPendingCount > 0 ? ` ${haifnPendingCount}` : ''}</button>
             </div>}
-            {inboxTab === 'MANAGEMENT' && canViewHaifnInbox ? <HaifnManagementInbox currentUser={currentUser} /> : <div className="flex-1 overflow-y-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {inboxTab === 'MANAGEMENT' && canViewHaifnInbox ? <HaifnManagementInbox currentUser={currentUser} /> : <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {loading ? <div className="flex justify-center py-16"><Loader2 className="animate-spin text-[#CF3A27]" /></div> : conversations.length === 0 ? <div className="py-20 text-center"><MessageCircle className="mx-auto text-[#D9CABC]" size={44} /><p className="mt-4 font-bold text-[#71665C]">아직 대화가 없어요.</p><button type="button" onClick={() => openPeople('NEW')} className="mt-4 rounded-xl bg-[#CF3A27] px-4 py-2.5 text-sm font-bold text-white">첫 메시지 보내기</button></div> : conversations.map(conversation => { const partner = directConversationPartner(conversation, currentUser.id); return <button type="button" key={conversation.id} onClick={() => setSelectedId(conversation.id)} className="mb-2 flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-[0_2px_12px_rgba(80,52,35,0.06)]">{conversation.kind === 'DIRECT' && partner ? <UserAvatar user={partner} size="h-11 w-11 shrink-0" textSize="text-sm" /> : <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#F8E7DE] text-[#CF3A27]"><MessageCircle size={20} /></div>}<div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-extrabold text-[#332821]">{conversationTitle(conversation, currentUser.id)}</p><span className="shrink-0 text-[10px] text-[#A3958A]">{formatTime(conversation.lastMessage?.created_at)}</span></div><p className="mt-1 truncate text-xs font-medium text-[#8B7B70]">{conversation.lastMessage?.revoked_at ? '메시지가 삭제되었습니다.' : conversation.lastMessage?.message_type === 'IMAGE' ? '사진' : conversation.lastMessage?.content || '대화를 시작해 보세요.'}</p></div>{conversation.unreadCount > 0 && <span className="flex min-w-5 h-5 items-center justify-center rounded-full bg-[#CF3A27] px-1 text-[10px] font-black text-white">{conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}</span>}</button>; })}
             </div>}
         </div>
@@ -453,12 +491,12 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
     );
 
     const renderNotificationSettings = () => (
-        <div className="flex h-full flex-col bg-[#FFFDF9]">
-            <div className="flex min-h-[77px] items-center gap-3 border-b border-[#B92F20] bg-[#CF3A27] px-5 py-4 text-white">
+        <div className="flex h-full min-h-0 flex-col bg-[#FFFDF9]">
+            <div className="flex shrink-0 min-h-[77px] items-center gap-3 border-b border-[#B92F20] bg-[#CF3A27] px-5 py-4 text-white">
                 <button type="button" onClick={() => setNotificationSettingsOpen(false)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20" aria-label="메시지 목록으로"><ArrowLeft size={20} /></button>
                 <div><h2 className="text-xl font-black tracking-tight">DM 알림</h2><p className="mt-0.5 text-xs font-semibold text-white/75">이 기기에서 받을 알림을 정해요</p></div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
                 <div className="overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_rgba(80,52,35,0.06)]">
                     <div className="flex items-center gap-3 border-b border-[#EDE3D8] px-4 py-4">
                         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F8E7DE] text-[#CF3A27]"><Bell size={19} /></span>
@@ -482,22 +520,22 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
     );
 
     const renderPeople = () => (
-        <div className="flex h-full flex-col bg-[#FFFDF9]">
-            <div className="flex min-h-[77px] items-center gap-3 border-b border-[#B92F20] bg-[#CF3A27] px-5 py-4 text-white">
+        <div className="flex h-full min-h-0 flex-col bg-[#FFFDF9]">
+            <div className="flex shrink-0 min-h-[77px] items-center gap-3 border-b border-[#B92F20] bg-[#CF3A27] px-5 py-4 text-white">
                 <button type="button" onClick={() => { setPeopleMode(null); setSelectedPeople([]); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20" aria-label="메시지 목록으로"><ArrowLeft size={20} /></button>
                 <div className="min-w-0">
                     <h2 className="truncate text-xl font-black tracking-tight">{peopleMode === 'NEW' ? '새 DM' : selected?.kind === 'DIRECT' ? '새 그룹 DM 만들기' : '대화에 초대하기'}</h2>
                     <p className="mt-0.5 truncate text-xs font-semibold text-white/75">{selectedPeople.length > 0 ? `${selectedPeople.length}명 선택됨` : '한 명 또는 여러 명을 선택하세요'}</p>
                 </div>
             </div>
-            <div className="p-4 pb-2"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A3958A]" size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="이름 또는 학교 검색" className="w-full rounded-2xl border border-[#E7D8C4] bg-white py-3 pl-10 pr-4 text-sm outline-none focus:border-[#CF3A27]" /></div>{selectedPeople.length > 0 && <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{selectedPeople.map(person => <button type="button" key={person.id} onClick={() => choosePerson(person)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#F8E7DE] py-1.5 pl-2.5 pr-2 text-xs font-bold text-[#9F2E20]">{person.name}<X size={13} /></button>)}</div>}</div><div className="flex-1 overflow-y-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{filteredCandidates.map(person => { const picked = selectedPeople.some(item => item.id === person.id); return <button disabled={busy} type="button" key={person.id} onClick={() => choosePerson(person)} className={`mb-2 flex w-full items-center gap-3 rounded-2xl p-3.5 text-left disabled:opacity-50 ${picked ? 'bg-[#FFF0EC] ring-1 ring-[#CF3A27]/30' : 'bg-white'}`}><UserAvatar user={person} size="w-11 h-11" textSize="text-sm" /><div className="min-w-0 flex-1"><p className="font-extrabold text-[#332821]">{person.name}</p><p className="truncate text-xs text-[#8B7B70]">{person.school || (isLegacyStaff(person) ? '스처쌤' : '학교 정보 없음')}</p></div><span className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs font-black ${picked ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#D8CEC5] text-transparent'}`}>✓</span></button>; })}</div><div className="border-t border-[#E7D8C4] p-3 pb-[max(12px,env(safe-area-inset-bottom))]"><button type="button" disabled={!selectedPeople.length || busy} onClick={confirmPeopleSelection} className="w-full rounded-2xl bg-[#CF3A27] py-3.5 text-sm font-extrabold text-white disabled:bg-[#D8CEC5]">{busy ? '처리 중…' : peopleMode === 'NEW' ? (selectedPeople.length > 1 ? `${selectedPeople.length}명과 그룹 DM 시작` : '선택한 사람과 DM 시작') : `${selectedPeople.length}명 선택 완료`}</button></div>
+            <div className="p-4 pb-2"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A3958A]" size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="이름 또는 학교 검색" className="w-full rounded-2xl border border-[#E7D8C4] bg-white py-3 pl-10 pr-4 text-sm outline-none focus:border-[#CF3A27]" /></div>{selectedPeople.length > 0 && <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{selectedPeople.map(person => <button type="button" key={person.id} onClick={() => choosePerson(person)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#F8E7DE] py-1.5 pl-2.5 pr-2 text-xs font-bold text-[#9F2E20]">{person.name}<X size={13} /></button>)}</div>}</div><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{filteredCandidates.map(person => { const picked = selectedPeople.some(item => item.id === person.id); return <button disabled={busy} type="button" key={person.id} onClick={() => choosePerson(person)} className={`mb-2 flex w-full items-center gap-3 rounded-2xl p-3.5 text-left disabled:opacity-50 ${picked ? 'bg-[#FFF0EC] ring-1 ring-[#CF3A27]/30' : 'bg-white'}`}><UserAvatar user={person} size="w-11 h-11" textSize="text-sm" /><div className="min-w-0 flex-1"><p className="font-extrabold text-[#332821]">{person.name}</p><p className="truncate text-xs text-[#8B7B70]">{person.school || (isLegacyStaff(person) ? '스처쌤' : '학교 정보 없음')}</p></div><span className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs font-black ${picked ? 'border-[#CF3A27] bg-[#CF3A27] text-white' : 'border-[#D8CEC5] text-transparent'}`}>✓</span></button>; })}</div><div className="border-t border-[#E7D8C4] p-3 pb-[max(12px,env(safe-area-inset-bottom))]"><button type="button" disabled={!selectedPeople.length || busy} onClick={confirmPeopleSelection} className="w-full rounded-2xl bg-[#CF3A27] py-3.5 text-sm font-extrabold text-white disabled:bg-[#D8CEC5]">{busy ? '처리 중…' : peopleMode === 'NEW' ? (selectedPeople.length > 1 ? `${selectedPeople.length}명과 그룹 DM 시작` : '선택한 사람과 DM 시작') : `${selectedPeople.length}명 선택 완료`}</button></div>
         </div>
     );
 
     const renderThread = () => (
-        <div className="flex h-full flex-col bg-[#F8F4EE]">
-            <div className="flex min-h-[77px] items-center gap-3 border-b border-[#B92F20] bg-[#CF3A27] px-5 py-4 text-white"><button type="button" onClick={() => { setSelectedId(null); setDraftRecipients([]); setMessages([]); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20" aria-label="메시지 목록으로"><ArrowLeft size={20} /></button><div className="min-w-0 flex-1"><h2 className="truncate text-xl font-black tracking-tight text-white">{conversationTitle(activeConversation, currentUser.id)}</h2>{activeConversation?.kind === 'GROUP' && <p className="mt-0.5 text-xs font-semibold text-white/70">{activeConversation.draft ? draftRecipients.length + 1 : participants.length}명</p>}</div>{selected && <button type="button" onClick={() => setSettingsOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20" aria-label="대화 설정"><MoreHorizontal size={20} /></button>}</div>
-            <div className="flex-1 overflow-y-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex h-full min-h-0 flex-col bg-[#F8F4EE]">
+            <div className="flex shrink-0 min-h-[77px] items-center gap-3 border-b border-[#B92F20] bg-[#CF3A27] px-5 py-4 text-white"><button type="button" onClick={() => { setSelectedId(null); setDraftRecipients([]); setMessages([]); }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20" aria-label="메시지 목록으로"><ArrowLeft size={20} /></button><div className="min-w-0 flex-1"><h2 className="truncate text-xl font-black tracking-tight text-white">{conversationTitle(activeConversation, currentUser.id)}</h2>{activeConversation?.kind === 'GROUP' && <p className="mt-0.5 text-xs font-semibold text-white/70">{activeConversation.draft ? draftRecipients.length + 1 : participants.length}명</p>}</div>{selected && <button type="button" onClick={() => setSettingsOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20" aria-label="대화 설정"><MoreHorizontal size={20} /></button>}</div>
+            <div ref={messageListRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {messages.map((message, index) => {
                     const previous = messages[index - 1];
                     const next = messages[index + 1];
@@ -529,9 +567,9 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
                     </div></React.Fragment>;
                 })}
                 {typingUsers.length > 0 && <div className="mb-1 mt-2 flex items-end gap-2"><div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#DED5CC] bg-white text-[11px] font-bold text-[#71665C]">{typingUsers[0].name?.[0] || '·'}</div><div><p className="mb-1 ml-1 text-[10px] font-bold text-[#8B7B70]">{typingUsers.length === 1 ? typingUsers[0].name : `${typingUsers[0].name} 외 ${typingUsers.length - 1}명`}</p><div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-[#E7DED5] bg-white px-3.5 py-2.5 shadow-sm"><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#B4A79D] [animation-delay:-0.32s]" /><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#B4A79D] [animation-delay:-0.16s]" /><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#B4A79D]" /></div></div></div>}
-                <div ref={endRef} />
+
             </div>
-            <form onSubmit={submitMessage} className="flex gap-2 border-t border-[#E7D8C4] bg-[#FFFDF9] p-3 pb-[max(12px,env(safe-area-inset-bottom))]"><input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={sendImage} className="hidden" /><button type="button" disabled={sending} onClick={() => imageInputRef.current?.click()} className="rounded-2xl bg-[#F2ECE5] p-3 text-[#71665C] disabled:opacity-40" aria-label="사진 보내기"><ImagePlus size={20} /></button><input value={composer} maxLength={2000} onChange={event => { setComposer(event.target.value); if (event.target.value) signalTyping(); }} placeholder="메시지를 입력하세요" className="min-w-0 flex-1 rounded-2xl bg-[#F2ECE5] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#CF3A27]/20" /><button disabled={sending || !composer.trim()} className="rounded-2xl bg-[#CF3A27] p-3 text-white disabled:bg-[#D7CCC3]" aria-label="메시지 보내기">{sending ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}</button></form>
+            <form onSubmit={submitMessage} className="flex shrink-0 gap-2 border-t border-[#E7D8C4] bg-[#FFFDF9] p-3 pb-[max(12px,env(safe-area-inset-bottom))]"><input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={sendImage} className="hidden" /><button type="button" disabled={sending} onClick={() => imageInputRef.current?.click()} className="rounded-2xl bg-[#F2ECE5] p-3 text-[#71665C] disabled:opacity-40" aria-label="사진 보내기"><ImagePlus size={20} /></button><input value={composer} maxLength={2000} onChange={event => { setComposer(event.target.value); if (event.target.value) signalTyping(); }} placeholder="메시지를 입력하세요" className="min-w-0 flex-1 rounded-2xl bg-[#F2ECE5] px-4 py-3 text-base md:text-sm outline-none focus:ring-2 focus:ring-[#CF3A27]/20" /><button disabled={sending || !composer.trim()} className="rounded-2xl bg-[#CF3A27] p-3 text-white disabled:bg-[#D7CCC3]" aria-label="메시지 보내기">{sending ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}</button></form>
 
             {imagePreview && <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setImagePreview(null)}><button type="button" onClick={() => setImagePreview(null)} className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white" aria-label="사진 닫기"><X /></button><img src={imagePreview} alt="대화 사진 크게 보기" className="max-h-full max-w-full object-contain" onClick={event => event.stopPropagation()} /></div>}
 
@@ -543,11 +581,11 @@ const DirectMessagesModal = ({ currentUser, onClose, onUnreadChange, initialConv
 
             {participantsOpen && <div className="absolute inset-0 z-30 flex items-end bg-black/35" onClick={() => setParticipantsOpen(false)}><div className="flex max-h-[70%] w-full flex-col rounded-t-[28px] bg-[#FFFDF9] shadow-2xl" onClick={event => event.stopPropagation()}><div className="mx-auto mt-3 h-1 w-10 rounded-full bg-[#D8CEC5]" /><div className="flex items-center justify-between px-5 pb-3 pt-4"><h3 className="text-lg font-black text-[#332821]">참여자 {participants.length}명</h3><button type="button" onClick={() => setParticipantsOpen(false)} className="rounded-full p-2 text-[#71665C]" aria-label="참여자 닫기"><X size={20} /></button></div><div className="overflow-y-auto border-t border-[#E7D8C4] px-5 pb-[max(18px,env(safe-area-inset-bottom))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{participants.map(member => { const staff = member.joined_as_staff || isLegacyStaff(member.user); const age = staff ? null : calculateAge(member.user?.birth); return <div key={member.id} className="flex items-center gap-3 border-b border-[#EEE5DC] py-2.5 last:border-0"><UserAvatar user={member.user} size="h-10 w-10" textSize="text-sm" /><div className="min-w-0 leading-tight"><p className="truncate font-extrabold text-[#332821]">{member.user?.name || '알 수 없는 사용자'} {!staff && <span className="text-xs font-semibold text-[#9A8C7D]">({member.user?.gender || '-'} / {age ? `${age}세` : '-'})</span>}</p><p className="mt-1 truncate text-xs text-[#8B7B70]">{member.user?.school || (staff ? '스처쌤' : '학교 정보 없음')}</p></div></div>; })}</div></div></div>}
 
-            {renameOpen && <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 p-5"><form onSubmit={event => { event.preventDefault(); renameGroup(); }} className="w-full rounded-3xl bg-white p-5 shadow-2xl"><h3 className="text-lg font-black text-[#332821]">대화방 이름 변경</h3><input autoFocus maxLength={40} value={renameValue} onChange={event => setRenameValue(event.target.value)} className="mt-4 w-full rounded-2xl border border-[#E7D8C4] px-4 py-3 text-sm outline-none focus:border-[#CF3A27]" placeholder="대화방 이름" /><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => setRenameOpen(false)} className="rounded-xl bg-[#F1ECE7] py-3 text-sm font-bold text-[#71665C]">취소</button><button type="submit" disabled={!renameValue.trim()} className="rounded-xl bg-[#CF3A27] py-3 text-sm font-bold text-white disabled:opacity-40">변경</button></div></form></div>}
+            {renameOpen && <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 p-5"><form onSubmit={event => { event.preventDefault(); renameGroup(); }} className="w-full rounded-3xl bg-white p-5 shadow-2xl"><h3 className="text-lg font-black text-[#332821]">대화방 이름 변경</h3><input autoFocus maxLength={40} value={renameValue} onChange={event => setRenameValue(event.target.value)} className="mt-4 w-full rounded-2xl border border-[#E7D8C4] px-4 py-3 text-base md:text-sm outline-none focus:border-[#CF3A27]" placeholder="대화방 이름" /><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => setRenameOpen(false)} className="rounded-xl bg-[#F1ECE7] py-3 text-sm font-bold text-[#71665C]">취소</button><button type="submit" disabled={!renameValue.trim()} className="rounded-xl bg-[#CF3A27] py-3 text-sm font-bold text-white disabled:opacity-40">변경</button></div></form></div>}
         </div>
     );
 
-    return <div className="fixed inset-0 z-[10030] flex items-stretch justify-center bg-black/45 backdrop-blur-sm md:p-5" onClick={closeTopLayer}><div role="dialog" aria-modal="true" aria-label="DM" onClick={event => event.stopPropagation()} className="relative h-full w-full overflow-hidden bg-[#FFFDF9] shadow-2xl md:h-[min(820px,calc(100vh-40px))] md:max-w-lg md:rounded-[30px]">{notificationSettingsOpen ? renderNotificationSettings() : peopleMode ? renderPeople() : activeConversation ? renderThread() : renderList()}</div></div>;
+    return createPortal(<div style={{ top: viewport.top, height: viewport.height }} className="fixed inset-x-0 z-[10030] flex items-stretch justify-center bg-black/45 backdrop-blur-sm md:p-5" onClick={closeTopLayer}><div role="dialog" aria-modal="true" aria-label="DM" onClick={event => event.stopPropagation()} className="relative h-full w-full overflow-hidden bg-[#FFFDF9] shadow-2xl md:max-h-[820px] md:max-w-lg md:rounded-[30px]">{notificationSettingsOpen ? renderNotificationSettings() : peopleMode ? renderPeople() : activeConversation ? renderThread() : renderList()}</div></div>, document.body);
 };
 
 export default DirectMessagesModal;

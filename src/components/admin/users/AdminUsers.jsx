@@ -16,11 +16,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) => {
     
     const {
         searchTerm, setSearchTerm,
-        filterGroup, setFilterGroup,
-        filterRegion, setFilterRegion,
-        excludeLeaders, setExcludeLeaders,
-        showOnlyNonSchoolChurch, setShowOnlyNonSchoolChurch,
-        showOnlyNew3Months, setShowOnlyNew3Months,
+        filters, setFilters, resetFilters, visitStatus, retryVisits,
         selectedUserIds, setSelectedUserIds,
         bulkTargetGroup, setBulkTargetGroup,
         sendingBulk,
@@ -44,11 +40,7 @@ const AdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) => {
             <UserFilters
                 users={users} allLogs={allLogs}
                 searchTerm={searchTerm} setSearchTerm={setSearchTerm}
-                filterGroup={filterGroup} setFilterGroup={setFilterGroup}
-                filterRegion={filterRegion} setFilterRegion={setFilterRegion}
-                excludeLeaders={excludeLeaders} setExcludeLeaders={setExcludeLeaders}
-                showOnlyNonSchoolChurch={showOnlyNonSchoolChurch} setShowOnlyNonSchoolChurch={setShowOnlyNonSchoolChurch}
-                showOnlyNew3Months={showOnlyNew3Months} setShowOnlyNew3Months={setShowOnlyNew3Months}
+                filters={filters} setFilters={setFilters} resetFilters={resetFilters} visitStatus={visitStatus} retryVisits={retryVisits}
                 filteredUsers={filteredUsers}
                 setNotificationModalOpen={setNotificationModalOpen}
                 fetchData={fetchData}

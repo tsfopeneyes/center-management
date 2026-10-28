@@ -20,6 +20,7 @@ const NoticeCard = ({
     onOpenFeedback,
     onOpenTodaySession,
     onStatusChange, 
+    onDuplicate,
     onEdit, 
     onDelete 
 }) => {
@@ -244,7 +245,7 @@ const NoticeCard = ({
             <NoticeCardActions notice={notice} viewMode={viewMode} mode={mode} noticeStats={noticeStats} isActive={isActive}
                 onViewDetails={onViewDetails} onOpenParticipants={onOpenParticipants} onOpenCommunity={onOpenCommunity} onOpenFeedback={onOpenFeedback}
                 onOpenTodaySession={onOpenTodaySession}
-                onStatusChange={onStatusChange} onEdit={onEdit} onDelete={onDelete} />
+                onStatusChange={onStatusChange} onDuplicate={onDuplicate} onEdit={onEdit} onDelete={onDelete} />
         </div>
     );
 };
@@ -260,6 +261,7 @@ NoticeCard.propTypes = {
     onOpenFeedback: PropTypes.func.isRequired,
     onOpenTodaySession: PropTypes.func.isRequired,
     onStatusChange: PropTypes.func.isRequired,
+    onDuplicate: PropTypes.func,
     onEdit: PropTypes.func.isRequired,
     onDelete: PropTypes.func.isRequired
 };

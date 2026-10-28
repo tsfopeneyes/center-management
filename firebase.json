@@ -4,8 +4,9 @@
     "public": "dist",
     "predeploy": [
       "npm run build",
+      "node scripts/preserve-sci-challenge-hosting.mjs",
       "node scripts/check-account-auth-release.mjs",
-      "node --env-file=.env scripts/check-account-auth-readiness.mjs"
+      "node --env-file .env scripts/check-account-auth-readiness.mjs"
     ],
     "ignore": [
       "firebase.json",
@@ -77,6 +78,15 @@
         ]
       },
       {
+        "source": "/oauth/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "/firebase-messaging-sw.js",
         "headers": [
           {
@@ -102,9 +112,35 @@
             "value": "no-cache, max-age=0, must-revalidate"
           }
         ]
+      },
+      {
+        "source": "/sci-challenge",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
+        "source": "/sci-challenge/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
       }
     ],
     "rewrites": [
+      {
+        "source": "/sci-challenge",
+        "destination": "/sci-challenge/index.html"
+      },
+      {
+        "source": "/sci-challenge/**",
+        "destination": "/sci-challenge/index.html"
+      },
       {
         "source": "**",
         "destination": "/index.html"

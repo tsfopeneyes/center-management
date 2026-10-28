@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { noticesApi } from '../../../api/noticesApi';
 import { supabase } from '../../../supabaseClient';
 import { readNoticeWithPreview } from '../../../api/programReadApi';
+import { prepareProgramDuplicate } from './utils/programDuplicate';
 import { programSessionsApi } from '../../../api/programSessionsApi';
 import { usesDailySessionRsvp, isRecurringProgram } from '../../../utils/dailyProgramSessions';
 
@@ -47,6 +48,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
     const [loading, setLoading] = useState(true);
     
     const [showWriteForm, setShowWriteForm] = useState(false);
+    const [duplicateNotice, setDuplicateNotice] = useState(null);
     const [editNoticeId, setEditNoticeId] = useState(null);
     const [selectedNoticeForEdit, setSelectedNoticeForEdit] = useState(null);
 
@@ -173,6 +175,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
     const handleFormSave = useCallback((noticeData) => {
         setEditNoticeId(null);
         setSelectedNoticeForEdit(null);
+        setDuplicateNotice(null);
         setShowWriteForm(false);
         fetchNotices();
     }, [fetchNotices]);
@@ -180,6 +183,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
     const handleFormCancel = useCallback(() => {
         setEditNoticeId(null);
         setSelectedNoticeForEdit(null);
+        setDuplicateNotice(null);
         setShowWriteForm(false);
     }, []);
 
@@ -190,6 +194,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                 alert('모집 예정 본문을 수정하려면 관리자 계정으로 다시 로그인해주세요.');
                 return;
             }
+            setDuplicateNotice(null);
             setEditNoticeId(editable.id);
             setSelectedNoticeForEdit(editable);
             setShowWriteForm(true);
@@ -198,17 +203,47 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
         }
     }, []);
 
+    const handleDuplicateNotice = useCallback(async (notice) => {
+        try {
+            const source = await readNoticeWithPreview(notice.id);
+            if (!source || source.is_program_preview) {
+                alert('프로그램 내용을 복제하려면 관리자 계정으로 다시 로그인해주세요.');
+                return;
+            }
+            const surveyResult = await (
+                source.guest_properties?.survey_version_id
+                    ? supabase.from('survey_versions').select('definition, survey_forms(source_template_id)')
+                        .eq('id', source.guest_properties.survey_version_id).single()
+                    : Promise.resolve({ data: null, error: null })
+            );
+            if (surveyResult.error) throw surveyResult.error;
+            setDuplicateNotice(prepareProgramDuplicate(source, surveyResult.data));
+            setEditNoticeId(null);
+            setSelectedNoticeForEdit(null);
+            setShowWriteForm(true);
+        } catch (error) {
+            console.error('Failed to duplicate program:', error);
+            alert('프로그램 내용을 복제하지 못했습니다. 잠시 후 다시 시도해주세요.');
+        }
+    }, []);
+
     const handleDeleteNotice = useCallback(async (id) => {
-        if (window.confirm('정말 삭제하시겠습니까? 관련 데이터가 모두 삭제됩니다.')) {
+        const isProgram = notices.find(notice => notice.id === id)?.category === 'PROGRAM';
+        const message = isProgram
+            ? '정말 삭제하시겠습니까? 프로그램의 신청 내역과 연결된 설문 응답도 함께 삭제됩니다. 삭제 후에는 되돌릴 수 없습니다.'
+            : '정말 삭제하시겠습니까? 관련 데이터가 함께 삭제됩니다. 삭제 후에는 되돌릴 수 없습니다.';
+        if (window.confirm(message)) {
             try {
                 await noticesApi.delete(id);
                 setNotices(prev => prev.filter(n => n.id !== id));
             } catch (error) {
                 console.error('Error deleting notice:', error);
-                alert('삭제 중 오류가 발생했습니다.');
+                alert(error?.code === '23503'
+                    ? '연결된 기록 때문에 삭제하지 못했습니다. 관리자에게 문의해주세요.'
+                    : error?.message || '삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
             }
         }
-    }, []);
+    }, [notices]);
 
     const handleProgramStatusChange = useCallback(async (id, newStatus) => {
         try {
@@ -216,7 +251,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
             const currentGp = notice?.guest_properties || {};
             const isEndedVal = newStatus === 'COMPLETED';
 
-            await noticesApi.update(id, { 
+            const updatedNotice = await noticesApi.update(id, {
                 program_status: newStatus,
                 guest_properties: {
                     ...currentGp,
@@ -225,6 +260,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
             });
             setNotices(prev => prev.map(n => n.id === id ? { 
                 ...n, 
+                is_sticky: updatedNotice.is_sticky,
                 program_status: newStatus,
                 guest_properties: {
                     ...(n.guest_properties || {}),
@@ -367,6 +403,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                         mode={mode}
                         editNoticeId={editNoticeId}
                         existingNotice={selectedNoticeForEdit}
+                        initialNotice={duplicateNotice}
                         onSave={handleFormSave}
                         onCancel={handleFormCancel}
                     />
@@ -407,7 +444,8 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                                             onOpenFeedback={handleOpenFeedback}
                                             onOpenTodaySession={handleOpenTodaySession}
                                             onStatusChange={handleProgramStatusChange}
-                                            onEdit={handleEditNotice}
+                                            onDuplicate={handleDuplicateNotice}
+                                onEdit={handleEditNotice}
                                             onDelete={handleDeleteNotice}
                                         />
                                     </section>
@@ -431,6 +469,7 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                                             onOpenFeedback={handleOpenFeedback}
                                             onOpenTodaySession={handleOpenTodaySession}
                                             onStatusChange={handleProgramStatusChange}
+                                            onDuplicate={handleDuplicateNotice}
                                             onEdit={handleEditNotice}
                                             onDelete={handleDeleteNotice}
                                         />
@@ -449,7 +488,8 @@ const AdminBoard = ({ mode = CATEGORIES.NOTICE, setActiveMenu, initialNoticeId, 
                                 onOpenFeedback={handleOpenFeedback}
                                 onOpenTodaySession={handleOpenTodaySession}
                                 onStatusChange={handleProgramStatusChange}
-                                onEdit={handleEditNotice}
+                                onDuplicate={handleDuplicateNotice}
+                                            onEdit={handleEditNotice}
                                 onDelete={handleDeleteNotice}
                             />
                         )}

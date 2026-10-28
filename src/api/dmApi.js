@@ -42,7 +42,7 @@ export const dmApi = {
             .order('last_message_at', { referencedTable: 'dm_conversations', ascending: false, nullsFirst: false });
         if (error) throw error;
 
-        return Promise.all((data || []).map(async membership => {
+        const conversations = await Promise.all((data || []).map(async membership => {
             const conversationId = membership.conversation.id;
             const [{ data: participants }, { data: messages }] = await Promise.all([
                 supabase.from('dm_participant_memberships')
@@ -58,6 +58,11 @@ export const dmApi = {
                 .neq('sender_id', userId).gt('created_at', membership.last_read_at || membership.joined_at);
             return { ...membership.conversation, membership, participants: participants || [], lastMessage: last, unreadCount: count || 0 };
         }));
+        // Ordering an embedded relation does not order the membership rows themselves.
+        const activityTime = conversation => new Date(conversation.lastMessage?.created_at
+            || conversation.last_message_at || conversation.created_at).getTime() || 0;
+        return conversations.sort((left, right) => activityTime(right) - activityTime(left)
+            || String(left.id).localeCompare(String(right.id)));
     },
 
     async fetchMessages(conversationId, before = null) {

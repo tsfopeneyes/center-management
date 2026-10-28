@@ -1,7 +1,7 @@
 // No default URL: never point the staged client at an unprepared live server.
 // The future endpoint must verify JWT, live session, protected profile mapping
 // and issuance evidence; this transport cannot authorize access by itself.
-export function createSessionTransport({endpoint, publishableKey, fetcher = fetch, timeoutMs = 10000}) {
+export function createSessionTransport({endpoint, publishableKey, fetcher = fetch, timeoutMs = 20000}) {
     const url = new URL(endpoint);
     if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)))
         || !Number.isFinite(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30000) {

@@ -1,8 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { fetchAllPages } from '../../utils/fetchAllPages';
+import { useDataReload } from '../useDataReload';
+import { subscribeDataRefresh } from '../../utils/dataRefresh';
 
 export const useDashboardCalendar = (user) => {
+    const dataReload = useDataReload();
     const [adminSchedules, setAdminSchedules] = useState([]);
     const [calendarCategories, setCalendarCategories] = useState([]);
 
@@ -28,13 +31,14 @@ export const useDashboardCalendar = (user) => {
         };
     }, []);
 
-    const fetchSchedules = useCallback(async () => {
+    const fetchSchedules = useCallback(async ({ throwOnError = false } = {}) => {
         try {
             const [catRes, schRes, rentalRes] = await Promise.all([
                 supabase.from('calendar_categories').select('*'),
                 fetchAllPages(() => supabase.from('admin_schedules').select('*').order('id')).then(data => ({ data })),
                 fetchAllPages(() => supabase.from('rental_bookings').select('*, rentals(name, schools(region))').eq('status', 'APPROVED').order('id')).then(data => ({ data }))
             ]);
+            if (catRes.error) throw catRes.error;
             if (catRes.data) setCalendarCategories(catRes.data);
             
             let combinedSchedules = schRes.data || [];
@@ -74,8 +78,14 @@ export const useDashboardCalendar = (user) => {
             setAdminSchedules(combinedSchedules);
         } catch (err) {
             console.error('Error fetching schedules:', err);
+            if (throwOnError) throw err;
         }
     }, [user?.id]);
+
+    useEffect(() => {
+        void fetchSchedules();
+        return subscribeDataRefresh(() => fetchSchedules({ throwOnError: true }));
+    }, [dataReload, fetchSchedules]);
 
     return {
         adminSchedules,

@@ -6,6 +6,6 @@ export function getHomeEntry(auth, hasSpecialReturn, isStaff) {
     if (['initializing', 'restoring', 'refreshing'].includes(auth.status)) return 'waiting';
     // A failed session recheck must not lock everyone out of the public login
     // screen. Protected routes still require a verified authenticated state.
-    if (auth.status === 'offline') return 'landing';
+    if (auth.status === 'offline') return auth.session ? 'retry' : 'landing';
     return 'landing';
 }

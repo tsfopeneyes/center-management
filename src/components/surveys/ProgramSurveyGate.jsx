@@ -4,6 +4,7 @@ import { surveyHubApi } from '../../api/surveyHubApi';
 import SurveyRunner from './SurveyRunner';
 import { programSurveyEndAt } from '../../utils/surveyModel';
 import useModalClose from '../../hooks/useModalClose';
+import { hasProgramStartActions, usesProgramStartActions } from '../../utils/programActionTiming';
 
 export default function ProgramSurveyGate({ program, onClose, onSuccess, legacy }) {
     const [state, setState] = useState({ loading: true });
@@ -22,7 +23,11 @@ export default function ProgramSurveyGate({ program, onClose, onSuccess, legacy 
                 if (participation.data?.status !== 'JOIN' || (link.audience === 'ATTENDED' && !participation.data.is_attended)) throw new Error(link.audience === 'ATTENDED' ? '출석이 확인된 참여자만 작성할 수 있습니다.' : '신청이 완료된 참여자만 작성할 수 있습니다.');
                 if (program.program_status === 'CANCELLED') throw new Error('취소된 프로그램입니다.');
                 const end = programSurveyEndAt(program);
-                if (link.timing === 'AFTER_END' && program.program_status !== 'COMPLETED' && program.guest_properties?.is_ended !== true && (end == null || Date.now() < end)) throw new Error('프로그램 종료 후 작성할 수 있습니다.');
+                const startActions = usesProgramStartActions(program);
+                if (link.timing === 'AFTER_END' && program.program_status !== 'COMPLETED' && program.guest_properties?.is_ended !== true
+                    && (startActions ? !hasProgramStartActions(program) : (end == null || Date.now() < end))) {
+                    throw new Error(startActions ? '프로그램 시작 후 작성할 수 있습니다.' : '프로그램 종료 후 작성할 수 있습니다.');
+                }
                 const prior = await supabase.from('survey_entries').select('*').eq('link_id', link.id).eq('user_id', user.id).eq('response_key','ONCE').maybeSingle();
                 if (prior.error) throw prior.error;
                 if (active) setState({ link, userId: user.id, entry: prior.data });

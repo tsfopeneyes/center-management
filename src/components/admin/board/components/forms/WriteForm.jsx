@@ -1,3 +1,4 @@
+import { getProgramButtons } from '../../../../../features/programs/programButtons';
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { supabase } from '../../../../../supabaseClient';
@@ -8,7 +9,7 @@ import { compressImage } from '../../../../../utils/imageUtils';
 import { fromKstInput, getMissingProgramDetails } from '../../../../../utils/programRecruitment';
 import { isAccountAuthEnabled } from '../../../../../auth/accountAuthRuntime';
 import { cachedAccountProfileId, uploadAccountImage } from '../../../../../auth/accountMedia';
-import { MAX_DAILY_SESSION_FIELDS } from '../../../../../utils/dailyProgramSessions';
+import { MAX_DAILY_SESSION_FIELDS, resolveProgramApplicationScope } from '../../../../../utils/dailyProgramSessions';
 import { programSettingsApi } from '../../../../../api/programSettingsApi';
 import { materializeProgramApplicationForm } from '../../../../../features/programs/applicationFormModel';
 
@@ -27,7 +28,7 @@ import ImageUploader from '../images/ImageUploader';
 import ImagePreviewList from '../images/ImagePreviewList';
 import ImageCropModal from '../images/ImageCropModal';
 
-const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat = false, initialProgramDate }) => {
+const WriteForm = ({ mode, editNoticeId, existingNotice, initialNotice, onSave, onCancel, flat = false, initialProgramDate }) => {
     const [isSaving, setIsSaving] = useState(false);
 
     const {
@@ -57,6 +58,13 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
         editorState
     } = useImageUpload();
 
+    // Duplicates are new registrations; never assign the source notice ID.
+    useEffect(() => {
+        if (editNoticeId || !initialNotice) return;
+        setFormData(initialNotice.formData);
+        setExistingImages(initialNotice.images);
+    }, [editNoticeId, initialNotice, setFormData, setExistingImages]);
+
     // Initialize form for editing
     useEffect(() => {
         if (editNoticeId && existingNotice) {
@@ -71,14 +79,14 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
     }, [editNoticeId, existingNotice, setFormData, setExistingImages]);
 
     useEffect(() => {
-        if (!editNoticeId || formData.community_channel_id) return;
+        if (!editNoticeId || formData.community_channel_id || formData._community_lookup_complete) return;
         let active = true;
         supabase.from('community_channels').select('id').eq('source_notice_id', editNoticeId).maybeSingle()
             .then(({ data }) => {
-                if (active && data?.id) updateField('community_channel_id', data.id);
+                if (active) { if (data?.id) { updateField('community_channel_id', data.id); updateField('_initial_community_channel_id', data.id); } updateField('_community_lookup_complete', true); }
             });
         return () => { active = false; };
-    }, [editNoticeId, formData.community_channel_id, updateField]);
+    }, [editNoticeId, formData.community_channel_id, formData._community_lookup_complete, updateField]);
 
     const handleSaveNotice = async (e) => {
         e.preventDefault();
@@ -288,7 +296,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                 noticeData.challenge_success_message = formData.challenge_success_message || '';
                 noticeData.challenge_show_haifn_btn = formData.challenge_show_haifn_btn || false;
                 noticeData.challenge_format = formData.is_challenge ? (formData.challenge_format || 'OFFLINE') : 'OFFLINE';
-                noticeData.community_enabled = formData.is_challenge && formData.challenge_format === 'ONLINE' && formData.community_enabled === true;
+                noticeData.community_enabled = formData.community_enabled === true;
                 const gp = formData.guest_properties || { allow_guest: true, require_school: true, require_phone: true };
                 noticeData.application_form = materializeProgramApplicationForm(
                     formData.application_form, gp
@@ -298,8 +306,7 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                     ...gp,
                     show_application_count: formData.show_application_count !== false,
                     schedule_mode: formData.is_challenge ? 'SINGLE' : (formData.schedule_mode || 'SINGLE'),
-                    application_scope: formData.is_recruiting && !formData.is_challenge
-                        ? (formData.application_scope || 'PROGRAM') : 'NONE',
+                    application_scope: resolveProgramApplicationScope(formData),
                     // New writes keep open programs application-free. The legacy
                     // value remains readable on old records during migration.
                     open_participation_mode: 'NONE',
@@ -326,20 +333,23 @@ const WriteForm = ({ mode, editNoticeId, existingNotice, onSave, onCancel, flat 
                     cached_hosts: configuredHosts.length > 0 ? configuredHosts : (gp.cached_hosts || []),
                     challenge_has_time: challengeHasTime,
                     community_channel_id: noticeData.community_enabled ? (formData.community_channel_id || '') : '',
+                    community_expected_channel_id: formData._initial_community_channel_id || '',
                     challenge_reward_criterion: formData.is_challenge
-                        ? (['FIRST_MISSION', 'PERCENT', 'ALL'].includes(formData.challenge_reward_criterion)
+                        ? (['FIRST_MISSION', 'COUNT', 'PERCENT', 'ALL'].includes(formData.challenge_reward_criterion)
                             ? formData.challenge_reward_criterion : 'ALL') : 'ALL',
                     challenge_reward_percent: formData.is_challenge
-                        ? Math.min(100, Math.max(1, Number(formData.challenge_reward_percent) || 100)) : 100,
-                    enable_post_program_button: formData.enable_post_program_button || false,
+                        ? Math.min(100, Math.max(1, Math.trunc(Number(formData.challenge_reward_percent) || 100))) : 100,
+                    challenge_reward_count: Math.max(1, Math.trunc(Number(formData.challenge_reward_count) || 1)),
+                    program_buttons: getProgramButtons(formData),
+                    enable_post_program_button: false,
                     post_program_button_trigger: formData.post_program_button_trigger || 'start_time',
                     post_program_button_offset_minutes: Number(formData.post_program_button_offset_minutes || 0),
                     post_program_button_name: formData.post_program_button_name || '',
                     post_program_button_content: formData.post_program_button_content || '',
                     post_program_button_link: formData.post_program_button_link || '',
-                    enable_group_assignment: formData.enable_group_assignment || false,
+                    enable_group_assignment: false,
                     group_count: formData.group_count || 4,
-                    enable_random_questions: formData.enable_random_questions || false,
+                    enable_random_questions: false,
                     random_questions: formData.random_questions || [],
                     enable_feedback: formData.enable_feedback || false,
                     custom_feedback_config: gp.custom_feedback_config || { questions: [] }
@@ -508,6 +518,7 @@ WriteForm.propTypes = {
     mode: PropTypes.string.isRequired,
     editNoticeId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     existingNotice: PropTypes.object,
+    initialNotice: PropTypes.object,
     onSave: PropTypes.func.isRequired,
     onCancel: PropTypes.func.isRequired,
     flat: PropTypes.bool

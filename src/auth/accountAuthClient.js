@@ -41,6 +41,8 @@ export function createAccountAuthClient({baseUrl,supabaseUrl,publishableKey,auth
         password:createPasswordChangeController({auth,change:credentials,resolveSession,exclusive}),
         temporaryPassword:createTemporaryPasswordController({credentials,exclusive}),
         adminReset:createAdminResetController({auth,credentials,exclusive}),profile,
-        registration:createRegistrationController({register}),candidates,upload,members
+        registration:createRegistrationController({register,getAccessToken:async()=>{
+            const {data,error}=await auth.getSession();return error?null:data?.session?.access_token||null;
+        }}),candidates,upload,members
     });
 }

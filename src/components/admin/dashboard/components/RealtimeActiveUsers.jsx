@@ -100,7 +100,7 @@ const RealtimeActiveUsers = ({
                                     <th className="p-6">방문 목적</th>
                                     <th className="p-6">학교</th>
                                     <th className="p-6">구분</th>
-                                    <th className="p-6 pr-10 text-right">관리</th>
+                                    <th className="p-6 text-center">관리</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 text-sm">
@@ -145,12 +145,12 @@ const RealtimeActiveUsers = ({
                                             <td className="p-6 align-middle">
                                                 <UserCategoryBadge user={user} />
                                             </td>
-                                            <td className="p-6 pr-10 text-right align-middle">
+                                            <td className="p-6 text-center align-middle">
                                                 <button
                                                     onClick={() => handleForceCheckout(user.id)}
-                                                    className="px-4 py-2 bg-white border border-red-100 text-red-500 text-[11px] font-black rounded-xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-300 shadow-sm"
+                                                    className="inline-flex items-center justify-center whitespace-nowrap px-4 py-2 bg-white border border-red-100 text-red-500 text-[11px] font-black rounded-xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-300 shadow-sm"
                                                 >
-                                                    강제 퇴실
+                                                    퇴실
                                                 </button>
                                             </td>
                                         </tr>
@@ -214,9 +214,9 @@ const RealtimeActiveUsers = ({
                                     </div>
                                     <button
                                         onClick={() => handleForceCheckout(user.id)}
-                                        className="bg-red-50 text-red-500 border border-red-100 px-3 py-2 rounded-xl transition font-bold text-xs flex-shrink-0 active:bg-red-500 active:text-white active:border-red-500 shadow-sm"
+                                        className="inline-flex items-center justify-center whitespace-nowrap bg-red-50 text-red-500 border border-red-100 px-3 py-2 rounded-xl transition font-bold text-xs flex-shrink-0 active:bg-red-500 active:text-white active:border-red-500 shadow-sm"
                                     >
-                                        강제 퇴실
+                                        퇴실
                                     </button>
                                 </div>
                             );

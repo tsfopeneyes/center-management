@@ -3,7 +3,8 @@ import {LoginError} from './loginSecurity.mjs';
 const projection = `a.profile_id::text AS "profileId", a.auth_user_id::text AS "authUserId",
     a.mapping_verified AS "mappingVerified", a.status, a.credential_version AS "credentialVersion",
     a.must_change_password AS "mustChangePassword", l.login_email AS "loginEmail",
-    l.credential_mode AS "credentialMode", l.enabled, legacy.password_digest AS "legacyDigest"`;
+    l.credential_mode AS "credentialMode", l.enabled,
+    CASE WHEN l.credential_mode IN ('legacy_pending','legacy_bridge') THEN legacy.password_digest ELSE NULL END AS "legacyDigest"`;
 const joins=`JOIN account_security.login_identifiers l USING(profile_id)
     LEFT JOIN account_security.legacy_credentials legacy USING(profile_id)`;
 

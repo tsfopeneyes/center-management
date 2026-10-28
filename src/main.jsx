@@ -43,6 +43,9 @@ if ('serviceWorker' in navigator) {
         let refreshingForWorkerUpdate = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (refreshingForWorkerUpdate) return;
+            // Reloading a single-use OAuth consent request after approval can
+            // discard its callback and replay a request the provider consumed.
+            if (window.location.pathname === '/oauth/consent') return;
             refreshingForWorkerUpdate = true;
             window.location.reload();
         });
@@ -50,7 +53,7 @@ if ('serviceWorker' in navigator) {
             // Use one service worker for both the PWA and Firebase Messaging.
             // Registering /sw.js and /firebase-messaging-sw.js at the same scope
             // made them replace each other and caused intermittent push delivery.
-    navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260921-fresh-shell')
+    navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20261026-community-push-return')
                 .then(reg => {
                     console.log('SW Registered:', reg.scope);
                     reg.update().catch(() => undefined);

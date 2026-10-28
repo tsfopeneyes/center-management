@@ -184,15 +184,7 @@ export const challengeCommunityApi = {
         const date = getKSTDateString(new Date(post.created_at));
         if (mission.schedule_type === 'FIXED_DATE' && mission.fixed_date !== date)
             throw new Error('글 작성일과 미션 날짜가 다릅니다.');
-        const completionKey = mission.schedule_type === 'FIXED_DATE' ? 'fixed'
-            : mission.schedule_type === 'DAILY' ? date : post.id;
-        if (mission.schedule_type === 'FLEXIBLE') {
-            const { count, error: countError } = await supabase.from('online_challenge_submissions')
-                .select('*', { count: 'exact', head: true }).eq('mission_id', missionId)
-                .eq('participant_id', post.author_id).eq('is_valid', true).neq('post_id', post.id);
-            if (countError) throw countError;
-            if (count >= mission.target_count) throw new Error('이미 목표 횟수를 완료했습니다.');
-        }
+        const completionKey = post.id;
         const values = { mission_id: missionId, completion_date: date, completion_key: completionKey,
             is_valid: true, invalidated_at: null };
         const fallback = existing
@@ -202,10 +194,11 @@ export const challengeCommunityApi = {
         if (fallback.error) throw fallback.error;
     },
 
-    async createComment(postId, userId, content) {
+    async createComment(postId, userId, content, mentionedUserIds = []) {
         const trimmedContent = content.trim();
         const { data: comment, error } = await supabase.from('community_channel_comments')
-            .insert({ post_id: postId, user_id: userId, content: trimmedContent })
+            .insert({ post_id: postId, user_id: userId, content: trimmedContent,
+                ...(mentionedUserIds.length ? { mentioned_user_ids: [...new Set(mentionedUserIds)] } : {}) })
             .select('id').single();
         if (error) throw error;
         return comment.id;
@@ -296,17 +289,8 @@ export const challengeCommunityApi = {
                 if (mission.schedule_type === 'FIXED_DATE' && mission.fixed_date !== today) {
                     throw new Error('오늘 수행할 수 없는 미션입니다.');
                 }
-                const completionKey = mission.schedule_type === 'FIXED_DATE' ? 'fixed'
-                    : mission.schedule_type === 'DAILY' ? today : post.id;
+                const completionKey = post.id;
                 if (post.submission) {
-                    const { count, error: countError } = await supabase.from('online_challenge_submissions')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('mission_id', nextMissionId).eq('participant_id', authorId).eq('is_valid', true)
-                        .neq('post_id', post.id);
-                    if (countError) throw countError;
-                    if (mission.schedule_type === 'FLEXIBLE' && count >= mission.target_count) {
-                        throw new Error('이미 목표 횟수를 완료한 미션입니다.');
-                    }
                     const { data: changed, error: changeError } = await supabase.from('online_challenge_submissions')
                         .update({ mission_id: nextMissionId, completion_date: today, completion_key: completionKey })
                         .eq('id', post.submission.id).eq('post_id', post.id).eq('participant_id', authorId).eq('is_valid', true)

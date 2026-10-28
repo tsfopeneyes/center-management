@@ -1,7 +1,7 @@
 // Binds a privileged server connection to one reviewed NOLOGIN role only
 // inside a transaction. No application query can run before SET LOCAL ROLE.
 export function createRoleBoundPool(pool,role){
-    if(!pool?.connect||typeof role!=='string'||!/^account_(?:session_reader|login_worker|credential_worker|confirmation_writer|registration_worker|membership_worker|profile_worker|migration_worker|bootstrap_worker|member_admin_worker|merge_worker)$/.test(role))
+    if(!pool?.connect||typeof role!=='string'||!/^account_(?:session_reader|login_worker|guest_login_worker|credential_worker|confirmation_writer|registration_worker|membership_worker|profile_worker|migration_worker|bootstrap_worker|member_admin_worker|merge_worker)$/.test(role))
         throw new Error('Reviewed database role required');
     const quoted='"'+role+'"';
     const connect=async()=>{

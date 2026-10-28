@@ -69,6 +69,10 @@
 }
 
 @layer base {
+    html {
+        overscroll-behavior-y: none;
+    }
+
     body {
         @apply antialiased text-gray-900 bg-gray-50;
         word-break: keep-all;

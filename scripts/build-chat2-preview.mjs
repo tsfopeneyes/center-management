@@ -1,0 +1,5 @@
+import { build } from 'esbuild';
+import { mkdir, writeFile } from 'node:fs/promises';
+await mkdir('.local/chat2-preview',{recursive:true});
+await writeFile('.local/chat2-preview/index.html','<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>채팅 페이지 검증</title><div id="root"></div><script src="./bundle.js"></script></html>');
+await build({entryPoints:['scripts/fixtures/chat2-preview.jsx'],bundle:true,format:'iife',outfile:'.local/chat2-preview/bundle.js',define:{'process.env.NODE_ENV':'"development"'},plugins:[{name:'isolated-chat',setup(b){b.onResolve({filter:/hooks\/useLiveCenterChat$/},()=>({path:'chat',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`export const useLiveCenterChat=()=>({loading:false,error:null,messages:Array.from({length:15},(_,i)=>({id:15-i,created_at:new Date(Date.UTC(2026,9,23,3,15-i)).toISOString(),user_name:'참여자 '+(15-i),message:i===14?'첫 번째 메시지입니다.\\n시간순으로 읽을 수 있어요.':i===13?'긴 메시지도 잘리지 않고 카드 높이에 맞게 펼쳐집니다. '.repeat(20):'메시지 '+(15-i),is_hidden:i===8,reactions:{'❤️':['test']}}))});`}));}}]});

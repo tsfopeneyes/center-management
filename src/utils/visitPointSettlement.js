@@ -60,8 +60,9 @@ const insertIdempotentAdjustment = async ({ userId, date, kind, delta, transacti
     };
 
     const { error } = await supabase.from('haifn_transactions').insert([payload]);
-    // A concurrent settlement uses the same deterministic id. Treat the loser
-    // as already settled instead of writing a duplicate point transaction.
+    // The deterministic ID handles identical retries; the DB daily visit guard
+    // also rejects concurrent awards with different IDs or ledger snapshots.
+    // Both report 23505, so a rejected duplicate never fails the saved visit.
     if (error && error.code !== '23505') throw error;
     return { changed: !error, delta: error ? 0 : delta };
 };

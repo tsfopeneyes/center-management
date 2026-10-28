@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../../../../supabaseClient';
-import { getUserCategory } from '../../../../utils/userCategory';
+import { defaultUserFilters, matchesAdminUser, monthsBefore, koreaDate, buildLastCenterVisits } from '../../../../utils/adminUserFilters';
+import { requestSupabaseRest } from '../../../../utils/supabaseRest';
+import { fetchRestPages } from '../../../../utils/fetchRestPages';
 import { hashPassword } from '../../../../utils/hashUtils';
 import { getAccountAuthClient, isAccountAuthEnabled } from '../../../../auth/accountAuthRuntime';
 import { listPendingGuestLinks } from '../../../../api/userMergeApi';
@@ -10,11 +12,25 @@ import { buildSchoolLookup, resolveUserSchool } from '../../../../utils/userScho
 const useAdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) => {
     // 1. Search & Filter State
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterGroup, setFilterGroup] = useState('ALL');
-    const [filterRegion, setFilterRegion] = useState('ALL');
-    const [excludeLeaders, setExcludeLeaders] = useState(false);
-    const [showOnlyNonSchoolChurch, setShowOnlyNonSchoolChurch] = useState(false);
-    const [showOnlyNew3Months, setShowOnlyNew3Months] = useState(false);
+    const [filters, setFilters] = useState(defaultUserFilters);
+    const resetFilters = () => { setFilters(defaultUserFilters()); setSearchTerm(''); };
+
+    const [visitHistory, setVisitHistory] = useState({ status: 'idle', rows: [], source: null });
+    const [visitRetry, setVisitRetry] = useState(0);
+    const needsVisitHistory = filters.visit !== 'ALL';
+    useEffect(() => {
+        if (!needsVisitHistory) return;
+        let active = true;
+        setVisitHistory({ status: 'loading', rows: [], source: allLogs });
+        fetchRestPages(path => requestSupabaseRest(path, { requireAuth: true }, 3, 15000),
+            'logs?select=id,user_id,type,created_at&type=in.(CHECKIN,GUEST_ENTRY)&order=created_at.desc,id.asc')
+            .then(rows => { if (active) setVisitHistory({ status: 'ready', rows, source: allLogs }); })
+            .catch(() => { if (active) setVisitHistory({ status: 'error', rows: [], source: allLogs }); });
+        return () => { active = false; };
+    }, [needsVisitHistory, allLogs, visitRetry]);
+    const visitStatus = !needsVisitHistory ? 'idle' : visitHistory.source === allLogs ? visitHistory.status : 'loading';
+    const retryVisits = () => setVisitRetry(value => value + 1);
+    const lastVisits = useMemo(() => buildLastCenterVisits(visitHistory.rows), [visitHistory.rows]);
 
     // 2. Selection & Bulk Update State
     const [selectedUserIds, setSelectedUserIds] = useState(new Set());
@@ -64,13 +80,10 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) =
 
     // Filter Logic
     const filteredUsers = useMemo(() => {
-        const threeMonthsAgo = new Date();
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-        const checkIsNew3M = (u) => {
-            if (!u || !u.created_at) return false;
-            const dt = new Date(u.created_at);
-            return !isNaN(dt.getTime()) && dt >= threeMonthsAgo;
+        const checkIsNew3M = user => {
+            const joined = user.created_at ? koreaDate(user.created_at) : '';
+            const today = koreaDate(new Date());
+            return Boolean(joined && joined >= monthsBefore(today, 3) && joined <= today);
         };
 
         const isGuestOrTemporary = (user) => !isAdminOrStaff(user) && (
@@ -84,50 +97,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) =
             return Boolean(review) && isGuestOrTemporary(user) && review.newProfileId !== user.id;
         };
 
-        const rawFiltered = usersWithSchool.filter(user => {
-            if (user.status === 'withdrawn') return false;
-            // Calculate Age from YYMMDD
-            let age = '';
-            if (user.birth && user.birth.length === 6) {
-                const yy = parseInt(user.birth.substring(0, 2));
-                const currentYear = new Date().getFullYear();
-                const fullYear = yy <= 40 ? 2000 + yy : 1900 + yy;
-                age = (currentYear - fullYear + 1).toString();
-            }
-
-            const normalizedSearch = searchTerm.trim().toLocaleLowerCase('ko-KR');
-            const cleanSearch = normalizedSearch.replace(/세|살/g, '');
-            const matchesAge = age && age.includes(cleanSearch);
-            const matchesText = (value) => String(value || '').toLocaleLowerCase('ko-KR').includes(normalizedSearch);
-
-            const matchesSearch =
-                matchesText(user.name) ||
-                matchesText(user.phone_back4) ||
-                matchesText(user.school) ||
-                matchesText(user.church) ||
-                matchesText(user.user_group) || matchesText(getUserCategory(user)) ||
-                matchesText(user.role) ||
-                (age && age === cleanSearch) || matchesAge;
-
-            const isGuestOrTemp = isGuestOrTemporary(user);
-            const isNew3M = checkIsNew3M(user);
-
-            const matchesGroup = filterGroup === 'ALL'
-                ? !isGuestOrTemp
-                : filterGroup === 'NEW_3M'
-                    ? isNew3M && !isGuestOrTemp
-                    : filterGroup === 'LEADER'
-                        ? getUserCategory(user) === '리더'
-                        : filterGroup === 'TEMP_GUEST'
-                            ? getUserCategory(user) === '게스트'
-                            : getUserCategory(user) === filterGroup && !isGuestOrTemp;
-
-            const isExcludedLeader = excludeLeaders && user.is_leader === true;
-            const isNonSchoolChurchFilter = showOnlyNonSchoolChurch && user.preferences?.is_school_church === true;
-            const isNew3MFilterMismatch = showOnlyNew3Months && !isNew3M;
-            const matchesRegion = filterRegion === 'ALL' || user.schoolRegion === filterRegion;
-            return matchesSearch && matchesGroup && matchesRegion && !isExcludedLeader && !isNonSchoolChurchFilter && !isNew3MFilterMismatch;
-        }).sort((a, b) => {
+        const rawFiltered = usersWithSchool.filter(user => (!needsVisitHistory || visitStatus === 'ready') && matchesAdminUser(user, filters, searchTerm, new Date(), lastVisits)).sort((a, b) => {
             const isAGuestLinkReview = needsGuestLinkReview(a);
             const isBGuestLinkReview = needsGuestLinkReview(b);
 
@@ -186,11 +156,19 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) =
                 hasWebRecord
             };
         });
-    }, [usersWithSchool, searchTerm, filterGroup, filterRegion, excludeLeaders, showOnlyNonSchoolChurch, showOnlyNew3Months, allLogs,linkReviews]);
+    }, [usersWithSchool, searchTerm, filters, allLogs,linkReviews, needsVisitHistory, visitStatus, lastVisits]);
+
+    useEffect(() => {
+        const visibleIds = new Set(filteredUsers.map(user => user.id));
+        setSelectedUserIds(previous => {
+            const next = new Set([...previous].filter(id => visibleIds.has(id)));
+            return next.size === previous.size ? previous : next;
+        });
+    }, [filteredUsers]);
 
     // Selection Logic
     const toggleSelectAll = () => {
-        if (selectedUserIds.size === filteredUsers.length) {
+        if (filteredUsers.length > 0 && filteredUsers.every(user => selectedUserIds.has(user.id))) {
             setSelectedUserIds(new Set());
         } else {
             setSelectedUserIds(new Set(filteredUsers.map(u => u.id)));
@@ -393,11 +371,7 @@ const useAdminUsers = ({ users, allLogs, locations, fetchData, currentAdmin }) =
     return {
         // State
         searchTerm, setSearchTerm,
-        filterGroup, setFilterGroup,
-        filterRegion, setFilterRegion,
-        excludeLeaders, setExcludeLeaders,
-        showOnlyNonSchoolChurch, setShowOnlyNonSchoolChurch,
-        showOnlyNew3Months, setShowOnlyNew3Months,
+        filters, setFilters, resetFilters, visitStatus, retryVisits,
         selectedUserIds, setSelectedUserIds,
         bulkTargetGroup, setBulkTargetGroup,
         sendingBulk,

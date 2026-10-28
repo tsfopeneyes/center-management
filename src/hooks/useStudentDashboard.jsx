@@ -48,18 +48,20 @@ import { useDashboardNotifications } from './dashboard/useDashboardNotifications
 import { useRealtimePresence } from './dashboard/useRealtimePresence';
 import { useDashboardBadges } from './dashboard/useDashboardBadges';
 import { useDashboardCalendar } from './dashboard/useDashboardCalendar';
-import { resolveSchoolRegion } from '../utils/schoolRegionUtils';
+import { useSchoolRegion } from './useSchoolRegion';
 import { useAuth } from '../auth/AuthProvider';
 import { logoutFromDevice } from '../auth/logoutFromDevice';
+import { useDataReload } from './useDataReload';
+import { subscribeDataRefresh } from '../utils/dataRefresh';
 
 export const useStudentDashboard = () => {
     const navigate = useNavigate();
     const auth = useAuth();
+    const dataReload = useDataReload();
     const isPreviewMode = !auth.profile?.id
         && new URLSearchParams(window.location.search).get('preview') === '1';
     const [activeTab, setActiveTab] = useState(TAB_NAMES.HOME);
     const [loading, setLoading] = useState(true);
-    const [studentRegion, setStudentRegion] = useState(null);
 
     // Real-time Status State (Hook)
     const { locationGroups, locations, allUsers, activeUserCountByGroup, fetchRealtimeStatusData } = useRealtimePresence();
@@ -70,8 +72,10 @@ export const useStudentDashboard = () => {
     // Master Preview / Impersonation State
     const [impersonatedUser, setImpersonatedUser] = useState(null);
     const effectiveUser = impersonatedUser || user;
+    const schoolRegionState = useSchoolRegion(isPreviewMode || (!impersonatedUser && isAdminOrStaff(user)) ? null : effectiveUser?.school);
+    const studentRegion = schoolRegionState.region;
 
-    const { notices, responses, responseDetails, fetchNotices, handleResponse } = useNotices(effectiveUser?.id);
+    const { notices, responses, responseDetails, fetchNotices, handleResponse, readState: programReadState } = useNotices(effectiveUser?.id);
     const { messages, unreadCount, markAsRead } = useMessaging(effectiveUser?.id);
     const { notifications, unreadNotificationCount, showNotificationsModal, setShowNotificationsModal, fetchNotifications, markNotificationsAsRead } = useDashboardNotifications(effectiveUser);
 
@@ -246,36 +250,18 @@ export const useStudentDashboard = () => {
 
     }, [auth.status, auth.profile?.id, isPreviewMode, navigate, fetchStats, fetchBadgeData, fetchNotifications, fetchSchedules, setUser]);
 
-    useEffect(() => {
-        let cancelled = false;
-
-        if (!effectiveUser?.school) {
-            setStudentRegion(null);
-            return () => { cancelled = true; };
-        }
-
-        resolveSchoolRegion(effectiveUser.school)
-            .then((region) => {
-                if (!cancelled) setStudentRegion(region);
-            })
-            .catch((error) => {
-                console.error('Failed to resolve student school region:', error);
-                if (!cancelled) setStudentRegion(null);
-            });
-
-        return () => { cancelled = true; };
-    }, [effectiveUser?.school]);
-
     // Handled by useRealtimePresence and useDashboardCalendar
 
     useEffect(() => {
         const fetchDashboardConfig = async () => {
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('notices')
                 .select('content')
                 .eq('category', CATEGORIES.SYSTEM)
                 .eq('title', 'STUDENT_DASHBOARD_CONFIG')
                 .maybeSingle();
+
+            if (error) throw error;
 
             if (data && data.content) {
                 try {
@@ -299,12 +285,14 @@ export const useStudentDashboard = () => {
         };
 
         const fetchTabConfig = async () => {
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('notices')
                 .select('content')
                 .eq('category', CATEGORIES.SYSTEM)
                 .eq('title', 'STUDENT_TAB_CONFIG')
                 .maybeSingle();
+
+            if (error) throw error;
 
             if (data && data.content) {
                 try {
@@ -333,9 +321,10 @@ export const useStudentDashboard = () => {
             }
         };
 
-        fetchDashboardConfig();
-        fetchTabConfig();
-    }, []);
+        fetchDashboardConfig().catch(error => console.error('Failed to load dashboard config:', error));
+        fetchTabConfig().catch(error => console.error('Failed to load tab config:', error));
+        return subscribeDataRefresh(() => Promise.all([fetchDashboardConfig(), fetchTabConfig()]));
+    }, [dataReload]);
 
     // Handled by useDashboardChallenges
 
@@ -672,7 +661,7 @@ export const useStudentDashboard = () => {
         notices, responses, responseDetails, handleResponse, fetchNotices,
         filteredNotices, filteredPrograms, allPrograms,
         homeNotices, homePrograms,
-        studentRegion, locationGroups, locations, allUsers, activeUserCountByGroup,
+        studentRegion, schoolRegionState, programReadState, locationGroups, locations, allUsers, activeUserCountByGroup,
         totalHours, visitCount, programCount,
         attendedProgramsList,
         badgeCategories, dynamicBadges, badgesLoading, specialStats,

@@ -20,6 +20,7 @@ const post = { id: postId, author_id: authorId, deleted_at: null, is_hidden: fal
     channel_id: channelId, community_channels: { id: channelId, name: '챌린지', source_notice_id: 91, status: 'ACTIVE' } };
 const updates = [];
 let membershipActive = false;
+let hostProgram = null;
 const daytime = () => new Date('2026-09-19T03:00:00Z');
 const db = {
     rpc: async name => ({ data: name === 'claim_community_post_push' ? [recipient] : [], error: null }),
@@ -32,8 +33,10 @@ const db = {
             lt() { return this; },
             async maybeSingle() {
                 if (table === 'community_channel_posts') return { data: post, error: null };
-                if (table === 'notice_responses') return { data: membershipActive ? { user_id: userId } : null, error: null };
+                if (table === 'community_channel_directory') return { data: post.community_channels, error: null };
+                if (table === 'community_channel_participants') return { data: membershipActive ? { user_id: userId } : null, error: null };
                 if (table === 'users') return { data: { id: userId, status: 'active', fcm_token: null }, error: null };
+                if (table === 'notices') return { data: hostProgram, error: null };
                 throw new Error(`Unexpected table: ${table}`);
             },
             then(resolve) {
@@ -71,8 +74,27 @@ try {
     const delivered = await deliverCommunityPostPush({ db, origin: 'https://app.schoolchurchimpact.org', now: daytime,
         getFirebaseAccess: async () => ({ projectId: 'test', access: 'test' }), webpush: null });
     assert.deepEqual(delivered, { claimed: 1, sent: 1, skipped: 0, failed: 0, deferred: 0 });
-    assert.equal(sentMessage.data.url, `https://app.schoolchurchimpact.org/community/${channelId}`);
+    assert.equal(sentMessage.data.url, `https://app.schoolchurchimpact.org/community/${channelId}?from=push&post=${postId}`);
     assert.equal(sentMessage.token, 'test-token');
+    assert.equal(sentMessage.notification.title, '챌린지에 새 글이 올라왔어요');
+    post.is_announcement = true;
+    const announcementDelivered = await deliverCommunityPostPush({ db, origin: 'https://app.schoolchurchimpact.org', now: daytime,
+        getFirebaseAccess: async () => ({ projectId: 'test', access: 'test' }), webpush: null });
+    assert.equal(announcementDelivered.sent, 1);
+    assert.equal(sentMessage.notification.title, '챌린지에 공지가 등록됐어요');
+    assert.equal(sentMessage.notification.body, '커뮤니티에서 공지를 확인해 보세요.');
+    assert.equal(sentMessage.data.url, `https://app.schoolchurchimpact.org/community/${channelId}?from=push&post=${postId}`);
+    post.is_announcement = false;
+    membershipActive = false;
+    hostProgram = { is_challenge: true, hosts: [{ host_id: userId }] };
+    const hostDelivered = await deliverCommunityPostPush({ db, origin: 'https://app.schoolchurchimpact.org', now: daytime,
+        getFirebaseAccess: async () => ({ projectId: 'test', access: 'test' }), webpush: null });
+    assert.equal(hostDelivered.sent, 1, 'Host without an application receives the post push');
+    hostProgram = { is_challenge: true, hosts: [] };
+    const removed = await deliverCommunityPostPush({ db, origin: 'https://app.schoolchurchimpact.org', now: daytime,
+        getFirebaseAccess: async () => { throw new Error('Removed host'); }, webpush: null });
+    assert.equal(removed.skipped, 1, 'Removed host is rechecked before sending');
+    membershipActive = true;
 } finally { globalThis.fetch = originalFetch; }
 let ticks = 0;
 const crossingMidnight = await deliverCommunityPostPush({ db, origin: 'https://app.schoolchurchimpact.org',

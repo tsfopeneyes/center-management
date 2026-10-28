@@ -48,3 +48,16 @@ reports/
 .chrome-*
 .edge-*
 .codex-*
+
+# Local verification output and deployment caches (may include private records)
+.firebase/
+artifacts/
+output/
+tmp/
+welcome-deploy-local/
+welcome-preview-dist/
+welcome-screenshots/
+welcome-*.log
+welcome-poster-preview.*
+.haifn-notification-check.sql
+.impeccable-*.json

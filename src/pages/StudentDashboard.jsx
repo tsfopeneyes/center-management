@@ -45,6 +45,7 @@ import { getTodayVisitState } from '../utils/visitLifecycle';
 import PushPermissionPrompt from '../components/student/modals/PushPermissionPrompt';
 import DirectMessagesModal from '../components/student/DirectMessagesModal';
 import { useDirectMessages } from '../hooks/useDirectMessages';
+import { isPullRefresh, refreshVisibleData } from '../utils/dataRefresh';
 
 const createInitialTutorialSession = () => ({
     step: 'start',
@@ -82,6 +83,7 @@ const TUTORIAL_CENTER_STEPS = [
 // 튜토리얼은 기능은 유지하되, 자동 실행은 사용자 버튼으로만 시작합니다.
 const STUDENT_ONBOARDING_TUTORIAL_ENABLED = true;
 const STUDENT_ONBOARDING_TUTORIAL_AUTOSTART = false;
+const DM_INTRODUCTION_ENABLED = false;
 
 const formatCoffeeChatRequestedAt = (value) => {
     if (!value) return '신청 시간 확인 불가';
@@ -133,6 +135,10 @@ const StudentDashboard = () => {
     const [registrationSuccess, setRegistrationSuccess] = useState(null);
     const [recruitmentSavedPreview, setRecruitmentSavedPreview] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const pullStart = React.useRef(null);
+    const pullRefreshInFlight = React.useRef(false);
+    const [pullRefreshing, setPullRefreshing] = useState(false);
+    const [pullRefreshError, setPullRefreshError] = useState('');
     const [showMenuDrawer, setShowMenuDrawer] = useState(false);
     const [hideMainHeader, setHideMainHeader] = useState(false);
     const [activeParticipantNotice, setActiveParticipantNotice] = useState(null);
@@ -186,6 +192,10 @@ const StudentDashboard = () => {
     };
 
     useEffect(() => {
+        if (!DM_INTRODUCTION_ENABLED) {
+            setShowDmIntroduction(false);
+            return undefined;
+        }
         if (dmIntroductionStorageKey && (dmConversationToOpen || showDirectMessages)) {
             localStorage.setItem(dmIntroductionStorageKey, 'seen');
             setShowDmIntroduction(false);
@@ -1457,8 +1467,16 @@ const StudentDashboard = () => {
     };
 
     const onTouchStart = (e) => {
+        pullStart.current = null;
+        setTouchStartX(null); setTouchStartY(null); setTouchEndX(null); setTouchEndY(null);
         // 좌우 스크롤 객체나 입력창, 이모지 피커 등을 터치한 경우 스와이프 무시
         if (e.target.closest('.no-swipe, .overflow-x-auto, .overflow-x-scroll, .em-emoji-picker, textarea, input, button')) return;
+        if (e.targetTouches.length !== 1 || e.target.closest('[role="dialog"], .fixed, .overflow-y-auto, .overflow-y-scroll')) return;
+        pullStart.current = {
+            startX: e.targetTouches[0].clientX,
+            startY: e.targetTouches[0].clientY,
+            scrollTop: document.scrollingElement?.scrollTop || window.scrollY,
+        };
         setTouchEndX(null);
         setTouchEndY(null);
         setTouchStartX(e.targetTouches[0].clientX);
@@ -1470,7 +1488,21 @@ const StudentDashboard = () => {
         setTouchEndY(e.targetTouches[0].clientY);
     };
 
-    const onTouchEnd = () => {
+    const onTouchEnd = (event) => {
+        const start = pullStart.current;
+        pullStart.current = null;
+        const end = event.changedTouches[0];
+        if (start && end && isPullRefresh({ ...start, endX: end.clientX, endY: end.clientY })) {
+            setTouchStartX(null); setTouchStartY(null); setTouchEndX(null); setTouchEndY(null);
+            if (pullRefreshInFlight.current) return;
+            pullRefreshInFlight.current = true;
+            setPullRefreshing(true);
+            setPullRefreshError('');
+            refreshVisibleData()
+                .catch(error => setPullRefreshError(error.message || '연결을 확인한 뒤 다시 당겨주세요.'))
+                .finally(() => { pullRefreshInFlight.current = false; setPullRefreshing(false); });
+            return;
+        }
         if (!touchStartX || !touchEndX || !touchStartY || !touchEndY) return;
 
         const distanceX = touchStartX - touchEndX;
@@ -1558,7 +1590,9 @@ const StudentDashboard = () => {
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
+            onTouchCancel={() => { pullStart.current = null; }}
         >
+            {(pullRefreshing || pullRefreshError) && <div role="status" className="sticky top-0 z-50 bg-[#F7EFE2] px-5 py-3 text-center text-sm font-bold text-gray-700">{pullRefreshing ? '최신 정보를 불러오고 있어요...' : pullRefreshError}</div>}
             {!hookData.impersonatedUser && !isPreviewMode && <PushPermissionPrompt user={user} />}
             <AnimatePresence>
                 {recruitmentSavedPreview && (

@@ -10,8 +10,11 @@ import { useSeoulDate } from '../../../hooks/useSeoulDate';
 import { useCurrentTime } from '../../../hooks/useCurrentTime';
 import { isDutyDisplayTime } from '../../../utils/dutyRoster';
 import { reconcileStaffPresence, sortPresentStaffByStart } from '../../../utils/staffPresence';
+import { useDataReload } from '../../../hooks/useDataReload';
+import { subscribeDataRefresh } from '../../../utils/dataRefresh';
 
 const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCategories = [], onStaffClick, tutorialMode = false, tutorialStep = null }) => {
+    const dataReload = useDataReload();
     const todayDate = useSeoulDate();
     const currentTime = useCurrentTime();
     const { roster } = useDutyRoster(todayDate.slice(0, 7), studentRegion !== '강서');
@@ -33,6 +36,8 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
                 .select('id, title, content')
                 .eq('category', 'SYSTEM')
                 .in('title', ['OPERATING_HOURS_CONFIG', 'STAFF_PRESENCE_CONFIG', 'STAFF_PRESENCE_STATUS', 'DAILY_DUTY_STAFF']);
+
+            if (configError) throw configError;
 
             if (!configError && configs) {
                 const hoursNotice = configs.find(c => c.title === 'OPERATING_HOURS_CONFIG');
@@ -79,13 +84,15 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
             }
         } catch (err) {
             console.error('Failed to fetch operating hours or staff config', err);
+            throw err;
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchHoursAndStaffConfig();
+        fetchHoursAndStaffConfig().catch(() => {});
+        const stopRefresh = subscribeDataRefresh(fetchHoursAndStaffConfig);
 
         // Realtime subscription to notice updates for config & status
         const subscription = supabase
@@ -106,23 +113,24 @@ const TodayOperatingWidget = ({ studentRegion, adminSchedules = [], calendarCate
                             setDutyStaff(parsedDuty || { "하이픈": "", "이높플레이스": "" });
                         } catch (e) { console.error(e); }
                     } else if (title === 'STAFF_PRESENCE_CONFIG' || title === 'OPERATING_HOURS_CONFIG') {
-                        fetchHoursAndStaffConfig();
+                        fetchHoursAndStaffConfig().catch(() => {});
                     }
                 }
             )
             .subscribe();
 
         return () => {
+            stopRefresh();
             supabase.removeChannel(subscription);
         };
-    }, []);
+    }, [dataReload]);
 
     useEffect(() => {
         // Refresh at the 18:00 and 22:00 cutoffs and on the next day.
         const interval = setInterval(() => {
             const now = new Date();
             if (reconcileStaffPresence(presenceStatus, now).changed) {
-                fetchHoursAndStaffConfig();
+                fetchHoursAndStaffConfig().catch(() => {});
             }
         }, 30000);
 

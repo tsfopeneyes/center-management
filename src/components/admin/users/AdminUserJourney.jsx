@@ -89,9 +89,7 @@ export default function AdminUserJourney({ users, allLogs, locations, schoolLogs
 
     return <div className="space-y-5">
         <UserFilters users={users} allLogs={allLogs} searchTerm={hook.searchTerm} setSearchTerm={hook.setSearchTerm}
-            filterGroup={hook.filterGroup} setFilterGroup={hook.setFilterGroup} filterRegion={hook.filterRegion} setFilterRegion={hook.setFilterRegion}
-            excludeLeaders={hook.excludeLeaders} setExcludeLeaders={hook.setExcludeLeaders} showOnlyNonSchoolChurch={hook.showOnlyNonSchoolChurch}
-            setShowOnlyNonSchoolChurch={hook.setShowOnlyNonSchoolChurch} showOnlyNew3Months={hook.showOnlyNew3Months} setShowOnlyNew3Months={hook.setShowOnlyNew3Months}
+            filters={hook.filters} setFilters={hook.setFilters} resetFilters={hook.resetFilters} visitStatus={hook.visitStatus} retryVisits={hook.retryVisits}
             filteredUsers={hook.filteredUsers} setNotificationModalOpen={hook.setNotificationModalOpen} fetchData={fetchData}
             title="이용자 여정" subtitle="한 사람의 방문, 만남과 프로그램 참여를 시간의 흐름으로 살펴봅니다." showActions={false} compact />
 

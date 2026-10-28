@@ -114,7 +114,7 @@ const requestFirebaseTokenOnce = async (userId) => {
         let swRegistration;
         if ('serviceWorker' in navigator) {
             try {
-                swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260921-fresh-shell');
+                swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20261026-community-push-return');
             } catch (swErr) {
                 swRegistration = await navigator.serviceWorker.ready.catch(() => undefined);
             }
@@ -131,7 +131,7 @@ const requestFirebaseTokenOnce = async (userId) => {
         }
 
         const token = await getToken(messaging, getTokenOptions);
-        
+
         if (token) {
             console.log("FCM Token retrieved.");
             if (pushDeviceRegistryEnabled) {
@@ -172,7 +172,7 @@ export const removeFirebaseToken = async (userId) => {
         }
         let currentToken = null;
         if (messaging && typeof window !== 'undefined' && window.Notification?.permission === 'granted' && 'serviceWorker' in navigator) {
-            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260921-fresh-shell');
+            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20261026-community-push-return');
             currentToken = await getToken(messaging, {
                 vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
                 serviceWorkerRegistration: registration,
@@ -233,8 +233,14 @@ export const listenForForegroundMessages = (handler) => {
     return onMessage(messaging, handler);
 };
 
-export const requestFirebaseToken = async (userId) => {
+export const requestFirebaseToken = async (userId, { forceRefresh = false } = {}) => {
     if (!userId) return null;
+    if (forceRefresh) {
+        recentPushTokens.delete(userId);
+        // Finish any automatic registration before explicitly retrying it.
+        if (tokenRequest && tokenRequestUserId === userId) await tokenRequest;
+        recentPushTokens.delete(userId);
+    }
     const recent = recentPushTokens.get(userId);
     if (recent && recent.expiresAt > Date.now()) return recent.token;
     if (tokenRequest && tokenRequestUserId === userId) return tokenRequest;
@@ -248,6 +254,24 @@ export const requestFirebaseToken = async (userId) => {
         tokenRequestUserId = null;
     });
     return tokenRequest;
+};
+
+export const isPushDeviceConnected = async (userId, token) => {
+    if (!userId || !token) return false;
+    const { data, error } = await supabase.functions.invoke('push-devices', {
+        body: { action: 'status', deviceId: getPushDeviceId() },
+    });
+    if (!error && data?.registered === true) return true;
+    // Older servers and failed registry writes can still use legacy storage.
+    if (!token.startsWith('WEB_PUSH:')) {
+        const { data: profile, error: readError } = await supabase.from('users')
+            .select('fcm_token').eq('id', userId).maybeSingle();
+        if (!readError && storedPushTokenIncludes(profile?.fcm_token, token)) return true;
+        if (error || readError) throw error || readError;
+    } else if (error) {
+        throw error;
+    }
+    return false;
 };
 
 export const reportPushReceipt = async (receiptToken, event = 'DISPLAYED') => {
@@ -280,7 +304,7 @@ export const requestRecruitmentPushToken = async () => {
     try {
         return await Promise.race([
             (async () => {
-                const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20260921-fresh-shell');
+                const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=20261026-community-push-return');
                 const token = await getToken(messaging,{vapidKey,serviceWorkerRegistration:registration});
                 if (!token) throw new Error('이 기기의 알림 등록을 완료하지 못했습니다. 다시 시도해주세요.');
                 return token;

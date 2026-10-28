@@ -73,7 +73,7 @@ export function createRegistrationService({store,limits,keyFor,adminAuth,gateway
                 abort(context.signal);
                 const completed=await finalizeMembership({operationId:operation.id,requestSecret:input.requestSecret,
                     operationRequestKey:operation.requestKey,
-                    submission:input.details,accessToken:created.access_token},{signal:context.signal});
+                    submission:input.details,accessToken:created.access_token,guestAccessToken:context.accessToken},{signal:context.signal});
                 if(completed?.protocol!==1 || completed.status!=='registered')throw unavailable();
                 return {protocol:1,status:completed.status};
             }

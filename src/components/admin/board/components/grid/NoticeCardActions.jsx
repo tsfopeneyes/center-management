@@ -1,10 +1,10 @@
 import React from 'react';
-import {RefreshCw,CheckCircle2,Eye,Edit2,Trash2} from 'lucide-react';
+import {RefreshCw,CheckCircle2,Copy,Eye,Edit2,Trash2} from 'lucide-react';
 import {CATEGORIES} from '../../utils/constants';
 import NoticeEngagementStats from './NoticeEngagementStats';
 import { usesDailySessionRsvp, isRecurringProgram } from '../../../../../utils/dailyProgramSessions';
 
-export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isActive,onViewDetails,onOpenParticipants,onOpenCommunity,onOpenFeedback,onOpenTodaySession,onStatusChange,onEdit,onDelete}) {
+export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isActive,onViewDetails,onOpenParticipants,onOpenCommunity,onOpenFeedback,onOpenTodaySession,onStatusChange,onDuplicate,onEdit,onDelete}) {
     const hasFeedback=(noticeStats[notice.id]?.feedbackCount || 0)>0;
     const usesTodaySession = usesDailySessionRsvp(notice);
     const managesOpenAttendance = notice.is_recruiting === false && isRecurringProgram(notice);
@@ -21,7 +21,7 @@ export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isAc
         : noticeStats[notice.id];
     const todaySessionLabel = `회차 관리 · ${recruitingSessionCount}개 모집 중`;
     const participantButtonClass = 'text-[9px] md:text-[10px] px-3 py-1.5 rounded-xl font-semibold transition-all bg-[#e8f3ff] text-[#1b64da] hover:bg-[#d0e6ff] hover:scale-[1.02] active:scale-[0.98]';
-    const hasCommunity = notice.is_challenge && notice.challenge_format === 'ONLINE' && notice.community_enabled;
+    const hasCommunity = notice.community_enabled;
     const communityButton = hasCommunity ? (
         <button
             onClick={(event) => { event.stopPropagation(); onOpenCommunity(notice); }}
@@ -137,9 +137,15 @@ export default function NoticeCardActions({notice,viewMode,mode,noticeStats,isAc
                                 )}
                             </>
                         )}
-                        <button onClick={() => onViewDetails(notice)} className="p-1 sm:p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="미리보기">
-                            <Eye size={viewMode === 'large' ? 16 : 14} />
-                        </button>
+                        {mode === CATEGORIES.PROGRAM ? (
+                            <button type="button" onClick={() => onDuplicate(notice)} className="p-1 sm:p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="복제" aria-label="프로그램 복제">
+                                <Copy size={viewMode === 'large' ? 16 : 14} />
+                            </button>
+                        ) : (
+                            <button onClick={() => onViewDetails(notice)} className="p-1 sm:p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="미리보기">
+                                <Eye size={viewMode === 'large' ? 16 : 14} />
+                            </button>
+                        )}
                         <button onClick={() => onEdit(notice)} className="p-1 sm:p-1.5 md:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="수정">
                             <Edit2 size={viewMode === 'list' ? 18 : viewMode === 'smaller' ? 14 : 14} />
                         </button>

@@ -1,3 +1,4 @@
+import { getProgramButtons } from '../../../../../features/programs/programButtons';
 import React from 'react';
 import PropTypes from 'prop-types';
 import { fromKstInput } from '../../../../../utils/programRecruitment';
@@ -12,6 +13,7 @@ import LocationRecruitmentSettings from '../../../../../features/programs/settin
 import HostSettings from '../../../../../features/programs/settings/HostSettings';
 import RewardFeedbackSettings from '../../../../../features/programs/settings/RewardFeedbackSettings';
 import ChallengeSettings from '../../../../../features/programs/settings/ChallengeSettings';
+import CommunitySettings from '../../../../../features/programs/settings/CommunitySettings';
 import ApplicantExperienceSettings from '../../../../../features/programs/settings/ApplicantExperienceSettings';
 import { ProgramSettingsGroup } from '../../../../../features/programs/settings/ProgramSettingsLayout';
 
@@ -19,7 +21,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false, publishingSet
     const recruitmentNow = useCurrentTime();
     const isScheduledRegistration = formData.is_recruiting && new Date(fromKstInput(formData.recruitment_start_at)).getTime() > recruitmentNow;
     const hasRewardOptions = Number(formData.haifn_reward) > 0 || formData.enable_feedback === true;
-    const hasFollowupOptions = formData.enable_post_program_button === true;
+    const hasFollowupOptions = getProgramButtons(formData).length > 0;
     const hasPublishingOptions = formData.is_sticky === true || formData.is_poll === true
         || (formData.recruitment_push_plans || []).length > 0;
     return (
@@ -45,6 +47,10 @@ const ProgramInfoSection = ({ formData, updateField, flat = false, publishingSet
                         <ApplicationQuestionSettings formData={formData} updateField={updateField} />
                     </ProgramSettingsGroup>
                 )}
+                <ProgramSettingsGroup id="program-community" title="커뮤니티" description="프로그램 참여자가 함께 이야기를 나눌 공간을 설정합니다."
+                    optional active={formData.community_enabled === true}>
+                    <CommunitySettings formData={formData} updateField={updateField} />
+                </ProgramSettingsGroup>
                 {formData.is_challenge && (
                     <ProgramSettingsGroup id="program-challenge" title="챌린지 미션" description="참여에 필요한 미션과 성공 기준을 설정합니다.">
                         <ChallengeSettings formData={formData} updateField={updateField} />
@@ -64,7 +70,7 @@ const ProgramInfoSection = ({ formData, updateField, flat = false, publishingSet
                     optional active={hasRewardOptions}>
                     <RewardFeedbackSettings formData={formData} updateField={updateField} />
                 </ProgramSettingsGroup>
-                <ProgramSettingsGroup id="program-followup" title="참가자 추가 화면" description="시작 전 또는 종료 후에 보일 안내, 팀과 질문을 설정합니다."
+                <ProgramSettingsGroup id="program-followup" title="프로그램 관련 버튼 기능" description="여러 버튼을 만들고, 각 버튼의 내용과 기능을 자유롭게 설정합니다."
                     optional active={hasFollowupOptions}>
                     <ApplicantExperienceSettings formData={formData} updateField={updateField} />
                 </ProgramSettingsGroup>

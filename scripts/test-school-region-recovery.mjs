@@ -1,0 +1,18 @@
+import {build} from 'esbuild';import {writeFile} from 'node:fs/promises';
+await build({stdin:{contents:`export * from './src/utils/schoolRegionResolver.js';export * from './src/utils/programVisibilityDiagnostics.js';`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',outfile:'.local/school-recovery-model.mjs'});
+const {createSchoolRegionResolver,withSchoolLookupTimeout,programVisibilityDiagnostics}=await import('../.local/school-recovery-model.mjs');
+const {default:assert}=await import('node:assert/strict');let reads=0,clock=0,fail=false;const rows=[{name:'해성국제컨벤션고',region:'강동'},{name:'강서중학교',region:'강서'}];
+const resolve=createSchoolRegionResolver({readSchools:async()=>{reads++;if(fail)throw Error('offline');return rows;},now:()=>clock,cacheMs:10});
+assert.deepEqual(await Promise.all([resolve('해성국제컨벤션고등학교'),resolve('해성국제컨벤션고')]),['강동','강동']);assert.equal(reads,1);
+await resolve('해성국제컨벤션고');assert.equal(reads,1);await resolve('해성국제컨벤션고',{forceRefresh:true});assert.equal(reads,2);
+clock=20;fail=true;await assert.rejects(()=>resolve('해성국제컨벤션고'));fail=false;assert.equal(await resolve('해성국제컨벤션고'),'강동');assert.equal(reads,4);
+assert.equal(await resolve('등록되지 않은 학교'),null);assert.equal(await resolve('강서 지역 학교'),'강서');assert.equal(await resolve(''),null);
+await assert.rejects(()=>withSchoolLookupTimeout(()=>new Promise(()=>{}),5),{code:'TIMEOUT'});
+let release;const slow=createSchoolRegionResolver({readSchools:()=>new Promise(r=>{release=r;})});const concurrent=[slow('해성국제컨벤션고'),slow('강서중학교')];await Promise.resolve();release(rows);assert.deepEqual(await Promise.all(concurrent),['강동','강서']);
+const a={id:157,title:'공개 챌린지',category:'PROGRAM',is_recruiting:true,program_status:'ACTIVE'},secret={...a,id:155,title:'노출하면 안 되는 비공개 제목',is_private:true};
+const args={notices:[a,secret],responses:{},allPrograms:[],filteredPrograms:[],homePrograms:[],regionState:{status:'error'},dashboardConfig:[{id:'programs',isVisible:true,count:10}]};
+let d=programVisibilityDiagnostics(args);assert.equal(d.programs.length,1);assert.match(d.programs[0].reason,/학교 지역/);assert.ok(!JSON.stringify(d).includes(secret.title));
+d=programVisibilityDiagnostics({...args,allPrograms:[a],filteredPrograms:[a],homePrograms:[a],regionState:{status:'ready',region:'강동'}});assert.match(d.programs[0].reason,/표시 중/);
+d=programVisibilityDiagnostics({...args,regionState:{status:'ready',region:'강서'}});assert.match(d.programs[0].reason,/지역이 달라/);
+d=programVisibilityDiagnostics({...args,readState:{failed:true}});assert.match(d.programs[0].reason,/갱신에 실패/);
+console.log('PASS school recovery models: alias match, shared in-flight read, cache/expiry/forced refresh, failure recovery, timeout, no invented region, concurrent schools, diagnostic hidden reasons and private title protection.');

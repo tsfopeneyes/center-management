@@ -65,16 +65,20 @@ const NoticeCarousel = ({ allImages }) => {
             {allImages.length > 1 && (
                 <>
                     <button
+                        type="button"
+                        aria-label="이전 이미지"
                         onClick={(e) => { e.stopPropagation(); scrollPrev(); }}
-                        className={`absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-900 shadow-xl backdrop-blur-md flex items-center justify-center transition-all duration-300 z-10 opacity-0 group-hover:opacity-100 active:scale-90 ${currentImageIndex === 0 ? 'invisible' : 'visible'}`}
+                        className={`absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/70 hover:bg-white/90 text-gray-900 shadow-md flex items-center justify-center transition-colors z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 active:bg-white ${currentImageIndex === 0 ? 'invisible' : 'visible'}`}
                     >
-                        <ChevronLeft size={20} />
+                        <ChevronLeft size={24} aria-hidden="true" />
                     </button>
                     <button
+                        type="button"
+                        aria-label="다음 이미지"
                         onClick={(e) => { e.stopPropagation(); scrollNext(); }}
-                        className={`absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-900 shadow-xl backdrop-blur-md flex items-center justify-center transition-all duration-300 z-10 opacity-0 group-hover:opacity-100 active:scale-90 ${currentImageIndex === allImages.length - 1 ? 'invisible' : 'visible'}`}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/70 hover:bg-white/90 text-gray-900 shadow-md flex items-center justify-center transition-colors z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 active:bg-white ${currentImageIndex === allImages.length - 1 ? 'invisible' : 'visible'}`}
                     >
-                        <ChevronRight size={20} />
+                        <ChevronRight size={24} aria-hidden="true" />
                     </button>
                     <div className="absolute top-3 right-3 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full font-bold backdrop-blur-md z-10">
                         {currentImageIndex + 1} / {allImages.length}

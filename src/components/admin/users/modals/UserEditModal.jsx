@@ -10,8 +10,15 @@ import { aggregateVisitSessions } from '../../../../utils/visitUtils';
 import { getAccountRole, isAdminOrStaff, isMasterStaff, normalizeSchoolName } from '../../../../utils/userUtils';
 import useModalClose from '../../../../hooks/useModalClose';
 import { getTermsConsentStatus } from '../../../../utils/termsConsent';
+import { getGuardianAge, getGuardianCleanup } from '../../../../utils/guardianAge';
 
 const isAdministrator = isAdminOrStaff;
+
+const getEditableGroup = (user) => {
+    if (String(user?.user_group || '').toUpperCase() === 'STAFF') return 'STAFF';
+    if (user?.is_leader) return '리더';
+    return user?.user_group === '졸업생' ? '졸업생' : '청소년';
+};
 
 const UserEditModal = ({
     editingUser, setEditingUser,
@@ -20,12 +27,15 @@ const UserEditModal = ({
 }) => {
 
     const [editFormData, setEditFormData] = useState({
-        name: '', school: '', church: '', phone: '', user_group: '재학생', memo: '',
+        name: '', school: '', church: '', phone: '', birth: '', user_group: '청소년', memo: '',
         status: 'approved', guardian_name: '', guardian_phone: '', guardian_relation: '',
-        is_leader: false, is_school_church: false
+        is_school_church: false
     });
 
     const [activeTab, setActiveTab] = useState('INFO');
+    const guardianAge = getGuardianAge(editFormData.birth);
+    const guardianNotRequired = guardianAge !== null && guardianAge >= 14;
+    const hasGuardianInfo = Boolean(editFormData.guardian_name || editFormData.guardian_phone || editFormData.guardian_relation);
 
     const [participatedPrograms, setParticipatedPrograms] = useState([]);
     const [userFeedbacks, setUserFeedbacks] = useState([]);
@@ -226,13 +236,13 @@ const UserEditModal = ({
                 school: editingUser.school || '',
                 church: editingUser.church || '',
                 phone: editingUser.phone || editingUser.phone_back4 || '',
-                user_group: editingUser.user_group || '재학생',
+                birth: editingUser.birth || '',
+                user_group: getEditableGroup(editingUser),
                 memo: editingUser.memo || '',
                 status: editingUser.status || 'approved',
                 guardian_name: editingUser.guardian_name || '',
                 guardian_phone: editingUser.guardian_phone || '',
                 guardian_relation: editingUser.guardian_relation || '',
-                is_leader: editingUser.is_leader || false,
                 is_school_church: editingUser.preferences?.is_school_church || false
             });
         }
@@ -240,15 +250,31 @@ const UserEditModal = ({
 
     const handleSaveUser = async () => {
         if (!editingUser) return;
+        const birth = editFormData.birth.trim();
+        if (birth && !/^\d{6}$/.test(birth)) {
+            alert('생년월일은 숫자 6자리(YYMMDD)로 입력해주세요.');
+            return;
+        }
+        if (birth && getGuardianAge(birth) === null) {
+            alert('생년월일의 연도·월·일을 확인해주세요. 미래 날짜는 입력할 수 없습니다.');
+            return;
+        }
+        // Preserve the base group and guest identity unless the group is changed.
+        const groupChanged = editFormData.user_group !== getEditableGroup(editingUser);
+        const userGroup = !groupChanged ? editingUser.user_group : editFormData.user_group === '리더'
+            ? (['청소년', '졸업생'].includes(editingUser.user_group) ? editingUser.user_group : '청소년')
+            : editFormData.user_group;
         try {
             const { error } = await supabase.from('users').update({
                 name: editFormData.name,
                 school: normalizeSchoolName(editFormData.school),
                 church: editFormData.church,
                 phone: editFormData.phone,
-                user_group: editFormData.user_group,
+                birth: birth || null,
+                ...getGuardianCleanup(birth),
+                user_group: userGroup || '청소년',
                 memo: editFormData.memo,
-                is_leader: editFormData.is_leader,
+                is_leader: editFormData.user_group === '리더',
                 preferences: { ...(editingUser.preferences || {}), is_school_church: editFormData.is_school_church }
             }).eq('id', editingUser.id);
             if (error) throw error;
@@ -302,9 +328,9 @@ const UserEditModal = ({
                                 <input type="text" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] font-semibold text-sm" />
                             </div>
                             <div>
-                                <label className="text-xs font-medium text-gray-600 block mb-1">그룹</label>
-                                <select value={editFormData.user_group} onChange={(e) => setEditFormData({ ...editFormData, user_group: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] bg-white font-semibold text-sm">
-                                    <option value="청소년">청소년</option><option value="졸업생">졸업생</option><option value="STAFF">STAFF</option><option value="재학생">재학생(구)</option><option value="일반인">일반인(구)</option>
+                                <label htmlFor="user-card-group" className="text-xs font-medium text-gray-600 block mb-1">그룹</label>
+                                <select id="user-card-group" value={editFormData.user_group} onChange={(e) => setEditFormData({ ...editFormData, user_group: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] bg-white font-semibold text-sm">
+                                    <option value="리더">리더</option><option value="청소년">청소년</option><option value="졸업생">졸업생</option><option value="STAFF">STAFF</option>
                                 </select>
                             </div>
                         </div>
@@ -327,7 +353,11 @@ const UserEditModal = ({
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 divide-y divide-transparent">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label htmlFor="user-card-birth" className="text-xs font-medium text-gray-600 block mb-1">생년월일</label>
+                                <input id="user-card-birth" type="text" inputMode="numeric" maxLength={6} placeholder="YYMMDD (예: 080315)" value={editFormData.birth} onChange={(e) => setEditFormData({ ...editFormData, birth: e.target.value.replace(/[^0-9]/g, '') })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] font-semibold text-sm" />
+                            </div>
                             <div>
                                 <label className="text-xs font-medium text-gray-600 block mb-1">연락처</label>
                                 <input type="text" value={editFormData.phone} onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-[#CF3A27] focus:ring-2 focus:ring-[#F4DDD4] font-semibold text-sm" />
@@ -368,25 +398,12 @@ const UserEditModal = ({
                                 </label>
                             </div>
 
-                            {(editFormData.user_group === '청소년' || editFormData.user_group === '졸업생' || editFormData.user_group === '재학생') && (
-                                <div className="flex items-center gap-2.5 p-3.5 bg-gray-50 rounded-2xl">
-                                    <input
-                                        type="checkbox"
-                                        id="is_leader"
-                                        checked={editFormData.is_leader}
-                                        onChange={(e) => setEditFormData({ ...editFormData, is_leader: e.target.checked })}
-                                        className="w-4 h-4 text-yellow-500 border-gray-300 rounded focus:ring-yellow-500 cursor-pointer"
-                                    />
-                                    <label htmlFor="is_leader" className="text-xs font-bold text-gray-700 cursor-pointer flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#FACC15" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-                                        리더 분배
-                                    </label>
-                                </div>
-                            )}
-
                         </div>
 
-                        {editFormData.guardian_name && (
+                        {guardianNotRequired && hasGuardianInfo && (
+                            <p role="status" className="text-sm text-gray-600">만 14세 이상으로 보호자 정보가 필요하지 않습니다. 저장하면 보호자 이름·연락처·관계가 삭제되며, 기존 동의 이력은 유지됩니다.</p>
+                        )}
+                        {!guardianNotRequired && hasGuardianInfo && (
                             <div className="p-4 bg-[#F4DDD4] rounded-xl border border-[#F4DDD4] space-y-2">
                                 <p className="text-xs font-black text-[#CF3A27] uppercase tracking-widest mb-1">보호자 정보 (만 14세 미만)</p>
                                 <div className="grid grid-cols-2 gap-4 text-xs font-bold">

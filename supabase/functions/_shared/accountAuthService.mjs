@@ -28,17 +28,18 @@ export function resolveAccountAuthRoute(pathname,basePath=''){
 
 export async function createAccountAuthService({readerPool, loginPool, supabaseUrl, publishableKey,
     lookupSecret,legacyBridge, resolveClientKey, readiness, assuranceTtlMs, allowedOrigins,credentialService=null,profileService=null,registrationService=null,uploadService=null,memberAdminService=null,
-    basePath='',fetcher = fetch}) {
+    basePath='',fetcher = fetch,guestLogin=null,guestCandidates=null}) {
     const status = createSessionService({pool:readerPool,supabaseUrl,publishableKey,allowedOrigins,fetcher});
     const gateway = createPasswordGateway({supabaseUrl,publishableKey,fetcher});
     const read = createSessionReadStore((text,values)=>readerPool.query(text,values));
     const verifyToken = createVerifiedSessionReader({supabaseUrl,publishableKey,fetcher,loadLiveSession:read.loadLiveSession});
     const loginStore=createLoginStore(loginPool),keyFor=await createLoginKey(lookupSecret);
-    const login = createLoginService({store:loginStore,gateway,verifyToken,legacyBridge,
+    const memberLogin = createLoginService({store:loginStore,gateway,verifyToken,legacyBridge,
         verifyTemporary:credentialService?.verifyTemporary,
         keyFor,readiness,assuranceTtlMs});
+    const login=guestLogin?async(input,context)=>(await guestLogin(input,context))||memberLogin(input,context):memberLogin;
     const loginHttp = createLoginHandler({login,resolveClientKey,allowedOrigins});
-    const candidateHttp=createLoginCandidateHandler({candidates:createLoginCandidateService({store:loginStore,keyFor,readiness}),resolveClientKey,allowedOrigins});
+    const candidateHttp=createLoginCandidateHandler({candidates:createLoginCandidateService({store:loginStore,keyFor,readiness,guestCandidates}),resolveClientKey,allowedOrigins});
     const credentialChanges=credentialService?createCredentialHandler({credentials:credentialService,resolveClientKey,allowedOrigins}):null;
     const profiles=profileService?createProfileHandler({profiles:profileService,allowedOrigins}):null;
     const registration=registrationService?createRegistrationHandler({register:registrationService,resolveClientKey,allowedOrigins}):null;

@@ -15,7 +15,7 @@ export default function RecruitmentPeriodFields({ formData, updateField }) {
                 <DateTimeFields label={label} value={formData[field] || ''} onChange={value => updateField(field, value)} />
             </div>)}
         </div>
-        <p className="text-xs text-slate-500 leading-relaxed">시작 전에는 제목과 신청 시작 안내만 공개됩니다. 시작부터 종료 전까지 모집 중, 종료 시각부터 종료로 자동 표시됩니다.</p>
+        <p className="text-xs text-slate-500 leading-relaxed">시작 전에는 제목과 신청 시작 안내만 공개됩니다. 시작부터 종료 전까지 모집 중, 종료 시각부터 모집 마감으로 자동 표시됩니다.</p>
         {scheduled && <p className="text-xs font-bold text-amber-700">{formatRecruitmentStart(start)}</p>}
         {start && missing.length > 0 && <p role="status" className="text-xs text-amber-700 leading-relaxed">미작성: {missing.join(', ')}. 모집 시작 전에는 일정부터 저장할 수 있습니다. 시작 시각에도 정보가 없으면 신청은 열리지 않습니다.</p>}
         {formData._legacy_recruitment && !start && <p className="text-xs text-slate-500">기존 프로그램입니다. 시작을 비워 두면 기존 공개 방식을 유지합니다. 자동 모집 예정 표시를 사용하려면 시작·종료를 모두 입력해주세요.</p>}

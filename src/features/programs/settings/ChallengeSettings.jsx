@@ -2,48 +2,30 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, Target, Trash, Bookmark, Camera, FileText } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from '../../../supabaseClient';
 import { HAIFN_DETAILS } from './programLocationOptions';
+import { getChallengeProgress } from '../../../utils/challengeProgress';
 
 const ChallengeSettings = ({ formData, updateField }) => {
-    const [availableCommunities, setAvailableCommunities] = React.useState([]);
-
-    React.useEffect(() => {
-        if (!formData.is_challenge || formData.challenge_format !== 'ONLINE') return;
-        let active = true;
-        supabase.from('community_channels').select('id,name,source_notice_id,status')
-            .in('status', ['ACTIVE', 'READ_ONLY']).order('name')
-            .then(({ data, error }) => {
-                if (!error && active) setAvailableCommunities((data || []).filter(channel =>
-                    !channel.source_notice_id || channel.id === formData.community_channel_id));
-            });
-        return () => { active = false; };
-    }, [formData.is_challenge, formData.challenge_format, formData.community_channel_id]);
-
+    const progress = getChallengeProgress({ ...formData, guest_properties: null });
     return (
         <>
             {formData.is_challenge && (
                 <div className="space-y-4">
                 <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                    <label className="block text-sm font-bold text-slate-800">종료 시 하이픈 지급 기준
+                    <label className="block text-sm font-bold text-slate-800">챌린지 성공 기준
                         <select value={formData.challenge_reward_criterion || 'ALL'} onChange={event => updateField('challenge_reward_criterion', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
-                            <option value="FIRST_MISSION">첫 미션 인증만 해도 지급</option>
-                            <option value="PERCENT">미션 목표 달성률로 지급</option>
-                            <option value="ALL">모든 미션 달성 시 지급</option>
+                            <option value="ALL">전체 목표 달성</option>
+                            <option value="COUNT">횟수로 설정</option>
+                            <option value="PERCENT">달성률로 설정</option>
+                            {formData.challenge_reward_criterion === 'FIRST_MISSION' && <option value="FIRST_MISSION">1회 달성하면 성공 (기존 설정)</option>}
                         </select>
                     </label>
-                    {formData.challenge_reward_criterion === 'PERCENT' && <label className="mt-3 block text-xs font-bold text-slate-600">성공 기준 (%)<input type="number" min="1" max="100" value={formData.challenge_reward_percent ?? 100} onChange={event => updateField('challenge_reward_percent', Math.min(100, Math.max(1, Number(event.target.value) || 1)))} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold"/></label>}
-                    <p className="mt-3 text-xs leading-5 text-slate-500">조건을 일찍 채워도 프로그램을 종료 처리할 때 설정된 하이픈을 한 번 지급합니다.</p>
+                    {formData.challenge_reward_criterion === 'COUNT' && <label className="mt-3 block text-xs font-bold text-slate-600">성공에 필요한 횟수<input type="number" min="1" max={progress.total || undefined} step="1" value={formData.challenge_reward_count ?? 1} onChange={event => updateField('challenge_reward_count', event.target.value === '' ? '' : Number(event.target.value))} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold"/></label>}
+                    {formData.challenge_reward_criterion === 'PERCENT' && <label className="mt-3 block text-xs font-bold text-slate-600">성공 기준 (%)<input type="number" min="1" max="100" step="1" value={formData.challenge_reward_percent ?? 100} onChange={event => updateField('challenge_reward_percent', Math.min(100, Math.max(1, Math.trunc(Number(event.target.value) || 1))))} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold"/></label>}
+                    <p aria-live="polite" className="mt-3 text-sm font-semibold text-slate-800">{progress.description}</p>
+                    {progress.total > 0 && progress.threshold > progress.total && <p role="alert" className="mt-2 text-xs text-red-600">성공 횟수가 전체 목표보다 큽니다. 횟수 또는 미션 목표를 조정해주세요.</p>}
+                    <p className="mt-2 text-xs leading-5 text-slate-500">기준을 달성하면 바로 성공 메시지를 보여줍니다. 성공 후에도 추가 참여할 수 있으며, 설정된 하이픈은 프로그램 종료 처리 시 한 번 지급합니다.</p>
                 </div>
-                {formData.challenge_format === 'ONLINE' && (
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between gap-4">
-                        <div><p className="text-sm font-black text-slate-800">챌린지 커뮤니티</p><p className="text-xs font-semibold text-slate-400 mt-1">참여자끼리 글·사진·댓글·이모지 반응을 나눕니다.</p></div>
-                        <button type="button" onClick={() => updateField('community_enabled', !formData.community_enabled)} className={`px-4 py-2 rounded-xl text-xs font-black ${formData.community_enabled ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{formData.community_enabled ? '사용 중' : '사용 안 함'}</button>
-                    </div>
-                    {formData.community_enabled && <><label className="block text-xs font-bold text-slate-600">연결할 커뮤니티<select value={formData.community_channel_id || ''} onChange={event => updateField('community_channel_id', event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"><option value="">프로그램 이름으로 새 커뮤니티 자동 생성</option>{availableCommunities.map(channel => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</select></label><div className="rounded-xl bg-blue-50 px-4 py-3 text-xs font-bold leading-5 text-blue-700">기존 독립 커뮤니티를 선택하거나 새 커뮤니티를 자동 생성할 수 있습니다. 참여자가 글을 작성하면 선택한 미션이 바로 완료됩니다.</div></>}
-                </div>
-                )}
                 {(formData.challenge_format !== 'ONLINE' || formData.community_enabled) && <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
                     <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                         <Target size={18} className="text-blue-600" />
@@ -248,12 +230,12 @@ const ChallengeSettings = ({ formData, updateField }) => {
                     </div>
 
                     <div className="pt-4 border-t border-slate-100 space-y-2">
-                        <label className="text-xs font-bold text-slate-500 mb-1 block">챌린지 완료 축하/안내 메시지</label>
+                        <label className="text-xs font-bold text-slate-500 mb-1 block">성공 기준 달성 시 축하/안내 메시지</label>
                         <div className="relative bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden focus-within:border-blue-600 focus-within:bg-white transition-all p-3">
                             <textarea
                                 value={formData.challenge_success_message || ''}
                                 onChange={e => updateField('challenge_success_message', e.target.value)}
-                                placeholder="축하합니다! 모든 미션을 완료하여 챌린지를 성공적으로 마치셨습니다!"
+                                placeholder="축하합니다! 챌린지 성공 기준을 달성했어요!"
                                 className="w-full h-20 bg-transparent outline-none font-bold text-slate-800 text-xs resize-none"
                             />
                         </div>

@@ -2,57 +2,48 @@ import { supabase } from '../supabaseClient';
 import { fetchAllPages } from '../utils/fetchAllPages';
 import { userApi } from './userApi';
 import { sortCommunityPosts } from './communityFeedApi';
+import { isAdminOrStaff } from '../utils/userUtils';
 
 const postSelect = `id,channel_id,author_id,content,is_hidden,is_announcement,announced_at,created_at,updated_at,
     author:users!author_id(id,name,school,profile_image_url),
     community_post_media(id,media_type,media_url,sort_order),
-    online_challenge_submissions(id,mission_id,is_valid,online_challenge_missions(id,title)),
+    online_challenge_submissions(id,challenge_id,mission_id,is_valid,online_challenge_missions(id,title)),
     community_channel_reactions(user_id,emoji,users(id,name,school,profile_image_url)),
     community_channel_comments(id,content,created_at,user_id,author:users!user_id(id,name,school,profile_image_url),community_channel_comment_reactions(user_id,emoji,users(id,name,school,profile_image_url)))`;
 
 const missingRpc = error => ['PGRST202', '42883'].includes(error?.code);
 
 export const communityChannelsApi = {
+    async fetchProgramInvite(noticeId) {
+        const {data,error}=await supabase.from('community_channel_invites').select('*').eq('source_notice_id',noticeId).maybeSingle();
+        if(error)throw error;
+        return data;
+    },
     async fetchInvitePreview(channelId) {
-        const { data, error } = await supabase.rpc('get_community_invite_preview', { p_channel_id: channelId });
-        if (!error) return Array.isArray(data) ? data[0] : data;
-        if (!missingRpc(error)) throw error;
-        const { data: channel, error: channelError } = await supabase.from('community_channels')
-            .select('id,name,description,status').eq('id', channelId).eq('status', 'ACTIVE').single();
-        if (channelError) throw channelError;
-        return { ...channel, participant_count: 0, source_title: null };
+        const { data, error } = await supabase.from('community_channel_invites').select('*').eq('id', channelId).single();
+        if (error) throw error;
+        return data;
     },
 
     async fetchChannels() {
-        const { data, error } = await supabase.from('community_channels')
-            .select('id,name,description,channel_type,source_notice_id,status,created_at,source_notice:notices!source_notice_id(id,title,category,is_challenge,challenge_format),community_channel_members(user_id)')
-            .order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('community_channel_directory').select('*').order('created_at', { ascending: false });
         if (error) throw error;
         const rows = data || [];
-        const noticeIds = rows.map(channel => channel.source_notice_id).filter(Boolean);
-        const channelIds = rows.map(channel => channel.id);
-        const [joined, visiblePosts] = await Promise.all([
-            noticeIds.length ? fetchAllPages(() => supabase.from('notice_responses')
-                .select('notice_id,user_id').in('notice_id', noticeIds).eq('status', 'JOIN')
-                .order('notice_id').order('user_id')) : [],
-            channelIds.length ? fetchAllPages(() => supabase.from('community_channel_posts')
-                .select('id,channel_id').in('channel_id', channelIds).is('deleted_at', null)
-                .order('id')) : [],
-        ]);
-        const postCounts = visiblePosts.reduce((counts, post) => counts.set(post.channel_id, (counts.get(post.channel_id) || 0) + 1), new Map());
-        return rows.map(channel => ({
-            ...channel,
-            post_count: postCounts.get(channel.id) || 0,
-            participant_count: channel.source_notice_id
-                ? new Set(joined.filter(item => item.notice_id === channel.source_notice_id).map(item => item.user_id)).size
-                : new Set((channel.community_channel_members || []).map(member => member.user_id)).size,
-        }));
+        const visiblePosts = rows.length ? await fetchAllPages(() => supabase.from('community_channel_posts')
+            .select('id,channel_id').in('channel_id', rows.map(row => row.id)).is('deleted_at', null).order('id')) : [];
+        const counts = visiblePosts.reduce((map, post) => map.set(post.channel_id, (map.get(post.channel_id) || 0) + 1), new Map());
+        return rows.map(channel => ({ ...channel, post_count: counts.get(channel.id) || 0 }));
     },
 
     async fetchChannel(channelId) {
-        const { data, error } = await supabase.from('community_channels')
-            .select('id,name,description,channel_type,source_notice_id,status,created_at,source_notice:notices!source_notice_id(id,title,category,is_challenge,challenge_format)')
-            .eq('id', channelId).single();
+        const { data, error } = await supabase.from('community_channel_directory').select('*').eq('id', channelId).single();
+        if (error) throw error;
+        return data;
+    },
+
+    async fetchProgramChannel(noticeId) {
+        const { data, error } = await supabase.from('community_channel_directory').select('*')
+            .eq('source_notice_id', noticeId).neq('status', 'ARCHIVED').maybeSingle();
         if (error) throw error;
         return data;
     },
@@ -68,7 +59,7 @@ export const communityChannelsApi = {
 
     async fetchChallengeNotice(noticeId) {
         const { data, error } = await supabase.from('notices')
-            .select('id,title,program_start_date,program_end_date,is_challenge,challenge_format,community_enabled,host_id,host_ids,hosts')
+            .select('id,title,program_start_date,program_end_date,is_challenge,challenge_format,community_enabled,is_recruiting,host_id,host_ids,hosts')
             .eq('id', noticeId).single();
         if (error) throw error;
         return data;
@@ -84,24 +75,13 @@ export const communityChannelsApi = {
 
     async joinStandaloneChannel(channelId, userId) {
         const { error } = await supabase.from('community_channel_members')
-            .upsert({ channel_id: channelId, user_id: userId, member_role: 'MEMBER' }, { onConflict: 'channel_id,user_id', ignoreDuplicates: true });
+            .upsert({ channel_id: channelId, user_id: userId, member_role: 'MEMBER', revoked_at: null }, { onConflict: 'channel_id,user_id' });
         if (error) throw error;
     },
 
     async fetchMembers(channel) {
-        if (channel.source_notice_id) {
-            const responses = await fetchAllPages(() => supabase.from('notice_responses')
-                .select('user_id,user:users!user_id(id,name,school,profile_image_url)')
-                .eq('notice_id', channel.source_notice_id).eq('status', 'JOIN').order('user_id'));
-            return [...new Map(responses.map(item => [item.user_id, {
-                user_id: item.user_id, user: item.user, member_role: 'PARTICIPANT', source: 'PROGRAM',
-            }])).values()].sort((a, b) => (a.user?.name || '').localeCompare(b.user?.name || '', 'ko'));
-        }
-        const { data, error } = await supabase.from('community_channel_members')
-            .select('user_id,member_role,joined_at,user:users!user_id(id,name,school,profile_image_url)')
-            .eq('channel_id', channel.id);
-        if (error) throw error;
-        return (data || []).map(item => ({ ...item, source: 'DIRECT' }))
+        return (await fetchAllPages(() => supabase.from('community_channel_participants').select('*')
+            .eq('channel_id', channel.id).order('user_id')))
             .sort((a, b) => (a.user?.name || '').localeCompare(b.user?.name || '', 'ko'));
     },
 
@@ -144,14 +124,16 @@ export const communityChannelsApi = {
     },
 
     async addMember(channelId, userId) {
+        const channel = await this.fetchChannel(channelId);
+        if (channel.source_notice_id) throw new Error('프로그램 참여자 관리에서 신청자를 추가해주세요.');
         const { error } = await supabase.from('community_channel_members').upsert({
-            channel_id: channelId, user_id: userId, member_role: 'MEMBER',
+            channel_id: channelId, user_id: userId, member_role: 'MEMBER', revoked_at: null,
         }, { onConflict: 'channel_id,user_id' });
         if (error) throw error;
     },
 
     async removeMember(channelId, userId) {
-        const { error } = await supabase.from('community_channel_members').delete()
+        const { error } = await supabase.from('community_channel_members').update({ revoked_at: new Date().toISOString() })
             .eq('channel_id', channelId).eq('user_id', userId);
         if (error) throw error;
     },
@@ -165,97 +147,36 @@ export const communityChannelsApi = {
     },
 
     async updateChannelStatus(channelId, status) {
-        const { data, error } = await supabase.from('community_channels').update({
-            status, updated_at: new Date().toISOString(),
-        }).eq('id', channelId).select('id,status').single();
+        const { error } = await supabase.from('community_channels').update({ status, updated_at: new Date().toISOString() }).eq('id', channelId);
         if (error) throw error;
-        return data;
+        return this.fetchChannel(channelId);
     },
 
     async archiveChannel(channelId) {
-        const { data: channel, error: channelError } = await supabase.from('community_channels')
-            .select('source_notice_id').eq('id', channelId).single();
-        if (channelError) throw channelError;
-
-        if (channel.source_notice_id) {
-            const { data: notice, error: noticeReadError } = await supabase.from('notices')
-                .select('guest_properties').eq('id', channel.source_notice_id).single();
-            if (noticeReadError) throw noticeReadError;
-            const { error: noticeError } = await supabase.from('notices').update({
-                community_enabled: false,
-                guest_properties: { ...(notice.guest_properties || {}), community_channel_id: '' },
-            }).eq('id', channel.source_notice_id);
-            if (noticeError) throw noticeError;
-        }
-
-        const { data, error } = await supabase.from('community_channels').update({
-            status: 'ARCHIVED', source_notice_id: null, channel_type: 'PRIVATE', updated_at: new Date().toISOString(),
-        }).eq('id', channelId).select('id,status').single();
+        const channel = await this.fetchChannel(channelId);
+        const { data, error } = await supabase.from('community_channel_link_requests')
+            .insert({ channel_id: channelId, notice_id: null, expected_notice_id: channel.source_notice_id, archive: true }).select('id').single();
         if (error) throw error;
         return data;
     },
 
-    async fetchLinkableChallenges() {
+    async fetchLinkablePrograms() {
         const { data, error } = await supabase.from('notices')
-            .select('id,title,community_enabled,challenge_format,program_start_date,program_end_date')
-            .eq('category', 'PROGRAM').eq('is_challenge', true).eq('challenge_format', 'ONLINE')
-            .order('created_at', { ascending: false });
+            .select('id,title,community_enabled,is_challenge,challenge_format,is_recruiting,program_start_date,program_end_date')
+            .eq('category', 'PROGRAM').order('created_at', { ascending: false });
         if (error) throw error;
         return data || [];
     },
 
-    async linkToChallenge(channelId, noticeId) {
-        const { error } = await supabase.rpc('link_community_channel_to_notice', {
-            p_channel_id: channelId, p_notice_id: noticeId || null,
+    async linkToProgram(channelId, noticeId, expectedNoticeId) {
+        const { error } = await supabase.rpc('set_community_channel_program', {
+            p_channel_id: channelId, p_notice_id: noticeId || null, p_expected_notice_id: expectedNoticeId || null,
         });
         if (!error) return;
         if (!missingRpc(error)) throw error;
-
-        const { data: selected, error: selectedError } = await supabase.from('community_channels')
-            .select('id,source_notice_id').eq('id', channelId).single();
-        if (selectedError) throw selectedError;
-        if (selected.source_notice_id && selected.source_notice_id !== noticeId) {
-            const { data: previousNotice, error: previousNoticeReadError } = await supabase.from('notices')
-                .select('guest_properties').eq('id', selected.source_notice_id).single();
-            if (previousNoticeReadError) throw previousNoticeReadError;
-            const { error: previousNoticeError } = await supabase.from('notices')
-                .update({
-                    community_enabled: false,
-                    guest_properties: { ...(previousNotice.guest_properties || {}), community_channel_id: '' },
-                }).eq('id', selected.source_notice_id);
-            if (previousNoticeError) throw previousNoticeError;
-        }
-        let current = null;
-        if (noticeId) {
-            const currentResult = await supabase.from('community_channels')
-                .select('id').eq('source_notice_id', noticeId).maybeSingle();
-            if (currentResult.error) throw currentResult.error;
-            current = currentResult.data;
-        }
-        if (current && current.id !== channelId) {
-            const { error: detachError } = await supabase.from('community_channels').update({
-                source_notice_id: null, channel_type: 'PRIVATE', updated_at: new Date().toISOString(),
-            }).eq('id', current.id);
-            if (detachError) throw detachError;
-        }
-        const { error: linkError } = await supabase.from('community_channels').update({
-            source_notice_id: noticeId || null,
-            channel_type: noticeId ? 'CHALLENGE' : 'PRIVATE',
-            status: 'ACTIVE',
-            updated_at: new Date().toISOString(),
-        }).eq('id', channelId);
-        if (linkError) throw linkError;
-        if (noticeId) {
-            const { data: notice, error: noticeReadError } = await supabase.from('notices')
-                .select('guest_properties').eq('id', noticeId).single();
-            if (noticeReadError) throw noticeReadError;
-            const { error: noticeError } = await supabase.from('notices')
-                .update({
-                    community_enabled: true,
-                    guest_properties: { ...(notice.guest_properties || {}), community_channel_id: channelId },
-                }).eq('id', noticeId);
-            if (noticeError) throw noticeError;
-        }
+        const { error: requestError } = await supabase.from('community_channel_link_requests')
+            .insert({ channel_id: channelId, notice_id: noticeId || null, expected_notice_id: expectedNoticeId || null });
+        if (requestError) throw requestError;
     },
 
     async fetchPosts(channelId) {
@@ -273,12 +194,35 @@ export const communityChannelsApi = {
         })));
     },
 
-    async createPost(channelId, authorId, content, isAnnouncement = false) {
-        const { data, error } = await supabase.from('community_channel_posts')
-            .insert({ channel_id: channelId, author_id: authorId, content: content.trim(), is_announcement: isAnnouncement })
-            .select('id').single();
-        if (error) throw error;
-        return data.id;
+    async createPost({ channelId, authorId, content, imageUrls = [], missionId = null, isAnnouncement = false }) {
+        const channel = await this.fetchChannel(channelId);
+        if (channel.source_notice_id) {
+            const notice = await this.fetchChallengeNotice(channel.source_notice_id);
+            const isStaff = isAdminOrStaff(await userApi.fetchUser(authorId));
+            if (notice.is_challenge && (missionId || !isStaff) && !await this.fetchChallengeAccess(notice.id, authorId)) {
+                throw new Error('챌린지 신청 확정자만 미션과 자유글을 작성할 수 있어요.');
+            }
+        }
+        const payload = { channel_id: channelId, author_id: authorId, content: content.trim(), image_urls: imageUrls, mission_id: missionId };
+        const { data, error } = await supabase.rpc('create_community_post_with_media', { p_payload: payload, p_is_announcement: isAnnouncement });
+        if (!error) return data;
+        if (!missingRpc(error)) throw error;
+        const { data: request, error: requestError } = await supabase.from('community_post_create_requests')
+            .insert({ payload, is_announcement: isAnnouncement }).select('post_id').single();
+        if (requestError) throw requestError;
+        return request.post_id;
+    },
+
+    async editPost(post, authorId, content, missionId, imageUrls = null) {
+        const payload = { post_id: post.id, author_id: authorId, content: content.trim(), mission_id: missionId || null,
+            ...(imageUrls === null ? {} : { expected_urls: (post.media || []).map(item => item.media_url), next_urls: imageUrls }) };
+        const { data, error } = await supabase.rpc('update_community_post_with_media', { p_payload: payload });
+        if (!error) return data;
+        if (!missingRpc(error)) throw error;
+        const { data: request, error: requestError } = await supabase.from('community_post_create_requests')
+            .insert({ payload, operation: 'UPDATE' }).select('result').single();
+        if (requestError) throw requestError;
+        return request.result;
     },
 
     async updatePost(postId, authorId, content) {

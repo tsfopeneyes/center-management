@@ -238,7 +238,7 @@ const ProfileSettingsModal = ({
                         </div>
                     )}
 
-                    <div className="space-y-4 pb-6">
+                    {user.user_group==='게스트'?<div className="space-y-2 pb-6"><h4 className="font-bold text-gray-800 border-b pb-2">게스트 로그인</h4><p className="text-xs leading-5 text-gray-500">게스트 비밀번호는 등록된 휴대폰 번호 뒤 4자리입니다.</p></div>:<div className="space-y-4 pb-6">
                         <h4 className="font-bold text-gray-800 border-b pb-2">비밀번호 변경</h4>
                         {!isChangingPassword ? (
                             <button
@@ -267,7 +267,7 @@ const ProfileSettingsModal = ({
                                 </button>
                             </>
                         )}
-                    </div>
+                    </div>}
 
                     <div className="space-y-3 pt-6 border-t border-gray-100 pb-8">
                         <h4 className="font-bold text-red-600 text-sm">회원 탈퇴</h4>

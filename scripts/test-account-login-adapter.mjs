@@ -8,10 +8,10 @@ const adapter=createAccountLoginAdapter({client:{
     login:{login:async input=>{assert.deepEqual(input,{profileId,password:'1234'});return {profileId,authUserId,profile};}}
 }});
 assert.deepEqual(await adapter.candidates('동명이인'),[{id:profileId,name:'동명이인',school:'가상고',user_group:'청소년'}]);
-assert.deepEqual(await adapter.login({profileId,password:'1234'}),{id:profileId,name:'동명이인',role:'user'});
+assert.deepEqual(await adapter.login({profileId,password:'1234'}),{id:profileId,name:'동명이인',role:'user',auth_user_id:authUserId});
 let nameInput;const byName=createAccountLoginAdapter({client:{candidates:async()=>[],login:{login:async input=>{
     nameInput=input;return {profileId,authUserId,profile};}}}});
-assert.deepEqual(await byName.login({name:'동명이인',password:'1234'}),profile);
+assert.deepEqual(await byName.login({name:'동명이인',password:'1234'}),{...profile,auth_user_id:authUserId});
 assert.deepEqual(nameInput,{name:'동명이인',password:'1234'});
 const changed=createAccountLoginAdapter({client:{candidates:async()=>[],login:{login:async()=>({profileId,authUserId})}}});
 await assert.rejects(changed.login({profileId,password:'1234'}),error=>error.code==='account_changed');

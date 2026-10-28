@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+import { validateDefinition, validateAnswers } from '../src/utils/surveyModel.js';
+const db = new PGlite();
+try {
+await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE center_integration_reader;
+CREATE SCHEMA center_integration;
+CREATE TABLE survey_versions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),form_id uuid,definition jsonb);
+CREATE TABLE survey_links(id uuid PRIMARY KEY,form_id uuid,version_id uuid,event text,center_code text,frequency text,enabled boolean);
+CREATE TABLE logs(id bigint,user_id uuid,type text,created_at timestamptz);
+CREATE TABLE survey_entries(id uuid,link_id uuid,user_id uuid,visit_id text,snapshot jsonb,answers jsonb,aggregation_excluded boolean);
+INSERT INTO survey_versions VALUES('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','{"title":"입장","questions":[{"id":"old","type":"choice","title":"기존 질문","required":false,"options":["A","B"]}]}');
+INSERT INTO survey_links VALUES('33333333-3333-4333-8333-333333333333','22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','CHECKIN','HAIFN','EVERY_VISIT',true);`);
+await db.exec(await readFile('supabase/migrations/20261007100000_center_visit_initiative.sql','utf8'));
+const { rows } = await db.query('SELECT v.definition FROM survey_versions v JOIN survey_links l ON l.version_id=v.id');
+assert.equal(rows[0].definition.questions.length,3);
+assert.equal(rows[0].definition.questions[0].id,'old');
+assert.equal(validateDefinition(rows[0].definition),null);
+assert.equal(validateAnswers(rows[0].definition,{}),null);
+assert.equal((await db.query("SELECT jsonb_array_length(definition->'questions') AS count FROM survey_versions WHERE id='11111111-1111-4111-8111-111111111111'")).rows[0].count,1);
+await db.exec(`INSERT INTO logs VALUES(1,'44444444-4444-4444-8444-444444444444','CHECKIN',now());
+INSERT INTO survey_entries SELECT gen_random_uuid(),l.id,'44444444-4444-4444-8444-444444444444','1',v.definition,'{"center_visit_purpose_v1":"자유롭게 쉬거나 놀려고","center_teacher_contact_v1":"아니요","private_text":"must never leak"}',false FROM survey_links l JOIN survey_versions v ON v.id=l.version_id;`);
+const evidence = (await db.query('SELECT * FROM center_integration.analysis_visit_initiative')).rows;
+assert.equal(evidence[0].purpose,'free_use'); assert.equal(evidence[0].teacher_contact,'no');
+assert.equal(JSON.stringify(evidence).includes('must never leak'),false);
+await db.exec("UPDATE survey_entries SET aggregation_excluded=true");
+assert.equal((await db.query('SELECT * FROM center_integration.analysis_visit_initiative')).rows.length,0);
+assert.equal((await db.query("SELECT has_table_privilege('anon','center_integration.analysis_visit_initiative','SELECT') AS allowed")).rows[0].allowed,false);
+console.log('PASS optional questions, immutable history, fixed-enum privacy projection, exclusions and ACL');
+} finally { await db.close(); }

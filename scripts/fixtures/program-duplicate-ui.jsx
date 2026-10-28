@@ -1,0 +1,16 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import AdminBoard from '../../src/components/admin/board/AdminBoard';
+import {noticesApi} from '../../src/api/noticesApi';
+import {supabase} from '../../src/supabaseClient';
+import {feedbackApi} from '../../src/api/feedbackApi';
+import {userApi} from '../../src/api/userApi';
+import {programSettingsApi} from '../../src/api/programSettingsApi';
+const source={id:123,title:'복제 검증 프로그램',short_description:'기존 프로그램 소개',content:'<p>프로그램의 상세 안내입니다.</p>',category:'PROGRAM',program_status:'ACTIVE',is_recruiting:true,program_date:'2026-11-03T08:30:00Z',program_duration:'2시간',program_location:'하이픈',max_capacity:20,images:['/logo.jpg'],target_regions:[],guest_properties:{allow_guest:true,show_application_count:true},application_form:null,challenge_missions:[]};
+noticesApi.fetchAll=async()=>[source];feedbackApi.fetchAllFeedbacks=async()=>[];userApi.fetchStaff=async()=>[];
+supabase.from=table=>{const result={data:table==='notices'?source:[],error:null};const q=new Proxy({}, {get:(_,key)=>key==='then'?(resolve=>Promise.resolve(result).then(resolve)):(...args)=>{if(['insert','update','delete','upsert'].includes(key))throw Error('Unexpected database write');return q;}});return q;};
+supabase.rpc=async()=>({data:[],error:null});
+supabase.channel=()=>{const c={on:()=>c,subscribe:()=>c};return c;};supabase.removeChannel=()=>{};
+programSettingsApi.save=async value=>{document.getElementById('result').textContent=JSON.stringify(value);return {id:456};};
+createRoot(document.getElementById('root')).render(<main style={{padding:24,maxWidth:1280,margin:'auto'}}><div role="status" id="result"/><AdminBoard mode="PROGRAM"/></main>);

@@ -5,7 +5,7 @@ const secret=()=>{const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);l
 
 // Keeps an uncertain request identity in memory for an explicit user retry.
 // Passwords and registration secrets are never written to browser storage.
-export function createRegistrationController({register}){
+export function createRegistrationController({register,getAccessToken=null}){
     if(typeof register!=='function')throw new Error('Registration transport required');let pending=null;
     return {
         async submit({password,details},{signal}={}){
@@ -13,7 +13,8 @@ export function createRegistrationController({register}){
                 throw new AuthOperationError('invalid_request');
             const fingerprint=JSON.stringify(details);
             if(!pending||pending.fingerprint!==fingerprint)pending={fingerprint,enrollmentId:crypto.randomUUID(),requestSecret:secret()};
-            const result=await register({protocol:1,enrollmentId:pending.enrollmentId,requestSecret:pending.requestSecret,password,details},{signal});
+            const accessToken=details.guestUserId&&getAccessToken?await getAccessToken():null;
+            const result=await register({protocol:1,enrollmentId:pending.enrollmentId,requestSecret:pending.requestSecret,password,details},{signal,accessToken});
             if(result?.protocol!==1||result.status!=='registered')throw new AuthOperationError('temporarily_unavailable');pending=null;return {status:'registered'};
         },
         clear(){pending=null;}

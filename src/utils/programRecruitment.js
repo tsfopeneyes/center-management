@@ -91,7 +91,7 @@ export const getRecruitment = (program, now = Date.now()) => {
     else if ((startValue && (!Number.isFinite(start) || !Number.isFinite(end) || start >= end)) || (end != null && !Number.isFinite(end))) status = 'INVALID';
     else if (start != null && time < start) status = 'SCHEDULED';
     const preparing = Boolean(startValue && (program.recruitment_details_ready ?? program.guest_properties?.recruitment_details_ready) !== true);
-    const label = { OPEN: '모집 중', SCHEDULED: '모집 예정', CLOSED: '종료', CANCELLED: '취소', INVALID: '일정 확인 중' }[status];
+    const label = { OPEN: '모집 중', SCHEDULED: '모집 예정', CLOSED: '모집 마감', CANCELLED: '취소', INVALID: '일정 확인 중' }[status];
     const awaitingFullDetails = program.is_program_preview === true;
     const canViewDetails = !['SCHEDULED', 'INVALID'].includes(status) && !preparing
         && !(start != null && time < start) && !awaitingFullDetails;

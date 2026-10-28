@@ -9,6 +9,7 @@ import { processAnalyticsData, processUserAnalytics, processProgramAnalytics } f
 import { aggregateVisitSessions } from '../utils/visitUtils';
 import { feedbackApi } from '../api/feedbackApi';
 import { requestSupabaseRest } from '../utils/supabaseRest';
+import { fetchRestPages } from '../utils/fetchRestPages';
 import { calculateCurrentLocations, mergeRealtimeVisitLog, sortVisitLogsChronologically } from '../utils/liveOccupancyUtils';
 import { getTodayVisitState, recordVisitEvent } from '../utils/visitLifecycle';
 import { hasExpiredWebAccessTimestamp, removeWebAccessTimestamp } from '../utils/webAccessUtils';
@@ -195,11 +196,12 @@ const AdminDashboard = () => {
         const needsFullFetch = isFullFetch || activeMenu === 'STATISTICS' || activeMenu === 'REPORTS';
         if (needsFullFetch) setIsStatsLoading(true);
         const failedReads = [];
-        const readAdminData = async (label, path) => {
+        const readAdminData = async (label, path, allPages = false) => {
             try {
                 // Samsung Internet can abort Supabase client's internal request
                 // while restoring a PWA. Use the same resilient REST path as QR flows.
-                return await requestSupabaseRest(path, { requireAuth: true }, 3, 15000);
+                const request = pagePath => requestSupabaseRest(pagePath, { requireAuth: true }, 3, 15000);
+                return allPages ? await fetchRestPages(request, path) : await request(path);
             } catch (error) {
                 console.error(`Failed to load admin ${label}:`, error);
                 failedReads.push(label);
@@ -207,19 +209,19 @@ const AdminDashboard = () => {
             }
         };
         try {
-            const logLimit = activeMenu === 'STATISTICS' || isFullFetch ? 10000 : 2000;
+            const logLimit = 2000;
             let [userData, locData, lgData, noticeData, responseData, vNotesData, surveyDataList, surveyEntries, checkoutSurveyLinks, rawLogs, sLogs] = await Promise.all([
-                readAdminData('회원', 'users?select=*&order=name.asc'),
+                readAdminData('회원', 'users?select=*&order=name.asc,id.asc', needsFullFetch),
                 readAdminData('장소', 'locations?select=*&order=id.asc'),
                 readAdminData('장소 그룹', 'location_groups?select=*&order=created_at.asc'),
-                readAdminData('프로그램', 'notices?select=*&order=is_sticky.desc,created_at.desc'),
-                readAdminData('신청 내역', 'notice_responses?select=*'),
-                readAdminData('방문 메모', 'visit_notes?select=*'),
-                readAdminData('체크인 설문', 'checkin_surveys?select=*&order=created_at.desc&limit=1000'),
-                readAdminData('통합 퇴실 설문 응답', 'survey_entries?select=id,link_id,user_id,answers,location_id,visit_id,snapshot,aggregation_excluded,created_at&notice_id=is.null&order=created_at.desc&limit=10000'),
-                readAdminData('퇴실 설문 연결', 'survey_links?select=id,frequency&event=eq.CHECKOUT'),
-                readAdminData('입출입 기록', `logs?select=*&order=created_at.desc&limit=${logLimit}`),
-                readAdminData('학교 기록', 'school_logs?select=*,users(name),schools(name)&order=date.desc'),
+                readAdminData('프로그램', 'notices?select=*&order=is_sticky.desc,created_at.desc,id.asc', needsFullFetch),
+                readAdminData('신청 내역', 'notice_responses?select=*&order=id.asc', needsFullFetch),
+                readAdminData('방문 메모', 'visit_notes?select=*&order=id.asc', needsFullFetch),
+                readAdminData('체크인 설문', 'checkin_surveys?select=*&order=created_at.desc,id.asc&limit=1000', needsFullFetch),
+                readAdminData('통합 퇴실 설문 응답', 'survey_entries?select=id,link_id,user_id,answers,location_id,visit_id,snapshot,aggregation_excluded,created_at&notice_id=is.null&order=created_at.desc,id.asc&limit=10000', needsFullFetch),
+                readAdminData('퇴실 설문 연결', 'survey_links?select=id,frequency&event=eq.CHECKOUT&order=id.asc', needsFullFetch),
+                readAdminData('입출입 기록', `logs?select=*&order=created_at.desc,id.asc&limit=${logLimit}`, needsFullFetch),
+                readAdminData('학교 기록', 'school_logs?select=*,users(name),schools(name)&order=date.desc,id.asc', needsFullFetch),
             ]);
 
             // The web access page only needs a member's latest access time.

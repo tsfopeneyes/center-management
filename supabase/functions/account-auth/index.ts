@@ -43,6 +43,10 @@ const runtime=createRetryableRuntime(async()=>{
       AND to_regclass('account_security.guest_link_reviews') IS NOT NULL
       AND to_regclass('account_security.account_merge_receipts') IS NOT NULL
       AND to_regclass('account_security.member_terms_consents') IS NOT NULL
+      AND to_regclass('account_security.guest_login_profiles') IS NOT NULL
+      AND to_regclass('account_security.guest_login_provisions') IS NOT NULL
+      AND to_regclass('account_security.guest_login_claims') IS NOT NULL
+      AND to_regrole('account_guest_login_worker') IS NOT NULL
       AND to_regrole('account_member_admin_worker') IS NOT NULL
       AND to_regrole('account_merge_worker') IS NOT NULL AS ready`);
     if(rows[0]?.ready===true)readyUntil=Date.now()+5000;return rows[0]?.ready===true;

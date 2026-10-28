@@ -1,0 +1,37 @@
+{
+  "method": "Built-in imagegen",
+  "reference": "public/brand/center/welcome-opening-poster.jpg",
+  "direction": "Preserve the approved poster's skewed heavy Korean display lettering, diagonal brand-red bands, cream paper and original character identities. Preserve all Korean copy. Raster artwork with semantic HTML copy and functional navigation/chat overlays.",
+  "pages": [
+    {
+      "page": 2,
+      "character": "hati-heart.png",
+      "copy": "Title lettering: \"신앙 이야기도,\" and enormous \"내 이야기도.\" Body EXACT: \"학교에서 있었던 일, 요즘 좋아하는 것,\n혼자 고민하던 이야기까지.\" Then bold three lines EXACT \"서로의 삶과 이야기를 나누며\n하나님 나라의 기쁨을 누리는 자리에\n함께하고 싶어요!\" Then \"하이픈은 기독 청소년과 학교 안 예배공동체를 위한\n스쿨처치임팩트 센터예요.\"",
+      "asset": "public/brand/center/welcome-poster-2.png"
+    },
+    {
+      "page": 3,
+      "character": "pongpong-light.png",
+      "copy": "Title \"이 공간을\" then huge \"만든 사람들은?\" Body EXACT: \"청소년이 좋아하는 것을 발견하고,\n꿈을 키워갈 수 있도록 함께하는\n(재)더작은재단이 운영해요.\" Then \"2014년에 설립된\n문화체육관광부 소관 비영리 재단이에요.\" Then small heading \"함께하는 곳\" and partner names in legible two-column list EXACT: \"장로회신학대학교 기독교교육리더십연구소\", \"좋은교사 학교복음사역위원회\", \"스탠드그라운드\", \"학교기도불씨운동\".",
+      "asset": "public/brand/center/welcome-poster-3.png"
+    },
+    {
+      "page": 4,
+      "character": "cloudy-board.png",
+      "copy": "Title \"오늘은\" then huge \"뭐 하고 놀까?\" Five compact bold labels and EXACT readable descriptions: \"EAT\" \"같이 먹으면 더 맛있는 한 끼.\"; \"PLAY\" \"보드게임 한 판? 네 컷 사진? 릴스 촬영?\"; \"TALK\" \"시시콜콜한 수다부터 진지한 고민까지.\"; \"CREATE\" \"만들고, 꾸미고, 우리답게 표현하고.\"; \"WORSHIP\" \"평범한 하루 속에서도 하나님을 만나요.\"",
+      "asset": "public/brand/center/welcome-poster-4.png"
+    },
+    {
+      "page": 5,
+      "character": "didi-dumwalk.png",
+      "copy": "Title \"우리 학교에도\" then huge \"함께 예배할\n친구가 있을까?\" Body EXACT: \"학교에서 신앙 이야기를 나누고,\n함께 기도하고 예배하는 모임.\n우리는 스쿨처치라고 불러요.\" Then \"모임을 시작하고 싶을 때도,\n친구들과 더 가까워지고 싶을 때도,\n다른 학교의 친구들을 만나고 싶을 때도.\" End bold red \"하이픈에서 함께 만들어가요.\"",
+      "asset": "public/brand/center/welcome-poster-5.png"
+    },
+    {
+      "page": 6,
+      "character": "character-group.png",
+      "copy": "SPECIAL FINAL PAGE: dominant brand red #cf3a27 background, cream giant angled lettering, yellow button. Title EXACT \"하이픈에 오신 여러분을\n환영합니다!\" Huge central diagonal cream band says EXACT \"우리 2층에서\n만나요.\" Make 2층 enormous. Body EXACT \"여기까지 읽었다면 하이픈이 조금 궁금해졌나요?\n지금 이곳을 지나고 있다면\n2층으로 올라와 인사해 주세요!\" Lower yellow rectangular button at x5%-95%, y84%-90% says EXACT \"더 궁금한 게 있나요?\" with arrow at right. Under button at y91% small EXACT \"궁금한 점은 채팅으로 편하게 물어보세요.\"",
+      "asset": "public/brand/center/welcome-poster-6.png"
+    }
+  ]
+}

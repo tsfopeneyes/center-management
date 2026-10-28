@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Search, RefreshCw, ChevronRight, X } from 'lucide-react';
 import { mergeUserStats } from '../../../../api/userMergeApi';
@@ -8,17 +9,27 @@ import useModalClose from '../../../../hooks/useModalClose';
 const UserMergeModal = ({ 
     isMergeModalOpen, setIsMergeModalOpen, 
     editingUser, setEditingUser,
-    users, fetchData 
+    users = [], fetchData
 }) => {
-    useModalClose(isMergeModalOpen, () => setIsMergeModalOpen(false));
     const [mergeSearchTerm, setMergeSearchTerm] = useState('');
     const [merging, setMerging] = useState(false);
+    const [mergeError, setMergeError] = useState('');
+    const closeModal = () => { if (!merging) setIsMergeModalOpen(false); };
+    useModalClose(isMergeModalOpen, closeModal, { priority: 270 });
+
+    useEffect(() => {
+        if (isMergeModalOpen) {
+            setMergeSearchTerm('');
+            setMergeError('');
+        }
+    }, [isMergeModalOpen, editingUser?.id]);
 
     const handleMergeAction = async (primaryUser) => {
-        if (!editingUser || !primaryUser) return;
+        if (!editingUser || !primaryUser || merging) return;
         if (!confirm(`'${editingUser.name}'(임시)의 모든 활동 기록을 '${primaryUser.name}'(정식) 계정으로 병합하시겠습니까?\n병합 후 '${editingUser.name}' 계정은 삭제됩니다.`)) return;
 
         setMerging(true);
+        setMergeError('');
         try {
             const result = await mergeUserStats(editingUser.id, primaryUser.id);
             if (result.success) {
@@ -31,7 +42,7 @@ const UserMergeModal = ({
             }
         } catch (err) {
             console.error(err);
-            alert('병합 실패: ' + err.message);
+            setMergeError('병합 실패: ' + (err?.message || '잠시 후 다시 시도해주세요.'));
         } finally {
             setMerging(false);
         }
@@ -39,30 +50,24 @@ const UserMergeModal = ({
 
     const mergeCandidates = useMemo(() => {
         const recommendedId=editingUser?.linkReview?.newProfileId;
-        const recommended=recommendedId?users.find(user=>user.id===recommendedId):null;
+        const eligible = users.filter(user => user.id !== editingUser?.id && !user.preferences?.is_temporary && user.user_group !== '게스트');
+        const recommended=recommendedId?eligible.find(user=>user.id===recommendedId):null;
         if (!mergeSearchTerm.trim()) return recommended ? [recommended] : [];
-        const matches=users.filter(u =>
-            u.id !== editingUser?.id && 
-            !u.preferences?.is_temporary && 
-            u.user_group !== '게스트' &&
-            (u.name.includes(mergeSearchTerm) || (u.phone && u.phone.includes(mergeSearchTerm)))
+        const query = mergeSearchTerm.replace(/\s+/g, '').toLowerCase();
+        const phoneQuery = query.replace(/\D/g, '');
+        const matches=eligible.filter(u =>
+            String(u.name || '').replace(/\s+/g, '').toLowerCase().includes(query) ||
+            (phoneQuery && String(u.phone || '').replace(/\D/g, '').includes(phoneQuery))
         );
         return [...(recommended?[recommended]:[]),...matches.filter(user=>user.id!==recommendedId)].slice(0,5);
     }, [users, mergeSearchTerm, editingUser]);
 
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.key === 'Escape') setIsMergeModalOpen(false);
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [setIsMergeModalOpen]);
+    if (!isMergeModalOpen || !editingUser) return null;
 
-    if (!isMergeModalOpen) return null;
-
-    return (
-        <div onClick={(e) => { if (e.target === e.currentTarget) setIsMergeModalOpen(false); }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+    return createPortal(
+        <div data-testid="user-merge-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }} className="fixed inset-0 z-[270] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div 
+                role="dialog" aria-modal="true" aria-label="계정 연결 확인"
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -76,15 +81,16 @@ const UserMergeModal = ({
                         </h3>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">임시 데이터를 옮길 정식 계정을 선택하세요</p>
                     </div>
-                    <button onClick={() => setIsMergeModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition"><X size={20} className="text-gray-400" /></button>
+                    <button type="button" aria-label="계정 연결 확인 닫기" disabled={merging} onClick={closeModal} className="p-2 hover:bg-gray-200 rounded-full transition"><X size={20} className="text-gray-400" /></button>
                 </div>
 
                 <div className="p-6 space-y-4">
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-gray-400 uppercase ml-1">정식 계정 검색 (이름 또는 번호)</label>
+                        <label htmlFor="merge-account-search" className="text-xs font-bold text-gray-600 ml-1">정식 계정 검색 (이름 또는 번호)</label>
                         <div className="relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                             <input 
+                                id="merge-account-search" autoFocus disabled={merging}
                                 type="text" 
                                 placeholder="검색 후 아래에서 선택..."
                                 value={mergeSearchTerm}
@@ -94,11 +100,14 @@ const UserMergeModal = ({
                         </div>
                     </div>
 
+                    {mergeError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{mergeError}</p>}
+
                     <div className="space-y-2">
                         <p className="text-[10px] font-black text-gray-400 uppercase ml-1">계정 목록</p>
                         <div className="space-y-2 max-h-[250px] overflow-y-auto no-scrollbar">
                             {mergeCandidates.length > 0 ? mergeCandidates.map(u => (
                                 <button 
+                                    type="button"
                                     key={u.id}
                                     onClick={() => handleMergeAction(u)}
                                     disabled={merging}
@@ -133,7 +142,7 @@ const UserMergeModal = ({
                     </div>
                 )}
             </motion.div>
-        </div>
+        </div>, document.body
     );
 };
 

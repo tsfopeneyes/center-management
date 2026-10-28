@@ -1,168 +1,69 @@
 import React from 'react';
-import { Search, RefreshCw, FileSpreadsheet, Users, BellRing } from 'lucide-react';
+import { Search, RefreshCw, FileSpreadsheet, Users, BellRing, X, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { exportUsersToExcel } from '../../../../utils/exportUtils';
+import { USER_GROUPS, GRADE_OPTIONS, VISIT_OPTIONS, userFilterChips } from '../../../../utils/adminUserFilters';
 import AdminPageHeader from '../../common/AdminPageHeader';
 
-const UserFilters = ({
-    users, allLogs,
-    searchTerm, setSearchTerm,
-    filterGroup, setFilterGroup,
-    filterRegion, setFilterRegion,
-    excludeLeaders, setExcludeLeaders,
-    showOnlyNonSchoolChurch, setShowOnlyNonSchoolChurch,
-    showOnlyNew3Months, setShowOnlyNew3Months,
-    filteredUsers,
-    setNotificationModalOpen,
-    fetchData,
-    title = '이용자 관리',
-    subtitle = '전체 회원 목록 조회 및 정보 수정',
-    showActions = true,
-    showSearch = true,
-    compact = false
-}) => {
-    const actions = (showSearch || showActions) ? (
-        <div className="flex flex-col sm:flex-row gap-3 md:gap-4 w-full lg:w-auto items-stretch md:items-center">
-            <div className="relative flex-1 lg:min-w-[400px] flex gap-2 md:gap-3">
-                {showSearch && <div className="relative flex-1 group">
-                    <Search className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={18} md:size={20} />
-                    <input
-                        type="text"
-                        placeholder="이름, 학교, 연락처 검색..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-11 md:pl-14 p-3 md:p-3.5 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 transition-all font-bold text-gray-700 shadow-inner text-sm"
-                    />
-                </div>}
-                {showActions && <button
-                    onClick={() => exportUsersToExcel(users, allLogs)}
-                    className="bg-white text-green-600 border border-green-100 px-4 py-2.5 rounded-xl md:rounded-2xl font-black hover:bg-green-600 hover:text-white transition-all duration-300 flex items-center gap-2 shadow-sm whitespace-nowrap text-xs md:text-sm"
-                    title="엑셀 다운로드"
-                >
-                    <FileSpreadsheet size={16} />
-                    <span className="hidden sm:inline">내보내기</span>
-                </button>}
-                {showActions && <button
-                    onClick={() => setNotificationModalOpen(true)}
-                    className="bg-blue-600 text-white px-4 py-2.5 rounded-xl md:rounded-2xl font-black hover:bg-blue-700 transition-all duration-300 flex items-center gap-2 shadow-sm whitespace-nowrap text-xs md:text-sm"
-                    title="알림 발송"
-                >
-                    <BellRing size={16} />
-                    <span className="hidden sm:inline">알림 발송</span>
-                </button>}
-            </div>
-        </div>
-    ) : null;
-
-    return (
-        <div className="space-y-4 md:space-y-6 animate-fade-in-up">
-            <AdminPageHeader
-                title={title}
-                subtitle={subtitle}
-                icon={<Users />}
-                actions={actions}
-                compact={compact}
-            />
-
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
-                    <span className="w-20 shrink-0 text-[13px] font-black text-gray-600">학교 지역</span>
-                    <div className="flex min-w-0 gap-1.5 overflow-x-auto no-scrollbar py-1">
-                        {[
-                            ['ALL', '전체'],
-                            ['강동', '강동'],
-                            ['강서', '강서'],
-                            ['미지정', '미지정']
-                        ].map(([value, label]) => (
-                            <button
-                                key={value}
-                                type="button"
-                                onClick={() => setFilterRegion(value)}
-                                aria-pressed={filterRegion === value}
-                                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-bold transition md:text-[13px] ${filterRegion === value
-                                    ? value === '강서'
-                                        ? 'border-purple-600 bg-purple-600 text-white shadow-sm'
-                                        : value === '미지정'
-                                            ? 'border-gray-600 bg-gray-600 text-white shadow-sm'
-                                            : 'border-blue-600 bg-blue-600 text-white shadow-sm'
-                                    : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <span className="w-20 shrink-0 text-[13px] font-black text-gray-600">이용자 유형</span>
-                        <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 items-center">
-                    {['ALL:전체', 'NEW_3M:신규 (3개월)', 'LEADER:리더', '청소년:청소년', '졸업생:졸업생', 'STAFF:STAFF', 'TEMP_GUEST:게스트'].map((g) => {
-                        const [val, label] = g.split(':');
-                        return (
-                            <button key={val} onClick={() => {
-                                setFilterGroup(val);
-                                if (val !== '청소년') {
-                                    setExcludeLeaders(false);
-                                    setShowOnlyNonSchoolChurch(false);
-                                }
-                            }} className={`px-3 py-1.5 rounded-lg text-xs md:text-[13px] font-bold whitespace-nowrap transition shadow-sm ${filterGroup === val
-                                ? (val === 'TEMP_GUEST' ? 'bg-amber-500 text-white border-amber-500' : val === 'NEW_3M' ? 'bg-emerald-600 text-white border-emerald-600 font-extrabold' : 'bg-blue-600 text-white border-blue-600')
-                                : 'bg-gray-50 border border-gray-200 text-gray-500 hover:bg-gray-100'}`}>
-                                {label}
-                            </button>
-                        )
-                    })}
-
-                    {filterGroup !== 'NEW_3M' && (
-                        <button
-                            onClick={() => setShowOnlyNew3Months(!showOnlyNew3Months)}
-                            className={`px-3 py-1.5 rounded-lg text-xs md:text-[13px] font-bold whitespace-nowrap transition shadow-sm flex items-center gap-1.5 ml-1 ${showOnlyNew3Months
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-emerald-100'
-                                : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
-                                }`}
-                            title="최근 3개월 이내 가입한 회원만 보기"
-                        >
-                            <div className={`w-3 h-3 rounded-sm border flex items-center justify-center transition-colors ${showOnlyNew3Months ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-gray-300'
-                                }`}>
-                                {showOnlyNew3Months && <svg viewBox="0 0 14 14" className="w-2 h-2 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 7 6 10 11 4"></polyline></svg>}
-                            </div>
-                            최근 3개월 가입
-                        </button>
-                    )}
-
-                    {filterGroup === '청소년' && (
-                        <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-200">
-                            
-                            <button
-                                onClick={() => setShowOnlyNonSchoolChurch(!showOnlyNonSchoolChurch)}
-                                className={`px-3 py-1.5 rounded-lg text-xs md:text-[13px] font-bold whitespace-nowrap transition shadow-sm flex items-center gap-1.5 ${showOnlyNonSchoolChurch
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-emerald-100'
-                                    : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
-                                    }`}
-                            >
-                                <div className={`w-3 h-3 rounded-sm border flex items-center justify-center transition-colors ${showOnlyNonSchoolChurch ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-gray-300'
-                                    }`}>
-                                    {showOnlyNonSchoolChurch && <svg viewBox="0 0 14 14" className="w-2 h-2 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 7 6 10 11 4"></polyline></svg>}
-                                </div>
-                                스처 X
-                            </button>
-                        </div>
-                    )}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-[13px] font-black shadow-sm flex items-center gap-1.5">
-                        <Users size={14} className="text-blue-500" />
-                        {filteredUsers.length}명
-                    </div>
-                    <button onClick={fetchData} className="p-2 text-gray-400 hover:text-blue-600 bg-white border border-gray-200 rounded-lg shadow-sm" title="새로고침">
-                        <RefreshCw size={16} />
-                    </button>
-                    </div>
+const choiceClass = selected => 'min-h-10 rounded-lg border px-3 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ' + (selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50');
+function FilterRow({ label, children, hint }) {
+    return <fieldset className="flex min-w-0 flex-col gap-2 py-2.5 sm:flex-row sm:items-start sm:gap-4">
+        <legend className="sr-only">{label}</legend>
+        <span aria-hidden="true" className="w-20 shrink-0 pt-2 text-sm font-bold text-gray-700">{label}</span>
+        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2">{children}</div>{hint && <p className="mt-2 text-xs leading-5 text-gray-600">{hint}</p>}</div>
+    </fieldset>;
+}
+export default function UserFilters({ allLogs = [], searchTerm, setSearchTerm, filters, setFilters, resetFilters, filteredUsers = [], setNotificationModalOpen, fetchData, visitStatus = 'ready', retryVisits, title = '이용자 관리', subtitle = '전체 회원 목록 조회 및 정보 수정', showActions = true, showSearch = true, compact = false }) {
+    const update = (key, value) => setFilters(current => ({ ...current, [key]: value, ...(key === 'schoolChurch' && value === 'NO' ? { leader: 'ALL' } : {}) }));
+    const chips = userFilterChips(filters, searchTerm);
+    const visitPending = filters.visit !== 'ALL' && visitStatus !== 'ready';
+    const detailCount = Number(filters.joined !== 'ALL') + Number(filters.visit !== 'ALL') + Number(Boolean(filters.grades?.length));
+    const invalidDates = filters.joined === 'CUSTOM' && filters.start && filters.end && filters.start > filters.end;
+    const remove = key => {
+        if (key === 'search') return setSearchTerm('');
+        if (key.startsWith('grade:')) return update('grades', filters.grades.filter(grade => grade !== key.slice(6)));
+        if (key.startsWith('group:')) return update('groups', filters.groups.filter(group => group !== key.slice(6)));
+        if (key === 'joined') return setFilters(current => ({ ...current, joined: 'ALL', start: '', end: '' }));
+        update(key, 'ALL');
+    };
+    const choices = (key, options) => options.map(([value, label]) => <button key={value} type="button" aria-pressed={filters[key] === value} onClick={() => update(key, value)} className={choiceClass(filters[key] === value)}>{label}</button>);
+    return <div className="space-y-4 md:space-y-6">
+        <AdminPageHeader title={title} subtitle={subtitle} icon={<Users />} compact={compact} actions={(showSearch || showActions) ? <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto">
+            {showSearch && <div className="relative min-w-0 flex-1 lg:min-w-[280px]"><Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" /><input aria-label="이용자 검색" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="이름, 학교, 연락처 검색" className="min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm text-gray-800 placeholder:text-gray-500 focus:border-blue-600 focus:outline-none" /></div>}
+            {showActions && <><button type="button" disabled={!filteredUsers.length || Boolean(invalidDates) || visitPending} onClick={() => exportUsersToExcel(filteredUsers, allLogs)} className="flex min-h-11 items-center gap-2 rounded-xl border border-green-200 bg-white px-4 py-2 text-sm font-bold text-green-700 hover:bg-green-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-700 disabled:cursor-not-allowed disabled:opacity-50" title="현재 조회된 이용자만 엑셀로 저장"><FileSpreadsheet size={17} />결과 내보내기</button><button type="button" onClick={() => setNotificationModalOpen(true)} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"><BellRing size={17} />알림 발송</button></>}
+        </div> : null} />
+        <section aria-label="이용자 필터" className="rounded-2xl border border-gray-200 bg-white px-4 sm:px-5">
+            <div className="divide-y divide-gray-100">
+                <FilterRow label="학교 지역">{choices('region', [['ALL', '전체'], ['강동', '강동'], ['강서', '강서'], ['미지정', '미지정']])}</FilterRow>
+                <FilterRow label="이용자 유형">
+                    <button type="button" className={choiceClass(!filters.groups.length)} aria-pressed={!filters.groups.length} onClick={() => update('groups', [])}>전체</button>
+                    {USER_GROUPS.map(group => <button key={group} type="button" className={choiceClass(filters.groups.includes(group))} aria-pressed={filters.groups.includes(group)} onClick={() => update('groups', filters.groups.includes(group) ? filters.groups.filter(item => item !== group) : [...filters.groups, group])}>{group}</button>)}
+                </FilterRow>
+                <div className="grid gap-x-8 lg:grid-cols-[max-content_1fr]">
+                <FilterRow label="스쿨처치">{choices('schoolChurch', [['ALL', '전체'], ['YES', '참여'], ['NO', '미참여']])}</FilterRow>
+                {filters.schoolChurch !== 'NO' && <FilterRow label="리더 여부">{choices('leader', [['ALL', '전체'], ['YES', '리더'], ['NO', '리더 아님']])}</FilterRow>}
                 </div>
             </div>
-        </div>
-    );
-};
-
-export default UserFilters;
+            <details className="group border-t border-gray-100">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-semibold text-gray-600 hover:text-blue-700 focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden"><SlidersHorizontal size={15} /><span>상세 필터</span>{(detailCount > 0) && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-800">{detailCount}개 적용</span>}<ChevronDown size={15} className="ml-auto transition-transform group-open:rotate-180" /></summary>
+                <div className="divide-y divide-gray-100 pb-2">
+                <FilterRow label="가입 기간">
+                    {choices('joined', [['ALL', '전체'], ['1M', '최근 1개월'], ['3M', '최근 3개월'], ['CUSTOM', '직접 지정']])}
+                    {filters.joined === 'CUSTOM' && <div className="flex w-full flex-wrap items-center gap-2 pt-1"><label className="flex items-center gap-2 text-sm text-gray-700">시작일<input type="date" value={filters.start} onChange={event => update('start', event.target.value)} aria-invalid={Boolean(invalidDates)} aria-describedby={invalidDates ? 'user-filter-date-error' : undefined} className="min-h-10 min-w-0 rounded-lg border border-gray-300 px-2 text-sm" /></label><label className="flex items-center gap-2 text-sm text-gray-700">종료일<input type="date" value={filters.end} onChange={event => update('end', event.target.value)} aria-invalid={Boolean(invalidDates)} aria-describedby={invalidDates ? 'user-filter-date-error' : undefined} className="min-h-10 min-w-0 rounded-lg border border-gray-300 px-2 text-sm" /></label><p className="w-full text-xs text-gray-600">한국 시간 기준이며, 시작일과 종료일을 모두 포함합니다. 비워 둔 쪽은 기간을 제한하지 않습니다.</p>{invalidDates && <p id="user-filter-date-error" role="alert" className="w-full text-sm font-semibold text-red-700">종료일을 시작일과 같거나 이후로 선택해 주세요.</p>}</div>}
+                </FilterRow>
+                <FilterRow label="최근 센터 방문" hint="전체 센터의 입실 기록 기준 · 최근 기간은 오늘을 포함합니다. 방문 기록 없음은 저장된 입실 기록이 없는 경우입니다.">
+                    {choices('visit', VISIT_OPTIONS)}
+                    {visitPending && <div className="w-full text-sm text-gray-600" role="status">{visitStatus === 'error' ? <span className="text-red-700">입실 기록을 불러오지 못했습니다. <button type="button" onClick={retryVisits} className="min-h-9 px-2 font-bold underline">다시 불러오기</button></span> : '입실 기록을 확인하고 있습니다…'}</div>}
+                </FilterRow>
+                <FilterRow label="나이대" hint="생년월일 기준의 일반 진학 나이대이며 실제 학년과 다를 수 있습니다. 매년 3월 기준으로 변경되며 여러 개를 선택할 수 있습니다.">
+                    <button type="button" className={choiceClass(!filters.grades?.length)} aria-pressed={!filters.grades?.length} onClick={() => update('grades', [])}>전체</button>
+                    {GRADE_OPTIONS.map(grade => <button key={grade} type="button" className={choiceClass(filters.grades?.includes(grade))} aria-pressed={Boolean(filters.grades?.includes(grade))} onClick={() => update('grades', filters.grades?.includes(grade) ? filters.grades.filter(item => item !== grade) : [...(filters.grades || []), grade])}>{grade}</button>)}
+                </FilterRow>
+                </div>
+            </details>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 py-3">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2"><span className="text-xs font-bold text-gray-600">적용 조건</span>{chips.length ? chips.map(chip => <button key={chip.key} type="button" onClick={() => remove(chip.key)} aria-label={chip.label + ' 조건 해제'} className="flex min-h-8 max-w-full items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-100"><span className="break-all">{chip.label}</span><X size={13} className="shrink-0" /></button>) : <span className="text-sm text-gray-600">전체 이용자 · 게스트 제외</span>}{chips.length > 0 && <button type="button" onClick={resetFilters} className="min-h-8 px-2 text-xs font-bold text-gray-600 underline underline-offset-4 hover:text-gray-900">전체 초기화</button>}</div>
+                <div className="flex shrink-0 items-center gap-3"><span role="status" aria-live="polite" className="flex items-center gap-1.5 text-sm font-bold text-blue-700"><Users size={16} />{visitPending ? (visitStatus === 'error' ? '조회 실패' : '조회 중') : filteredUsers.length + '명'}</span><button type="button" onClick={fetchData} title="새로고침" aria-label="이용자 새로고침" className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50"><RefreshCw size={16} /></button></div>
+            </div>
+        </section>
+    </div>;
+}

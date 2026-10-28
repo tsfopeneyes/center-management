@@ -7,14 +7,16 @@ import { programSessionsApi } from '../api/programSessionsApi';
 import { programApplicationsApi } from '../api/programApplicationsApi';
 import { usesDailySessionRsvp } from '../utils/dailyProgramSessions';
 import { sendProgramApplicationNotification } from '../utils/integrationUtils';
+import { subscribeDataRefresh } from '../utils/dataRefresh';
 
 export const useNotices = (userId) => {
     const [notices, setNotices] = useState([]);
     const [responses, setResponses] = useState({});
     const [responseDetails, setResponseDetails] = useState({});
     const [loading, setLoading] = useState(false);
+    const [readState, setReadState] = useState({ checkedAt: null, failed: false });
 
-    const fetchNotices = useCallback(async () => {
+    const fetchNotices = useCallback(async ({ throwOnError = false } = {}) => {
         setLoading(true);
         try {
             let data = await noticesApi.fetchAll();
@@ -36,6 +38,7 @@ export const useNotices = (userId) => {
             }));
 
             setNotices(enrichedNotices);
+            setReadState({ checkedAt: Date.now(), failed: false });
 
             if (userId) {
                 const resData = await noticesApi.fetchResponses(userId);
@@ -55,7 +58,9 @@ export const useNotices = (userId) => {
                 setResponseDetails(resDetailsMap);
             }
         } catch (err) {
+            setReadState(previous => ({ ...previous, failed: true }));
             console.error('Error fetching notices:', err);
+            if (throwOnError) throw err;
         } finally {
             setLoading(false);
         }
@@ -222,6 +227,7 @@ export const useNotices = (userId) => {
 
     useEffect(() => {
         fetchNotices();
+        const stopRefresh = subscribeDataRefresh(() => fetchNotices({ throwOnError: true }));
 
         // Supabase Realtime Listener for instant cross-device updates (Mobile <-> Desktop)
         const channel = supabase
@@ -238,6 +244,7 @@ export const useNotices = (userId) => {
         document.addEventListener('visibilitychange', refreshVisible);
 
         return () => {
+            stopRefresh();
             window.clearInterval(interval);
             window.removeEventListener('focus', refreshVisible);
             document.removeEventListener('visibilitychange', refreshVisible);
@@ -260,6 +267,7 @@ export const useNotices = (userId) => {
         responses,
         responseDetails,
         loading,
+        readState,
         fetchNotices,
         handleResponse
     };

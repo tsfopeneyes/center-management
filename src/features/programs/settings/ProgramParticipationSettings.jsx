@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { ChevronUp, ChevronDown, Trash } from 'lucide-react';
-import { createDailySessionField, MAX_DAILY_SESSION_FIELDS } from '../../../utils/dailyProgramSessions';
+import { createDailySessionField, MAX_DAILY_SESSION_FIELDS, resolveProgramApplicationScope } from '../../../utils/dailyProgramSessions';
 
 const ProgramParticipationSettings = ({ formData, updateField, section = 'all' }) => (
     <>
@@ -42,6 +42,7 @@ const ProgramParticipationSettings = ({ formData, updateField, section = 'all' }
                     onClick={() => {
                         updateField('is_challenge', false);
                         updateField('is_recruiting', true);
+                        updateField('application_scope', resolveProgramApplicationScope({ ...formData, is_recruiting: true, is_challenge: false }));
                     }}
                     className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
                         (formData.is_recruiting === true && !formData.is_challenge)
@@ -172,7 +173,6 @@ const ProgramParticipationSettings = ({ formData, updateField, section = 'all' }
                             && !window.confirm('참여 방식을 바꾸면 작성한 미션이 삭제됩니다. 계속할까요?')) return;
                         if (formData.challenge_format === 'ONLINE') updateField('challenge_missions', []);
                         updateField('challenge_format', 'OFFLINE');
-                        updateField('community_enabled', false);
                     }} className={`p-4 rounded-2xl border-2 text-left ${(formData.challenge_format || 'OFFLINE') === 'OFFLINE' ? 'border-blue-600 bg-blue-50' : 'border-slate-100'}`}>
                         <p className="text-sm font-black text-slate-800">오프라인 챌린지</p><p className="mt-1 text-xs text-slate-500">정해진 장소에서 미션 수행 후 인증</p>
                     </button>

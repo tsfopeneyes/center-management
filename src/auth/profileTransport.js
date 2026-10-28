@@ -1,10 +1,10 @@
 import {AuthOperationError} from './loginTransport.js';
 
-export function createProfileTransport({endpoint,publishableKey,fetcher=fetch,timeoutMs=10000}){
+export function createProfileTransport({endpoint,publishableKey,fetcher=fetch,timeoutMs=20000}){
     const url=new URL(endpoint);
     if(url.username||url.password||url.search||url.hash||(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1'].includes(url.hostname)))||
         !Number.isFinite(timeoutMs)||timeoutMs<1000||timeoutMs>30000)throw new Error('Invalid profile endpoint configuration');
-    return async(input,{accessToken,signal}={})=>{
+    const send = async(input,{accessToken,signal}={})=>{
         if(typeof accessToken!=='string'||!accessToken||accessToken.length>8192)throw new AuthOperationError('invalid_login');
         const abort=new AbortController(),cancel=()=>abort.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
         const timer=setTimeout(cancel,timeoutMs);
@@ -17,5 +17,15 @@ export function createProfileTransport({endpoint,publishableKey,fetcher=fetch,ti
             return result;
         }catch(error){if(error instanceof AuthOperationError)throw error;throw new AuthOperationError(abort.signal.aborted?'cancelled':'temporarily_unavailable');}
         finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
+    };
+    return async(input,options={})=>{
+        try{return await send(input,options);}
+        catch(error){
+            // Only the own-profile read is safe to repeat. Login issuance and
+            // profile writes are never automatically repeated after a timeout.
+            if(input?.action!=='read'||options.signal?.aborted
+                ||!['temporarily_unavailable','cancelled'].includes(error?.code))throw error;
+            return send(input,options);
+        }
     };
 }

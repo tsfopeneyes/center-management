@@ -4,7 +4,7 @@ import { userApi } from '../../../../api/userApi';
 import { normalizeSchoolName } from '../../../../utils/schoolUtils';
 import { isAdminOrStaff } from '../../../../utils/userUtils';
 
-export const useAdminSchool = ({ users, refreshDashboardData }) => {
+export const useAdminSchool = ({ users, refreshDashboardData, mapView = false }) => {
     const [schools, setSchools] = useState([]);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -212,7 +212,7 @@ export const useAdminSchool = ({ users, refreshDashboardData }) => {
 
         // 1. First, create groups for all official schools (metadata)
         schools.forEach(s => {
-            if (selectedRegion !== 'ALL') {
+            if (!mapView && selectedRegion !== 'ALL') {
                 if (selectedRegion === '미지정') {
                     if (s.region) return;
                 } else if (s.region !== selectedRegion) {
@@ -229,27 +229,29 @@ export const useAdminSchool = ({ users, refreshDashboardData }) => {
 
         // 2. Then, add students to those groups, creating new ones if necessary
         adolescents.forEach(u => {
-            if (!u.school) return;
+            if (!u.school && !u.school_id) return;
             const normName = normalizeSchoolName(u.school);
 
             const schoolMeta = (u.school_id ? schoolsById.get(String(u.school_id)) : null)
                 || normalizedSchools.get(normName)
                 || schools.find(s => s.name === u.school);
+            const groupKey = schoolMeta ? normalizeSchoolName(schoolMeta.name) : normName;
+            if (!groupKey) return;
 
             // Re-check region filter
-            if (selectedRegion !== 'ALL') {
+            if (!mapView && selectedRegion !== 'ALL') {
                 const region = schoolMeta?.region || '미지정';
                 if (region !== selectedRegion) return;
             }
 
-            if (!groups[normName]) {
-                groups[normName] = {
+            if (!groups[groupKey]) {
+                groups[groupKey] = {
                     name: schoolMeta ? schoolMeta.name : u.school,
                     students: [],
                     metadata: schoolMeta || null
                 };
             }
-            groups[normName].students.push(u);
+            groups[groupKey].students.push(u);
         });
 
         return Object.values(groups).filter(g =>
@@ -271,7 +273,7 @@ export const useAdminSchool = ({ users, refreshDashboardData }) => {
             // Then alphabetical
             return a.name.localeCompare(b.name, 'ko');
         });
-    }, [users, schools, searchTerm, selectedRegion, favorites]);
+    }, [users, schools, searchTerm, selectedRegion, favorites, mapView]);
 
     // Derived State for Modal
     const targetSchool = useMemo(() => {

@@ -8,6 +8,8 @@ import ContentPostModal from './modals/ContentPostModal';
 import { parseContentPost, sortContentPosts } from '../../utils/contentPosts';
 import { isAdminOrStaff } from '../../utils/userUtils';
 import ContentImage from '../common/ContentImage';
+import { useDataReload } from '../../hooks/useDataReload';
+import { subscribeDataRefresh } from '../../utils/dataRefresh';
 
 const StudentCenterTab = ({
     user,
@@ -26,6 +28,7 @@ const StudentCenterTab = ({
     onTutorialProgramOpen,
     onTutorialClose
 }) => {
+    const dataReload = useDataReload();
     const [contents, setContents] = useState([]);
     const [rentals, setRentals] = useState([]);
     const [bookings, setBookings] = useState([]);
@@ -48,9 +51,12 @@ const StudentCenterTab = ({
         fetchContents();
         fetchRentals();
         fetchBookings();
-    }, [studentSchool, selectedRegion, refreshTrigger]);
+        return subscribeDataRefresh(() => Promise.all([
+            fetchContents({ throwOnError: true }), fetchRentals({ throwOnError: true }), fetchBookings({ throwOnError: true })
+        ]));
+    }, [user?.id, user?.role, studentSchool, studentRegion, selectedRegion, refreshTrigger, dataReload]);
 
-    const fetchContents = async () => {
+    const fetchContents = async ({ throwOnError = false } = {}) => {
         setLoadingContents(true);
         try {
             let query = supabase.from('contents').select('*, schools(region)');
@@ -74,12 +80,13 @@ const StudentCenterTab = ({
             setContents(sortContentPosts((data || []).map(parseContentPost).filter(Boolean)));
         } catch (error) {
             console.error('Error fetching contents:', error);
+            if (throwOnError) throw error;
         } finally {
             setLoadingContents(false);
         }
     };
 
-    const fetchRentals = async () => {
+    const fetchRentals = async ({ throwOnError = false } = {}) => {
         setLoadingRentals(true);
         try {
             let query = supabase.from('rentals').select('*, schools(region)');
@@ -130,12 +137,13 @@ const StudentCenterTab = ({
             setRentals(sorted);
         } catch (error) {
             console.error('Error fetching rentals:', error);
+            if (throwOnError) throw error;
         } finally {
             setLoadingRentals(false);
         }
     };
 
-    const fetchBookings = async () => {
+    const fetchBookings = async ({ throwOnError = false } = {}) => {
         try {
             const today = new Date().toISOString().split('T')[0];
             const { data, error } = await supabase
@@ -146,6 +154,7 @@ const StudentCenterTab = ({
             setBookings(data || []);
         } catch (error) {
             console.error('Error fetching bookings:', error);
+            if (throwOnError) throw error;
         }
     };
 

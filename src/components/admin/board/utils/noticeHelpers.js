@@ -1,3 +1,4 @@
+import { getProgramButtons } from '../../../../features/programs/programButtons';
 import { extractProgramInfo } from '../../../../utils/textUtils';
 import { formatToLocalISO } from '../../../../utils/dateUtils';
 import { toKstInput, getRecruitmentStart } from '../../../../utils/programRecruitment';
@@ -153,7 +154,8 @@ export const prepareNoticeForEdit = (notice) => {
         poll_deadline: notice.poll_deadline ? formatToLocalISO(notice.poll_deadline) : '',
         poll_options: notice.poll_options || [],
         haifn_reward: notice.haifn_reward || 0,
-        challenge_reward_criterion: notice.guest_properties?.challenge_reward_criterion || 'ALL',
+        challenge_reward_criterion: notice.guest_properties?.challenge_reward_criterion === 'FIRST_MISSION' ? 'COUNT' : (notice.guest_properties?.challenge_reward_criterion || 'ALL'),
+        challenge_reward_count: notice.guest_properties?.challenge_reward_criterion === 'FIRST_MISSION' ? 1 : (Number(notice.guest_properties?.challenge_reward_count) || 1),
         challenge_reward_percent: Number(notice.guest_properties?.challenge_reward_percent) || 100,
         is_review_required: notice.is_review_required || false,
         program_start_date: notice.program_start_date ? formatToLocalISO(notice.program_start_date).split('T')[0] : '',
@@ -182,6 +184,7 @@ export const prepareNoticeForEdit = (notice) => {
         challenge_show_haifn_btn: notice.challenge_show_haifn_btn ?? false,
         community_enabled: notice.community_enabled ?? false,
         community_channel_id: notice.guest_properties?.community_channel_id || '',
+        _initial_community_channel_id: notice.guest_properties?.community_channel_id || '',
         guest_properties: {
             ...(notice.guest_properties || { allow_guest: true }),
             require_school: true,
@@ -190,6 +193,7 @@ export const prepareNoticeForEdit = (notice) => {
         application_form: notice.application_form || null,
         open_participation_mode: notice.guest_properties?.open_participation_mode || 'NONE',
         daily_session_fields: getDailySessionFields(notice),
+        program_buttons: getProgramButtons(notice),
         enable_post_program_button: notice.guest_properties?.enable_post_program_button ?? notice.enable_post_program_button ?? false,
         post_program_button_trigger: notice.guest_properties?.post_program_button_trigger ?? notice.post_program_button_trigger ?? 'start_time',
         post_program_button_offset_minutes: Number(notice.guest_properties?.post_program_button_offset_minutes ?? notice.post_program_button_offset_minutes ?? 0),

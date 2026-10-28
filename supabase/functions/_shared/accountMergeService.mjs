@@ -1,4 +1,5 @@
 import {LoginError,isProfileId} from './loginSecurity.mjs';
+import {mergeProgramActivity} from './accountMergePrograms.mjs';
 
 const columns=Object.freeze([
     ['logs','user_id'],['haifn_transactions','user_id'],['notice_responses','user_id'],['user_badges','user_id'],
@@ -14,7 +15,11 @@ const columns=Object.freeze([
     ['rental_bookings','user_id'],['store_orders','user_id'],['user_notification_reads','user_id'],['center_daily_chats','user_id'],
     ['admin_templates','user_id'],['app_notifications','user_id'],['app_notifications','sender_id'],
     ['messages','sender_id'],['messages','receiver_id'],['coffee_chats','student_id'],
-    ['calling_forest_progress','student_id'],['push_dispatch_recipients','user_id'],['program_push_recipients','user_id']
+    ['calling_forest_progress','student_id'],['push_dispatch_recipients','user_id'],['program_push_recipients','user_id'],
+    ['daily_program_session_responses','user_id'],['open_program_attendance','user_id'],['program_attendance','user_id'],
+    ['program_application_attempt_history','user_id'],['program_session_application_attempt_history','user_id'],
+    ['offline_challenge_submissions','participant_id'],['online_challenge_submissions','participant_id'],
+    ['challenge_completion_rewards','participant_id'],['program_close_reward_grants','user_id']
 ]);
 const ident=value=>'"'+String(value).replaceAll('"','""')+'"';
 
@@ -37,6 +42,9 @@ export function createAccountMergeService({pool,authorize,readiness=async()=>fal
             if(liveActor!==1)throw new LoginError('forbidden',403);
             await client.query("SELECT set_config('app.merge_source_id',$1,true)",[sourceProfileId]);
             await client.query("SELECT set_config('app.merge_target_id',$1,true)",[targetProfileId]);
+            // Serialize merges sharing either profile, always in the same order.
+            for(const id of [sourceProfileId,targetProfileId].sort())
+                await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[id]);
             const profiles=(await client.query(`SELECT id,auth_user_id,user_group,preferences,current_haifn,school FROM public.users
                 WHERE id=ANY($1::uuid[]) ORDER BY id`,[[sourceProfileId,targetProfileId]])).rows;
             const source=profiles.find(item=>item.id===sourceProfileId),target=profiles.find(item=>item.id===targetProfileId);
@@ -49,14 +57,22 @@ export function createAccountMergeService({pool,authorize,readiness=async()=>fal
             if(sourceMapped||targetMapped!==1)throw new LoginError('account_changed',409);
             const reviewed=new Set(columns.map(([table,column])=>`${table}:${column}`));
             const references=(await client.query(`SELECT c.relname AS table_name,a.attname AS column_name,
-                has_table_privilege(current_user,c.oid,'SELECT') AS can_select,
+                has_column_privilege(current_user,c.oid,a.attnum,'SELECT') AS can_select,
                 has_column_privilege(current_user,c.oid,a.attnum,'UPDATE') AS can_update
                 FROM pg_constraint fk JOIN pg_class c ON c.oid=fk.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace
                 JOIN pg_attribute a ON a.attrelid=fk.conrelid AND a.attnum=fk.conkey[1]
                 WHERE fk.contype='f' AND fk.confrelid='public.users'::regclass AND n.nspname='public'
                 AND cardinality(fk.conkey)=1 AND cardinality(fk.confkey)=1`)).rows;
             const readOnlyReviewed=new Set();
-            for(const reference of references){if(reference.can_select===false)throw new LoginError('merge_requires_review',409);
+            for(const reference of references){
+                if(reference.can_select===false){
+                    // New unrelated FK tables must not block all guest merges.
+                    // The private helper returns only existence, never contents.
+                    const affected=(await client.query('SELECT account_security.merge_reference_has_rows($1,$2,$3) AS affected',
+                        [reference.table_name,reference.column_name,sourceProfileId])).rows[0]?.affected;
+                    if(affected!==false)throw new LoginError('merge_requires_review',409);
+                    continue;
+                }
                 const key=`${reference.table_name}:${reference.column_name}`;
                 if(reviewed.has(key)&&reference.can_update!==false)continue;
                 const affected=(await client.query(`SELECT 1 FROM public.${ident(reference.table_name)}
@@ -64,6 +80,7 @@ export function createAccountMergeService({pool,authorize,readiness=async()=>fal
                 if(affected)throw new LoginError('merge_requires_review',409);
                 if(reviewed.has(key))readOnlyReviewed.add(key);
             }
+            await mergeProgramActivity(client,{requestId,sourceProfileId,targetProfileId});
             await client.query(`UPDATE public.users SET current_haifn=COALESCE(current_haifn,0)+GREATEST($2::numeric,0),
                 school=CASE WHEN COALESCE(school,'')='' THEN $3 ELSE school END WHERE id=$1`,
                 [targetProfileId,Number(source.current_haifn)||0,source.school||null]);

@@ -1,9 +1,15 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 // Deliberately limited to isolated tests. Do not add scripts that connect to
 // production, modify live data, or require local credentials to this list.
 const checks = [
     ['라우팅', 'test-home-entry.mjs'],
     ['계정 경로', 'test-account-auth-routing.mjs'],
     ['계정 권한', 'test-account-authorization.mjs'],
+    ['로그인 세션 복구', 'test-auth-provider-recovery.mjs'],
+    ['로그인 프로필 연결', 'test-account-login-adapter.mjs'],
+    ['인증 프로필 조회 복구', 'test-profile-transport.mjs'],
     ['동의', 'test-terms-consent.mjs'],
     ['프로그램 일정', 'test-recurring-program-model.mjs'],
     ['기존 신청 질문 호환성', 'test-legacy-application-fields.mjs'],
@@ -41,12 +47,20 @@ const checks = [
 ];
 
 const scriptDirectory = new URL('./', import.meta.url);
+checks.push(['운영 통계 읽기 경계', 'test-operation-statistics.mjs']);
+checks.push(['분석 수용 합성 검사', 'test-engagement-analysis.mjs']);
+checks.push(['MCP 연결 준비 경계', 'test-center-mcp.mjs']);
 const failures = [];
+checks.push(['MCP activation boundary', 'test-center-mcp-activation.mjs']);
+checks.push(['MCP Edge preparation entry', 'test-center-mcp-entry.mjs']);
 
 for (const [label, filename] of checks) {
     const start = Date.now();
     try {
-        await import(new URL(filename, scriptDirectory));
+        // Browser stubs and database runtimes must not leak across test modules.
+        const result = spawnSync(process.execPath, [fileURLToPath(new URL(filename, scriptDirectory))], { stdio: 'inherit' });
+        if (result.error) throw result.error;
+        if (result.status !== 0) throw new Error(`${filename} exited with status ${result.status}`);
         console.log(`PASS ${label} (${((Date.now() - start) / 1000).toFixed(1)}s)`);
     } catch (error) {
         failures.push(label);

@@ -28,7 +28,7 @@ export const getUnreadBoundary = (posts, lastReadAt, userId) => {
 
 export const communityFeedApi = {
     async fetchChallengeChannelId(challengeId) {
-        const { data, error } = await supabase.from('community_channels')
+        const { data, error } = await supabase.from('community_channel_directory')
             .select('id').eq('source_notice_id', challengeId).eq('status', 'ACTIVE').maybeSingle();
         if (error) throw error;
         return data?.id || null;

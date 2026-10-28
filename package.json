@@ -8,7 +8,19 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:surveys": "node scripts/test-unified-surveys.mjs",
-    "test:baseline": "node scripts/test-baseline.mjs"
+    "test:baseline": "node scripts/test-baseline.mjs",
+    "test:center-analysis:site": "node scripts/test-center-analysis-site.mjs",
+    "test:center-analysis:contracts": "node scripts/test-center-analysis-contracts.mjs",
+    "test:center-analysis:metrics": "node scripts/test-center-analysis-metrics.mjs",
+    "test:center-analysis:repository": "node scripts/test-center-analysis-repository.mjs",
+    "test:center-analysis:initiative": "node scripts/test-center-visit-initiative-sql.mjs",
+    "test:center-analysis:live": "node scripts/test-center-analysis-live.mjs",
+    "test:center-integration:auth": "node scripts/test-center-integration-auth.mjs",
+    "test:center-integration:connection": "node scripts/test-center-integration-connection.mjs",
+    "test:center-integration:transport": "node scripts/test-center-integration-transport.mjs",
+    "test:center-integration:web": "node scripts/test-center-integration-web.mjs && node scripts/test-center-operating-context.mjs",
+    "test:center-integration:channels": "node scripts/test-center-integration-channels.mjs",
+    "test:center-integration": "npm run test:center-analysis:contracts && npm run test:center-analysis:metrics && npm run test:center-analysis:repository && npm run test:center-analysis:site && npm run test:center-integration:auth && npm run test:center-integration:connection && npm run test:center-integration:transport && npm run test:center-integration:web && npm run test:center-integration:channels"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",
@@ -59,6 +71,8 @@
   "devDependencies": {
     "@babel/parser": "^7.29.7",
     "@babel/traverse": "^7.29.7",
+    "@electric-sql/pglite": "^0.3.16",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-legacy": "^5.4.3",
@@ -69,7 +83,6 @@
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "terser": "^5.49.0",
-    "vite": "^5.4.1",
-    "@electric-sql/pglite": "^0.3.16"
+    "vite": "^5.4.1"
   }
 }

@@ -1,3 +1,4 @@
+import { getProgramButtons, getProgramButtonLabel, isProgramButtonConfigured } from './programButtons.js';
 const value = (program, key, fallback = '') => program?.guest_properties?.[key] ?? program?.[key] ?? fallback;
 const nonempty = item => String(item ?? '').trim().length > 0;
 const questions = program => {
@@ -6,6 +7,10 @@ const questions = program => {
 };
 
 export const getParticipantButtonLabel = program => {
+    if (Array.isArray(program?.program_buttons ?? program?.guest_properties?.program_buttons)) {
+        const button = getProgramButtons(program).find(item => item.enabled);
+        return button ? getProgramButtonLabel(button) : '프로그램 안내';
+    }
     const name = value(program, 'post_program_button_name');
     if (nonempty(name)) return String(name).trim();
     const hasGroup = value(program, 'enable_group_assignment', false) === true;
@@ -18,6 +23,9 @@ export const getParticipantButtonLabel = program => {
 };
 
 export const hasParticipantExtraScreen = program => {
+    if (Array.isArray(program?.program_buttons ?? program?.guest_properties?.program_buttons)) {
+        return getProgramButtons(program).some(button => button.enabled && isProgramButtonConfigured(button));
+    }
     if (value(program, 'enable_post_program_button', true) !== true) return false;
     return value(program, 'enable_group_assignment', false) === true
         || (value(program, 'enable_random_questions', false) === true

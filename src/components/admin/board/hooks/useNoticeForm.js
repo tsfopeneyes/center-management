@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
+import { getProgramButtons, validateProgramButtons } from '../../../../features/programs/programButtons';
 import { CATEGORIES, PROGRAM_TYPES } from '../utils/constants';
 import { fromKstInput, validateRecruitmentForm } from '../../../../utils/programRecruitment';
 import { materializeProgramApplicationForm, validateApplicationForm } from '../../../../features/programs/applicationFormModel';
+import { getChallengeProgress } from '../../../../utils/challengeProgress';
 
 const INITIAL_NOTICE_STATE = {
     title: '',
@@ -45,6 +47,7 @@ const INITIAL_NOTICE_STATE = {
     haifn_reward: 0,
     challenge_reward_criterion: 'ALL',
     challenge_reward_percent: 100,
+    challenge_reward_count: 1,
     program_start_date: '',
     program_end_date: '',
     program_days: [],
@@ -59,6 +62,7 @@ const INITIAL_NOTICE_STATE = {
     application_form: null,
     open_participation_mode: 'NONE',
     daily_session_fields: [{ id: 'field-1', label: '오늘의 안내', required: true }],
+    program_buttons: [],
     enable_post_program_button: false,
     post_program_button_trigger: 'start_time',
     post_program_button_offset_minutes: 0,
@@ -108,19 +112,18 @@ const useNoticeForm = (mode = CATEGORIES.NOTICE) => {
     }, []);
 
     const validateForm = useCallback(() => {
+        if (formData.is_challenge && formData.challenge_reward_criterion === 'COUNT') {
+            const count = Number(formData.challenge_reward_count);
+            const { total } = getChallengeProgress({ ...formData, guest_properties: null });
+            if (!Number.isInteger(count) || count < 1 || count > total) return { isValid: false, message: `성공 횟수는 1회부터 전체 목표 ${total}회 사이로 입력해주세요.` };
+        }
         if (!formData.title?.trim()) {
             return { isValid: false, message: '제목을 입력해주세요.' };
         }
         
         if (mode === CATEGORIES.PROGRAM) {
-            if (formData.enable_post_program_button && formData.post_program_button_link?.trim()) {
-                try {
-                    const link = new URL(formData.post_program_button_link.trim());
-                    if (!['http:', 'https:'].includes(link.protocol)) throw new Error('Invalid protocol');
-                } catch {
-                    return { isValid: false, message: '참가자 추가 화면의 링크는 http 또는 https 주소로 입력해주세요.' };
-                }
-            }
+            const buttonsError = validateProgramButtons(getProgramButtons(formData));
+            if (buttonsError) return { isValid: false, message: buttonsError };
             const applicationForm = materializeProgramApplicationForm(
                 formData.application_form, formData.guest_properties
             );

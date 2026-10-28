@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Bell, BellOff, CheckCircle2, Loader2 } from 'lucide-react';
 import useModalClose from '../../../hooks/useModalClose';
-import { requestFirebaseToken, storedPushTokenIncludes } from '../../../firebase';
-import { supabase } from '../../../supabaseClient';
+import { requestFirebaseToken, isPushDeviceConnected } from '../../../firebase';
 
 const NotificationsModal = ({ user, notifications, setShowNotificationsModal, markNotificationsAsRead, onNotificationOpen }) => {
     useModalClose(true, () => setShowNotificationsModal(false));
@@ -11,7 +10,7 @@ const NotificationsModal = ({ user, notifications, setShowNotificationsModal, ma
     const [pushActionLoading, setPushActionLoading] = useState(false);
     const [showPushHelp, setShowPushHelp] = useState(false);
 
-    const refreshPushStatus = useCallback(async () => {
+    const refreshPushStatus = useCallback(async ({ forceRefresh = false } = {}) => {
         if (typeof window === 'undefined' || !('Notification' in window) || typeof window.Notification.requestPermission !== 'function') {
             setPushStatus('unsupported');
             return;
@@ -26,17 +25,17 @@ const NotificationsModal = ({ user, notifications, setShowNotificationsModal, ma
         }
 
         setPushStatus('checking');
-        const currentToken = await requestFirebaseToken(user.id);
+        try {
+        const currentToken = await requestFirebaseToken(user.id, { forceRefresh });
         if (!currentToken) {
-            setPushStatus('disconnected');
+            setPushStatus('connection_failed');
             return;
         }
-        if (currentToken.startsWith('WEB_PUSH:')) {
-            setPushStatus('enabled');
-            return;
+        setPushStatus(await isPushDeviceConnected(user.id, currentToken) ? 'enabled' : 'disconnected');
+        } catch (error) {
+            console.error('Failed to check push device connection:', error);
+            setPushStatus('connection_failed');
         }
-        const { data, error } = await supabase.from('users').select('fcm_token').eq('id', user.id).maybeSingle();
-        setPushStatus(!error && storedPushTokenIncludes(data?.fcm_token, currentToken) ? 'enabled' : 'disconnected');
     }, [user?.id]);
 
     useEffect(() => {
@@ -58,12 +57,13 @@ const NotificationsModal = ({ user, notifications, setShowNotificationsModal, ma
         denied: { title: '푸시 알림 꺼짐', description: '브라우저에서 알림이 차단되어 있어 웹앱이 직접 켤 수 없어요. 아래에서 기기별 설정 방법을 확인해주세요.', tone: 'bg-amber-50 border-amber-100', icon: <BellOff size={18} className="text-amber-500" /> },
         not_allowed: { title: '푸시 알림 꺼짐', description: '아직 알림 사용 여부를 선택하지 않았어요. 아래 버튼을 누른 뒤 브라우저 권한창에서 허용해주세요.', tone: 'bg-gray-50 border-gray-100', icon: <BellOff size={18} className="text-gray-400" /> },
         disconnected: { title: '푸시 알림 연결 필요', description: '알림 권한은 켜져 있지만 현재 계정과 연결되지 않았어요.', tone: 'bg-amber-50 border-amber-100', icon: <BellOff size={18} className="text-amber-500" /> },
+        connection_failed: { title: '푸시 알림 연결 확인 실패', description: '기기 등록 또는 서버 연결을 완료하지 못했어요. 네트워크 연결을 확인한 뒤 다시 시도해주세요.', tone: 'bg-amber-50 border-amber-100', icon: <BellOff size={18} className="text-amber-500" /> },
         unsupported: { title: '푸시 알림 사용 불가', description: '현재 브라우저에서는 푸시 알림을 지원하지 않아요.', tone: 'bg-gray-50 border-gray-100', icon: <BellOff size={18} className="text-gray-400" /> }
     }[pushStatus];
 
     const pushActionLabel = pushStatus === 'not_allowed'
         ? '알림 허용 요청하기'
-        : pushStatus === 'disconnected'
+        : ['disconnected', 'connection_failed'].includes(pushStatus)
             ? '현재 계정에 다시 연결하기'
             : ['denied', 'unsupported'].includes(pushStatus)
                 ? '알림 사용 방법 보기'
@@ -101,10 +101,10 @@ const NotificationsModal = ({ user, notifications, setShowNotificationsModal, ma
                     return;
                 }
             }
-            await refreshPushStatus();
+            await refreshPushStatus({ forceRefresh: true });
         } catch (error) {
             console.error('Failed to update push notification status:', error);
-            setPushStatus('unsupported');
+            setPushStatus('connection_failed');
         } finally {
             setPushActionLoading(false);
         }

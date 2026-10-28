@@ -14,6 +14,7 @@ const NoticeGrid = ({
     onOpenFeedback,
     onOpenTodaySession,
     onStatusChange, 
+    onDuplicate,
     onEdit, 
     onDelete 
 }) => {
@@ -45,7 +46,7 @@ const NoticeGrid = ({
                     onOpenFeedback={onOpenFeedback}
                     onOpenTodaySession={onOpenTodaySession}
                     onStatusChange={onStatusChange}
-                    onEdit={onEdit}
+                    onDuplicate={onDuplicate} onEdit={onEdit}
                     onDelete={onDelete}
                 />
             ))}
@@ -64,6 +65,7 @@ NoticeGrid.propTypes = {
     onOpenFeedback: PropTypes.func.isRequired,
     onOpenTodaySession: PropTypes.func.isRequired,
     onStatusChange: PropTypes.func.isRequired,
+    onDuplicate: PropTypes.func,
     onEdit: PropTypes.func.isRequired,
     onDelete: PropTypes.func.isRequired
 };

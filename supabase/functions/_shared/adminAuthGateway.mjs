@@ -30,8 +30,8 @@ export function createAdminAuthGateway({supabaseUrl,serviceRoleKey,fetcher=fetch
                 return Promise.resolve({data:null,error:{status:400}});
             return request('/auth/v1/admin/users','POST',attributes);
         },
-        async findUserByEmail(email,registrationOperation){
-            if(typeof email!=='string'||email.length>320||typeof registrationOperation!=='string'||!isProfileId(registrationOperation))
+        async findUserByEmail(email,registrationOperation,guestProfileId=null){
+            if(typeof email!=='string'||email.length>320||typeof registrationOperation!=='string'||!isProfileId(registrationOperation)||(guestProfileId!==null&&!isProfileId(guestProfileId)))
                 return {data:null,error:{status:400}};
             // GoTrue's supported admin listing API is authoritative. Scan in
             // bounded pages; never query the managed auth schema directly.
@@ -40,12 +40,21 @@ export function createAdminAuthGateway({supabaseUrl,serviceRoleKey,fetcher=fetch
                 if(result.error)return {data:null,error:result.error};
                 const users=Array.isArray(result.value?.users)?result.value.users:[];
                 const matches=users.filter(user=>user?.email===email&&
-                    user?.app_metadata?.registration_operation===registrationOperation&&user?.is_anonymous===false);
+                    (guestProfileId===null?user?.app_metadata?.registration_operation===registrationOperation:
+                     user?.app_metadata?.guest_login_operation===registrationOperation&&user?.app_metadata?.guest_login_profile===guestProfileId)&&user?.is_anonymous===false);
                 if(matches.length>1)return {data:null,error:{status:409}};
                 if(matches.length===1)return {data:{user:matches[0]},error:null};
                 if(users.length<100)break;
             }
             return {data:{user:null},error:null};
+        },
+        async issueGuestSession(email,authUserId){
+            if(typeof email!=='string'||email.length>320||!isProfileId(authUserId))return {data:null,error:{status:400}};
+            const link=await requestRaw('/auth/v1/admin/generate_link','POST',{type:'magiclink',email});
+            if(link.error||link.value?.id!==authUserId||typeof link.value?.hashed_token!=='string')return {data:null,error:link.error||{status:409}};
+            const result=await requestRaw('/auth/v1/verify','POST',{token_hash:link.value.hashed_token,type:'email'});
+            if(result.error||result.value?.user?.id!==authUserId)return {data:null,error:result.error||{status:409}};
+            return {data:result.value,error:null};
         }
     });
 }

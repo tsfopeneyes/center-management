@@ -66,8 +66,10 @@ export function AuthProvider({ children }) {
         };
     });
     const revision = useRef(0);
+    const pendingRefresh = useRef(null);
+    const pendingResolution = useRef(null);
 
-    const resolve = useCallback(async (session, reason = 'refresh') => {
+    const resolveSession = useCallback(async (session, reason = 'refresh') => {
         const run = ++revision.current;
         const cached = readCachedProfile();
 
@@ -94,7 +96,8 @@ export function AuthProvider({ children }) {
             if (!isAccountAuthEnabled()) throw Object.assign(new Error('auth_service_disabled'), { transient: true });
             const client = getAccountAuthClient();
             const verified = await client.session(session.access_token, {});
-            if (verified?.protocol !== 1 || verified?.decision !== 'retain' || !verified.profileId) {
+            if (verified?.protocol !== 1 || verified?.decision !== 'retain' || !verified.profileId
+                || verified.authUserId !== session.user.id) {
                 const code = verified?.decision === 'blocked' ? 'forbidden' : 'invalid_login';
                 throw Object.assign(new Error(code), { code });
             }
@@ -106,13 +109,15 @@ export function AuthProvider({ children }) {
             if (result?.protocol !== 1 || result?.status !== 'ok' || !result.profile?.id) {
                 throw new Error('invalid_profile_response');
             }
-            const profile = cached?.id === result.profile.id ? { ...cached, ...result.profile } : result.profile;
+            if (result.profile.id !== verified.profileId) throw Object.assign(new Error('account_changed'), {code: 'account_changed'});
+            const profile = { ...(cached?.id === result.profile.id ? cached : {}), ...result.profile,
+                auth_user_id: verified.authUserId };
             cacheProfile(profile);
             setState({ status: 'authenticated', session, profile, error: null });
         } catch (error) {
             if (run !== revision.current) return;
             const code = error?.code || error?.message || 'temporarily_unavailable';
-            const blocked = ['forbidden', 'account_changed', 'password_change_required'].includes(code);
+            const blocked = ['forbidden', 'account_changed', 'password_change_required', 'invalid_login'].includes(code);
             // A transient revalidation failure cannot revoke a session that was
             // already verified during this runtime. Access control still lives
             // on the server/RLS, while the current screen remains usable.
@@ -130,29 +135,51 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
+    const resolve = useCallback((session, reason) => {
+        const token = session?.access_token;
+        if (token && pendingResolution.current?.token === token) return pendingResolution.current.promise;
+        const request = {token, promise: null};
+        request.promise = resolveSession(session, reason).finally(() => {
+            if (pendingResolution.current === request) pendingResolution.current = null;
+        });
+        pendingResolution.current = request;
+        return request.promise;
+    }, [resolveSession]);
+
     const refresh = useCallback(async () => {
-        const persisted = readPersistedSession();
-        if (sessionIsFresh(persisted)) {
-            await resolve(persisted, 'manual-persisted');
-            return;
-        }
-        // Mobile browsers suspend refresh timers in the background. Never
-        // revalidate an expired localStorage snapshot; ask Auth to exchange
-        // its refresh token first.
-        const { data, error } = persisted
-            ? await supabase.auth.refreshSession()
-            : await supabase.auth.getSession();
-        if (error) {
-            setState(current => ({
-                ...current,
-                status: current.status === 'authenticated' || current.status === 'refreshing'
-                    ? 'authenticated'
+        if (pendingRefresh.current) return pendingRefresh.current;
+        const work = async () => {
+            const persisted = readPersistedSession();
+            if (sessionIsFresh(persisted)) {
+                await resolve(persisted, 'manual-persisted');
+                return;
+            }
+            // Mobile browsers suspend refresh timers in the background. Never
+            // revalidate an expired localStorage snapshot; ask Auth to exchange
+            // its refresh token first.
+            const { data, error } = persisted
+                ? await supabase.auth.refreshSession()
+                : await supabase.auth.getSession();
+            if (error) {
+                setState(current => ({
+                    ...current,
+                    status: current.status === 'authenticated' || current.status === 'refreshing'
+                        ? 'authenticated'
+                        : (current.session ? 'offline' : 'anonymous'),
+                    error: error.code || error.message,
+                }));
+                return;
+            }
+            await resolve(data?.session || null, 'manual');
+        };
+        const request = work().catch(error => {
+            setState(current => ({...current,
+                status: ['authenticated', 'refreshing'].includes(current.status) ? 'authenticated'
                     : (current.session ? 'offline' : 'anonymous'),
-                error: error.code || error.message,
-            }));
-            return;
-        }
-        await resolve(data?.session || null, 'manual');
+                error: error?.code || 'temporarily_unavailable'}));
+        }).finally(() => { if (pendingRefresh.current === request) pendingRefresh.current = null; });
+        pendingRefresh.current = request;
+        return request;
     }, [resolve]);
 
     useEffect(() => {
@@ -222,6 +249,12 @@ export function AuthProvider({ children }) {
             document.removeEventListener('visibilitychange', refreshAfterResume);
         };
     }, [refresh, resolve]);
+
+    useEffect(() => {
+        if (state.status !== 'offline' || !state.session || !navigator.onLine) return;
+        const timer = window.setTimeout(() => void refresh(), 15000);
+        return () => window.clearTimeout(timer);
+    }, [state.status, state.session, state.error, refresh]);
 
     const value = useMemo(() => ({ ...state, refresh }), [state, refresh]);
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,6 @@
 import { isStaffProfile } from "../_shared/staffRoles.mjs";
 import { resolveVisitLocationKeyword } from "../_shared/visitScope.mjs";
+import { slackWindow, slackVisitStatistics, slackProgramStatistics } from "../_shared/operationStatistics/slack.mjs";
 
 const NOTION_API_VERSION = "2026-03-11";
 const DEFAULT_OPENAI_MODEL = "gpt-5.6-terra";
@@ -59,6 +60,7 @@ type PendingAction = {
   notionTarget?: "note" | "task" | "project";
   notionProperties?: Record<string, string>;
   programFeedbackQuery?: string;
+  programFeedbackNoticeId?: string;
   updateMode?: "append" | "replace" | "section_replace";
   sectionTitle?: string;
   requester: string;
@@ -904,6 +906,18 @@ function customFeedbackQuestions(notice: JsonRecord): Array<{ id: string; title:
 }
 
 function feedbackAnswers(item: JsonRecord, questions: Array<{ id: string; title: string; type: string }>): JsonRecord[] {
+  // Each submission keeps its own question snapshot, including older versions.
+  if (item.snapshot) {
+    const snapshot = recordFromJson(item.snapshot);
+    const answers = recordFromJson(item.answers);
+    return (Array.isArray(snapshot.questions) ? snapshot.questions : []).flatMap((value) => {
+      const question = recordFromJson(value);
+      const answer = answers[String(question.id || "")];
+      if (answer === undefined || answer === null || String(answer).trim() === "" || (Array.isArray(answer) && answer.length === 0)) return [];
+      return [{ question: String(question.title || "질문"), type: String(question.type || "text"),
+        answer: Array.isArray(answer) ? answer.join(", ") : String(answer) }];
+    });
+  }
   const savedAnswers = recordFromJson(item.q8_additional_comments);
   if (questions.length > 0 && Object.keys(savedAnswers).length > 0) {
     return questions.flatMap((question) => {
@@ -970,9 +984,9 @@ export async function getVisitMetrics(args: JsonRecord): Promise<JsonRecord> {
       ["select", "id,user_id,type,location_id,created_at"],
       ...dateFilters("created_at", range),
       ["type", "in.(CHECKIN,CHECKOUT,MOVE)"],
-      ["order", "created_at.asc"],
+      ["order", "created_at.asc,id.asc"],
     ]),
-    supabaseSelectAll("users", [["select", "id"]], 10_000),
+    supabaseSelectAll("users", [["select", "id,user_group"]], 10_000),
     supabaseSelectAll("staff_directory", [["select", "id,role"]], 10_000),
     supabaseSelect("locations", [["select", "id,name,group_id"], ["limit", "300"]]),
     supabaseSelect("location_groups", [["select", "id,name"], ["limit", "100"]]),
@@ -1131,6 +1145,10 @@ export async function getVisitMetrics(args: JsonRecord): Promise<JsonRecord> {
       .filter((row) => allowedLocationIds.has(String(row.id)))
       .map((row) => String(row.name || ""))
       .filter(Boolean),
+    statistics_v2: slackVisitStatistics({ logs, users: userResult.rows, staff: staffResult.rows, locations,
+      window: slackWindow(range.start, range.end), locationIds: [...allowedLocationIds] },
+      !truncated && !userResult.truncated && !staffResult.truncated && locations.length < 300 && locationGroups.length < 100),
+    statistics_v2_definition: "visit_sessions = separate visits; visitor_days = user/day; recorded_minutes excludes estimated missing checkout time",
     summary: {
       total_visits: visitRecords.size,
       unique_visitors: allVisitors.size,
@@ -1164,46 +1182,72 @@ export async function getProgramMetrics(args: JsonRecord): Promise<JsonRecord> {
   const query = typeof args.query === "string" ? args.query.trim() : "";
   const range = parseOptionalToolDateRange(args);
   const notices = await supabaseSelectAll("notices", [
-    ["select", "id,title,category,program_date,program_duration,program_start_date,program_end_date,program_status,program_type,program_location,guest_properties,created_at"],
+    ["select", "id,title,category,program_date,program_duration,program_start_date,program_end_date,program_status,program_type,program_location,guest_properties,created_at,is_recruiting"],
     ["category", "eq.PROGRAM"],
-    ["order", "program_date.asc.nullslast"],
+    ["order", "program_date.asc.nullslast,id.asc"],
   ], 5_000);
   const variants = programQueryVariants(query);
-  const matched = notices.rows.filter((notice) => {
+  const candidates = notices.rows.filter((notice) => {
+    if (args.notice_id && String(notice.id) !== String(args.notice_id)) return false;
     const date = kstDateKey(notice.program_date || notice.program_start_date || notice.created_at);
     if (range && (!date || date < formatKstIsoDate(range.start) || date >= formatKstIsoDate(range.end))) return false;
     if (!variants.length) return true;
     const title = normalizeSearchText(String(notice.title || ""));
     return variants.some((variant) => title.includes(normalizeSearchText(variant)));
   });
+  // An exact occurrence title must take precedence over broad series aliases.
+  const exact = query ? candidates.filter((notice) => normalizeSearchText(String(notice.title || "")) === normalizeSearchText(query)) : [];
+  const matched = exact.length > 0 ? exact : candidates;
   const ids = matched.map((notice) => String(notice.id)).filter(Boolean);
-  const responses = ids.length === 0 ? [] : await supabaseSelectAll("notice_responses", [
-    ["select", "notice_id,status,is_attended,is_staff"],
+  const responses = ids.length === 0 ? { rows: [] as JsonRecord[], truncated: false } : await supabaseSelectAll("notice_responses", [
+    ["select", "notice_id,user_id,status,is_attended,is_staff"],
     ["notice_id", `in.(${ids.join(",")})`],
+    ["order", "notice_id.asc,user_id.asc"],
   ], 10_000);
   const byNotice = new Map<string, JsonRecord[]>();
   for (const response of responses.rows) {
     const noticeId = String(response.notice_id || "");
     byNotice.set(noticeId, [...(byNotice.get(noticeId) || []), response]);
   }
-  const feedback = ids.length === 0 ? { rows: [] as JsonRecord[], truncated: false } : await supabaseSelectAll("program_feedback", [
-    ["select", "notice_id,user_id,q1_reason,q2_experience,q3_satisfaction,q4_best_moment,q5_disappointments,q6_would_rejoin,q7_rejoin_reason,q8_additional_comments,created_at"],
+  const legacyFeedback = ids.length === 0 ? { rows: [] as JsonRecord[], truncated: false } : await supabaseSelectAll("program_feedback", [
+    ["select", "notice_id,user_id,q1_reason,q2_experience,q3_satisfaction,q4_best_moment,q5_disappointments,q6_would_rejoin,q7_rejoin_reason,q8_additional_comments,aggregation_excluded,created_at"],
     ["notice_id", `in.(${ids.join(",")})`],
-    ["order", "created_at.asc"],
+    ["order", "created_at.asc,id.asc"],
   ], 1_000);
+  // Do not turn a failed survey read into an apparently empty response.
+  const surveyFeedback = ids.length === 0 ? { rows: [] as JsonRecord[], truncated: false } : await supabaseSelectAll("survey_entries", [
+    ["select", "id,notice_id,user_id,snapshot,answers,aggregation_excluded,created_at"],
+    ["notice_id", `in.(${ids.join(",")})`],
+    ["order", "created_at.asc,id.asc"],
+  ], 1_000);
+  const feedback = {
+    rows: [...legacyFeedback.rows, ...surveyFeedback.rows].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))),
+    truncated: legacyFeedback.truncated || surveyFeedback.truncated,
+  };
   const feedbackByNotice = new Map<string, JsonRecord[]>();
   for (const item of feedback.rows) {
     const noticeId = String(item.notice_id || "");
     feedbackByNotice.set(noticeId, [...(feedbackByNotice.get(noticeId) || []), item]);
   }
   const feedbackUserIds = [...new Set(feedback.rows.map((item) => String(item.user_id || "")).filter(Boolean))];
-  const feedbackUsers = feedbackUserIds.length === 0 ? [] : await supabaseSelectAll("users", [
+  const feedbackUsers = feedbackUserIds.length === 0 ? { rows: [] as JsonRecord[], truncated: false } : await supabaseSelectAll("users", [
     ["select", "id,name"],
     ["id", `in.(${feedbackUserIds.join(",")})`],
   ], 1_000);
   const feedbackUserNames = new Map(feedbackUsers.rows.map((user) => [String(user.id || ""), String(user.name || "")]));
 
+  const statisticsNotices = notices.rows.filter((notice) => !variants.length || variants.some((variant) =>
+    normalizeSearchText(String(notice.title || "")).includes(normalizeSearchText(variant))));
+  const statistics = await slackProgramStatistics({ notices: statisticsNotices, responses: responses.rows, loadResponses: true,
+    complete: !notices.truncated && !responses.truncated,
+    window: slackWindow(range?.start || new Date("1900-01-01T00:00:00+09:00"), range?.end || addDays(kstToday(), 1)),
+    read: (table: string, select: string) => supabaseSelectAll(table, [["select", select], ["order", ({ users: "id.asc", staff_directory: "id.asc", notice_responses: "notice_id.asc,user_id.asc",
+      daily_program_sessions: "id.asc", daily_program_session_responses: "session_id.asc,user_id.asc",
+      open_program_attendance: "notice_id.asc,attendance_date.asc,user_id.asc" } as Record<string, string>)[table]]], 100_000) });
+
   return {
+    statistics_v2: statistics,
+    statistics_v2_definition: "current JOIN/WAITLIST/CANCELLED records per occurrence; attendance requires JOIN; staff excluded; legacy fields preserved",
     source: "센터 웹앱 프로그램",
     query: query || null,
     period: range?.label || "전체 기간",
@@ -1212,12 +1256,27 @@ export async function getProgramMetrics(args: JsonRecord): Promise<JsonRecord> {
         .filter((response) => response.is_staff !== true);
       const questions = customFeedbackQuestions(notice);
       const programFeedback = feedbackByNotice.get(String(notice.id)) || [];
-      const starQuestion = questions.find((question) => question.type === "star");
-      const ratings = starQuestion ? programFeedback
-        .map((item) => feedbackAnswers(item, questions).find((answer) => answer.question === starQuestion.title)?.answer)
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value)) : [];
+      const ratingGroups = new Map<string, { 질문: string; values: number[] }>();
+      for (const item of programFeedback) {
+        if (item.aggregation_excluded === true) continue;
+        const snapshot = recordFromJson(item.snapshot);
+        const itemQuestions: JsonRecord[] = item.snapshot && Array.isArray(snapshot.questions) ? snapshot.questions.map(recordFromJson) : questions;
+        const answers = feedbackAnswers(item, questions);
+        for (const question of itemQuestions.filter((q) => q.type === "star")) {
+          const savedValue = item.snapshot ? recordFromJson(item.answers)[String(question.id)]
+            : answers.find((answer) => answer.question === question.title)?.answer;
+          const value = typeof savedValue === "number" || (typeof savedValue === "string" && savedValue.trim()) ? Number(savedValue) : NaN;
+          if (!Number.isFinite(value) || value < 1 || value > 5) continue;
+          const key = JSON.stringify([question.id, question.title, question.type, question.metric || ""]);
+          const group = ratingGroups.get(key) || { 질문: String(question.title), values: [] };
+          group.values.push(value);
+          ratingGroups.set(key, group);
+        }
+      }
+      const ratings = [...ratingGroups.values()].map((group) => ({ 질문: group.질문,
+        평균: Number((group.values.reduce((sum, value) => sum + value, 0) / group.values.length).toFixed(1)), 응답수: group.values.length }));
       return {
+        id: String(notice.id),
         title: String(notice.title || "제목 없음"),
         date: kstDateKey(notice.program_date || notice.program_start_date || notice.created_at),
         일정: formatProgramSchedule(notice.program_date, notice.program_duration),
@@ -1228,11 +1287,10 @@ export async function getProgramMetrics(args: JsonRecord): Promise<JsonRecord> {
         신청_인원: programResponses.filter((response) => response.status === "JOIN").length,
         실제_참여_인원: programResponses.filter((response) => response.is_attended === true).length,
         feedback_count: programFeedback.length,
-        별점: starQuestion && ratings.length > 0 ? {
-          질문: starQuestion.title,
-          평균: Number((ratings.reduce((sum, value) => sum + value, 0) / ratings.length).toFixed(1)),
-          응답수: ratings.length,
-        } : null,
+        feedback_sources: { legacy: legacyFeedback.rows.filter((item) => String(item.notice_id) === String(notice.id)).length,
+          survey: surveyFeedback.rows.filter((item) => String(item.notice_id) === String(notice.id)).length },
+        별점: ratings.length === 1 ? ratings[0] : null,
+        별점_질문별: ratings,
         feedback: programFeedback.map((item) => ({
           응답자: feedbackUserNames.get(String(item.user_id || "")) || String(item.user_id || "미확인"),
           답변: feedbackAnswers(item, questions),
@@ -2645,7 +2703,9 @@ async function answerQuestion(
       }
       if (call.name === "prepare_notice_draft" || call.name === "prepare_notion_page_draft" || call.name === "prepare_task_draft" || call.name === "prepare_project_draft" || call.name === "prepare_project_update_draft" || call.name === "prepare_notion_page_update_draft") {
         try {
-          pendingAction = prepareDraftAction(call.name, args, safetySource);
+          const prepared = prepareDraftAction(call.name, args, safetySource);
+          if (prepared.programFeedbackQuery) await bindProgramFeedback(prepared);
+          pendingAction = prepared;
           return {
             type: "function_call_output",
             call_id: call.call_id,
@@ -3049,9 +3109,25 @@ function notionContentBlocks(content: string): JsonRecord[] {
   });
 }
 
-async function programFeedbackOriginalSection(query: string): Promise<string> {
-  const metrics = await getProgramMetrics({ query });
+async function bindProgramFeedback(action: PendingAction): Promise<void> {
+  const title = action.title.replace(/\s+결과\s*보고서$/, "").trim();
+  const metrics = await getProgramMetrics({ query: title, notice_id: action.programFeedbackNoticeId });
   const programs = Array.isArray(metrics.programs) ? metrics.programs as JsonRecord[] : [];
+  if (programs.length !== 1 || normalizeSearchText(String(programs[0].title)) !== normalizeSearchText(title)) {
+    throw new Error("결과보고서의 프로그램 회차를 하나로 확인하지 못했습니다. 정확한 프로그램 제목으로 다시 조회해 주세요.");
+  }
+  action.programFeedbackNoticeId = String(programs[0].id);
+}
+
+async function programFeedbackOriginalSection(query: string, noticeId?: string): Promise<string> {
+  const metrics = await getProgramMetrics({ query, notice_id: noticeId });
+  const programs = Array.isArray(metrics.programs) ? metrics.programs as JsonRecord[] : [];
+  if (programs.length > 1 || (noticeId && programs.length !== 1)) {
+    throw new Error("원문 피드백은 한 프로그램 회차만 첨부할 수 있습니다. 정확한 회차를 다시 선택해 주세요.");
+  }
+  if (Array.isArray(metrics.warnings) && metrics.warnings.some((warning) => /일부만/.test(String(warning)))) {
+    throw new Error("피드백 전체 조회를 완료하지 못해 원문을 첨부하지 않았습니다.");
+  }
   const lines = ["---", "## 원문 피드백"];
   let number = 0;
   for (const program of programs) {
@@ -3124,8 +3200,9 @@ async function createNotionPage(action: PendingAction): Promise<string> {
     parent: { data_source_id: targetId },
     properties,
   };
+  if (action.programFeedbackQuery) await bindProgramFeedback(action);
   const originalFeedback = action.programFeedbackQuery
-    ? await programFeedbackOriginalSection(action.programFeedbackQuery)
+    ? await programFeedbackOriginalSection(action.programFeedbackQuery, action.programFeedbackNoticeId)
     : "";
   const children = notionContentBlocks([action.content, originalFeedback].filter(Boolean).join("\n\n"));
   const useDefaultTemplate = getSecret("NOTION_USE_DEFAULT_TEMPLATES").toLowerCase() !== "false";

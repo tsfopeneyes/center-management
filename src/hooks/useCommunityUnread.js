@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { communityFeedApi } from '../api/communityFeedApi';
 
-export default function useCommunityUnread(channelId, userId, posts, postsLoaded) {
+export default function useCommunityUnread(channelId, userId, posts, postsLoaded, feedApi = communityFeedApi) {
     const [lastReadAt, setLastReadAt] = useState(null);
     const [cursorLoaded, setCursorLoaded] = useState(false);
     const markedRef = useRef(false);
@@ -12,12 +12,12 @@ export default function useCommunityUnread(channelId, userId, posts, postsLoaded
         markedRef.current = false;
         setCursorLoaded(false);
         setLastReadAt(null);
-        communityFeedApi.fetchReadAt(channelId, userId)
+        feedApi.fetchReadAt(channelId, userId)
             .then(value => { if (active) setLastReadAt(value); })
             .catch(error => console.error('Failed to load community read position:', error))
             .finally(() => { if (active) setCursorLoaded(true); });
         return () => { active = false; };
-    }, [channelId, userId]);
+    }, [channelId, userId, feedApi]);
 
     useEffect(() => {
         if (!channelId || !userId || !cursorLoaded || !postsLoaded || markedRef.current) return;
@@ -25,9 +25,9 @@ export default function useCommunityUnread(channelId, userId, posts, postsLoaded
         const latestPostAt = posts.reduce((latest, post) =>
             !latest || new Date(post.created_at) > new Date(latest) ? post.created_at : latest, '');
         const readAt = latestPostAt || new Date().toISOString();
-        communityFeedApi.markRead(channelId, userId, readAt)
+        feedApi.markRead(channelId, userId, readAt)
             .catch(error => console.error('Failed to save community read position:', error));
-    }, [channelId, cursorLoaded, posts, postsLoaded, userId]);
+    }, [channelId, cursorLoaded, posts, postsLoaded, userId, feedApi]);
 
     return cursorLoaded ? lastReadAt : null;
 }

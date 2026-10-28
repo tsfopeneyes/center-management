@@ -1,6 +1,6 @@
 import {LoginError,normalizeLoginName} from './loginSecurity.mjs';
 
-export function createLoginCandidateService({store,keyFor,readiness=async()=>false}){
+export function createLoginCandidateService({store,keyFor,readiness=async()=>false,guestCandidates=null}){
     return async(input,{clientKey}={})=>{
         if(!input||typeof input!=='object'||Array.isArray(input)||input.protocol!==1||Object.keys(input).some(k=>!['protocol','name'].includes(k))||
             typeof input.name!=='string'||input.name.length>80||typeof clientKey!=='string'||!clientKey||clientKey.length>200)
@@ -15,6 +15,7 @@ export function createLoginCandidateService({store,keyFor,readiness=async()=>fal
             if(!await store.consumeLimit(clientLimitKey,20)||!await store.consumeLimit(subjectLimitKey,10))throw new LoginError('try_later',429);
             rows=await store.findCandidatesByName(nameKey,name);
         }
+        if(guestCandidates){const extra=await guestCandidates(name);rows=[...new Map([...rows,...extra].map(row=>[row.profileId,row])).values()].slice(0,20);}
         return {protocol:1,status:'ok',candidates:rows.map(row=>({profileId:row.profileId,name:row.name,school:row.school,userGroup:row.userGroup}))};
     };
 }

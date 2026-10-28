@@ -1,3 +1,5 @@
+import { isRegisteredChallengeHost } from './community-host-recipients.mjs';
+
 const checked = ({ data, error }) => {
     if (error) throw error;
     return data;
@@ -148,55 +150,68 @@ export const deliverCommunityPostPush = async ({ db, getFirebaseAccess, webpush,
             let post = null;
             let channel = null;
             let commentAvailable = false;
+            let authorCommentAvailable = false;
+            let mentionAvailable = false;
+            let postLabel = '새 글';
             if (row.kind === 'digest') {
                 channel = checked(await db.from('community_channels')
                     .select('id,name,source_notice_id,status').eq('id', row.channel_id).maybeSingle());
                 if (row.post_ids?.length) {
                     const digestPosts = checked(await db.from('community_channel_posts')
-                        .select('id,author_id,deleted_at,is_hidden').in('id', row.post_ids));
-                    post = digestPosts?.find(item => !item.deleted_at && !item.is_hidden
-                        && item.author_id !== row.user_id);
+                        .select('id,author_id,deleted_at,is_hidden,is_announcement').in('id', row.post_ids));
+                    const availablePosts = digestPosts?.filter(item => !item.deleted_at && !item.is_hidden
+                        && item.author_id !== row.user_id) || [];
+                    post = availablePosts[0];
+                    if (availablePosts.some(item => item.is_announcement)) {
+                        postLabel = availablePosts.some(item => !item.is_announcement) ? '공지와 새 글' : '공지';
+                    }
                 }
                 if (row.comment_ids?.length) {
                     const digestComments = checked(await db.from('community_channel_comments')
-                        .select('id,user_id,is_hidden,community_channel_posts(id,author_id,deleted_at,is_hidden)')
+                        .select('id,user_id,is_hidden,mentioned_user_ids,community_channel_posts(id,author_id,deleted_at,is_hidden)')
                         .in('id', row.comment_ids));
-                    commentAvailable = digestComments?.some(item => !item.is_hidden
+                    const validComments = digestComments?.filter(item => !item.is_hidden
                         && item.user_id !== row.user_id
-                        && item.community_channel_posts?.author_id === row.user_id
                         && !item.community_channel_posts?.deleted_at
-                        && !item.community_channel_posts?.is_hidden) || false;
+                        && item.community_channel_posts && !item.community_channel_posts.is_hidden) || [];
+                    authorCommentAvailable = validComments.some(item => item.community_channel_posts.author_id === row.user_id);
+                    mentionAvailable = validComments.some(item => item.mentioned_user_ids?.includes(row.user_id));
+                    commentAvailable = authorCommentAvailable || mentionAvailable;
                 }
             } else if (row.kind === 'comment') {
                 const comment = checked(await db.from('community_channel_comments')
-                    .select('id,user_id,is_hidden,community_channel_posts(id,author_id,deleted_at,is_hidden,channel_id,community_channels(id,name,source_notice_id,status))')
+                    .select('id,user_id,is_hidden,mentioned_user_ids,community_channel_posts(id,author_id,deleted_at,is_hidden,channel_id,community_channels(id,name,source_notice_id,status))')
                     .eq('id', row.comment_id).maybeSingle());
                 post = comment?.community_channel_posts;
                 channel = post?.community_channels;
-                commentAvailable = Boolean(comment && !comment.is_hidden && comment.user_id !== row.user_id
-                    && post?.author_id === row.user_id);
+                const validComment = Boolean(comment && !comment.is_hidden && comment.user_id !== row.user_id && post);
+                authorCommentAvailable = validComment && post.author_id === row.user_id;
+                mentionAvailable = validComment && Boolean(comment.mentioned_user_ids?.includes(row.user_id));
+                commentAvailable = authorCommentAvailable || mentionAvailable;
             } else {
                 post = checked(await db.from('community_channel_posts')
-                    .select('id,author_id,deleted_at,is_hidden,channel_id,community_channels(id,name,source_notice_id,status)')
+                    .select('id,author_id,deleted_at,is_hidden,is_announcement,channel_id,community_channels(id,name,source_notice_id,status)')
                     .eq('id', row.post_id).maybeSingle());
                 channel = post?.community_channels;
+                if (post?.is_announcement) postLabel = '공지';
             }
+            if (channel) channel = checked(await db.from('community_channel_directory').select('id,name,source_notice_id,status,is_open_program').eq('id', channel.id).maybeSingle());
             if (!channel || channel.status !== 'ACTIVE'
                 || (!post && !commentAvailable)
                 || (post && (post.deleted_at || post.is_hidden))
                 || (row.kind === 'post' && post.author_id === row.user_id)
                 || (row.kind === 'comment' && !commentAvailable))
                 return finish(row, 'SKIPPED', 'post_unavailable');
-            const membership = channel.source_notice_id == null
-                ? checked(await db.from('community_channel_members').select('user_id')
-                    .eq('channel_id', channel.id).eq('user_id', row.user_id).maybeSingle())
-                : checked(await db.from('notice_responses').select('user_id')
-                    .eq('notice_id', channel.source_notice_id).eq('user_id', row.user_id)
-                    .eq('status', 'JOIN').maybeSingle());
+            const membership = checked(await db.from('community_channel_participants').select('user_id')
+                .eq('channel_id', channel.id).eq('user_id', row.user_id).maybeSingle());
             const user = checked(await db.from('users').select('id,status,fcm_token,role,is_master')
                 .eq('id', row.user_id).maybeSingle());
-            if (!user || user.status === 'deleted') return finish(row, 'SKIPPED', 'account_unavailable');
-            if (!membership && !((row.kind === 'comment' || (row.kind === 'digest' && commentAvailable))
+            if (!user || ['deleted', 'withdrawn'].includes(user.status)) return finish(row, 'SKIPPED', 'account_unavailable');
+            const hostProgram = !membership && channel.source_notice_id
+                ? checked(await db.from('notices').select('is_challenge,host_id,host_ids,hosts')
+                    .eq('id', channel.source_notice_id).maybeSingle()) : null;
+            const registeredHost = isRegisteredChallengeHost(hostProgram, row.user_id);
+            if (!membership && !registeredHost && !(channel.is_open_program && authorCommentAvailable) && !(authorCommentAvailable
                 && (user.is_master || ['admin', 'master'].includes(String(user.role || '').toLowerCase()))))
                 return finish(row, 'SKIPPED', 'membership_ended');
             const { data: registered, error: deviceError } = await db.from('push_devices')
@@ -213,22 +228,23 @@ export const deliverCommunityPostPush = async ({ db, getFirebaseAccess, webpush,
             if (!sendWindow.allowed) return defer(row, sendWindow.nextSendAt);
             const channelName = String(channel.name || '커뮤니티').slice(0, 35);
             const title = row.kind === 'comment'
-                ? `${channelName}에서 내 글에 댓글이 달렸어요`
+                ? mentionAvailable && !authorCommentAvailable ? `${channelName} 댓글에서 회원님을 태그했어요` : `${channelName}에서 내 글에 댓글이 달렸어요`
                 : row.kind === 'digest' && post && commentAvailable
-                    ? `${channelName}에 밤사이 새 글과 댓글이 올라왔어요`
+                    ? `${channelName}에 밤사이 ${postLabel}${postLabel === '공지' ? '와' : '과'} 댓글이 올라왔어요`
                     : row.kind === 'digest' && commentAvailable
-                        ? `${channelName}에서 내 글에 밤사이 댓글이 달렸어요`
+                        ? mentionAvailable && !authorCommentAvailable ? `${channelName}에 밤사이 댓글 태그가 있어요` : `${channelName}에서 내 글에 밤사이 댓글이 달렸어요`
                         : row.kind === 'digest'
-                            ? `${channelName}에 밤사이 새 글이 올라왔어요`
-                            : `${channelName}에 새 글이 올라왔어요`;
+                            ? postLabel === '공지' ? `${channelName}에 밤사이 공지가 등록됐어요` : `${channelName}에 밤사이 ${postLabel}이 올라왔어요`
+                            : post?.is_announcement ? `${channelName}에 공지가 등록됐어요` : `${channelName}에 새 글이 올라왔어요`;
             const body = row.kind === 'digest' && post && commentAvailable
-                ? '밤사이 올라온 새 글과 댓글을 확인해 보세요.'
+                ? `밤사이 올라온 ${postLabel}${postLabel === '공지' ? '와' : '과'} 댓글을 확인해 보세요.`
                 : row.kind === 'digest' && commentAvailable
-                    ? '밤사이 내 글에 달린 댓글을 확인해 보세요.'
-                    : row.kind === 'digest' ? '밤사이 올라온 새 글을 확인해 보세요.'
-                        : row.kind === 'comment' ? '내 글에 달린 새 댓글을 확인해 보세요.'
-                            : '커뮤니티에서 새 글을 확인해 보세요.';
-            const link = `${origin}/community/${encodeURIComponent(channel.id)}`;
+                    ? '밤사이 도착한 댓글을 확인해 보세요.'
+                    : row.kind === 'digest' ? `밤사이 올라온 ${postLabel}${postLabel === '공지' ? '를' : '을'} 확인해 보세요.`
+                        : row.kind === 'comment' ? '새 댓글을 확인해 보세요.'
+                            : post?.is_announcement ? '커뮤니티에서 공지를 확인해 보세요.' : '커뮤니티에서 새 글을 확인해 보세요.';
+            const targetPostId = row.kind === 'digest' ? null : post?.id;
+            const link = `${origin}/community/${encodeURIComponent(channel.id)}?from=push${targetPostId ? `&post=${encodeURIComponent(targetPostId)}` : ''}`;
             const results = [];
             if (fcm.length) {
                 const firebase = await getFirebaseAccess();

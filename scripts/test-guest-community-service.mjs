@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {createGuestCommunityService,guestTokenHash} from '../supabase/functions/_shared/guestCommunityService.mjs';
+const channel='00000000-0000-4000-8000-000000000010',profile='00000000-0000-4000-8000-000000000001';
+const calls=[];let allowed=true,errorCode=null,uploads=0;
+const context={channel:{id:channel},user:{id:profile,name:'검증 게스트'},notice:{id:100}};
+const service=createGuestCommunityService({lookupSecret:'test-secret-'.repeat(5),supabaseUrl:'https://example.supabase.co',
+ query:async(sql,args)=>{calls.push({sql,args});if(errorCode)throw {code:errorCode};
+    if(sql.includes('verify_guest'))return {rows:[{result:allowed?{allowed:true,context}:{allowed:false,code:'verification_failed'}}]};
+    return {rows:[{result:context}]};},upload:async({path})=>{uploads++;return 'https://example.supabase.co/storage/v1/object/public/notice-images/'+path;}});
+const verified=await service.verify({channelId:channel,name:'검증 게스트(guest)',pin:'0123'},'test-ip');
+assert.match(verified.token,/^gc_[A-Za-z0-9_-]{43}$/);assert.equal(verified.user.id,profile);
+const args=calls[0].args;assert.equal(args[1],'검증 게스트');assert.equal(args[2],'0123','leading zero PIN is preserved');
+assert.match(args[3],/^[a-f0-9]{64}$/);assert.notEqual(args[3],'test-ip');assert.equal(args[5],guestTokenHash(verified.token));
+await service.verify({channelId:channel,name:'검증 게스트',pin:'9999'},'test-ip');
+assert.equal(calls[1].args[4],args[4],'PIN changes cannot bypass the identity attempt limit');
+await assert.rejects(service.verify({channelId:channel,name:'검증',pin:'12a3'},'test-ip'),/invalid_request/);
+await assert.rejects(service.action({channelId:channel,action:'arbitrary_sql'},verified.token),/invalid_request/);
+await assert.rejects(service.action({channelId:channel,action:'posts'},'short-token'),/invalid_request/);
+allowed=false;await assert.rejects(service.verify({channelId:channel,name:'検증',pin:'1001'},'test-ip'),/verification_failed/);
+errorCode='42501';await assert.rejects(service.action({channelId:channel,action:'posts'},verified.token),/access_changed/);errorCode=null;
+await assert.rejects(service.action({channelId:channel,action:'create_post',payload:{content:'x',image_urls:['https://external.example/private.jpg']}},verified.token),/invalid_request/);
+const uploaded=await service.upload({channelId:channel,file:new Uint8Array([1,2,3]),contentType:'image/png'},verified.token);
+assert.equal(uploads,1);assert.match(uploaded.path,new RegExp(`^challenge-community/100/${profile}/[a-f0-9]{32}\\.png$`));
+await assert.rejects(service.upload({channelId:channel,file:new Uint8Array([1]),contentType:'text/html'},verified.token),/invalid_request/);
+await assert.rejects(service.upload({channelId:channel,file:new Uint8Array(8*1024*1024+1),contentType:'image/png'},verified.token),/invalid_request/);
+console.log('PASS guest community service: normalized identity, hashed scoped tokens, authorization errors, own image paths and upload limits');

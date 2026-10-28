@@ -15,12 +15,14 @@ import CallingForestDashboard from './components/CallingForestDashboard';
 import SchoolDetailModal from './modals/SchoolDetailModal';
 import { useAdminSchool } from './hooks/useAdminSchool';
 import SnackDashboard from './components/SnackDashboard';
+import SchoolMapView from './components/SchoolMapView';
 
 import AdminPageHeader from '../common/AdminPageHeader';
 
 const MINISTRY_LOG_TEMPLATE = '';
 
 const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
+    const [showMap, setShowMap] = useState(false);
     const {
         schools, logs, loading, searchTerm, setSearchTerm,
         selectedSchoolName, setSelectedSchoolName,
@@ -37,7 +39,7 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
         fetchSchoolsAndLogsAndPrefs,
         staffList, schoolGroups, targetSchool,
         handleOpenDetail, handleSaveMetadata, handleToggleLeader
-    } = useAdminSchool({ users, refreshDashboardData });
+    } = useAdminSchool({ users, refreshDashboardData, mapView: showMap });
     if (loading) return <div className="p-10 text-center font-bold text-gray-400 animate-pulse">학교 데이터를 불러오는 중...</div>;
 
     const headerActions = adminTab === 'SCHOOLS' ? (
@@ -52,6 +54,7 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
     return (
         <div className="space-y-4 md:space-y-6 animate-fade-in-up">
             <AdminPageHeader
+                compact
                 title="학교 관리"
                 subtitle="청소년 회원 소속 학교별 동아리 및 사역 일지 관리"
                 icon={<School className="text-blue-500" />}
@@ -59,9 +62,9 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
             />
 
             {/* 토스 스타일의 통합 필터/검색 툴바 */}
-            <div className="bg-white rounded-[24px] border border-[#f2f4f6] p-6 shadow-sm flex flex-col gap-5">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
                 {/* Row 1: 메인 서브탭 및 지역 선택 필터 */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#f2f4f6] pb-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-gray-100 pb-3">
                     {/* 메인 서브탭 */}
                     <div className="flex bg-[#f2f4f6] p-1 rounded-xl shrink-0 gap-1 w-full lg:w-auto">
                         <button
@@ -72,14 +75,14 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
                             학교 목록
                         </button>
                         <button
-                            onClick={() => setAdminTab('CALLING_FOREST')}
+                            onClick={() => { setShowMap(false); setAdminTab('CALLING_FOREST'); }}
                             className={`flex-1 lg:flex-none px-4 py-2 rounded-lg font-bold text-xs transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${adminTab === 'CALLING_FOREST' ? 'bg-white text-[#2b8a3e] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
                         >
                             <Flame size={13} className={adminTab === 'CALLING_FOREST' ? 'fill-current' : ''} />
                             리더훈련
                         </button>
                         <button
-                            onClick={() => setAdminTab('SNACKS')}
+                            onClick={() => { setShowMap(false); setAdminTab('SNACKS'); }}
                             className={`flex-1 lg:flex-none px-4 py-2 rounded-lg font-bold text-xs transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${adminTab === 'SNACKS' ? 'bg-white text-[#e67700] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
                         >
                             <Cookie size={13} className={adminTab === 'SNACKS' ? 'fill-current' : ''} />
@@ -88,7 +91,7 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
                     </div>
 
                     {/* 지역 선택 필터 */}
-                    <div className="flex bg-[#f2f4f6] p-1 rounded-xl shrink-0 gap-1 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                    {!(showMap && adminTab === 'SCHOOLS') && <div className="flex bg-[#f2f4f6] p-1 rounded-xl shrink-0 gap-1 w-full lg:w-auto overflow-x-auto no-scrollbar">
                         {['ALL', ...SCHOOL_REGIONS, '미지정'].map((region) => (
                             <button
                                 key={region}
@@ -98,7 +101,7 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
                                 {region === 'ALL' ? '전체' : region}
                             </button>
                         ))}
-                    </div>
+                    </div>}
                 </div>
 
                 {/* Row 2: 검색창 및 뷰 스위처 (SCHOOLS 탭일 때만 노출) */}
@@ -119,29 +122,36 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
                         {/* 뷰 스위처 */}
                         <div className="flex bg-[#f2f4f6] p-1 rounded-xl shrink-0 gap-0.5 border border-transparent self-end sm:self-auto">
                             <button
-                                onClick={() => handleViewModeChange('grid-lg')}
-                                className={`p-2 rounded-lg transition-all ${viewMode === 'grid-lg' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                                onClick={() => setShowMap(value => !value)}
+                                aria-pressed={showMap}
+                                className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 ${showMap ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#4e5968]'}`}
+                            >
+                                <MapPin size={15} /> 지도 보기
+                            </button>
+                            <button
+                                onClick={() => { setShowMap(false); handleViewModeChange('grid-lg'); }}
+                                className={`p-2 rounded-lg transition-all ${!showMap && viewMode === 'grid-lg' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
                                 title="크게 보기"
                             >
                                 <LayoutGrid size={15} />
                             </button>
                             <button
-                                onClick={() => handleViewModeChange('grid-md')}
-                                className={`p-2 rounded-lg transition-all ${viewMode === 'grid-md' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                                onClick={() => { setShowMap(false); handleViewModeChange('grid-md'); }}
+                                className={`p-2 rounded-lg transition-all ${!showMap && viewMode === 'grid-md' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
                                 title="작게 보기"
                             >
                                 <Grid size={15} />
                             </button>
                             <button
-                                onClick={() => handleViewModeChange('grid-sm')}
-                                className={`p-2 rounded-lg transition-all ${viewMode === 'grid-sm' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                                onClick={() => { setShowMap(false); handleViewModeChange('grid-sm'); }}
+                                className={`p-2 rounded-lg transition-all ${!showMap && viewMode === 'grid-sm' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
                                 title="더 작게 보기"
                             >
                                 <Columns size={15} />
                             </button>
                             <button
-                                onClick={() => handleViewModeChange('list')}
-                                className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
+                                onClick={() => { setShowMap(false); handleViewModeChange('list'); }}
+                                className={`p-2 rounded-lg transition-all ${!showMap && viewMode === 'list' ? 'bg-white text-[#3182f6] shadow-sm' : 'text-[#8b95a1] hover:text-[#4e5968]'}`}
                                 title="목록형"
                             >
                                 <List size={15} />
@@ -150,7 +160,10 @@ const AdminSchool = ({ users = [], fetchData: refreshDashboardData }) => {
                     </div>
                 )}
             </div>
-            {adminTab === 'SCHOOLS' && (
+            {adminTab === 'SCHOOLS' && showMap && (
+                <SchoolMapView groups={schoolGroups} allRegisteredSchools={schools} searchTerm={searchTerm} onOpenDetail={handleOpenDetail} onRefresh={fetchSchoolsAndLogsAndPrefs} />
+            )}
+            {adminTab === 'SCHOOLS' && !showMap && (
                 <div className={`
                     ${viewMode === 'list' ? 'flex flex-col gap-2' : 'grid gap-3 md:gap-4'}
                     ${viewMode === 'grid-lg' ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4' : ''}
