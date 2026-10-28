@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { extractYouTubeVideos, getYouTubeVideo, getYouTubeEmbedUrl, loadYouTubeMetadata } from '../src/utils/youtubePreview.js';
+import { extractYouTubeVideos, getYouTubeVideo, getYouTubeEmbedUrl, isYouTubeOnlyComment, loadYouTubeMetadata } from '../src/utils/youtubePreview.js';
 import { activateYouTubePreview, getActiveYouTubePreview, stopYouTubePreview, subscribeYouTubePlayback } from '../src/utils/youtubePlayback.js';
 
 const id = 'sU97JT_RUCU';
@@ -16,6 +16,9 @@ for (const url of [
 assert.equal(extractYouTubeVideos(`(https://youtu.be/${id}). https://youtube.com/watch?v=${id}`).length, 1, 'Deduplicate same video');
 assert.equal(extractYouTubeVideos(['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc', 'ddddddddddd'].map(v => `https://youtu.be/${v}`).join('\n')).length, 3, 'Limit preview count');
 assert.deepEqual(extractYouTubeVideos('일반 댓글'), []);
+assert.equal(isYouTubeOnlyComment(`https://youtu.be/${id}`),true,'Replace a link-only comment with its card');
+assert.equal(isYouTubeOnlyComment(`같이 봐요 https://youtu.be/${id}`),false,'Preserve text surrounding links');
+assert.equal(isYouTubeOnlyComment(['aaaaaaaaaaa','bbbbbbbbbbb','ccccccccccc','ddddddddddd'].map(id=>`https://youtu.be/${id}`).join('\n')),false,'Keep original links when preview limit would hide a video');
 assert.ok(getYouTubeVideo(`https://youtu.be/${id}?t=42`).url.endsWith('?t=42'), 'Preserve playback timestamp');
 for (const [timestamp, expected] of [['42', '42'], ['1m30s', '90'], ['1h2m3s', '3723']]) {
     const embed = new URL(getYouTubeEmbedUrl({ id, url: `https://youtu.be/${id}?t=${timestamp}` }));

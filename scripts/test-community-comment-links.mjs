@@ -16,6 +16,8 @@ vm.runInNewContext(compiled.outputFiles[0].text, { module: componentModule, expo
 const render = (text, candidates = []) => renderToStaticMarkup(React.createElement(componentModule.exports.CommunityMentionText, { candidates }, text));
 const video = 'https://youtu.be/sU97JT_RUCU?si=o05WlaldszXOLN8_';
 assert.ok(render(video).includes(`href="${video}"`), 'YouTube URL and query survive unchanged');
+assert.ok(!render(video).includes(`>${video}<`),'Link-only video comments do not repeat raw URL text');
+assert.ok(!render(video).includes('<p '),'Link-only video comments do not leave an empty text block');
 assert.ok(render(video).includes('target="_blank" rel="noopener noreferrer"'));
 assert.ok(render('www.example.com').includes('href="https://www.example.com"'));
 assert.ok(render('(https://example.com/a_(b)).').includes('href="https://example.com/a_(b)"'));

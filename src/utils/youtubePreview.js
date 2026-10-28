@@ -29,6 +29,14 @@ export function extractYouTubeVideos(content) {
     return [...videos.values()];
 }
 
+export function isYouTubeOnlyComment(content) {
+    const videos = extractYouTubeVideos(content);
+    return videos.length > 0 && String(content).trim().split(/\s+/).every(token => {
+        const video = getYouTubeVideo(token);
+        return video && videos.some(preview => preview.id === video.id);
+    });
+}
+
 export function getYouTubeEmbedUrl(video) {
     if (!VIDEO_ID.test(video.id)) return null;
     const source = new URL(video.url);

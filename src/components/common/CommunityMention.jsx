@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import UserAvatar from './UserAvatar';
 import YouTubeCommentPreview from './YouTubeCommentPreview';
-import { extractYouTubeVideos } from '../../utils/youtubePreview';
+import { extractYouTubeVideos, isYouTubeOnlyComment } from '../../utils/youtubePreview';
 
 const activeMention = (value, caret) => {
     const before = value.slice(0, caret);
@@ -68,6 +68,7 @@ export function CommunityMentionInput({ value, onChange, candidates = [], onMent
 export function CommunityMentionText({ children, candidates = [], className = '' }) {
     const content = String(children || '');
     const videos = useMemo(() => extractYouTubeVideos(content), [content]);
+    const videoOnly = isYouTubeOnlyComment(content);
     const names = useMemo(() => [...new Set(candidates.map(candidate => candidate.name).filter(Boolean))].sort((a, b) => b.length - a.length), [candidates]);
     const escaped = names.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const renderMentions = text => (names.length ? text.split(new RegExp(`(@(?:${escaped.join('|')}))`, 'g')) : [text]).map((part, index) => part.startsWith('@') && names.includes(part.slice(1))
@@ -75,7 +76,7 @@ export function CommunityMentionText({ children, candidates = [], className = ''
         : <React.Fragment key={index}>{part}</React.Fragment>);
     // Recognize web links before mentions so @names inside a URL remain intact.
     const parts = content.split(/((?:https?:\/\/|www\.)[^\s<>"']+)/gi);
-    return <><p className={className}>{parts.map((part, index) => {
+    return <>{!videoOnly && <p className={className}>{parts.map((part, index) => {
         if (index % 2 === 0) return <React.Fragment key={index}>{renderMentions(part)}</React.Fragment>;
         let link = part.replace(/[.,!?;:，。！？、…]+$/u, '');
         for (const [open, close] of [['(', ')'], ['[', ']'], ['{', '}']]) {
@@ -89,5 +90,5 @@ export function CommunityMentionText({ children, candidates = [], className = ''
             return <React.Fragment key={index}>{part}</React.Fragment>;
         }
         return <React.Fragment key={index}><a href={href} target="_blank" rel="noopener noreferrer" className="break-words text-blue-600 underline decoration-blue-400 underline-offset-2 [overflow-wrap:anywhere] hover:text-blue-700 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600" onClick={event => event.stopPropagation()}>{link}</a>{part.slice(link.length)}</React.Fragment>;
-    })}</p>{videos.length > 0 && <div className="mt-2 space-y-2">{videos.map(video => <YouTubeCommentPreview key={video.id} video={video}/>)}</div>}</>;
+    })}</p>}{videos.length > 0 && <div className={`${videoOnly ? 'mt-1' : 'mt-2'} space-y-2`}>{videos.map(video => <YouTubeCommentPreview key={video.id} video={video}/>)}</div>}</>;
 }
