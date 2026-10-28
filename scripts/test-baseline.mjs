@@ -7,6 +7,7 @@ const checks = [
     ['라우팅', 'test-home-entry.mjs'],
     ['계정 경로', 'test-account-auth-routing.mjs'],
     ['배포 인증 파일 안전성', 'test-firebase-ci-credentials.mjs'],
+    ['배포 파일 내용 검증', 'test-hosting-file-integrity.mjs'],
     ['계정 권한', 'test-account-authorization.mjs'],
     ['로그인 세션 복구', 'test-auth-provider-recovery.mjs'],
     ['로그인 프로필 연결', 'test-account-login-adapter.mjs'],

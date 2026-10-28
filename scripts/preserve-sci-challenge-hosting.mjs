@@ -2,8 +2,7 @@
 // operated Challenge app when rebuilding Center. Failure must stop deployment.
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import zlib from 'node:zlib';
+import {matchesHostingFileHash} from './hosting-file-integrity.mjs';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
 const root=path.resolve(import.meta.dirname,'..');
@@ -25,7 +24,6 @@ do{
 files=files.filter(f=>f.path.startsWith('/sci-challenge/'));
 if(!files.some(f=>f.path==='/sci-challenge/index.html'))throw Error('SCI Challenge is missing from live Hosting. Restore it before deploying Center; refusing to publish a broken game path.');
 const dist=path.join(root,'dist');
-const digest=body=>crypto.createHash('sha256').update(zlib.gzipSync(body,{level:9})).digest('hex');
 let index=0;
 await Promise.all(Array.from({length:6},async()=>{
  while(index<files.length){
@@ -34,7 +32,7 @@ await Promise.all(Array.from({length:6},async()=>{
   const response=await fetch('https://sci-center-6f265.web.app'+file.path,{signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw Error('Cannot preserve Challenge asset: '+file.path);
   const body=Buffer.from(await response.arrayBuffer());
-  if(digest(body)!==file.hash)throw Error('Challenge asset changed while preparing: '+file.path);
+  if(!matchesHostingFileHash(body,file.hash))throw Error('Challenge asset changed while preparing: '+file.path);
   fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,body);
  }
 }));
