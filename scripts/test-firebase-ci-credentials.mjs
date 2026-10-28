@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {mkdir,mkdtemp,readFile,stat,access} from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const root=fileURLToPath(new URL('../tmp/ci-credential-tests/',import.meta.url));
+await mkdir(root,{recursive:true});
+const temporary=await mkdtemp(path.join(root,'runner-'));
+const envFile=path.join(temporary,'github-env');
+const script=fileURLToPath(new URL('./prepare-firebase-ci-credentials.mjs',import.meta.url));
+const dummy={type:'service_account',project_id:'sci-center-6f265',private_key:'placeholder-not-a-real-credential',client_email:'fixture@sci-center-6f265.iam.gserviceaccount.com'};
+const run=(credential=dummy,args=[],overrides={})=>spawnSync(process.execPath,[script,...args],{encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true',RUNNER_TEMP:temporary,GITHUB_ENV:envFile,FIREBASE_SERVICE_ACCOUNT_JSON:JSON.stringify(credential),...overrides}});
+assert.notEqual(run({...dummy,project_id:'wrong-project'}).status,0,'Reject another Firebase project');
+assert.notEqual(run(dummy,[],{GITHUB_ACTIONS:'false'}).status,0,'Reject non-runner writes');
+assert.notEqual(run(dummy,[],{FIREBASE_SERVICE_ACCOUNT_JSON:'invalid'}).status,0,'Reject invalid secret');
+const result=run();assert.equal(result.status,0,result.stderr);
+assert.ok(!result.stdout.includes(dummy.private_key),'Never log credential data');
+const credentialFile=path.join(temporary,'sci-center-firebase-service-account.json');
+assert.equal(JSON.parse(await readFile(credentialFile,'utf8')).project_id,dummy.project_id);
+if(process.platform!=='win32')assert.equal((await stat(credentialFile)).mode&0o777,0o600);
+assert.ok((await readFile(envFile,'utf8')).includes(`GOOGLE_APPLICATION_CREDENTIALS=${credentialFile}`));
+assert.equal(run(dummy,['--cleanup']).status,0);
+await assert.rejects(access(credentialFile));
+assert.equal(run(dummy,['--cleanup']).status,0,'Cleanup is safe even before preparation');
+console.log('PASS CI Firebase credentials: exact project, runner-only, private temporary file, no secret logging and cleanup.');

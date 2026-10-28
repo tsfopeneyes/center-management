@@ -51,7 +51,8 @@ export const isProgramOccurrenceDate = (notice, value) => {
     const start = toKstDay(notice?.program_start_date);
     const end = toKstDay(notice?.program_end_date);
     const days = (notice?.program_days || []).map(Number);
-    return Boolean(target && start && end && target >= start && target <= end && days.includes(target.getDay()));
+    const weekday = target ? new Date(target.getTime() + 9 * 3600000).getUTCDay() : null;
+    return Boolean(target && start && end && target >= start && target <= end && days.includes(weekday));
 };
 
 export const getNextProgramOccurrence = (notice, from = new Date()) => {
@@ -64,7 +65,7 @@ export const getNextProgramOccurrence = (notice, from = new Date()) => {
     if (cursor < start) cursor.setTime(start.getTime());
     while (cursor <= end) {
         if (isProgramOccurrenceDate(notice, getKstDateString(cursor))) return getKstDateString(cursor);
-        cursor.setDate(cursor.getDate() + 1);
+        cursor.setTime(cursor.getTime() + 86400000);
     }
     return null;
 };
@@ -78,7 +79,7 @@ export const countProgramOccurrences = notice => {
     const cursor = new Date(start);
     while (cursor <= end) {
         if (isProgramOccurrenceDate(notice, getKstDateString(cursor))) count += 1;
-        cursor.setDate(cursor.getDate() + 1);
+        cursor.setTime(cursor.getTime() + 86400000);
     }
     return count;
 };
@@ -97,7 +98,7 @@ export const listProgramOccurrences = (notice, from = new Date(), limit = 100) =
     while (cursor <= end && dates.length < limit) {
         const key = getKstDateString(cursor);
         if (isProgramOccurrenceDate(notice, key)) dates.push(key);
-        cursor.setDate(cursor.getDate() + 1);
+        cursor.setTime(cursor.getTime() + 86400000);
     }
     return dates;
 };

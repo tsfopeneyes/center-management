@@ -6,7 +6,7 @@
       "npm run build",
       "node scripts/preserve-sci-challenge-hosting.mjs",
       "node scripts/check-account-auth-release.mjs",
-      "node --env-file .env scripts/check-account-auth-readiness.mjs"
+      "node --env-file-if-exists .env scripts/check-account-auth-readiness.mjs"
     ],
     "ignore": [
       "firebase.json",

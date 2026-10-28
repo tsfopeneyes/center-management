@@ -9,7 +9,9 @@ const require=createRequire(import.meta.url);
 const root=path.resolve(import.meta.dirname,'..');
 const auth=require('firebase-tools/lib/auth');
 const options={project:'sci-center-6f265'};
-auth.setActiveAccount(options,auth.getGlobalDefaultAccount());
+const account=auth.getGlobalDefaultAccount();
+if(account)auth.setActiveAccount(options,account);
+// CI uses the existing Firebase service account through application credentials.
 await require('firebase-tools/lib/requireAuth').requireAuth(options);
 const hosting=require('firebase-tools/lib/hosting/api');
 const {Client}=require('firebase-tools/lib/apiv2');
