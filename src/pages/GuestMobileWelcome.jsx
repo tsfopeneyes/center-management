@@ -26,6 +26,7 @@ import { useAuth } from '../auth/AuthProvider';
 import SignUpForm from '../components/auth/SignUpForm';
 import TermsReaderModal from '../components/auth/TermsReaderModal';
 import StudentCheckoutSurveyModal from '../components/student/modals/StudentCheckoutSurveyModal';
+import VisitProgramPrompt from '../components/student/modals/VisitProgramPrompt';
 import SurveyRunner from '../components/surveys/SurveyRunner';
 import BirthDateInput from '../components/common/BirthDateInput';
 
@@ -153,6 +154,7 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
     const [showSignupModal, setShowSignupModal] = useState(false);
     const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
     const [showCheckoutSurvey, setShowCheckoutSurvey] = useState(false);
+    const [programPromptVisit, setProgramPromptVisit] = useState(null);
     const [activeSession, setActiveSession] = useState(null);
     const [checkoutSurveySession, setCheckoutSurveySession] = useState(null);
     const checkoutCompletionInFlightRef = useRef(new Set());
@@ -662,7 +664,8 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                     requireCheckinSurvey: requiresCheckinSurvey,
                     checkinSurvey,
                     checkinTime: insertedLog?.created_at,
-                    locationName: locObj.name
+                    locationName: locObj.name,
+                    visitProgramCheckin: { id: insertedLog?.id, event: 'CHECKIN', locationName: locObj.name, userId: currentUser.id }
                 }
             });
         } catch (err) {
@@ -1256,6 +1259,9 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                 console.error('Notification dispatch error:', notifErr);
             }
 
+            if (isQRCheckin && checkinLogId) {
+                setProgramPromptVisit({ id: checkinLogId, event: 'CHECKIN', locationName: haifnLoc.name, userId: guestUserId });
+            }
             setStep('SUCCESS');
         } catch (err) {
             console.error('Guest Survey Complete Error:', err);
@@ -1397,6 +1403,9 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                 console.error('Verified member checkout notification failed:', notificationError);
         } finally {
             if (completionKey) checkoutCompletionInFlightRef.current.delete(completionKey);
+            if (checkoutEventId) {
+                setProgramPromptVisit({ id: checkoutEventId, event: 'CHECKOUT', locationName: session.locationName, userId: session.userId });
+            }
             clearMemberCheckoutUi();
         }
     };
@@ -2018,6 +2027,13 @@ const GuestMobileWelcome = ({ isQRCheckin = true, surveyLoginToken = '', onSurve
                     </motion.div>
                 </div>
             )}
+
+            <VisitProgramPrompt
+                key={programPromptVisit?.id}
+                visit={(step === 'SUCCESS' && programPromptVisit?.event === 'CHECKIN') ||
+                    (step === 'CHECKOUT_SUCCESS' && programPromptVisit?.event === 'CHECKOUT') ? programPromptVisit : null}
+                wait={showCheckoutSurvey}
+            />
 
             <StudentCheckoutSurveyModal
                 isOpen={showCheckoutSurvey}
