@@ -3,8 +3,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { CHRISTMAS_PATH, christmasApi, participationUrl } from './christmasApi'
 
 const PAGE = 18
-const sampleFaces = ['ochre', 'rose', 'sage', 'cream'].map((tone, i) => ({ id: `sample-${i}`, sample: i + 1, tone }))
-const tones = ['cream', 'rose', 'ochre', 'sage']
+const sampleFaces = [1, 2, 3, 4].map(sample => ({ id: `sample-${sample}`, sample }))
 const decoration = [
     ['star', 10, 12, -12], ['tree', 3, 35, -10], ['berry', 6, 69, 9],
     ['star', 14, 89, -14], ['ball', 19, 13, -13], ['star', 38, 92, 15],
@@ -33,7 +32,7 @@ export function ChristmasImage({ id, cache, manage = false, onReady }) {
             window.clearTimeout(retry)
         }
     }, [id, cache, manage])
-    return src ? <img src={src} alt="�����ڰ� �׸� ��" onLoad={() => onReady?.(id)} /> : null
+    return src ? <img src={src} alt="참여자가 그린 얼굴" onLoad={() => onReady?.(id)} /> : null
 }
 
 function SampleFace({ variant }) {
@@ -42,15 +41,12 @@ function SampleFace({ variant }) {
     </span>
 }
 
-function Ornament({ item, cache, onReady }) {
+function Face({ item, cache, onReady }) {
     const key = item.sample ?? Number.parseInt(item.id.slice(-2), 16)
-    return <div className={`christmas-ornament christmas-ornament-live christmas-tone-${item.tone || tones[key % tones.length]}`}
+    return <div className="christmas-face christmas-face-live"
         style={{ '--tilt': `${(key % 9) - 4}deg` }}>
-        <span className="christmas-hanger" aria-hidden="true" />
-        <div className="christmas-ornament-body">
-            {item.sample ? <SampleFace variant={item.sample} />
-                : <ChristmasImage key={item.id} id={item.id} cache={cache} onReady={onReady} />}
-        </div>
+        {item.sample ? <SampleFace variant={item.sample} />
+            : <ChristmasImage key={item.id} id={item.id} cache={cache} onReady={onReady} />}
     </div>
 }
 
@@ -125,7 +121,7 @@ export default function ChristmasScreen() {
             if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
                 for (const item of active) {
                     const source = stageRef.current?.querySelector(`[data-drawing="${item.id}"]`)
-                    const destination = wallRef.current?.querySelector(`[data-drawing="${item.id}"] .christmas-ornament`)
+                    const destination = wallRef.current?.querySelector(`[data-drawing="${item.id}"] .christmas-face`)
                     if (!source?.animate || !destination) continue
                     const from = source.getBoundingClientRect()
                     const to = destination.getBoundingClientRect()
@@ -175,24 +171,24 @@ export default function ChristmasScreen() {
                         }} />)}
             </div>
             <header className="christmas-screen-header">
-                <div className="christmas-title-ornament" aria-hidden="true">?</div>
+                <div className="christmas-title-ornament" aria-hidden="true">✦</div>
                 <h1>HAIFN CHRISTMAS</h1>
             </header>
             <div ref={wallRef} className={`christmas-wall${items.length <= 6 ? ' christmas-wall-small' : ''}`}
-                data-count={items.length} aria-label="�� ��ƺ���">
+                data-count={items.length} aria-label="얼굴 모아보기">
                 {items.map(item => <div className="christmas-wall-cell" key={item.id} data-drawing={item.id}>
-                    {incoming.has(item.id) ? <div className="christmas-ornament" aria-hidden="true" />
-                        : <Ornament item={item} cache={cache.current} />}
+                    {incoming.has(item.id) ? <div className="christmas-face" aria-hidden="true" />
+                        : <Face item={item} cache={cache.current} />}
                 </div>)}
             </div>
             {spotlight.length > 0 && <div ref={stageRef} className="christmas-spotlight" data-count={spotlight.length}>
                 {spotlight.map(item => <div className="christmas-spotlight-item" data-drawing={item.id} key={item.id}>
-                    <Ornament item={item} cache={cache.current} onReady={id =>
+                    <Face item={item} cache={cache.current} onReady={id =>
                         setReady(current => current.includes(id) ? current : [...current, id])} />
                 </div>)}
             </div>}
             {qr && <div className="christmas-qr">
-                <QRCodeSVG value={qr} title="���� ������ QR �ڵ�" size={160} marginSize={4} level="M" />
+                <QRCodeSVG value={qr} title="참여 페이지 QR 코드" size={160} marginSize={4} level="M" />
             </div>}
         </main>
     )

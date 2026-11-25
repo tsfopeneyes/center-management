@@ -4,8 +4,8 @@ import { christmasApi, drawingId } from './christmasApi'
 
 const SIZE = 480
 const COLORS = [
-    ['#212f27', '����'], ['#a93446', '����'], ['#d48759', '��Ȳ'],
-    ['#c39125', '���'], ['#367051', '�ʷ�'], ['#525493', '����'],
+    ['#212f27', '검정'], ['#a93446', '빨강'], ['#d48759', '주황'],
+    ['#c39125', '노랑'], ['#367051', '초록'], ['#525493', '보라'],
 ]
 
 function drawSegment(context, stroke, from, to = from) {
@@ -122,7 +122,7 @@ export default function ChristmasDrawing() {
         const ink = canvasRef.current
         const pixels = ink.getContext('2d').getImageData(0, 0, SIZE, SIZE).data
         if (!pixels.some((value, index) => index % 4 === 3 && value > 0)) {
-            setMessage('���� �׸� �� �����ּ���.')
+            setMessage('얼굴을 그린 후 보내주세요.')
             return
         }
         if (!submission.current) {
@@ -133,7 +133,7 @@ export default function ChristmasDrawing() {
             context.drawImage(ink, 0, 0)
             const image = output.toDataURL('image/png')
             if (image.length > 400000) {
-                setMessage('�׸��� �ʹ� Ŀ��. ���� ���� ���̰� �ٽ� �����ּ���.')
+                setMessage('그림이 너무 커요. 선을 조금 줄이고 다시 보내주세요.')
                 return
             }
             submission.current = { id: drawingId(), image }
@@ -148,9 +148,9 @@ export default function ChristmasDrawing() {
         } catch (error) {
             if (error.message === 'christmas_submissions_closed') {
                 setMode('closed')
-                setMessage('������ ��ǰ�� ���� �ʾƿ�. �׸��� ���� �־��.')
+                setMessage('지금은 작품을 받지 않아요. 그림은 남아 있어요.')
             } else {
-                setMessage('�������� ���߾��. �׸��� ���� ������ �ٽ� �õ��� �ּ���.')
+                setMessage('전송하지 못했어요. 그림은 남아 있으니 다시 시도해 주세요.')
             }
             setState('ready')
         } finally {
@@ -164,21 +164,21 @@ export default function ChristmasDrawing() {
                 <div className="christmas-mobile-brand">HAIFN CHRISTMAS</div>
                 {state === 'sent' ? (
                     <div className="christmas-sent">
-                        <img src={submission.current.image} alt="���� �׸� ��" />
-                        <h1>�׸��� ���¾��!</h1>
-                        <p>{sentMode === 'review' ? '��ڰ� Ȯ���� �� ȭ�鿡 �ɷ���.' : '�տ� �ִ� TV ȭ���� ���ּ���.'}</p>
+                        <img src={submission.current.image} alt="내가 그린 얼굴" />
+                        <h1>그림을 보냈어요!</h1>
+                        <p>{sentMode === 'review' ? '운영자가 확인한 뒤 화면에 걸려요.' : '앞에 있는 TV 화면을 봐주세요.'}</p>
                     </div>
                 ) : (
                     <>
-                        <h1>������ �� ���� �׷���</h1>
-                        <p>���� �Ը� �׷��� ���ƿ�.</p>
+                        <h1>오늘의 내 얼굴을 그려요</h1>
+                        <p>눈과 입만 그려도 좋아요.</p>
                         <div className="christmas-canvas-wrap">
                             {guide && <span className="christmas-face-guide" aria-hidden="true" />}
-                            <canvas ref={canvasRef} width={SIZE} height={SIZE} aria-label="�� �׸���"
+                            <canvas ref={canvasRef} width={SIZE} height={SIZE} aria-label="얼굴 그림판"
                                 onPointerDown={start} onPointerMove={move} onPointerUp={finish}
                                 onPointerCancel={finish} onLostPointerCapture={finish} />
                         </div>
-                        <div className="christmas-tools" aria-label="�� ����">
+                        <div className="christmas-tools" aria-label="펜 색상">
                             {COLORS.map(([value, label]) => (
                                 <button key={value} type="button" className="christmas-color"
                                     style={{ '--ink': value }} aria-label={label} aria-pressed={!eraser && value === color}
@@ -186,21 +186,21 @@ export default function ChristmasDrawing() {
                             ))}
                         </div>
                         <div className="christmas-tools christmas-tool-labels">
-                            <button type="button" aria-pressed={!eraser && width === 8} onClick={() => { setWidth(8); setEraser(false) }}><Pencil size={15} /> ���ð�</button>
-                            <button type="button" aria-pressed={!eraser && width === 17} onClick={() => { setWidth(17); setEraser(false) }}><Pencil size={17} /> ����</button>
-                            <button type="button" aria-pressed={eraser} onClick={() => setEraser(true)}><Eraser size={16} /> ���찳</button>
-                            <button type="button" disabled={!historyCount || state === 'sending'} onClick={undo}><RotateCcw size={15} /> �ǵ�����</button>
+                            <button type="button" aria-pressed={!eraser && width === 8} onClick={() => { setWidth(8); setEraser(false) }}><Pencil size={15} /> 가늘게</button>
+                            <button type="button" aria-pressed={!eraser && width === 17} onClick={() => { setWidth(17); setEraser(false) }}><Pencil size={17} /> 굵게</button>
+                            <button type="button" aria-pressed={eraser} onClick={() => setEraser(true)}><Eraser size={16} /> 지우개</button>
+                            <button type="button" disabled={!historyCount || state === 'sending'} onClick={undo}><RotateCcw size={15} /> 되돌리기</button>
                             <button type="button" disabled={state === 'sending'} aria-pressed={guide} onClick={() => {
                                 submission.current = null
                                 setGuide(!guide)
-                            }}>�� Ʋ</button>
+                            }}>얼굴 틀</button>
                         </div>
-                        <p className="christmas-disclosure">���� �׸��� ���� TV�� �����˴ϴ�.{mode === 'review' && ' ��� Ȯ�� �� �Խõſ�.'}</p>
+                        <p className="christmas-disclosure">보낸 그림은 현장 TV에 공개됩니다.{mode === 'review' && ' 운영자 확인 후 게시돼요.'}</p>
                         <button className="christmas-send" type="button" onClick={send}
                             disabled={!historyCount || state === 'sending' || !mode || mode === 'closed'}>
-                            {state === 'sending' ? '������ �ߡ�' : mode === 'closed' ? '���� ����' : 'TV�� ������'}
+                            {state === 'sending' ? '보내는 중…' : mode === 'closed' ? '접수 종료' : 'TV에 보내기'}
                         </button>
-                        {(message || !mode) && <p role="status">{message || '���� ���¸� Ȯ���ϰ� �־��.'}</p>}
+                        {(message || !mode) && <p role="status">{message || '접수 상태를 확인하고 있어요.'}</p>}
                     </>
                 )}
             </section>
