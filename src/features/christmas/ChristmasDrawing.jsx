@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Eraser, Pencil, RotateCcw } from 'lucide-react'
 import { christmasApi, drawingId } from './christmasApi'
+import { FACE_TEMPLATES, drawFaceTemplate } from './faceTemplates'
 
 const SIZE = 480
 const COLORS = [
@@ -25,12 +26,14 @@ function drawSegment(context, stroke, from, to = from) {
     context.globalCompositeOperation = 'source-over'
 }
 
-function guideFace(context) {
-    context.strokeStyle = '#87634d'
-    context.lineWidth = 5
-    context.beginPath()
-    context.ellipse(240, 252, 128, 148, 0, 0, Math.PI * 2)
-    context.stroke()
+function FaceTemplatePreview({ template, size, className }) {
+    const ref = useRef(null)
+    useEffect(() => {
+        const context = ref.current.getContext('2d')
+        context.clearRect(0, 0, size, size)
+        drawFaceTemplate(context, template, size)
+    }, [template, size])
+    return <canvas ref={ref} width={size} height={size} className={className} aria-hidden="true" />
 }
 
 export default function ChristmasDrawing() {
@@ -39,11 +42,13 @@ export default function ChristmasDrawing() {
     const active = useRef(null)
     const submission = useRef(null)
     const sending = useRef(false)
+    const templateControl = useRef(null)
     const [historyCount, setHistoryCount] = useState(0)
     const [color, setColor] = useState(COLORS[0][0])
     const [width, setWidth] = useState(8)
     const [eraser, setEraser] = useState(false)
-    const [guide, setGuide] = useState(false)
+    const [template, setTemplate] = useState(null)
+    const [templatesOpen, setTemplatesOpen] = useState(false)
     const [mode, setMode] = useState(null)
     const [sentMode, setSentMode] = useState(null)
     const [state, setState] = useState('ready')
@@ -129,7 +134,7 @@ export default function ChristmasDrawing() {
             const output = document.createElement('canvas')
             output.width = output.height = SIZE
             const context = output.getContext('2d')
-            if (guide) guideFace(context)
+            if (template) drawFaceTemplate(context, template, SIZE)
             context.drawImage(ink, 0, 0)
             const image = output.toDataURL('image/png')
             if (image.length > 400000) {
@@ -158,6 +163,14 @@ export default function ChristmasDrawing() {
         }
     }
 
+    function selectTemplate(choice) {
+        if (sending.current) return
+        submission.current = null
+        setTemplate(choice)
+        setTemplatesOpen(false)
+        templateControl.current?.focus({ preventScroll: true })
+    }
+
     return (
         <main className="christmas-mobile">
             <section className="christmas-mobile-inner">
@@ -173,7 +186,7 @@ export default function ChristmasDrawing() {
                         <h1>오늘의 내 얼굴을 그려요</h1>
                         <p>눈과 입만 그려도 좋아요.</p>
                         <div className="christmas-canvas-wrap">
-                            {guide && <span className="christmas-face-guide" aria-hidden="true" />}
+                            {template && <FaceTemplatePreview template={template} size={SIZE} className="christmas-face-guide" />}
                             <canvas ref={canvasRef} width={SIZE} height={SIZE} aria-label="얼굴 그림판"
                                 onPointerDown={start} onPointerMove={move} onPointerUp={finish}
                                 onPointerCancel={finish} onLostPointerCapture={finish} />
@@ -190,11 +203,28 @@ export default function ChristmasDrawing() {
                             <button type="button" aria-pressed={!eraser && width === 17} onClick={() => { setWidth(17); setEraser(false) }}><Pencil size={17} /> 굵게</button>
                             <button type="button" aria-pressed={eraser} onClick={() => setEraser(true)}><Eraser size={16} /> 지우개</button>
                             <button type="button" disabled={!historyCount || state === 'sending'} onClick={undo}><RotateCcw size={15} /> 되돌리기</button>
-                            <button type="button" disabled={state === 'sending'} aria-pressed={guide} onClick={() => {
-                                submission.current = null
-                                setGuide(!guide)
-                            }}>얼굴 틀</button>
+                            <button ref={templateControl} type="button" disabled={state === 'sending'}
+                                aria-expanded={templatesOpen} aria-controls="christmas-face-templates"
+                                aria-label={template ? `얼굴 틀 · ${template.label}` : '얼굴 틀'}
+                                onClick={() => setTemplatesOpen(!templatesOpen)}>얼굴 틀</button>
                         </div>
+                        {templatesOpen && <div id="christmas-face-templates" className="christmas-face-templates"
+                            role="group" aria-label="얼굴 틀 고르기"
+                            onKeyDown={event => {
+                                if (event.key !== 'Escape') return
+                                setTemplatesOpen(false)
+                                templateControl.current?.focus({ preventScroll: true })
+                            }}>
+                            <button type="button" aria-pressed={!template} onClick={() => selectTemplate(null)}>
+                                <span className="christmas-template-blank" aria-hidden="true" />
+                                자유 그리기
+                            </button>
+                            {FACE_TEMPLATES.map(option => <button type="button" key={option.id}
+                                aria-pressed={template?.id === option.id} onClick={() => selectTemplate(option)}>
+                                <FaceTemplatePreview template={option} size={72} />
+                                {option.label}
+                            </button>)}
+                        </div>}
                         <p className="christmas-disclosure">보낸 그림은 현장 TV에 공개됩니다.{mode === 'review' && ' 운영자 확인 후 게시돼요.'}</p>
                         <button className="christmas-send" type="button" onClick={send}
                             disabled={!historyCount || state === 'sending' || !mode || mode === 'closed'}>
