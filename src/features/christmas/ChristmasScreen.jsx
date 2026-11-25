@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { CHRISTMAS_PATH, christmasApi, participationUrl } from './christmasApi'
+import { renderFaceBackground } from './faceBackground'
 
 const PAGE = 18
 const sampleFaces = [1, 2, 3, 4].map(sample => ({ id: `sample-${sample}`, sample }))
@@ -18,7 +19,10 @@ export function ChristmasImage({ id, cache, manage = false, onReady }) {
         let retry
         async function load() {
             try {
-                const next = cache.get(id) ?? await christmasApi.image(id, manage)
+                const cached = cache.get(id)
+                const original = cached ?? await christmasApi.image(id, manage)
+                const next = cached || manage || !original ? original
+                    : await renderFaceBackground(original).catch(() => original)
                 if (!mounted || !next) return
                 cache.set(id, next)
                 setSrc(next)
