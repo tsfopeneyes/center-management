@@ -176,7 +176,7 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
-    filter: drop-shadow(0 0 1px #ffe8b7) drop-shadow(0 0 1px #ffe8b7);
+    filter: drop-shadow(0 1px 1px #081c1673);
 }
 
 .christmas-sample {
