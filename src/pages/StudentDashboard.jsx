@@ -36,6 +36,7 @@ import QRModal from '../components/student/modals/QRModal';
 import { useFCM } from '../hooks/useFCM';
 import ParticipantModal from '../components/admin/board/components/modals/ParticipantModal';
 import CoffeeChatModal from '../components/student/modals/CoffeeChatModal';
+import VisitProgramPrompt from '../components/student/modals/VisitProgramPrompt';
 import StudentCheckinSurveyModal from '../components/student/modals/StudentCheckinSurveyModal';
 import { useCoffeeChatRealtime } from '../hooks/useCoffeeChatRealtime';
 import { supabase } from '../supabaseClient';
@@ -176,6 +177,10 @@ const StudentDashboard = () => {
     }, [showMembershipPrompt]);
     const [checkinToastMsg, setCheckinToastMsg] = useState(null);
     const [showCheckinSurveyModal, setShowCheckinSurveyModal] = useState(false);
+    const [finishedCheckinSurvey, setFinishedCheckinSurvey] = useState(null);
+    const programPromptCheckin = location.state?.visitProgramCheckin;
+    const hasProgramPromptVisit = programPromptCheckin?.id && programPromptCheckin.userId === user?.id &&
+        Date.now() - Date.parse(location.state?.checkinTime) < 30 * 60 * 1000;
     const [checkinLocationName, setCheckinLocationName] = useState('');
     const checkinSurveyVisitRef = React.useRef(null);
     const [visitStatus, setVisitStatus] = useState(null);
@@ -433,7 +438,10 @@ const StudentDashboard = () => {
                 if (!isDismissed) {
                     sessionStorage.removeItem('checkin_toast');
                     setShowCheckinSurveyModal(true);
-                } else if (storedToast || isFromToastOnly) {
+                    return;
+                }
+                setFinishedCheckinSurvey(location.state?.visitProgramCheckin?.id);
+                if (storedToast || isFromToastOnly) {
                     sessionStorage.removeItem('checkin_toast');
                     setCheckinToastMsg({
                         title: `${userName ? userName + '님, ' : ''}${locName} 체크인 완료!`,
@@ -1675,14 +1683,21 @@ const StudentDashboard = () => {
                 )}
             </AnimatePresence>
 
+            {hasProgramPromptVisit && !hookData.impersonatedUser && !isPreviewMode && <VisitProgramPrompt
+                key={programPromptCheckin.id}
+                visit={programPromptCheckin}
+                wait={showCheckinSurveyModal || (location.state?.requireCheckinSurvey && finishedCheckinSurvey !== programPromptCheckin.id)}
+            />}
+
             {/* Checkin Survey Modal */}
-            <StudentCheckinSurveyModal
+            {showCheckinSurveyModal && <StudentCheckinSurveyModal
                 isOpen={showCheckinSurveyModal}
                 user={user}
                 locationName={checkinLocationName}
                 initialSurvey={location.state?.checkinSurvey}
                 onClose={(didComplete) => {
                     setShowCheckinSurveyModal(false);
+                    setFinishedCheckinSurvey(programPromptCheckin?.id);
                     sessionStorage.removeItem('require_checkin_survey');
                     sessionStorage.removeItem('pending_checkin_survey');
                     const checkinTime = checkinSurveyVisitRef.current || sessionStorage.getItem('active_checkin_time');
@@ -1705,7 +1720,7 @@ const StudentDashboard = () => {
                         setCheckinToastMsg(null);
                     }, 6000);
                 }}
-            />
+            />}
 
             {/* 마스터 스태프 전용 학생 시점 미리보기 바 */}
             <StudentImpersonateBar
