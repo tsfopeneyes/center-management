@@ -2,15 +2,10 @@ import React, { useEffect, useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { CHRISTMAS_PATH, christmasApi, participationUrl } from './christmasApi'
 import { renderFaceBackground } from './faceBackground'
+import ChristmasIllustrations from './ChristmasIllustrations'
 
 const PAGE = 18
-const sampleFaces = [1, 2, 3, 4].map(sample => ({ id: `sample-${sample}`, sample }))
-const decoration = [
-    ['star', 10, 12, -12], ['tree', 3, 35, -10], ['berry', 6, 69, 9],
-    ['star', 14, 89, -14], ['ball', 19, 13, -13], ['star', 38, 92, 15],
-    ['berry', 64, 90, -11], ['star', 77, 10, 16], ['tree', 96, 43, 8],
-    ['star', 92, 67, -14], ['ball', 89, 15, 12], ['berry', 82, 84, 10],
-]
+const sampleFaces = [1, 2].map(sample => ({ id: `sample-${sample}`, sample }))
 
 export function ChristmasImage({ id, cache, manage = false, onReady }) {
     const [src, setSrc] = useState(() => cache.get(id))
@@ -156,29 +151,20 @@ export default function ChristmasScreen() {
 
     const incoming = new Set([...queue, ...active].map(item => item.id))
     const currentPage = page % pages
-    const items = rows.slice(currentPage * PAGE, (currentPage + 1) * PAGE)
-    if (pages === 1 && rows.length < sampleFaces.length) items.push(...sampleFaces.slice(rows.length))
+    const items = rows.length ? rows.slice(currentPage * PAGE, (currentPage + 1) * PAGE) : sampleFaces
+    const density = items.length <= 3 ? 'few' : items.length <= 6 ? 'small' : 'large'
     const spotlight = active.filter(item => rows.some(row => row.id === item.id))
 
     return (
         <main className="christmas-screen">
-            <div className="christmas-border" aria-hidden="true" />
-            <div className="christmas-decorations" aria-hidden="true">
-                {decoration.map(([shape, x, y, tilt], index) =>
-                    <i key={x} className={`christmas-decoration christmas-decoration-${shape}`}
-                        style={{
-                            left: `${x}%`, top: `${y}%`, '--tilt': `${tilt}deg`,
-                            '--drift-x': `${index % 2 ? -8 : 8}px`,
-                            '--drift-y': `${10 + index % 4 * 3}px`,
-                            '--drift-time': `${8 + index % 5 * 1.4}s`,
-                            '--drift-delay': `-${index * 1.3}s`,
-                        }} />)}
-            </div>
+            <ChristmasIllustrations />
             <header className="christmas-screen-header">
-                <div className="christmas-title-ornament" aria-hidden="true">✦</div>
-                <h1>HAIFN CHRISTMAS</h1>
+                <h1 aria-label="HAIFN Christmas">
+                    <span className="christmas-title-brand">HAIFN</span>
+                    <span className="christmas-title-word">Christmas</span>
+                </h1>
             </header>
-            <div ref={wallRef} className={`christmas-wall${items.length <= 6 ? ' christmas-wall-small' : ''}`}
+            <div ref={wallRef} className="christmas-wall" data-density={density}
                 data-count={items.length} aria-label="얼굴 모아보기">
                 {items.map(item => <div className="christmas-wall-cell" key={item.id} data-drawing={item.id}>
                     {incoming.has(item.id) ? <div className="christmas-face" aria-hidden="true" />
