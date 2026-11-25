@@ -152,17 +152,16 @@
 .christmas-wall-cell:nth-child(3n + 1) { transform: translateY(-7%); }
 .christmas-wall-cell:nth-child(3n + 2) { transform: translateY(9%); }
 
-.christmas-ornament {
+.christmas-face {
     position: relative;
     width: min(80%, 16vh);
     aspect-ratio: 1;
     margin-top: min(1.5vh, .8vw);
     transform: rotate(var(--tilt));
-    transform-origin: 50% -12%;
 }
 
-.christmas-wall-small .christmas-ornament { width: min(75%, 22vh); }
-.christmas-wall .christmas-ornament-live {
+.christmas-wall-small .christmas-face { width: min(78%, 25vh); }
+.christmas-wall .christmas-face-live {
     animation: christmas-bob var(--bob-time, 10s) ease-in-out var(--bob-delay, -2s) infinite alternate;
 }
 .christmas-wall-cell:nth-child(3n + 2) { --bob-time: 8s; --bob-delay: -5s; }
@@ -173,51 +172,20 @@
     to { transform: translateY(-8px) rotate(calc(var(--tilt) + 2deg)); }
 }
 
-.christmas-tone-cream { --trim: #ecd8aa; --center: #fcf0d9; }
-.christmas-tone-rose { --trim: #c97a84; --center: #f4d7cf; }
-.christmas-tone-ochre { --trim: #dfad5a; --center: #f7dfaa; }
-.christmas-tone-sage { --trim: #a5b793; --center: #e0e5c9; }
-
-.christmas-ornament-body {
-    position: absolute;
-    inset: 0;
-    border: max(2px, .28vw) solid var(--trim);
-    border-radius: 47% 52% 49% 51% / 50% 48% 52% 49%;
-    background: radial-gradient(circle at 32% 23%, #fff8e5, var(--center) 75%);
-    box-shadow: 0 .7vh 1.9vh #091c1852, inset 0 0 0 2px #fff5df99;
-}
-
-.christmas-ornament-body img {
+.christmas-face img {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    padding: 7%;
-}
-
-.christmas-hanger {
-    position: absolute;
-    left: 42%;
-    top: -8%;
-    width: 16%;
-    height: 12%;
-    border-radius: 2px;
-    background: repeating-linear-gradient(90deg, #b18245 0 14%, #e9c683 15% 28%);
-}
-
-.christmas-hanger::before {
-    position: absolute;
-    z-index: -1;
-    inset: -83% 15% 36%;
-    border: 1px solid var(--gold);
-    border-radius: 60%;
-    content: "";
+    filter: drop-shadow(0 0 1px #ffe8b7) drop-shadow(0 0 1px #ffe8b7);
 }
 
 .christmas-sample {
+    --face-ink: #4c3029;
     position: absolute;
-    inset: 25% 23% 19%;
-    border: max(1px, .2vw) solid #3f3a32;
-    border-radius: 43% 50% 48% 54%;
+    inset: 16% 20% 12%;
+    border: 2px solid #ffdc9e;
+    background: #e7bc83;
+    border-radius: 43% 50% 48% 54% / 43% 46% 58% 59%;
     transform: rotate(-7deg);
 }
 
@@ -229,15 +197,15 @@
     left: 22%;
     width: 55%;
     height: 13%;
-    background: radial-gradient(ellipse at 12% 50%, #3f3a32 0 13%, transparent 17%),
-        radial-gradient(ellipse at 83% 50%, #3f3a32 0 13%, transparent 17%);
+    background: radial-gradient(ellipse at 12% 50%, var(--face-ink) 0 13%, transparent 17%),
+        radial-gradient(ellipse at 83% 50%, var(--face-ink) 0 13%, transparent 17%);
 }
 .christmas-sample b {
     top: 57%;
     left: 37%;
     width: 30%;
     height: 21%;
-    border-bottom: max(1px, .2vw) solid #3f3a32;
+    border-bottom: max(1px, .2vw) solid var(--face-ink);
     border-radius: 0 0 50% 65%;
 }
 .christmas-sample em {
@@ -245,14 +213,15 @@
     left: -5%;
     width: 111%;
     height: 39%;
-    border-top: max(2px, .45vw) solid #715044;
+    border-top: max(3px, .7vw) solid #664337;
     border-radius: 61% 47% 67% 31%;
 }
-.christmas-sample-2 { transform: rotate(8deg); }
-.christmas-sample-2 em { border-top-color: #994d55; transform: rotate(12deg); }
-.christmas-sample-3 em { border-top-style: double; border-top-color: #435c46; }
-.christmas-sample-4 { border-radius: 44% 43% 62% 59%; }
-.christmas-sample-4 b { width: 18%; left: 42%; border: max(1px, .15vw) solid #3f3a32; border-radius: 50%; }
+.christmas-sample-2 { transform: rotate(8deg); background: #ecc6b2; border-color: #f9decb; }
+.christmas-sample-2 em { border-top-color: #874955; transform: rotate(12deg); }
+.christmas-sample-3 { background: #b98567; border-color: #e1b093; }
+.christmas-sample-3 em { border-top-style: double; border-top-color: #362d30; }
+.christmas-sample-4 { border-radius: 44% 43% 62% 59%; background: #f0d2a4; }
+.christmas-sample-4 b { width: 18%; left: 42%; border: max(1px, .15vw) solid var(--face-ink); border-radius: 50%; }
 
 .christmas-qr {
     position: absolute;
@@ -277,7 +246,7 @@
 }
 .christmas-spotlight-item { width: min(35vw, 44vh); }
 .christmas-spotlight[data-count="3"] .christmas-spotlight-item { width: min(23vw, 38vh); }
-.christmas-spotlight .christmas-ornament { width: 100%; animation: christmas-appear .63s ease-out both; }
+.christmas-spotlight .christmas-face { width: 100%; animation: christmas-appear .63s ease-out both; }
 @keyframes christmas-appear {
     0% { opacity: 0; transform: translateY(-11%) scale(.72) rotate(-12deg); }
     62% { opacity: 1; transform: scale(1.03) rotate(5deg); }
@@ -356,6 +325,6 @@
 
 @media (prefers-reduced-motion: reduce) {
     .christmas-decoration,
-    .christmas-wall .christmas-ornament-live,
-    .christmas-spotlight .christmas-ornament { animation: none; }
+    .christmas-wall .christmas-face-live,
+    .christmas-spotlight .christmas-face { animation: none; }
 }
