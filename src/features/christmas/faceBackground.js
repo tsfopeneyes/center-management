@@ -59,6 +59,29 @@ export function findFaceInterior({ data, width, height }) {
     return inkPixels < inkBoundsArea * 0.25 ? { bounds, mask: null } : null
 }
 
+function cropToDrawing(canvas, context) {
+    const { width, height } = canvas
+    const { data } = context.getImageData(0, 0, width, height)
+    let left = width, top = height, right = -1, bottom = -1
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (data[(y * width + x) * 4 + 3] < 32) continue
+            left = Math.min(left, x)
+            right = Math.max(right, x)
+            top = Math.min(top, y)
+            bottom = Math.max(bottom, y)
+        }
+    }
+    if (right < left) return canvas
+    const longest = Math.max(right - left + 1, bottom - top + 1)
+    const size = Math.ceil(Math.max(longest * 1.15, Math.min(width, height) * .35))
+    const output = document.createElement('canvas')
+    output.width = output.height = size
+    output.getContext('2d').drawImage(canvas, Math.round((size - left - right - 1) / 2),
+        Math.round((size - top - bottom - 1) / 2))
+    return output
+}
+
 export async function renderFaceBackground(source) {
     const image = new Image()
     await new Promise((resolve, reject) => {
@@ -73,7 +96,7 @@ export async function renderFaceBackground(source) {
     const context = canvas.getContext('2d')
     context.drawImage(image, 0, 0)
     const interior = findFaceInterior(context.getImageData(0, 0, width, height))
-    if (!interior) return source
+    if (!interior) return cropToDrawing(canvas, context).toDataURL('image/png')
     context.clearRect(0, 0, width, height)
 
     if (interior.mask) {
@@ -109,5 +132,5 @@ export async function renderFaceBackground(source) {
         context.fill()
     }
     context.drawImage(image, 0, 0)
-    return canvas.toDataURL('image/png')
+    return cropToDrawing(canvas, context).toDataURL('image/png')
 }
