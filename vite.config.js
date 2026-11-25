@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import https from 'node:https'
 
 import legacy from '@vitejs/plugin-legacy'
+import { christmasLocalPreview } from './scripts/haifn-christmas-local.mjs'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
@@ -17,6 +18,7 @@ export default defineConfig(({ mode, command }) => {
   // keeps Vite's optimized dependency output separate to prevent 504 stale-cache errors.
   cacheDir: 'node_modules/.vite-frontend-redesign',
   plugins: [
+    command === 'serve' && christmasLocalPreview(),
     react(),
     command === 'build' && legacy({
       targets: ['chrome >= 60', 'safari >= 11'],

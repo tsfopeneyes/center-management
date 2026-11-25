@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
@@ -10,20 +10,26 @@ import { installChunkRecovery } from './utils/chunkRecovery.js'
 installChunkRecovery();
 
 const container = document.getElementById('root');
+const exhibitRoute = /^\/(?:2026christmas|haifn-christmas)(?:\/(tv|manage))?\/?$/i.exec(window.location.pathname);
+const ChristmasExhibit = lazy(() => import('./features/christmas/ChristmasExhibit.jsx'));
+if (exhibitRoute) document.title = 'HAIFN CHRISTMAS';
+const application = exhibitRoute
+    ? <Suspense fallback={null}><ChristmasExhibit view={exhibitRoute[1]?.toLowerCase()} /></Suspense>
+    : <AuthProvider><App /></AuthProvider>;
 
 if (container) {
     try {
         if (typeof createRoot === 'function') {
             const root = createRoot(container);
-            root.render(<ChunkLoadBoundary><AuthProvider><App /></AuthProvider></ChunkLoadBoundary>);
+            root.render(<ChunkLoadBoundary>{application}</ChunkLoadBoundary>);
         } else if (ReactDOM.render) {
-            ReactDOM.render(<ChunkLoadBoundary><AuthProvider><App /></AuthProvider></ChunkLoadBoundary>, container);
+            ReactDOM.render(<ChunkLoadBoundary>{application}</ChunkLoadBoundary>, container);
         }
     } catch (e) {
         console.warn('createRoot failed, attempting legacy render:', e);
         try {
             if (ReactDOM.render) {
-                ReactDOM.render(<ChunkLoadBoundary><AuthProvider><App /></AuthProvider></ChunkLoadBoundary>, container);
+                ReactDOM.render(<ChunkLoadBoundary>{application}</ChunkLoadBoundary>, container);
             }
         } catch (err) {
             console.error('Legacy render failed:', err);
@@ -46,6 +52,7 @@ if ('serviceWorker' in navigator) {
             // Reloading a single-use OAuth consent request after approval can
             // discard its callback and replay a request the provider consumed.
             if (window.location.pathname === '/oauth/consent') return;
+            if (exhibitRoute) return;
             refreshingForWorkerUpdate = true;
             window.location.reload();
         });
